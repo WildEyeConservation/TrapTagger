@@ -330,7 +330,7 @@ You can then use this data to train your own species classifier. We recommend us
 
 # License
 
-This repository is licensed with the MIT License. We only ask that you let us know if you are using our software - in whole or in part - as it is the only way for use to know the extent of 
+This repository is licensed with the Apache License 2.0. We only ask that you let us know if you are using our software - in whole or in part - as it is the only way for use to know the extent of 
 its usage.
 
 # Contact
