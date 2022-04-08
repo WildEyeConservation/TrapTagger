@@ -9,9 +9,12 @@
 3. [Acknowledgement](#acknowledgement)
 4. [Partners](#partners)
 5. [Setup](#setup)
-6. [Load Testing](#load_testing)
-7. [License](#license)
-8. [Contact](#contact)
+6. [Using the Site](#using-the-site)
+7. [Updates](#updates)
+8. [Load Testing](#load-testing)
+9. [Species-Classifier Training](#species-classifier-training)
+10. [License](#license)
+11. [Contact](#contact)
 
 # Overview
 
