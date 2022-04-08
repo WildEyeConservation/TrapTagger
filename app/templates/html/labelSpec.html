@@ -1,0 +1,83 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends 'base.html' %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block app_content %}
+<br>
+<br>
+<div class="row">
+    <div class="col-lg-4"></div>
+    <div class="col-lg-4">
+        
+        <div id="errors" style="font-size: 80%; color: #DF691A"></div>
+        <br>
+
+        <h5 style="margin-bottom: 2px">Destination Bucket</h5>
+        <div style="font-size: 80%; margin-bottom: 2px"><i>The name of the destination S3 bucket for the files.</i></div>
+        <div class="row">
+            <div class='col-lg-6'>
+                <input type="text" class="form-control" required id="bucketName"></input>
+            </div>
+        </div>
+        <br>
+
+        <h5 style="margin-bottom: 2px">Request Labels</h5>
+        <div style="font-size: 80%; margin-bottom: 2px"><i>Populates the label translations form. If a global classification training file does not 
+            exist, one is generated. In such a case, just try again after a few minutes.</i></div>
+        <div class="col-lg-3">
+            <button class="btn btn-primary btn-block" onclick=requestLabels()>Request</button>
+        </div>
+        <br>
+
+        <h5 style="margin-bottom: 2px">Label Translations</h5>
+        <div style="font-size: 80%; margin-bottom: 2px"><i>Here you can group together labels into new labels, and exclude others. Populate this form
+            by using the request button above.
+        </i></div>
+        <br>
+        <div class="row">
+            <div class="col-lg-2">
+                Exclude
+            </div>
+            <div class="col-lg-3">
+                Label
+            </div>
+            <div class="col-lg-3">
+                Count
+            </div>
+            <div class="col-lg-4">
+                Desired Label
+            </div>
+        </div>
+        <div id="labelDiv"></div>
+        <br>
+
+        <div class="col-lg-3">
+            <button class="btn btn-primary btn-block" onclick=submitRequest()>Submit</button>
+        </div>
+
+    </div>
+    <div class="col-lg-4"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.labelSpec.js"></script>
+<script src="js/camtrap.admin.commons.js"></script>
+<script src="js/camtrap.global.js"></script>
+{% endblock %}

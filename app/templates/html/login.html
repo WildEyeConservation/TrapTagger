@@ -1,0 +1,64 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends 'base.html' %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block app_content %}
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<div class="row">
+    <div class="col-lg-5"></div>
+    <div class="col-lg-3">
+        <form action="" method="post" id='formEnquire'>
+            {{form.hidden_tag() }}
+            <h1>Sign In</h1>
+            <div align="justify">Username</div>
+            {{ form.username(size=30) }}
+            {% for error in form.username.errors %}
+                <br>
+                <span style="color: #DF691A;">[{{ error }}]</span>
+            {% endfor %}
+            <br>
+            <br>
+
+            <div align="justify">Password</div>
+            {{ form.password(size=30) }}
+            {% for error in form.password.errors %}
+                <br>
+                <span style="color: #DF691A;">[{{ error }}]</span>
+            {% endfor %}
+            <br>
+
+            <div>{{ form.remember_me() }} Remember Me</div>
+            <br>
+
+            <div class="row">
+                <div class='col-lg-3'>
+                    <button type='submit' class='btn btn-primary btn-block' id='btnSubmitEnquiry'>Sign In</button>
+                </div>
+            </div>
+        </form>
+        <br>
+        <a href="{{ url_for('requestPasswordChange') }}">Forgot your password?</a>
+        <br>
+        <a href="{{ url_for('register') }}">Want to register as a tagger?</a>
+    </div>
+    <div class="col-lg-4"></div>
+</div>
+{% endblock %}

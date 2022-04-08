@@ -1,0 +1,77 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Even if you selected for all species to be auto-classified on your task, there will still be a number of images where the AI is not confident enough to make an accurate classification. 
+    These images, along with any other non-classified images must be manually tagged. 
+    This is process is performed by first launching the task for tagging. 
+    This divides it into a number of image batches that appear as jobs on the jobs page, which can then in turn be completed 
+    by users you have granted access to.
+</p>
+
+<p align="justify">
+    You can have any number of workers tagging a task simultaneously. Simply ask your workers to signup for an account on TrapTagger, and request a 
+    qualification for your organisation from the jobs page. You will then be sent an email asking you to confirm that they are indeed somebody you would like working on your surveys. Once 
+    you have granted them permission, they will be able to begin working on any active tasks you might have.
+</p>
+
+<p align="justify">
+    In order to maximise efficiency, the tagging process is multi-layered, with two major stages: cluster tagging, and sighting tagging, along with an extra error-checking phase in between. 
+    You must begin with cluster tagging, where the image clusters are labelled according to the species they contain. Once that process is complete, you are able to compare your results 
+    against the AI labels in the classifications-checking phase, where potential mistakes are highlighted for you to fix. Finally, you can then start with the sighting tagging,
+    where you correct the AI-generated animal detections, and in the case of clusters containing multiple species, you associate each detection with the correct species label.
+</p>
+
+<p align="justify">
+    There is also an additional individual-identification phase, where you are able to identify specific individuals of a particular species across your survey. This is split into two stages: 
+    cluster identification, and inter-cluster indentification. In the first your task is, on a cluster-by-cluster basis, to identify the individuals based on the contextual information present, 
+    and to thus try and find as many view angles of the individual as possible to improve the AI-powered matching process. You are also able to add informational tags to these individuals 
+    to further improve the matching process.
+    In the second, you are then presented with AI-generated match suggestions between individuals that you can either accept or reject, thus building up larger identikits over time, 
+    and allowing the AI to make even more suggestions.
+</p>
+
+<p align="justify">
+    In the two major phases, tagging begins with an initial stage, before proceeding with the tagging of specific species or categories. In the case of cluster tagging, the initial stage involves 
+    the tagging of all your top-level labels, before moving on to the tagging of the sub-species. For example, you would begin by tagging parent categories such as cats and antelope. 
+    Thereafter, you would individually launch the cats and antelope sub-categories, where you would be able to tag the clusters as containing lion, lepard, etc. and kudu, impala, etc. 
+    respectively. On the other hand, for sighting tagging, the process begins with the tagging of clusters containing multiple species, in order to perform the dual function of correcting 
+    detections, and associating labels with the individual detections. Thereafter, you can launch and tag specific species, such as lions or leopards in order to correct their detections.
+</p>
+
+<p align="justify">
+    Every step beyond the initial-level cluster tagging is optional, depending on your needs. If you do not require antelope sub-species tagged, then you do not need to do so. You can 
+    simply return to do so when the need arises. Similarly, for sighting tagging only the first level is strictly necessary in order to differentiate the species counts for 
+    multiple-species-containing clusters. The subsequent levels are optional, and will increase the accuracy of your image-level species counts above 
+    what is achieved using the AI, which is around 95% by itself.
+</p>
+
+<p align="justify">
+    Note that the tagging level determines the level in your hierarchical label tree that will be labelled. Each level will 
+    turn green as it is completed, but will remain black if there are skipped clusters at that level. You can relaunch a category at any time in order to take a second 
+    attempt at tagging the clusters you skipped.
+</p>
+
+<p align="justify">
+    If there are animals in a sub-category that you have not created label for, skip them, and then on task completion, add the neccessary label and relaunch the category.
+</p>
+
+<p align="justify">
+    Note that the settings for the individual identification process are handled when the first stage is launched. Firstly, you are able to select the 
+    algorithm used to perform this matching process. You can also select for the system to not use an AI algorithm should you believe that the algorithms offered would 
+    perform poorly on your species of interest. Secondly, you can make use of auto-generated individual names, which you can select to either be randomly generated names 
+    or numerical IDs for you newly created individuals. Lastly you can choose to 
+    have single-sighting clusters auto-processed for you since there will be no other sightings in the cluster to associate them with. However, you will be unable to associate tags 
+    with those individuals.
+</p>

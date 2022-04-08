@@ -1,0 +1,213 @@
+# Copyright 2022
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+# http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: '3.1'
+services:
+
+    nginx:
+        # This is the default approach, uses certbot generated certificates, and auto-renews
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.certbot
+        image: nginxcertbot
+        container_name: nginx
+        depends_on:
+            - flask
+        volumes:
+            - /etc/letsencrypt:/etc/letsencrypt
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+            - ./static:/etc/nginx/html
+        entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - my-network
+
+    # nginx:
+    #     # Use this alternative setup if using self-signed certificates
+    #     restart: always
+    #     image: nginx:1.13.7
+    #     container_name: nginx
+    #     depends_on:
+    #         - flask
+    #     volumes:
+    #         - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    #         - ./static:/etc/nginx/html
+    #         - ./certs:/etc/nginx/certs
+    #     networks:
+    #         - my-network
+    #     ports:
+    #         - "80:80"
+    #         - "443:443"
+
+    flask:
+        # Main Flask app
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: flask
+        depends_on:
+            - traptagger_redis
+            - traptagger_worker
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - FLASK_APP=/code/TrapTagger.py
+            - GUNICORN_CMD_ARGS="--threads=4"
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - SUBNET_ID=${SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET_ROOT=${BUCKET_ROOT}
+        command: gunicorn -b 0.0.0.0:8000 -w 1 -k gthread app:app
+        networks:
+            my-network:
+                aliases:
+                    - flask-app
+        ports:
+            - "8000:8000"
+
+    priority_worker:
+        # Priority celery worker
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: priority_worker
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - PYTHONPATH=/code
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - SUBNET_ID=${SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET_ROOT=${BUCKET_ROOT}
+        command: celery -A app.celery worker -B -E -n priority_worker -Q priority --loglevel=info
+        networks:
+            - my-network
+
+    traptagger_worker:
+        # Celery worker
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: traptagger_worker
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - PYTHONPATH=/code
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - SUBNET_ID=${SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET_ROOT=${BUCKET_ROOT}
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker -Q default --loglevel=info
+        networks:
+            - my-network
+
+    traptagger_redis:
+        # Redis server
+        restart: always
+        image : redis:latest       
+        container_name: traptagger_redis
+        volumes:
+            - ./redis.conf:/usr/local/etc/redis/redis.conf
+        ports : 
+            - "6379:6379"
+        networks:
+            - my-network
+
+    traptagger_endpoint:
+        # Species-identifier API
+        restart: always
+        build:
+            context: ./
+            dockerfile: megadetectorworker/Dockerfile
+        image: megadetector_worker
+        container_name: traptagger_endpoint
+        volumes:
+            - ./:/code/
+        environment:
+            - CUDA_VISIBLE_DEVICES=0
+            - REDIS_IP=traptagger_redis
+        command: celery -A megadetectorworker.megaDetector worker -n traptagger_endpoint -Q local --concurrency=1 -l info
+        networks:
+            - my-network
+
+networks:
+    my-network:

@@ -1,0 +1,95 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<style id="docStyle">
+    .btn-block { margin-top: 2px; margin-bottom: 2px; }
+    img {
+        filter: brightness(100%) contrast(100%) saturate(100%);
+    }
+</style>
+
+<div class="row" >
+    <div class="col-lg-1"></div>
+    <div class="col-lg-10" style="text-align: center;">
+        <p id="debug-text">
+            <div id="debugImage" align="center"></div>
+        </p>
+        
+        <center>
+            <div id="mapDiv" style='height: 800px'></div>
+        </center>
+
+        <div class="row" >
+            <div class="col-lg-12">
+                <div id="clusterPosition" style="font-size:140%" align="center"></div>
+            </div>
+        </div>
+
+        <div class="row" >
+            <div class="col-lg-1"></div>
+            <div class="col-lg-4">
+                <div id="debugLabels" align="left"></div>
+            </div>
+            <div class="col-lg-2"></div>
+            <div class="col-lg-4">
+                <div id="classifierLabels" align="right"></div>
+            </div>
+            <div class="col-lg-1"></div>
+        </div>
+
+        <div class="control-group">
+            <div class="row" >
+                <div class="col-lg-2"></div>
+                <div class="col-lg-8">
+                    <div class="row" >
+                        <div class="col-lg-1"></div>
+                        <div class="col-lg-3">
+                            <button id="prevImage"   class="btn btn-primary btn-block"   onclick=prevImage()><span style="font-size:100%">&#x276e;</span> Previous Image</button>
+                        </div>
+                        <div class="col-lg-4"></div>
+                        <div class="col-lg-3">
+                            <button id="nextImage"   class="btn btn-primary btn-block"   onclick=nextImage()>Next Image <span style="font-size:100%">&#x276f;</span></button>
+                        </div>
+                        <div class="col-lg-1"></div>
+                    </div>
+                </div>
+                <div class="col-lg-2"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="col-lg-1"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.common.js"></script>
+<script src="../js/camtrap.imageViewer.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script type="text/javascript"> var sentClusters = JSON.parse({{ clusters|tojson }}) </script>
+{% endblock %}

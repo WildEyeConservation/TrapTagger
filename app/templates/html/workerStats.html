@@ -1,0 +1,119 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<style id="docStyle">
+  tbody td:nth-child(even),
+  tbody tr:nth-child(odd),
+  thead th:nth-child(even){
+      background-color:rgba(255,255,255,0.1);
+  }
+  th {
+      text-align: center;
+  }
+  td {
+      text-align: right;
+  }
+  .table {
+    border: 0px hidden rgba(0,0,0,0);;
+  }
+</style>
+
+<br>
+<div class='row'>
+    <div class='col-lg-2'></div>
+    <div class='col-lg-8'>
+      <div class="card" style='min-height:400px'>
+
+        <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+          <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='col-lg-10'>
+                <h3>Worker Statistics</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" id="jobListDiv">
+
+            <h5 style="margin-bottom: 2px">Survey</h5>
+            <div style="font-size: 80%; margin-bottom: 2px"><i>The survey for which you would like worker statistics.</i></div>
+            <div class="row">
+                <div class='col-lg-4'>
+                    <select class="form-control" id="surveySelect"></select>
+                </div>
+            </div>
+            <br>
+
+            <h5 style="margin-bottom: 2px">Task</h5>
+            <div style="font-size: 80%; margin-bottom: 2px"><i>The associated task for which you would like statistics.</i></div>
+            <div class="row">
+                <div class='col-lg-4'>
+                    <select class="form-control" id="taskSelect"></select>
+                </div>
+            </div>
+            <br>
+            <br>
+            
+            <div id=statsTable></div>
+
+        </div>
+
+        <div class="card-footer">
+
+        </div>  
+      </div>
+    </div>
+    <div class='col-lg-2'></div>
+</div>
+<br>
+
+<!-- Alert Modal -->
+<div id="modalAlert" class="modal fade" role="dialog" tabindex="-1">
+  <div class="modal-dialog">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+          <div class="modal-header">
+              <h4 id='modalAlertHeader' class="modal-title"></h4>
+              <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+          </div>
+          <div class="modal-body">
+
+              <p id='modalAlertBody' align="justify"></p>
+        
+          </div>
+          <div class='modal-footer'>
+
+              <div class='col-lg-3'>
+                  <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                  data-dismiss='modal'>Close</button>
+              </div>
+
+          </div>
+      </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.admin.commons.js"></script>
+<script src="js/camtrap.workerStats.js"></script>
+{% endblock %}
+

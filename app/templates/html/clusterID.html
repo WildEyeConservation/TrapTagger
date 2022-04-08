@@ -1,0 +1,329 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<style id="docStyle">
+    .btn-block { margin-top: 2px; margin-bottom: 2px; }
+    img {
+        filter: brightness(100%) contrast(100%) saturate(100%);
+    }
+</style>
+
+<div class="row" >
+    <div class="col-lg-5" style="text-align: center;">
+        <p id="debug-text">
+            <div id="debugImage" align="center"></div>
+        </p>
+        
+        <center>
+            <div id="mapDiv" style='height: 800px'></div>
+        </center>
+
+        <div class="row" >
+            <div class="col-lg-1"></div>
+            <div class="col-lg-10">
+                <div class='card' style="margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px">
+                    <div class='card-body' style="margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px">
+                        <div class="splide" id="splide">
+                            <div class="splide__track">
+                                <ul class="splide__list" id="clusterPositionSplide">
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-1"></div>
+        </div>
+
+        <div class="row" >
+            <div class="col-lg-1"></div>
+            <div class="col-lg-4">
+                <div id="debugLabels" align="left"></div>
+            </div>
+            <div class="col-lg-2">
+            </div>
+            <div class="col-lg-4">
+                <div id="classifierLabels" align="right"></div>
+            </div>
+            <div class="col-lg-1"></div>
+        </div>
+
+    </div>
+
+    <!-- Center column -->
+    <div class="col-lg-2" style="text-align: center;">
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <div id="sameCam" style="font-size:30px"></div>
+        <br>
+        <div id="timeDelta" style="font-size:30px"></div>
+        <br>
+        <button id="btnUndo" class="btn btn-primary btn-block" onclick=undo()>(U)ndo &#x27F2;</button>
+        <button id="btnDeleteIndividual" class="btn btn-primary btn-block" onclick=deleteIndividualPress()>D(e)lete</button>
+        <button id="btnSendToBack" class="btn btn-primary btn-block" onclick=sendToBack()>Send to (B)ack</button>
+        <button id="btnParent" class="btn btn-primary btn-block" onclick=activateParent()>(P)arent</button>
+        <button id="btnUnidentifiable" class="btn btn-primary btn-block" onclick=activateUnidentifiable()>Un(i)dentifiable</button>
+        <button id="btnPrevCluster" class="btn btn-primary btn-block" onclick=prevCluster()>Back (~)</button>
+        <button id="btnNextCluster" class="btn btn-primary btn-block" onclick=submitIndividuals() disabled>Submit (space)</button>
+        <button id="btnAutoGen" class="btn btn-primary btn-block" onclick=createSingleIndividual()>Create Single Individual (N)</button>
+        <button id="btnRedirectToDone" class="btn btn-success btn-block" onclick=redirectToDone()>Save & Exit</button>
+    </div>
+
+    <div class="col-lg-5" style="text-align: center;">
+        <p id="debug-text2">
+            <div id="debugImage2" align="center"></div>
+        </p>
+        
+        <center>
+            <div id="mapdiv2" style='height: 800px'></div>
+        </center>
+
+        <div class="row" >
+            <div class="col-lg-1"></div>
+            <div class="col-lg-10">
+                <div class='card' style="margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px">
+                    <div class='card-body' style="margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px">
+                        <div class="splide" id="splide2">
+                            <div class="splide__track">
+                                <ul class="splide__list" id="clusterPositionSplide2">
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-1"></div>
+        </div>
+
+        <div class="row" >
+            <div class="col-lg-1"></div>
+            <div class="col-lg-4">
+                <div id="debugLabels2" align="left"></div>
+            </div>
+            <div class="col-lg-2">
+            </div>
+            <div class="col-lg-4">
+                <div id="classifierLabels2" align="right"></div>
+            </div>
+            <div class="col-lg-1"></div>
+        </div>
+
+    </div>
+</div>
+
+<p></p>
+<div class="row">
+    <div class="col-lg-1"></div>
+    <div class="col-lg-10">
+        <div class="progress">
+            <div class="progress-bar progress-bar-striped active" role="progressbar" id="progress"
+            aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width:0%">
+                <span id="progressText" align="center" style="font-size: 120%"></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-1"></div>
+</div>
+
+</div>
+
+<!-- Alert Modal -->
+<div id="modalAlert" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Alert</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p id="modalAlertText" align="justify"></p>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+<!-- Reconcile Notes Modal -->
+<div id="modalNoteRecon" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Note Reconciliation</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px" id="reconName1"></h5>
+                <textarea id="reconBox1" rows="4" cols="56" class="form-control" style="background-color:white" disabled></textarea>
+                <br>
+
+                <h5 style="margin-bottom: 2px" id="reconName2"></h5>
+                <textarea id="reconBox2" rows="4" cols="56" class="form-control" style="background-color:white" disabled></textarea>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Notes</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Combine your previous notes here.</i></div>
+                <textarea id="reconbox" rows="4" cols="56" class="form-control"></textarea>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnNoteRecon' type='button' class='btn btn-info btn-block'>Accept</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+<!-- Duplicate Modal -->
+<div id="modalDuplicate" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Duplicate Names Detected</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <div id="modalDuplicateDiv"></div>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnDuplicate' type='button' class='btn btn-info btn-block'>Submit</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+<!-- New Individual Modal -->
+<div id="modalNewIndividual" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">New Individual</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <div id="newIndividualErrors" style="font-size: 80%; color: #DF691A"></div>
+
+                <h5 style="margin-bottom: 2px">Name</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>An identifying name for the new individual.</i></div>
+                <div class="row">
+                    <div class='col-lg-8'>
+                        <input type="text" class="form-control" required id="newIndividualName"></input>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Notes</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Add extra information about the individual here.</i></div>
+                <textarea id="notebox" rows="4" cols="56" class="form-control"></textarea>
+                <br>
+
+                <div id="characteristicsDiv"></div>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancelIndividual' type='button' class='btn btn-info btn-block'>Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnSubmitIndividual' type='button' class='btn btn-primary btn-block'>Submit</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+
+<!-- Done Modal -->
+<div id="modalDone" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Batch Complete</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p align="justify">
+                    Please confirm that you are finished with the batch. Alternatively, if you would like to go back and change a label, please do so now.
+                </p>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Return</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnDone' type='button' class='btn btn-primary btn-block'>Done</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.common.js"></script>
+<script src="js/camtrap.individualID.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+{% endblock %}

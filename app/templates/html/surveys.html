@@ -1,0 +1,2118 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+
+<style id="docStyle">
+    tbody td:nth-child(even),
+    tbody tr:nth-child(odd),
+    thead th:nth-child(even){
+        background-color:rgba(255,255,255,0.1);
+    }
+    .taskStatus:hover{
+        color: #DF691A;
+    }
+    th {
+        text-align: center;
+    }
+    td {
+        text-align: right;
+    }
+    .box_rotate {
+        -webkit-transform: rotate(270.0deg);  /* Chrome, Opera 15+, Safari 3.1+ */
+            -ms-transform: rotate(270.0deg);  /* IE 9 */
+                transform: rotate(270.0deg);  /* Firefox 16+, IE 10+, Opera */
+    }
+    .table {
+	    border: 0px hidden rgba(0,0,0,0);;
+    }
+    img {
+        filter: brightness(100%) contrast(100%) saturate(100%);
+    }
+</style>
+
+<br>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-10'>
+      <div class="card" style='min-height:400px'>
+
+        <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+          <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='col-lg-4'>
+                <h3>Your Surveys</h3>
+            </div>
+            <div class='col-lg-4'>
+                <input type="text" class="form-control" placeholder="Search" id="surveySearch"></input>
+            </div>
+            <div class='col-lg-2'></div>
+            <div class='col-lg-2'>
+                <select name='orderSelect' id='orderSelect' class='form-control'>
+                    <option value="5">Descending Add Date</option>
+                    <option value="2">Ascending Add Date</option>
+                    <option value="4">Descending Survey Date</option>
+                    <option value="1">Ascending Survey Date</option>
+                    <option value="3">Alphabetical</option>
+                </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" id="surveyListDiv"></div>
+
+        <div class="card-footer">
+          <div class="row">
+            <div class="col-lg-1">
+              <button type='button' class='btn btn-info btn-block' id='btnPrevSurveys' style="visibility: hidden;">
+                Previous
+              </button>  
+            </div>
+            <div class="col-lg-4"></div>
+            <div class="col-lg-2" align="center">
+              <button type='button' class='btn btn-primary' id='btnNewSurvey'>
+                New Survey 
+              </button>  
+            </div>
+            <div class="col-lg-4"></div>
+            <div class="col-lg-1">
+              <button type='button' class='btn btn-info btn-block' id='btnNextSurveys' style="visibility: hidden;">
+                Next 
+              </button>  
+            </div>
+          </div>   
+        </div>  
+
+      </div>
+    </div>
+    <div class='col-lg-1'></div>
+</div>
+<br>
+
+<!-- Add new Survey Modal -->
+<div id="modalNewSurvey" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+                <div class="modal-header">
+                    <div class='col-lg-10' style="padding: 0px">
+                        <h4 class="modal-title">New Survey</h4>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_survey')">Help</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div id="newSurveyErrors" style="font-size: 80%; color: #DF691A"></div>
+
+                    <h5 style="margin-bottom: 2px">Name</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>A unique identifying name for the survey. May not contain spaces, slashes, or any other special characters.</i></div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <input type="text" class="form-control" required id="newSurveyName"></input>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Description</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information to be associated with the survey.</i></div>
+                    <div class="row">
+                        <div class='col-lg-8'>
+                            <textarea type="text" class="form-control" required id="newSurveyDescription" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Trapgroup Coordinates</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Upload a kml file containing your trapgroup coordinates. This can be exported from <a href="https://earth.google.com/web/">Google Earth</a></i>.</div>
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="input-group">
+                                <input style="background-color:white" type="text" id="kmlFileUploadText" class="form-control" disabled="">
+                                <label class="input-group-btn">
+                                    <span class="btn btn-primary">Browse
+                                        <input type="file" style="display:none" id="kmlFileUpload" accept=".kml">
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Auto-Correct Timestamps</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select this option if you have timestamp errors in your dataset.</i></div>
+                    <div class="row">
+                        <div class="col-lg-4">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="correctTimestampsCheckbox" name="correctTimestampsCheckbox">
+                                <label class="custom-control-label" for="correctTimestampsCheckbox">Correct Timestamps</label>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Upload Type</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>The image-upload method you would like to use.</i></div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="S3BucketUpload" name="newSurveySelection" value="customEx">
+                        <label class="custom-control-label" for="S3BucketUpload">S3 Bucket Upload</label>
+                    </div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="BrowserUpload" name="newSurveySelection" value="customEx">
+                        <label class="custom-control-label" for="BrowserUpload">Browser Upload</label>
+                    </div>
+                    <br>
+                    <br>
+    
+                    <div id="newSurveyFormDiv"></div>
+
+                    <h5 style="margin-bottom: 2px">Trapgroup Code</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>
+                        The trapgroup designator in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
+                        a regular expression search query if the advanced code option is selected.
+                    </i></div>
+                    <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <input type="text" class="form-control" required id="newSurveyTGCode"></input>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="newSurveyCheckbox" name="newSurveyCheckbox">
+                                <label class="custom-control-label" for="newSurveyCheckbox">Advanced Code</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="newSurveyTgBuilder"></div>
+                    <br>
+            
+                </div>
+                <div class='modal-footer'>
+
+                    <div class='col-lg-8'></div>
+                    <div class='col-lg-2'>
+                        <button class='btn btn-primary btn-block' id='btnSaveSurvey'>
+                            Create
+                        </button>
+                    </div>
+                    <div class='col-lg-2'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+
+                </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Add images Modal -->
+<div id="modalAddImages" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 id="addImagesHeader" class="modal-title">Add Images</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_survey')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <div class='form-group'>
+                    <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
+
+                    <h5 style="margin-bottom: 2px">Classifier Version</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Have your survey re-classified with the latest model to improve future auto-classifications.</i></div>
+                    <div class="row">
+                        <div class='col-lg-2'>
+                            <input style="background-color:white" type="text" id="classifierVersion" class="form-control" disabled="">
+                        </div>
+                        <div class='col-lg-2'>
+                            <button id="btnReClassify" type='button' class='btn btn-primary btn-block' disabled="">Update</button>
+                        </div>
+                    </div>
+                    <br>
+
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>What would you like to edit?</i></div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="addImagesAddImages" name="editSelection" value="customEx">
+                        <label class="custom-control-label" for="addImagesAddImages">Add Images</label>
+                    </div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="addImagesAddCoordinates" name="editSelection" value="customEx">
+                        <label class="custom-control-label" for="addImagesAddCoordinates">Add Coordinates</label>
+                    </div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="addImagesEditTimestamps" name="editSelection" value="customEx">
+                        <label class="custom-control-label" for="addImagesEditTimestamps">Camera Timestamps</label>
+                    </div>
+    
+                    <div id="addImagesAddImsDiv"></div>
+                    <div id="addImagesAddCoordsDiv"></div>
+                    <div id="addImagesEditTimestampsDiv"></div>
+
+                </div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-8'></div>
+                <div class='col-lg-2'>
+                    <button class='btn btn-primary btn-block' id='btnAddImages'>
+                        Confirm
+                    </button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Add Task Modal -->
+<div id="modalAddTask" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Add Task</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_task')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Task Name</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>A name for your task to help you identify it.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <input type="text" class="form-control" required id="newTaskName"></input>
+                    </div>
+                </div>
+
+                <div id="nameErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Task Type</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The type of task you would like to add.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="newTaskSelect" name="newTaskSelection" value="customEx">
+                    <label class="custom-control-label" for="newTaskSelect">New Task</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="csvUploadSelect" name="newTaskSelection" value="customEx">
+                    <label class="custom-control-label" for="csvUploadSelect">Import Task</label>
+                </div>
+                <br>
+                <br>
+
+                <div id="newTaskFormDiv"></div>
+
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-8'></div>
+                <div class='col-lg-2'>
+                    <button class='btn btn-primary btn-block' id='btnCreateTask'>
+                        Next
+                    </button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+            </div>
+
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Add Task Modal -->
+<div id="modalAddTask2" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Label Translations</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_task2')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <div id="classTranslationHeading"></div>
+                <div id="classTranslationDiv"></div>
+
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-8'></div>
+                <div class='col-lg-2'>
+                    <button class='btn btn-primary btn-block' id='btnCreateTask2'>
+                        Next
+                    </button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="btnModalAddTaskBack" type='button' class='btn btn-info btn-block'>
+                        Back
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+  
+    </div>
+</div>
+
+<!-- Add Task Modal -->
+<div id="modalAddTask3" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Auto-Classification</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_task3')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Classification Labelling</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>How you would like your auto-classifications to be labelled.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="speciesLabel" name="labellingSelection" value="customEx">
+                    <label class="custom-control-label" for="speciesLabel">As the identified species</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="parentLabel" name="labellingSelection" value="customEx">
+                    <label class="custom-control-label" for="parentLabel">As the parent category of the identified species, where applicable</label>
+                </div>
+                <br>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Auto-Classification Species</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the species you would like to have automatically classified for you.</i></div>
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="selectAllClassifications" name="selectAllClassifications">
+                    <label class="custom-control-label" for="selectAllClassifications">Select All</label>
+                </div>
+                <div id="classificationSelection"></div>
+                <br>
+
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-8'></div>
+                <div class='col-lg-2'>
+                    <button class='btn btn-primary btn-block' id='btnCreateTask3'>
+                        Submit
+                    </button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="btnModalAddTaskBack2" type='button' class='btn btn-info btn-block'>
+                        Back
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+  
+    </div>
+</div>
+
+<!-- Add Task Modal -->
+<div id="modalEditTranslations" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Update Label Translations</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_translations')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Classification Translations</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Update the missing AI classification translations for your task.</i></div>
+                <div id="translationsDiv"></div>
+
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-8'></div>
+                <div class='col-lg-2'>
+                    <button class='btn btn-primary btn-block' id='btnSubmitTranslaions'>
+                        Submit
+                    </button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+
+        </div>
+  
+    </div>
+</div>
+
+<!-- Edit Task Modal -->
+<div id="modalEditTask" class="modal fade" role="dialog" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+      
+            <!-- Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class='col-lg-10' style="padding: 0px">
+                        <h4 class="modal-title">Edit Task</h4>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_task')">Help</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                </div>
+                <div class="modal-body">
+
+                    <div id="labelEditErrors" style="font-size: 80%; color: #DF691A"></div>
+
+                    <h5 style="margin-bottom: 2px">View</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the category of labels you would like to view and edit.</i></div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <select id="LabelLevelSelector" class='form-control'></select>
+                        </div>
+                    </div>
+                    <div class='row'>
+                        <div class='col-lg-4'>Label</div>
+                        <div class='col-lg-1'>Hotkey</div>                               
+                    </div>
+                    <div id="LabelDisplayDiv"></div>
+                    <br>
+    
+                    <h5 style="margin-bottom: 2px">Additional Labels</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Specify additional labels you would like to add the selected category.</i></div>
+                    <div class='row'>
+                        <div class='col-lg-4'>Label</div>
+                        <div class='col-lg-1'>Hotkey</div>                               
+                    </div>
+                    <div id="AddLabelDiv"></div>
+                    <div class='row'>
+                        <div class='col-lg-9'></div>
+                        <div class='col-lg-3'>
+                            <button class='btn btn-info' type='button' 
+                            id='btnAddNewLabel'>+</button>
+                        </div>
+                    </div>
+                    <br>
+              
+                </div>
+                <div class='modal-footer'>
+
+                    <div class='col-lg-3'>
+                        <button class='btn btn-info btn-block' type='button' id='btnSaveLabelChanges'>Add Changes</button>
+                    </div>
+    
+                    <div class='col-lg-3'>
+                        <button id="btnDiscardChanges" type='button' class='btn btn-danger btn-block'>Discard Changes</button>
+                    </div>
+
+                    <div class='col-lg-3'>
+                        <button id="btnEditTaskSubmit" type='button' class='btn btn-primary btn-block'>Save</button>
+                    </div>
+    
+                </div>
+            </div>
+      
+        </div>
+    </div>
+
+<!-- Results Modal -->
+<div id="modalResults" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Results</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('results')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Explore Survey</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Explore a tagged survey by searching for all sightings of a specific specific species. Can be used to find and correct errors, and retag unknown sightings.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="exploreTaskBtn" type='button' class='btn btn-primary btn-block'>Explore</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Excel File</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Download a formatted Excel file of the results of the selected task</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnExcelDownload" type='button' class='btn btn-primary btn-block'>Download</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Comparison</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Compare two tasks for a survey.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnCompare" type='button' class='btn btn-primary btn-block'>Compare</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">CSV File</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Generate and download a custom CSV file of the results of the selected task.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnCsvGenerate" type='button' class='btn btn-primary btn-block'>Generate</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Statistics</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>View the statistics for the task using a number of user-contolled maps and graphs.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnOpenStatistics" type='button' class='btn btn-primary btn-block'>View</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Individuals</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>View the identified individuals for this task.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnOpenIndividuals" type='button' class='btn btn-primary btn-block' onclick=openIndividualsModal()>View</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Download</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Download a metadata-annotated and sorted image set.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnOpenDownload" type='button' class='btn btn-primary btn-block' onclick=openDownloadModal()>Download</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Export</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Export your data in a format compatible with other software.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnOpenExport" type='button' class='btn btn-primary btn-block'>Export</button>
+                    </div>
+                </div>
+                <br>
+          
+            </div>
+            <div class='modal-footer'>
+
+                    <div class='col-lg-2'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Individuals Modal -->
+<div id="modalIndividuals" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 95%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 class="modal-title">Identified Individuals</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('individuals')">Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body" style="min-height:400px">
+
+                <h5 style="margin-bottom: 2px">Species</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to see individuals for.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <select id="individualSpeciesSelector" class='form-control'>
+                        </select>
+                    </div>
+                </div>
+                <div id="individualsErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+                <div id="individualsDiv"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-1'>
+                    <button id="btnPrevIndividuals" type='button' class='btn btn-info btn-block' style="visibility: hidden;" onclick=prev_individuals()>Previous</button>
+                </div>
+
+                <div class='col-lg-10'></div>
+
+                <div class='col-lg-1'>
+                    <button id="btnNextIndividuals" type='button' class='btn btn-info btn-block' style="visibility: hidden;" onclick=next_individuals()>Next</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Individuals Modal -->
+<div id="modalIndividual" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 95%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 id="individualName" class="modal-title"></h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('view_individual')">Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body" style="min-height:400px">
+
+                <div id="individualDiv"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-1'>
+                    <button id="csvGenClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Statistics Modal -->
+<div id="modalStatistics" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 95%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 class="modal-title">Statistics</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('statistics')">Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body" style="min-height:400px">
+
+                <h5 style="margin-bottom: 2px">Analysis Type</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select what type of analysis you would like to see.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <select id="analysisSelector" class='form-control'>
+                            <option value="-1">None</option>
+                            <option value="1">Temporal Analysis</option>
+                            <option value="2">Spatial Analysis</option>
+                            <option value="3">Numerical Analysis</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="statisticsErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+                <div id="statisticsDiv"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-1'>
+                    <button id="csvGenClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Status Modal -->
+<div id="modalStatus" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 80%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Task Status</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('task_status')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <div id="StatusTableDiv"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-1'>
+                    <button id="csvGenClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- CSV Modal -->
+<div id="modalCSVGenerate" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Generate CSV</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('csv_generation')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Datasets</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select additional tasks to add to the csv.</i></div>
+                <div class="row">
+                    <div class='col-lg-3'>Survey</div>
+                    <div class='col-lg-3'>Task</div>
+                </div>
+                <div id="addSurveyDiv"></div>
+                <div id="addSurveyBtnDiv"></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Row</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the level of data represented by each row in the CSV file.</i></div>
+                <div class="row">
+                    <div class='col-lg-3'>
+                        <select id="CSVlevelSelector" class='form-control'></select>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Label Format</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your labels formatted.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="listLabelFormat" name="labelFormatSelection" value="customEx">
+                    <label class="custom-control-label" for="listLabelFormat">List</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="columnLabelFormat" name="labelFormatSelection" value="customEx">
+                    <label class="custom-control-label" for="columnLabelFormat">Columns</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="rowLabelFormat" name="labelFormatSelection" value="customEx">
+                    <label class="custom-control-label" for="rowLabelFormat">Rows</label>
+                </div>
+                <br>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Custom Columns</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Stipulate the format of custom csv columns.</i></div>
+                <div id="customColumnHeadingDiv"></div>
+                <div id="customColumnDiv"></div>
+                <div id="customColumnBtnDiv"></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Columns</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the required information and its order for each row.</i></div>
+                <div id="csvErrors" style="font-size: 80%; color: #DF691A"></div>
+                <div class="row">
+                    <div class='col-lg-3'  style="font-size: 100%; margin-bottom: 2px">Level</div>
+                    <div class='col-lg-3'  style="font-size: 100%; margin-bottom: 2px">Data</div>
+                </div>
+                <div id="CSVColDiv"></div>
+                <div class='row'>
+                    <div class='col-lg-9'></div>
+                    <div class='col-lg-3'>
+                        <button class='btn btn-info' type='button' 
+                        id='btnAddCSVCol'>+</button>
+                    </div>
+                </div>
+                <br>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-2'>
+                    <button id="csvGenClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+                <div class='col-lg-2'>
+                    <button id="btnCsvDownload" type='button' class='btn btn-primary btn-block'>Download</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Export Modal -->
+<div id="modalExport" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Export</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('data_export')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Export Type</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the type of export file you would like.</i></div>
+                <div class="row">
+                    <div class='col-lg-3'>
+                        <select id="exportSelector" class='form-control'></select>
+                    </div>
+                </div>
+                <br>
+
+                <div id="divExport"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-2'>
+                    <button id="ExportClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+                <div class='col-lg-2'>
+                    <button id="btnExportDownload" type='button' class='btn btn-primary btn-block' onclick=submitExportRequest()>Download</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Download Modal -->
+<div id="modalDownload" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Download</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('data_download')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Species</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Filter your images by species.</i></div>
+                <div id=downloadSpeciesDiv></div>
+                <div class="row">
+                    <div class='col-lg-9'></div>
+                    <div class='col-lg-3'>
+                        <button id="btnAddDownloadSpecies" type='button' class='btn btn-info' onclick=buildDownloadSpeciesRow()>+</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Folder Structure</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to maintain your original folder structure, or use a flat one instead.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="originalStructure" name="folderStructureSelection" value="customEx">
+                    <label class="custom-control-label" for="originalStructure">Original</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="flatStructure" name="folderStructureSelection" value="customEx">
+                    <label class="custom-control-label" for="flatStructure">Flat</label>
+                </div>
+                <br>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Species Sorting</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your images sorted by species or not.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="originalSorted" name="speciesSortingSelection" value="customEx">
+                    <label class="custom-control-label" for="originalSorted">Unsorted</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="speciesSorted" name="speciesSortingSelection" value="customEx">
+                    <label class="custom-control-label" for="speciesSorted">Sorted by Species</label>
+                </div>
+                <br>
+                <br>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-2'>
+                    <button id="DownloadClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+                <div class='col-lg-2'>
+                    <button id="btnDownloadStart" type='button' class='btn btn-primary btn-block' onclick=submitDownloadRequest()>Process</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- compare Modal -->
+<div id="modalCompare" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Generate Comparison</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('task_comparison')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="comparisonErrors" style="font-size: 80%; color: #DF691A"></div>
+                <h5 style="margin-bottom: 2px">Compare with:</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select another task to compare this one to.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <select id="ComparisonSelector" class='form-control'></select>
+                    </div>
+                </div>
+                <br>
+
+                <div id='comparionDisplay'></div>
+                <div id='comparionDisplayBtn'></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-2'>
+                    <button id="CompClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+                <div class='col-lg-2'>
+                    <button id="btnSubmitCompare" type='button' class='btn btn-primary btn-block'>Compare</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Upload Progress Modal -->
+<div id="modalUploadProgress" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Uploading Images</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <br>
+                <div style="margin-bottom: 0px" class="row">
+                    <div style="margin-bottom: 0px" id='uploadProgBarDiv' class='col-lg-12'>
+                    </div>
+                </div>
+                <div style="font-size: 80%" id='currFileDiv'></div>
+                <br>
+
+                <div><i>NB: Do not close this box, or navagate away until the upload is complete.</i></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-3'>
+                    <button id="cancelUpload" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Cancel</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Individual alert Modal -->
+<div id="modalAlertIndividuals" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalAlertIndividualsHeader' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p id='modalAlertIndividualsBody' align="justify"></p>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-3'>
+                    <button type='button' class='btn btn-info btn-block' data-dismiss='modal' onclick="modalIndividual.modal({keyboard: true})">Cancel</button>
+                </div>
+
+                <div class='col-lg-3'>
+                    <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block'>Continue</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Alert Modal -->
+<div id="modalAlert" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalAlertHeader' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p id='modalAlertBody' align="justify"></p>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-3'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Confirm edit Modal -->
+<div id="modalConfirmEdit" class="modal fade" role="dialog" tabindex="-1">
+        <div class="modal-dialog">
+      
+            <!-- Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Please Confirm</h4>
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+    
+                    <p align="justify">
+                        <i>The changes you have added are not saved. You must save them in order for them to be permanent.</i>
+                    </p>
+
+                    <p align="justify">
+                        Are you sure you want to discard your changes?
+                    </p>
+              
+                </div>
+                <div class='modal-footer'>
+
+                    <div class='col-lg-3'>
+                        <button id="btnCancelDiscard" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Cancel</button>
+                    </div>
+    
+                    <div class='col-lg-3'>
+                        <button id="helpclose" type='button' class='btn btn-danger btn-block' 
+                        data-dismiss='modal'>Discard</button>
+                    </div>
+    
+                </div>
+            </div>
+      
+        </div>
+    </div>
+
+<!-- Please Wait Modal -->
+<div id="modalPW" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalPWH' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p id='modalPWB' align="justify"></p>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-3'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+
+<!-- Confirmation Modal -->
+<div id="modalConfirm" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalConfirmHeader' class="modal-title"></h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p id='modalConfirmBody' align="justify"></p>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-3'>
+                    <button id="btnConfirm" type='button' class='btn btn-danger btn-block' 
+                    data-dismiss='modal'>Confirm</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id="confirmclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Launch Task Modal -->
+<div id="modalLaunchTask" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Launch Task</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('launch_task')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <div id="launchErrors" style="font-size: 80%; color: #DF691A"></div>
+
+                <h5 style="margin-bottom: 2px">Tagging Type</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The type of tagging you would like to do. Note that you must have all clusters tagged before you can begin tagging sightings.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="clusterTag" name="taggingSelection" value="customEx">
+                    <label class="custom-control-label" for="clusterTag">Cluster Labelling</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="classTag" name="taggingSelection" value="customEx">
+                    <label class="custom-control-label" for="classTag">AI Check</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="sightingTag" name="taggingSelection" value="customEx">
+                    <label class="custom-control-label" for="sightingTag">Sighting (Box) Correction</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="individualID" name="taggingSelection" value="customEx">
+                    <label class="custom-control-label" for="individualID">Individual Identification</label>
+                </div>
+                <br>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Task Batch Size</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The number of images in each batch.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <input type="text" class="form-control" required id="taskSize" value="200"></input>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Tagging Level</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to tag. You first pass will automatically be parent categories only.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <select class="form-control" id="taskTaggingLevel"></select>
+                    </div>
+                </div>
+                <br>
+
+                <div id="individualLevel"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                    <div class='col-lg-2'>
+                        <button id="launchMTurkTaskBtn" type='button' class='btn btn-primary btn-block' >Start</button>
+                    </div>
+                    <div class='col-lg-2'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Tags Modal -->
+<div id="modalTags" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Setup Individual Identification Task</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_tags')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Information Tags</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The information tags you would like to associate with animals. Eg. male, female etc.</i></div>
+                <div id="tagErrors" style="font-size: 80%; color: #DF691A"></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        Tag
+                    </div>
+                    <div class='col-lg-1'>
+                        Hotkey
+                    </div>
+                    <div class='col-lg-7'></div>
+                </div>
+                <div id="divTag"></div>
+                <div class="row">
+                    <div class='col-lg-9'></div>
+                    <div class='col-lg-3'>
+                        <button id="btnAddTag" type='button' class='btn btn-info' >+</button>
+                    </div>
+                </div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                    <div class='col-lg-2'>
+                        <button id="submitTagsBtn" type='button' class='btn btn-primary btn-block' >Submit</button>
+                    </div>
+                    <div class='col-lg-2'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.admin.commons.js"></script>
+<script src="js/camtrap.surveys.surveys.js"></script>
+<script src="js/camtrap.surveys.annotation.js"></script>
+<script src="js/camtrap.surveys.results.common.js"></script>
+<script src="js/camtrap.surveys.results.comparison.js"></script>
+<script src="js/camtrap.surveys.results.csv.js"></script>
+<script src="js/camtrap.surveys.results.download.js"></script>
+<script src="js/camtrap.surveys.results.export.js"></script>
+<script src="js/camtrap.surveys.results.individuals.js"></script>
+<script src="js/camtrap.surveys.results.statistics.js"></script>
+<script src="js/camtrap.surveys.tasks.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<script src="js/heatmap.min.js"></script>
+<script src="js/leaflet-heatmap.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ" defer></script>
+<script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+
+<script type="text/javascript">
+    /** 
+     * JavaScript for browser upload direct to S3. Must be included here due to the AWS SDK. Consequently includes all JS for 
+     * new survey and edit survey modals.
+    */
+
+    var bucketName
+    var s3 = null
+    var stopFlag = true
+    var files
+    var s3Setup = false
+    var surveyName
+    var uploading = false
+    const modalUploadProgress = $('#modalUploadProgress');
+
+    function uploadFile(file, wait){
+        /** Uploades the specified file with the specified timeout. Retries on error. */
+
+        setTimeout(function(){ 
+
+            if (stopFlag==false) {
+                fileName = file.webkitRelativePath;
+                if (fileName.length === 0){     
+                    fileName = file.name;
+                }
+                var fileKey = surveyName + '/' + fileName;
+
+                document.getElementById('currFileDiv').innerHTML = 'Uploading ' + fileName + '...'
+
+                var params = {
+                    Key: fileKey,
+                    ContentType: file.type,
+                    Body: file,
+                    ACL: 'public-read'
+                };
+
+                s3.putObject(params, function(err, data) {
+                    if (err) {
+                        console.log(err);
+
+                        if (wait==0) {
+                            wait = 10000
+                        } else if (wait >= 600000) {
+                            wait = 600000
+                        } else {
+                            wait *= 2
+                        }
+
+                        uploadFile(file, wait)
+                    } else {
+                        console.log('Successful image upload.');
+
+                        progBar = document.getElementById('uploadProgBar')
+                        var value = parseInt(progBar.getAttribute('aria-valuenow'))
+                        total = parseInt(progBar.getAttribute('aria-valuemax'))
+                        
+                        value += 1
+                        perc=(value/total)*100
+                        remaining = total-value
+
+                        progBar.setAttribute('aria-valuenow',value)
+                        progBar.setAttribute('style',"width:"+perc+"%")
+                        progBar.innerHTML = remaining + " images remaining."
+
+                        if ((remaining==0)&&(stopFlag==false)) {
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
+                            xhttp.send();
+                            modalUploadProgress.modal('hide')
+                            document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                            document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
+                            modalAlert.modal({keyboard: true});
+                        } else if (stopFlag==true) {
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.open("GET", '/deleteImages/'+surveyName);
+                            xhttp.send();
+                        }
+
+                    }
+                });
+            }
+
+        }, wait);  
+
+        return ''
+    }
+    
+    function startUploadAndScheduleNext(currentIdx){
+        /** Starts the upload of the next file, before scheduling the upload of the next. If not set up, tries again after wait period. */
+
+        if (!s3Setup) {
+            setTimeout(function(){
+                startUploadAndScheduleNext(0)
+            }, 1000);
+        } else {
+            uploadFile(files[currentIdx], 0);
+            currentIdx += 1;
+
+            if ((currentIdx < files.length)&&(stopFlag==false)){
+                startUploadAndScheduleNext(currentIdx);
+            }
+        }
+        return ''
+    }
+
+    function uploadFiles(){
+        /** Sets up and begins the file upload process. */
+        stopFlag = false
+
+        if (s3==null) {
+            setupS3()
+        }
+        
+        startUploadAndScheduleNext(0);
+        return ''
+    }
+
+    function setupS3(){
+        /** Sets up the connection with S3 after requesting user credentials from the server. */
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/get_s3_info');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                AWS.config.region  = reply.region;
+                AWS.config.credentials = new AWS.CognitoIdentityCredentials({IdentityPoolId: reply.poolId});                
+                AWS.config.credentials.get(function(err) {
+                    if (err) {
+                        console.log(err);
+                    }
+                });
+
+                s3 = new AWS.S3({
+                    params: {Bucket: reply.bucketName+'-raw'}
+                });
+
+                s3Setup = true
+            }
+        }
+        xhttp.send();
+        return ''
+    }
+    
+    document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
+        /** 
+         * Event listener on the new survey modal's submit button. Retries the info and submits it to the server. Also checks 
+         * the format of kml files.
+        */
+
+        surveyName = document.getElementById('newSurveyName').value
+        newSurveyDescription = document.getElementById('newSurveyDescription').value
+        newSurveyTGCode = document.getElementById('newSurveyTGCode').value
+        newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
+        correctTimestampsCheckbox = document.getElementById('correctTimestampsCheckbox')
+        kmlFileUpload = document.getElementById('kmlFileUpload')
+
+        while(document.getElementById('newSurveyErrors').firstChild){
+            document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
+        }
+
+        if (newSurveyDescription == '') {
+            newSurveyDescription = 'None'
+        }
+
+        legalFile = true
+        if (kmlFileUpload.files.length > 1) {
+            document.getElementById('newSurveyErrors').innerHTML = 'You can only upload a single coordinate file'
+            legalFile = false
+        } else if (kmlFileUpload.files.length == 1) {
+            if (kmlFileUpload.files[0].size>50000000) {
+                document.getElementById('newSurveyErrors').innerHTML = 'File cannot be larger than 50MB.'
+                legalFile = false
+            } else {
+                if (!kmlFileUpload.files[0].name.includes('.kml')) {
+                    document.getElementById('newSurveyErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
+                    legalFile = false
+                }
+            }
+        }
+
+        legalName = true
+        if (surveyName == '') {
+            legalName = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The name field cannot be empty.'
+        } else if ((surveyName.includes('/'))||(surveyName.includes('\\'))) {
+            legalName = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The survey name cannot contain slashes.'
+        }
+
+        legalDescription = true
+        if ((newSurveyDescription.includes('/'))||(newSurveyDescription.includes('\\'))) {
+            legalDescription = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The survey description cannot contain slashes.'
+        }
+
+        legalTGCode = true
+        if (newSurveyTGCode == '') {
+            legalTGCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The trapgroup code field cannot be empty.'
+        } else if ((newSurveyTGCode.includes('/'))||(newSurveyTGCode.includes('\\'))) {
+            legalTGCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'The trapgroup code cannot contain slashes.'
+        }
+        
+        legalInput = false
+        if (document.getElementById('S3BucketUpload').checked == true) {
+            newSurveyS3Folder = document.getElementById('S3FolderInput').value
+            if (newSurveyS3Folder=='') {
+                document.getElementById('newSurveyErrors').innerHTML = 'The S3 folder name field cannot be empty.'
+            } else if (newSurveyS3Folder.toLowerCase()=='none') {
+                document.getElementById('newSurveyErrors').innerHTML = 'The S3 folder cannot be called "none".'
+            } else if ((newSurveyS3Folder.includes('/'))||(newSurveyS3Folder.includes('\\'))) {
+                document.getElementById('newSurveyErrors').innerHTML = 'The S3 folder name cannot contain slashes.'
+            } else {
+                legalInput = true
+            }
+        } else if (document.getElementById('BrowserUpload').checked == true) {
+            inputFile = document.getElementById('inputFile')
+            if (inputFile.files.length == 0) {
+                document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
+            } else {
+                legalInput = true
+                newSurveyS3Folder = 'none'
+                files = inputFile.files
+            }
+        } else {
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select an image upload method.'
+        }
+
+        TGCheckReady = true
+        tgInfoDiv = document.getElementById('newSurveyTGInfo')
+        if (tgInfoDiv.innerHTML=='Checking...') {
+            TGCheckReady = false
+            document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your trapgroup-code check to finish.'
+        }
+
+        if (tgInfoDiv.innerHTML == '0 trapgroups found: ') {
+            legalTGCode = false
+            document.getElementById('newSurveyErrors').innerHTML = 'Your specified trapgroup code does not result in any trapgroups. Please try again.'
+        }
+
+        if (legalName&&legalDescription&&legalTGCode&&legalInput&&legalFile&&TGCheckReady) {
+            if (kmlFileUpload.files.length == 1) {
+                var reader = new FileReader()
+                reader.addEventListener('load', (event) => {
+                    kmldata = event.target.result
+                    if (newSurveyCheckbox.checked==true) {
+                        regex = newSurveyTGCode
+                    } else {
+                        regex = newSurveyTGCode + '[0-9]+'
+                    }                        
+                    if ((newSurveyCheckbox||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
+                        var formData = new FormData()
+                        formData.append("kml", kmlFileUpload.files[0])
+                        submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),correctTimestampsCheckbox.checked.toString())
+                    } else {
+                        document.getElementById('newSurveyErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                    }
+                });
+                reader.readAsText(kmlFileUpload.files[0])
+            } else {
+                var formData = new FormData()
+                submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),correctTimestampsCheckbox.checked.toString())
+            }
+        }
+    });
+
+    function submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox,correctTimestamps) {
+        /** Submits the new survey info to the server. Begins the browser uploaded if necessary. */
+        
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/createNewSurvey/'+surveyName+'/'+newSurveyDescription+'/'+newSurveyTGCode+'/'+newSurveyS3Folder+'/'+newSurveyCheckbox+'/'+correctTimestamps);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+
+                if (reply.status=='success') {
+
+                    if (document.getElementById('BrowserUpload').checked == true) {
+                        inputFile = document.getElementById('inputFile')
+                        uploading = true
+                        ProgBarDiv = document.getElementById('uploadProgBarDiv')
+
+                        while(ProgBarDiv.firstChild){
+                            ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+                        }
+
+                        var newProg = document.createElement('div');
+                        newProg.classList.add('progress');
+
+                        var newProgInner = document.createElement('div');
+                        newProgInner.classList.add('progress-bar');
+                        newProgInner.classList.add('progress-bar-striped');
+                        newProgInner.classList.add('active');
+                        newProgInner.setAttribute("role", "progressbar");
+                        newProgInner.setAttribute("id", "uploadProgBar");
+                        newProgInner.setAttribute("aria-valuenow", "0");
+                        newProgInner.setAttribute("aria-valuemin", "0");
+                        newProgInner.setAttribute("aria-valuemax", files.length.toString());
+                        newProgInner.setAttribute("style", "width:0%");
+
+                        newProg.appendChild(newProgInner);
+                        ProgBarDiv.appendChild(newProg);
+
+                        modalNewSurvey.modal('hide')
+                        modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+
+                        uploadFiles()
+                    } else {
+                        document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                        document.getElementById('modalAlertBody').innerHTML = 'Your survey is being imported.'
+                        alertReload = true
+                        modalNewSurvey.modal('hide')
+                        modalAlert.modal({keyboard: true});
+                    }
+
+                } else {
+                    document.getElementById('newSurveyErrors').innerHTML = reply.message
+                }
+            }
+        }
+        xhttp.send(formData);
+    }
+
+    function isValidDate(d) {
+        /** Returns whether the supplied date is valid. */
+        return d instanceof Date && !isNaN(d);
+    }
+
+    document.getElementById('btnAddImages').addEventListener('click', ()=>{
+        /** Handles the submission of the edit survey modal. */
+
+        while(document.getElementById('addImagesErrors').firstChild){
+            document.getElementById('addImagesErrors').removeChild(document.getElementById('addImagesErrors').firstChild);
+        }
+
+        legalFile = true
+        if (document.getElementById('addImagesAddCoordinates').checked) {
+            kmlFileUpload = document.getElementById('kmlFileUpload2')
+            if (kmlFileUpload.files.length > 1) {
+                document.getElementById('addImagesErrors').innerHTML = 'You can only upload a single coordinate file'
+                legalFile = false
+            } else if (kmlFileUpload.files.length == 1) {
+                if (kmlFileUpload.files[0].size>50000000) {
+                    document.getElementById('addImagesErrors').innerHTML = 'File cannot be larger than 50MB.'
+                    legalFile = false
+                } else {
+                    if (!kmlFileUpload.files[0].name.includes('.kml')) {
+                        document.getElementById('addImagesErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
+                        legalFile = false
+                    }
+                }
+            }
+        }
+
+        legalDate = true
+        if (document.getElementById('addImagesEditTimestamps').checked) {
+            allTimestamps = document.querySelectorAll('[id^=corrected_timestamp-]');
+            timestampData = []
+            for (timestamp=0;timestamp<allTimestamps.length;timestamp++) {
+                info = allTimestamps[timestamp].id
+
+                if (isValidDate(new Date(allTimestamps[timestamp].value))) {
+                    camera = info.split("corrected_timestamp-")[info.split("corrected_timestamp-").length-1]
+                    timestampData.push({'camera': camera, 'timestamp': allTimestamps[timestamp].value})
+                } else {
+                    legalDate = false
+                }
+            }
+
+            if (legalDate) {
+                document.getElementById('timestampErrors').innerHTML = ''
+            } else {
+                document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
+            }
+        }
+
+        legalTGCode = true
+        if (document.getElementById('addImagesAddImages').checked) {
+            addImagesTGCode = document.getElementById('addImagesTGCode').value
+            addImagesCheckboxChecked = document.getElementById('addImagesCheckbox').checked
+
+            if ((addImagesTGCode == '')||(addImagesTGCode == ' ')) {
+                legalTGCode = false
+                document.getElementById('addImagesErrors').innerHTML = 'The trapgroup code field cannot be empty.'
+            } else if ((addImagesTGCode.includes('/'))||(addImagesTGCode.includes('\\'))) {
+                legalTGCode = false
+                document.getElementById('addImagesErrors').innerHTML = 'The trapgroup code cannot contain slashes.'
+            }
+            
+            legalInput = false
+            if (document.getElementById('S3BucketAdd').checked == true) {
+                addImagesS3Folder = document.getElementById('S3FolderInput').value
+                if (addImagesS3Folder=='') {
+                    document.getElementById('addImagesErrors').innerHTML = 'The S3 folder name field cannot be empty.'
+                } else if (addImagesS3Folder.toLowerCase()=='none') {
+                    document.getElementById('addImagesErrors').innerHTML = 'The S3 folder cannot be called "none".'
+                } else if ((addImagesS3Folder.includes('/'))||(addImagesS3Folder.includes('\\'))) {
+                    document.getElementById('addImagesErrors').innerHTML = 'The S3 folder name cannot contain slashes.'
+                } else {
+                    legalInput = true
+                }
+            } else if (document.getElementById('BrowserAdd').checked == true) {
+                inputFile = document.getElementById('inputFile')
+                if (inputFile.files.length == 0) {
+                    document.getElementById('addImagesErrors').innerHTML = 'You must select images to upload.'
+                } else {
+                    legalInput = true
+                    addImagesS3Folder = 'none'
+                    files = inputFile.files
+                }
+            } else {
+                document.getElementById('addImagesErrors').innerHTML = 'You must select an image upload method.'
+            }
+        } else {
+            legalInput = true
+            addImagesTGCode = ' '
+            addImagesS3Folder = 'none'
+            addImagesCheckboxChecked = false
+        }
+
+        TGCheckReady = true
+        tgInfoDiv = document.getElementById('addImagesTGInfo')
+        if (tgInfoDiv.innerHTML=='Checking...') {
+            TGCheckReady = false
+            document.getElementById('addImagesErrors').innerHTML = 'Please wait for your trapgroup-code check to finish.'
+        }
+        
+        if (tgInfoDiv.innerHTML == '0 trapgroups found: ') {
+            legalTGCode = false
+            document.getElementById('addImagesErrors').innerHTML = 'Your specified trapgroup code does not result in any trapgroups. Please try again.'
+        }
+
+        if (legalTGCode&&legalInput&&legalFile&&legalDate&&TGCheckReady) {
+            if (document.getElementById('addImagesAddCoordinates').checked) {
+                var reader = new FileReader()
+                reader.addEventListener('load', (event) => {
+                    kmldata = event.target.result
+
+                    if (!document.getElementById('addImagesAddImages').checked) {
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.open("GET", '/getSurveyTGcode/'+surveyName);
+                        xhttp.onreadystatechange =
+                        function(){
+                            if (this.readyState == 4 && this.status == 200) {
+                                regex = JSON.parse(this.responseText);                      
+                                if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
+                                    var formData = new FormData()
+                                    formData.append("kml", kmlFileUpload.files[0])
+
+                                    if (document.getElementById('addImagesEditTimestamps').checked) {
+                                        formData.append("timestamps", JSON.stringify(timestampData))
+                                    }
+
+                                    addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                                } else {
+                                    document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                                }
+
+                            }
+                        }
+                        xhttp.send();
+                    } else {
+                        if (addImagesCheckboxChecked==true) {
+                            regex = addImagesTGCode
+                        } else {
+                            regex = addImagesTGCode + '[0-9]+'
+                        }
+                        if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
+                            var formData = new FormData()
+                            formData.append("kml", kmlFileUpload.files[0])
+                            
+                            if (document.getElementById('addImagesEditTimestamps').checked) {
+                                formData.append("timestamps", JSON.stringify(timestampData))
+                            }
+
+                            addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                        } else {
+                            document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                        }
+                    }
+                });
+                reader.readAsText(kmlFileUpload.files[0])
+            } else {
+                var formData = new FormData()
+
+                if (document.getElementById('addImagesEditTimestamps').checked) {
+                    formData.append("timestamps", JSON.stringify(timestampData))
+                }                
+
+                addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+            }
+        }
+    });
+
+    function addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckbox) {
+        /** Submits the add-images request to the server, and begins the browser upload if necessary. */
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/editSurvey/'+surveyName+'/'+addImagesTGCode+'/'+addImagesS3Folder+'/'+addImagesCheckbox);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+
+                if (reply.status=='success') {
+
+                    if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
+                        uploading = true
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');
+                        xhttp.send();
+                        
+                        ProgBarDiv = document.getElementById('uploadProgBarDiv')
+
+                        while(ProgBarDiv.firstChild){
+                            ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+                        }
+
+                        var newProg = document.createElement('div');
+                        newProg.classList.add('progress');
+
+                        var newProgInner = document.createElement('div');
+                        newProgInner.classList.add('progress-bar');
+                        newProgInner.classList.add('progress-bar-striped');
+                        newProgInner.classList.add('active');
+                        newProgInner.setAttribute("role", "progressbar");
+                        newProgInner.setAttribute("id", "uploadProgBar");
+                        newProgInner.setAttribute("aria-valuenow", "0");
+                        newProgInner.setAttribute("aria-valuemin", "0");
+                        newProgInner.setAttribute("aria-valuemax", files.length.toString());
+                        newProgInner.setAttribute("style", "width:0%");
+
+                        newProg.appendChild(newProgInner);
+                        ProgBarDiv.appendChild(newProg);
+
+                        modalAddImages.modal('hide')
+                        modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+
+                        uploadFiles()
+                    } else {
+
+                        if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('addImagesAddCoordinates').checked)) {
+                            document.getElementById('modalAlertBody').innerHTML = 'Your additional images and coordinates are being imported.'
+                        } else if (document.getElementById('addImagesAddImages').checked) {
+                            document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
+                        } else if (document.getElementById('addImagesEditTimestamps').checked) {
+                            document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
+                        } else {
+                            document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being imported.'
+                        }
+
+                        document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                        alertReload = true
+                        modalAddImages.modal('hide')
+                        modalAlert.modal({keyboard: true});
+                    }
+
+                } else {
+                    document.getElementById('addImagesErrors').innerHTML = reply.message
+                }
+            }
+        }
+        xhttp.send(formData);
+    }
+
+    document.getElementById('cancelUpload').addEventListener('click', ()=>{
+        /** Cancels the browser upload when the concel button is pressed. */
+        stopFlag = true
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/deleteSurvey/'+surveyName);
+        xhttp.send();
+    });
+
+    modalAlert.on('hidden.bs.modal', function(){
+        /** Updates the appropriate flag and updates the page when the alert modal is closed. */
+        if (stopFlag==false) {
+            stopFlag = true
+            updatePage(current_page)
+        } else if (alertReload) {
+            alertReload = false
+            updatePage(current_page)
+        }
+    });
+
+    modalUploadProgress.on('hidden.bs.modal', function(){
+        /** Clears the new survey and edit survey modals when the upload modal is closed. */
+        resetNewSurveyPage()
+        resetAddImagesPage()
+        uploading = false
+    });
+
+</script>
+{% endblock %}
+

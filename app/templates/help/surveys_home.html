@@ -1,0 +1,132 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Welcome to your home page. Here you are able to manage your surveys: add new surveys, edit them, edit and launch tasks, and view results. The entire process of processing a set of images can be divided into three main steps and a few associated sub-steps:
+</p>
+
+<div align="justify">
+    1. Survey Setup
+</div>
+<div align="justify">
+    Start by creating a new survey and uploading images to it. This can either be done in your browser through this site, or through a third party program.
+</div>
+<br>
+
+<div align="justify">
+    1A. Task Setup
+</div>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-11'>
+        <div align="justify">
+            Next, you must create a set of labels for your images, known as a task. This allows you have an entirely separate set of annotations for eash survey, that you can then 
+            compare to each other, where each set can be generated from manual tagging, AI auto-tagging, imported from a csv file, or from a new version of the AI when it is released.
+            Each task has its own set of species labels that can be created in a hierarchical structure, allowing you to initialially categorise 
+            your survey into broad categories, before tagging it down to increasing levels of detail on subsquent passes. You are also able to select your own hotkeys for each label, 
+            allowing you to tag them faster and more easily.
+        </div>
+    </div>
+</div>
+<br>
+
+<div align="justify">
+    1B. Edit
+</div>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-11'>
+        <div align="justify">
+            At any stage along the process you can add additional images to your survey, update the version or the AI used on it, or add coordinates for your camera traps 
+            by uploading a Google Earth generated kml file. You can also edit the labels assocated with a task at any time.
+        </div>
+    </div>
+</div>
+<br>
+
+<div align="justify">
+    2. Tagging
+</div>
+<div align="justify">
+    Once you have created a task, you are able to begin tagging your survey. This is divided into two phases. Cluster tagging allows you label the species contained within a cluster 
+    of images, whilst sighting tagging allows you correct the AI-automated animal detections in order to get a more accurate species count on every image. 
+    Both require you to work your way down through your hierarchical label structure, but you are able to stop at any point. For example, you can categorise eveything into 
+    carnivores and herbivores, only tag the carnivore speces, and then only perform a sighting analysis on the lions, if that is the species that is of interest to you.
+    Lastly, you can check you manually annotated results against the AI to help you identify mistakes.
+</div>
+<br>
+
+<div align="justify">
+    2A. Knockdown Analysis
+</div>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-11'>
+        <div align="justify">
+            As part of the initial level of tagging, you will have the option to mark a camera as knocked down. This marks all the rest of the image from the camera as knockdown, 
+            thus preventing you from having to look at a bunch of empty images. However, these cameras can sometimes be picked up by passers-by.
+            As such, after completing an initial-level tag, you will be required to analyse the knocked-down cameras to determine if and when this has occured, releasing the clusters to be tagged 
+            in another initial-level tagging session.
+        </div>
+    </div>
+</div>
+<br>
+
+<div align="justify">
+    2B. Error Correction
+</div>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-11'>
+        <div align="justify">
+            Along the way there are bound to be mistakes in the tagging process. If you are aware of your mistake at the time of tagging, you can simply go back to that cluster, 
+            and change your tag. However, sometimes mistakes slip through the cracks, and if you come across a mislabeled cluster in a lower level of your hierarchical structure 
+            (like a lion in your antelope category), you are able to mark it as 'wrong'. This will remove its tags, and allow you to retag it at the initial level. Alternatively, 
+            if you know the mistake that you made (eg. marked a particular sub-species as another), you can look for the incorrect species in the explore function (under results), 
+            and retag it as any species, at any time.
+        </div>
+    </div>
+</div>
+<br>
+
+<div align="justify">
+    2C. Unknown Animals
+</div>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-11'>
+        <div align="justify">
+            Many times a sighting of an animal simply consists of a one or two poor images - a glimpse of a tail, a single leg, or some whiskers - which are near impossible to identify 
+            by the average person, but can be ID'd by the expert in your team. These can simply be labelled as unknown in the initial pass through the survey, and then easily found under 
+            the unknown label in the explore function, for your expert to tag. Alternatively, if you know the animal falls under a broad category such as antelope, but you don't know which 
+            species it is, you can tag it as an antelope in your initial pass, and then skip the image during the tagging of that category. Your antelope expert can then simply call up all the 
+            unknown antelope by selecting the antelope label under the explore function, or you can simply relaunch the antelope category tagging as normal. In the event that you cannot identify 
+            the animal, it will still be tagged as an antelope, and hence can be counted accordingly in your results.
+        </div>
+    </div>
+</div>
+<br>
+
+<div align="justify">
+    3. Results
+</div>
+<div align="justify">
+    Once you have finished tagging your survey to the desired level, you can examine the results in a number of ways. You can look through all the clusters with a desired label 
+    in the explore function, or you can download a nicely-formated summary Excel file, or even download a custom csv file of the results for your own statictical analysis.
+</div>
+<br>
+
+<p align="justify">
+    More detailed information on each step is provided in their respective help sections.
+</p>

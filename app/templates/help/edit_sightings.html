@@ -1,0 +1,58 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Welcome to the sightings editor. Here you are able to edit the detected animal sightings in your images. Use add, edit, and delete modes to add, edit and delete sightings on an 
+    image before commiting those changes to the database. These functionalities can either be accessed using the toolbar on the left-hand side of the image, or by using 
+    the hotkeys provided below. You can also change the label associated with a particular sighting by right-clicking on the sighting, and selecting your desired label from 
+    the list provided. Should an unexpected species occur in an image, you can access all your labels, in hierarchical order, by selecting the plus option. As previously, 
+    you have access to a number of image-identification aids such as image brightness, contrast, and saturation. You can also zoom into the image.
+</p>
+
+<p align="justify">
+    Hotkeys:
+    <ul style="margin-top:-15px;">
+        <li>A: Add sighting. Press again to cancel and exit mode.</li>
+        <li>E: Edit sightings. Press again to cancel and exit mode.</li>
+        <li>D: Delete sightings. Press again to cancel and exit mode.</li>
+        <li>Esc: Cancel and exit current mode.</li>
+        <li>F: Finish making changes in current mode.</li>
+        <li>C: Clear all sightings when in delete mode.</li>
+        <li>H: Hide sighting labels.</li>
+        <li>Space: Commit changes to the database, and move onto the next image.</li>
+        <li>Tilde(~): Go back to the previous image.</li>
+        <li>[: Decrease image brightness.</li>
+        <li>]: Increase image brightness.</li>
+        <li>;: Decrease image contrast.</li>
+        <li>': Increase image contrast.</li>
+        <li>&lt;: Decrease image saturation.</li>
+        <li>&gt;: Increase image saturation.</li>
+        <li>?: Reset image brightness, contrast and saturation.</li>
+    </ul>
+</p>
+
+<div align="justify">Some notes:</div>
+<ul align="justify">
+    <li>
+        You cannot go back to a previous image until the sightings you submitted have been successfully registered. This should not take long, 
+        but can potentially take a little time when the server is busy. Please be patient if this is the case.
+    </li>
+    <li>
+        All changes to the labels here will affect the labels associated with the image and its cluster. Thus, if you only have lion sightings in an image who's cluster contains 
+        both lion and impala, the cluster will still be labelled with both species, but the image will now only be labelled as containing lion.
+    </li>
+    <li>
+        If an image contains nothing, simply delete all the sightings and by implication, it will be considered empty.
+    </li>
+</ul>

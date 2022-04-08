@@ -1,0 +1,73 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Welcome to the first stage of the individual identification pipeline. Here your task is to link sightings of the same individual across a cluster of images 
+    using the contextual information available to you. The difference in timestamps between the two displayed images is shown between them, along with a symbol 
+    depicting whether the images were taken by the same camera or not. Each panel displays the same set images from the cluster, allowing you to link sightings between them by simply 
+    clicking on them. If neither of the two sightings are associated with an individual, the two sightings will br grouped together as a new individual and you will be 
+    prompted to name it, add notes and additional tags as required. Alternatively, if either of the sightings is already associated with an individual, the 
+    un-associated individual will simply be added to that individual. In the case where both sightings are already aossicated with individuals, the two individuals will be merged.
+</p>
+
+<p align="justify">
+    In the case where there is only a single individual appearing throughout the cluster, you can <b>auto-generate</b> a new individual for all those sightings using the <b>n</b> hotkey. You will 
+    then be prompted to name the individual etc. as usual.
+</p>
+
+<p align="justify">
+    In the case that a sighting is too blurry, whited-out, or otherwise, to be identified as a specific indidividual, mark it as <b>unidentifiable</b> by clicking the associated button, 
+    or pressing the <b>i</b> key and subsequently clicking the sighting. This will exclude that sighting from the individual identification process going forward. 
+    The unidentifiable mode will be exited automatically after marking a sighting, but can be exited manually if you change your mind by pressing the hotkey or clicking on the button 
+    a second time.
+</p>
+
+<p align="justify">
+    You can undo your previous actions at any time by clicking the <b>undo</b> button or pressing the <b>u</b> key. Alternatively, you can <b>delete</b> an individual by 
+    clicking on the associated button or pressing the <b>e</b> key, and subsequently clicking on the individual you would like to delete.
+</p>
+
+<p align="justify">
+    If the box associated with one sighting is on top of another, preventing you from clicking on it, simply click the <b>send to back</b> button or press the <b>b</b> key, 
+    and click on the offending box. This will send it to the back, allowing you to click on the boxes behind it.
+</p>
+
+<p align="justify">
+    Additionally, you can mark an existing individual as a <b>parent</b> of another existing individual by selecting a sighting of the parent individual, then clicking the associated 
+    button (or pressing <b>p</b>), and then clicking on a sighting of the child individual.
+</p>
+
+<p align="justify">
+    Once you have finished associating all sightings in a cluster, your input will automatically be submitted, and the next cluster shown to you. If you would like to go back to a 
+    previous cluster and change the associations, you can do so by either clicking the <b>back</b> button or pressing the <b>~</b> hotkey. Once you are finished editing the cluster, you can re-submit 
+    your individuals by clicking the <b>submit</b> button or pressing the <b>space</b> bar.
+</p>
+
+<p align="justify">
+    Some additional hotkeys:
+    <ul style="margin-top:-15px;">
+        <li>n: Auto-create single individual for all sightings in a cluster.</li>
+        <li>a: Left panel previous image.</li>
+        <li>d: Left panel next image.</li>
+        <li>Left arrow: Right panel previous image.</li>
+        <li>Right arrow: Right panel next image.</li>
+        <li>[: Decrease image brightness.</li>
+        <li>]: Increase image brightness.</li>
+        <li>;: Decrease image contrast.</li>
+        <li>': Increase image contrast.</li>
+        <li>&lt;: Decrease image saturation.</li>
+        <li>&gt;: Increase image saturation.</li>
+        <li>?: Reset image brightness, contrast and saturation.</li>
+    </ul>
+</p>

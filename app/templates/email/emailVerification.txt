@@ -1,0 +1,7 @@
+Hi {{ username }},
+
+Please verify your email address by clicking on this link:
+{{ url }}
+
+Regards,
+The TrapTagger team

@@ -1,0 +1,50 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Here you able to determine the extent to which the tagging of your survey will rely on AI. As with most things in life, you are offered a trade-off between speed and accuracy. 
+    Relying on solely AI tagging will result in an immediatedly tagged dataset*, with around 99% precision. For most applications, this is sufficient. However, some applications - 
+    such as academic studies - require greater levels of accuracy. In such cases, you can tag all your images manually, theoretically allowing you to obtain 100% precision, but you 
+    must remember that humans make mistakes too. So we do also offer the ability to check your work against the AI predictions, and re-look at the images where there are discrepancies, 
+    theoretically offering you the greatest possible accuracy.
+</p>
+
+<p align="justify">
+    Alternatively, you can choose an option that sits somewhere between these two extremes by selecting to only have some species automatically tagged. In particular, 
+    you could select to have very numerous, different-looking species that are not of interest to be automatically tagged in order to reduce your workload. For example, if you are interested in 
+    predator species, you could have elephant, antelope, zebra, and giraffe automatically tagged with minimal fear that a predator of interest would be confused with one of these. 
+    This would drastically reduce the number of images requiring manual tagging, whilst resulting in minimal erros. 
+</p>
+
+<p align="justify">
+    In this interface you must select which AI classifications you would like to make use of by checking the appropriate checkbox. The translations you stipulated in the previous page will 
+    be used for classifications that cannot be automatically matched to your labels.
+</p>
+
+<p align="justify">
+    You also have the option to have the identified species labelled as the their associated label, or as their parent label. For example, the first option would result in an identified impala 
+    being labelled as impala, whereas the second would result in it being labelled as antelope (assuming that you have impala under an antelope label in your hierarchical label structure). 
+    This allows you to manually differentiate between different sub-species, which would be useful in cases where there are very similar looking sub-species, where you expect to see a 
+    sub-species for which there is no classification label, or a combination of the two. Alternatively, in such cases, you could also choose to not have the unexpected species auto-classified 
+    in order to prevent it from being confused with something else. However, that approach would probably be a bit slower.
+</p>
+
+<p align="justify">
+    In general, if you do not expect to see a particular species in your survey, it is better to err on the side of caution and not have that species auto-classified. This would prevent 
+    other species from being mistaken as the unexpected species.
+</p>
+
+<p align="justify">
+    <i>*Please note that even if you rely on full AI tagging, there will still be some images that the AI is unsure of, which would still need to be tagged manually.</i>
+</p>

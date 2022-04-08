@@ -1,0 +1,279 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<style id="docStyle">
+    tbody td:nth-child(even),
+    tbody tr:nth-child(odd),
+    thead th:nth-child(even){
+        background-color:rgba(255,255,255,0.1);
+    }
+    .table-matrix td:hover{
+        background-color: rgba(255,255,255,0.2);
+        color: rgba(0,0,0,0.6);
+    }
+    th {
+        text-align: center;
+    }
+    td {
+        text-align: right;
+    }
+    .box_rotate {
+        -webkit-transform: rotate(270.0deg);  /* Chrome, Opera 15+, Safari 3.1+ */
+            -ms-transform: rotate(270.0deg);  /* IE 9 */
+                transform: rotate(270.0deg);  /* Firefox 16+, IE 10+, Opera */
+    }
+    .table {
+	    border: 0px hidden rgba(0,0,0,0);;
+    }
+    img {
+        filter: brightness(100%) contrast(100%) saturate(100%);
+    }
+</style>
+
+<br>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-10'>
+      <div class="card" style='min-height:400px'>
+
+        <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+          <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+          </div>
+        </div>
+
+        <div class="card-body" id="cardBody">
+            <br>
+            <h1 align='left'>Summary Statistics</h1>
+            <br>
+            <div class="row">
+                <div class="col-lg-4"></div>
+                <div class="col-lg-4">
+                    <table style="width:100%; table-layout: fixed" class="table table-bordered">
+                        <tbody>
+                            <tr>
+                                <th scope="row">Survey Images</th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ image_count }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Total Sightings<i><sup>1</sup></i></th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ total_sightings }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Matched Sightings</th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ matched_sightings }}/{{ total_sightings }} ({{ match_percentage }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Unmatched Sightings</th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ wrong_sightings }}/{{ total_sightings }} ({{ wrong_percentage }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Valuable Sightings<i><sup>2</sup></i></th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ animal_sightings }}/{{ total_sightings }} ({{ value_percentage }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Unknown Sightings<i><sup>3</sup></i></th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ unknowns }}/{{ animal_sightings }} ({{ unknown_percentage }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Detector-Missed Sightings<i><sup>4</sup></i></th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ MegaDetectorFailures }}/{{ wrong_sightings }} ({{ MegaDetectorFailures_percentage }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Empty Clustered Images<i><sup>5</sup></i></th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ EmptyClustered }}/{{ image_count }} ({{ EmptyClustered_percentage }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Recall</th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ correct_animal_sightings }}/{{ animal_sightings }} ({{ recall_rate }}%)</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Precision</th>
+                                <td style="background-color: rgba(0,0,0,0)">{{ correct_animal_sightings }}/{{ non_nothing }} ({{ precision }}%)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-lg-4"></div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-1"></div>
+                <div class="col-lg-10">
+                    <br>
+                    <div style="font-size: 80%;"><i><sup>1</sup>The is the total number of labels associated with the survey, rather than the number of animals sighted, and includes 'nothing' or empty labels.</i></div>
+                    <div style="font-size: 80%;"><i><sup>2</sup>The number of non-nothing sightings. All labels bundled together with the default 'nothing' category are classified as non-valuable.</i></div>
+                    <div style="font-size: 80%;"><i><sup>3</sup>The number of sightings marked as unknown in the non-ground truth task that are affecting the results negatively.</i></div>
+                    <div style="font-size: 80%;"><i><sup>4</sup>The sightings that were missed by the AI animal detector, and were thus not shown to the user during tagging.</i></div>
+                    <div style="font-size: 80%;"><i><sup>5</sup>The number of empty images that have been erroneously clustered with images containing actual sightings.</i></div>
+                    <br>
+                </div>
+                <div class="col-lg-1"></div>
+            </div>
+
+            <h1 align="left">Species Statistics</h1>
+            <br>
+            <div class="row">
+                <div class="col-lg-1"></div>
+                <div class="col-lg-10">
+                    <table style="width:100%; table-layout: fixed" class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th scope="col" style="border-bottom: 1px solid white;width: 10%">Statistic</th>
+                                {% for item in species_names %}
+                                    <th scope="col" style="border-bottom: 1px solid white">
+                                        <div class="box_rotate" style="writing-mode: vertical-rl;text-orientation: mixed;display: block;white-space: nowrap;margin: 0 auto;transform: rotate(-180deg)">{{ item }}</div>
+                                    </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Recall</th>
+                                {% for item in species_recalls %}
+                                    <td style="font-size: 80%; padding-left: 3px; padding-right: 3px;">{{ item }}%</td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <th scope="row">Precision</th>
+                                {% for item in species_precisions %}
+                                    <td style="font-size: 80%; padding-left: 3px; padding-right: 3px;">{{ item }}%</td>
+                                {% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-lg-1"></div>
+            </div>
+            <br>
+            <h1 align="left">Comparison Matrix</h1>
+            <br>
+            <div class="row">
+                <div class="col-lg-1"></div>
+                <div class="col-lg-10">
+                    <h2 align='center'>{{ task2_heading }}</h2>
+                </div>
+                <div class="col-lg-1"></div>
+            </div>
+            <div class="row">
+                <div class="col-lg-1" style="display:flex;justify-content:center;align-items:center">
+                    <h2 style="padding-top:100px" class='box_rotate' align='center'>{{ task1_heading }}</h2>
+                </div>
+                <div class="col-lg-10" id="confusionMatrix"></div>
+                <div class="col-lg-1"></div>
+            </div>
+            <br>
+            <div class="row">
+                <div class="col-lg-1"></div>
+                <div class="col-lg-3">
+                    <table style="width:100%; table-layout: fixed; border: 1px solid white" class="table table-bordered table-matrix">
+                        <tbody>
+                            <tr>
+                                <th scope="row">Multiple Mismatch</th>
+                                <td id='multiWayErrors'></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-lg-8"></div>
+            </div>
+            <br>
+        </div>
+
+        <div class="card-footer">
+        </div>  
+
+      </div>
+    </div>
+    <div class='col-lg-1'></div>
+</div>
+<br>
+
+<div id="modalDisplay" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 60%;">
+
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">View Images</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p></p>
+                <p id="debug-text">
+                    <div id="debugImage" align="center"></div>
+                </p>
+                <center>
+                    <div id="mapDiv" style='height: 800px'></div>
+                </center>
+        
+                <div class="row" >
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-4">
+                        <div id="debugLabels" align="left"></div>
+                    </div>
+                    <div class="col-lg-2">
+                    </div>
+                    <div class="col-lg-4">
+                        <div id="groundLabels" align="right"></div>
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>
+        
+                <p></p>
+                <div class="control-group">
+                    <div class="row">
+                        <div class="col-lg-3"></div>
+                        <div class="col-lg-3">
+                            <button id="prevCluster" class="btn btn-primary btn-block" onclick=prevCluster()><span style="font-size:100%">&#x276e;</span> Previous Image</button>
+                        </div>
+                        <div class="col-lg-3">
+                            <button id="nextCluster" class="btn btn-primary btn-block" onclick=nextCluster()>Next Image <span style="font-size:100%">&#x276f;</span></button>
+                        </div>
+                        <div class="col-lg-3"></div>
+                    </div>
+                </div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-2'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.common.js"></script>
+<script src="js/camtrap.comparison.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+{% endblock %}

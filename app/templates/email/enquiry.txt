@@ -1,0 +1,7 @@
+There has been an enquiry into TrapTagger by {{ organisation }}.
+
+A brief description of their camera-trap work is as follows:
+{{ description }}
+
+If you would like to know more, contact them at {{ email }}. Otherwise you can create an account for them by clicking on this link:
+{{ url }}

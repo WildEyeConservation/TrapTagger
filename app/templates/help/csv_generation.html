@@ -1,0 +1,59 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Here you can generate your own custom CSV file for analysis in third-party applications. You can choose what level of results is contained in each row of the resulting 
+    CSV file, along with what columns of information are added to each row.
+</p>
+
+<p align="justify">
+    Begin by selecting the level of information represented by each row of the file: image, cluster, camera, trap group, or survey. Thereafter, you can specify the columns 
+    of information presented on each row, in order. This columnar information is further divided into the level it pertains to, where you can add columns pertaining to the 
+    currently-selected row level, or higher. In other words, you can have survey-level information such as the survey name, added to your image-level rows, but you 
+    can't have image-level information such as the image name, added to survey-level rows.
+</p>
+
+<div align="justify">
+    The level-by-level information that you can request is as follows:
+</div>
+
+<ul>
+    <li>Image: image name, species count, labels, and image timestamp.</li>
+    <li>Cluster: cluster id, species count, cluster labels, cluster notes, and image count.</li>
+    <li>Camera: camera id, species count, labels, animal count, and image count.</li>
+    <li>Trap group: trapgroup id, species count, labels, latitude, longitude, altitude, animal count, and image count.</li>
+    <li>Survey: survey name, species count, labels, survey description, animal count and image count.</li>
+</ul>
+<br>
+
+<div align="justify">
+    Besides the self-explanatory columns, these are defined as follows:
+</div>
+<ul>
+    <li>Labels: A list of the different labels in the survey/trapgroup/camera/cluster/image.</li>
+    <li>Image count: The total number of images in the survey/trapgroup/camera/cluster.</li>
+    <li>Animal count: The number of images containing animals in the survey/trapgroup/camera. This excludes Vehicles/Humans/Livestock.</li>
+    <li>Species count: The total number of detections of the selected species in the survey/trapgroup/camera/cluster/image, where if you select all, a count for every label will 
+    be returned, in a hierarchical order. Note that any count for a parent category will be the number of skipped images in that category, rather than the total number of 
+    images in that category.</li>
+</ul>
+
+<p align="justify">
+    Note that you cannot select a species count for a particular species if you have already selected an species count for all species at the same level.
+</p>
+
+<p align="justify">
+    Also, please note that the CSV file might take a while to generate, especially for larger surveys, and that any requests for a different CSV format for the same task 
+    will overwrite any previous CSVs. So you must wait until your CSV is downloaded before requesting another one for the same task.
+</p>

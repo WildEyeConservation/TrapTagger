@@ -1,0 +1,66 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    In order to tag a survey, you must add a task. A task represents a set of anotated results for a survey and consists of its own set of labels, and image clustering. This means 
+    that you can tag a survey multiple times, with different sets of tags, by creating multiple tasks. This allows you to to, for example, have a single survey tagged by 
+    multiple people to compare their performance. Or alternatively, you can upload a set of labels from another source as another task, that can then be compared to a TrapTagger-tagged 
+    task for performance-comparison purposes. Additionally, you could also have an auto-anotated task to compare against a manually tagged one. 
+    In order to create a new task, all you need to do is choose a name for it, and choose to either create a new task and set its labels, or import a csv file of existing labels.
+</p>
+
+<p align="justify">
+    In the case that you are importing task, all you need to do is to upload a csv file. The labels will be detected automatically and created in a flat hierarchical structure. 
+    The format for the csv is as follows:
+</p>
+
+<ul align="justify">
+    <li><i>filename, label1, label2, ...</i></li>
+    <li>The file name is the full file path for the image within your folder structure, starting from your survey's top-level folder, as you uploaded it. Eg. Delta E Quenie/06-12/18-02/DEQ72-t17-1410/1875/IMAG01254.jpg.</li>
+    <li>There may be any number of label columns, as long as they contain the word 'label'.</li>
+    <li>The labels themselves must be listed after the filename using commas, where no labels can be allocated using an empty space. Eg. lion,,,,</li>
+    <li>If there are no labels for an image, or an image is not contained within the csv file, it is assumed to be empty.</li>
+    <li>The first line of the file must consist of column names.</li>
+</ul>
+
+<p align="justify">
+    Please note that the identification of images is performed using a file-name approach, and as such you must ensure that there are no typographical errors in your file names in your csv file.
+</p>
+
+<p align="justify">
+    Should you be creating a new task, you can copy the labels from a previous task (from any survey) by using the 
+    dropdown menus provided, and subsequently modify the labels, their structure, or add new labels freely. Alternatively, you can create a new set of labels from scratch. Begin by 
+    creating your top-level labels in your hierarchy by setting their parent to none), and then build downward. You can also choose your own hotkeys that make sense for you. The recommended approach is to use the 
+    label's first letter where there is no duplication (so that it can be remembered easily), and then to switch to numbers when there are two or more labels with the same first letter 
+    to avoid accidental tagging (eg. labelling a leopard as a lion).
+</p>
+
+<p align="justify">
+    You can easily add or remove labels by clicking the plus or cross buttons at any time.
+</p>
+
+<p align="justify">
+    Note that you cannot have duplicate hotkeys within a particular category.
+</p>
+
+<p align="justify">
+    If you wish to only label a few species of interest, then it is most efficient to have labels for those on the top level, and then group everything else into one or more 
+    easy categories such as antelope, other, herbivore, carnivore etc. In general, the deeper your hierarchy, the longer your tagging task will take due to it requiring more passes 
+    through the survey, but too many subtly different labels can make tagging a much slower process. So, try to find a balance.
+</p>
+
+<p align="justify">
+    Note that there will automatically be a 'Vehicles/Humans/Livestock' (v) category in the top level, along with a 'nothing' (n), a 'knocked down' (q), and an 'unknown' label (u). Also, there will 
+    be a 'skip' (0), and a 'wrong' (9) label included for all levels below that. As such, you will not be able to create labels with those names, or hotkeys.
+</p>

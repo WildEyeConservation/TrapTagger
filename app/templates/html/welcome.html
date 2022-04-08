@@ -1,0 +1,128 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<br>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-10'>
+      <div class="card" style='min-height:400px'>
+
+        <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+          <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='col-lg-12' align='center'>
+                <h1>Welcome to TrapTagger</h1>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body">
+
+            <p align="justify">
+                Welcome to TrapTagger, a complete camera-trap-annotation and data-analysis web application that is free to use for conservation purposes. Whether you need the accuracy of a manually-annotated 
+                dataset, the ease and convenience of an AI-anotated dataset, or any combination inbetween, TrapTagger has you covered. Automatic annotation is achieved using an AI model 
+                that has been trained on a dataset of over a million images of Southern African animals, and can identify 56 different species with very high accuracy.
+                In general, images are only auto-anotated in cases where the AI is extremely confident, rather leaving the images that it is unsure of for a human to look over.
+                This results in around 90% of your dataset being annotated with 99% precision immediately, thus leaving you a relatively small tagging job. On the other hand, 
+                should your particular application require greater accuracy levels, you have the option to annotate your entire dataset manually, with the AI simply providing some 
+                assistance to make the process easier and more accurate. However, this does not have to be black and white. You are able to individually select which species are 
+                automatically annotated, allowing you to have the different-looking species - that wouldn't be confused with your species of interest - removed, leaving you to tag 
+                the rest manually (for eg. you could have the elephants, giraffes, and zebras removed when you are interested in lion populations).
+            </p>
+
+            <p align="justify">
+                The manual annotation process has also been massively streamlined to allow for tiered accuracy levels, with a worker and batch-job architecture that allows for any number of people to 
+                sign up for worker accounts and simultaneously annotate your dataset, after you have givien them permission to do so. Moreover, the tagging interface itself is optimised by 
+                clustering together all images that constitute a single sighting of a group of animals, and showing you only the heuristically best image from the cluster, along with any other image that may 
+                contain another species, thus reducing the number of images that need to be viewed. All high-confidence human and empty images are also removed to drastically reduce the size of the 
+                dataset, and prevent you having to look at thousands of empty images. The interface itself is a rapid hotkey-driven process that allows you to tag an entire cluster of images with 
+                a single press of a button, whilst AI-generated boxes draw your eyes to the animals immediately, allowing experienced taggers to annotate up to 9000 images per hour.
+            </p>
+
+            <p align="justify">
+                Finally, once your datset is fully annotated, you have a variety of options to peruse the results. A variety of interactive statistical analyses are provided that allow you to explore 
+                the temporal and spatial distributions of the species within the surveyed area. However, should you wish to extract the data for your own statistical analysis, you are able to 
+                generate custom-formatted csv files to import into most commercial software.
+            </p>
+
+            <p align="justify">
+                If you are involved in conservation-focused camera trapping and would like to work with TrapTagger, please contact us with the form below.
+            </p>
+
+            <br>
+            <div class="row">
+                <div class="col-lg-4"></div>
+                <div class="col-lg-4">
+                    <form action="" method="post" id='formEnquire'>
+                        {{enquiryForm.hidden_tag() }}
+
+                        <div align="justify">Organisation</div>
+                        {{ enquiryForm.organisation(size=30) }}
+                        {% for error in enquiryForm.organisation.errors %}
+                          <br>
+                          <span style="color: #DF691A;">[{{ error }}]</span>
+                        {% endfor %}
+                        <br>
+                        <br>
+            
+                        <div align="justify">Email</div>
+                        {{ enquiryForm.email(size=30) }}
+                        {% for error in enquiryForm.email.errors %}
+                          <br>  
+                          <span style="color: #DF691A;">[{{ error }}]</span>
+                        {% endfor %}
+                        <br>
+                        <br>
+            
+                        <div align="justify">Brief Description of Camera-Trap Work</div>
+                        {{ enquiryForm.description(cols=60, rows=6) }}
+                        {% for error in enquiryForm.description.errors %}
+                          <br>  
+                          <span style="color: #DF691A;">[{{ error }}]</span>
+                        {% endfor %}
+                        <br>
+                        <br>
+            
+                        <div class="row">
+                            <div class='col-lg-3'>
+                                <button type='submit' class='btn btn-primary btn-block' id='btnSubmitEnquiry'>Submit</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-lg-4"></div>
+            </div>
+            <br>
+            
+        </div>
+
+        <div class="card-footer">
+          <div class="row">
+              <br>
+          </div>   
+        </div>  
+
+      </div>
+    </div>
+    <div class='col-lg-1'></div>
+</div>
+<br>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.welcome.js"></script>
+{% endblock %}

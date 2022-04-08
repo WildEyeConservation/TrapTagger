@@ -1,0 +1,143 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends 'bootstrap/base.html' %}
+
+{% block title %}
+    {% if title %}{{ title }} - TrapTagger{% else %}Welcome to TrapTagger{% endif %}
+{% endblock %}
+
+{%- block styles %}
+    <link rel="stylesheet" href="../js/bootstrap.min.css" media="screen">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+{% endblock %}
+
+{% block navbar %}
+    <style>
+        .canvas {
+          width: 100%;
+          height: auto;
+        }
+    </style>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                {% if current_user.is_authenticated == false %}
+                    <a class="navbar-brand" href="{{ url_for('welcome') }}">TrapTagger</a>
+                {% elif current_user.admin == true %}
+                    <a class="navbar-brand" href="{{ url_for('surveys') }}">TrapTagger</a>
+                {% else %}
+                    <a class="navbar-brand" href="{{ url_for('index') }}">TrapTagger</a>
+                {% endif %}
+            </div>
+
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="navbar-nav mr-auto"></ul>
+                <ul class="navbar-nav navbar-right">
+                    {% if current_user.is_anonymous %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('login_page') }}">Login</a></li>
+                    {% else %}
+                        <button type="button" class="btn btn-link btn-sm" align="right" value="help" onclick="helpOpen('{{ helpFile }}')"> Help </button>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+
+
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-info" role="alert">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {# application content needs to be provided in the app_content block #}
+        {% block app_content %}{% endblock %}
+
+        <!-- Wait Modal -->
+        <div id="modalWait" class="modal fade" role="dialog" tabindex="-1">
+            <div class="modal-dialog">
+            
+                <!-- Modal content-->
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <p></p>
+                        <h4 align="justify">
+                            Please be patient...
+                        </h4>
+                        <p></p>
+                    </div>
+                </div>
+            
+            </div>
+        </div>
+
+        <!-- Wait Modal2 -->
+        <div id="modalWait2" class="modal fade" role="dialog" tabindex="-1">
+            <div class="modal-dialog">
+            
+                <!-- Modal content-->
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <p></p>
+                        <h4 align="justify">
+                            Please be patient...
+                        </h4>
+                        <br>
+                        <div id='modalWait2p' align="justify" style="font-size:90%"></div>
+                        <div id='PlsWaitCountDownDiv' align="center" style="font-size:90%"></div>
+                        <br>
+                    </div>
+                </div>
+            
+            </div>
+        </div>
+
+        <!--Help Modal -->
+        <div id="modalHelp" class="modal fade" role="dialog" tabindex="-1">
+            <div class="modal-dialog" style="max-width: 80%;">
+
+                <!-- Modal content-->
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="modal-title">Help</h4>
+                        <button id="helpx" type="button" class="close" onclick=helpClose()>&times;</button>
+                    </div>
+                    <div class="modal-body" id="helpBody"></div>
+                    <div class='modal-footer'>
+                        <div class='col-lg-1'>
+                            <button id="helpclose" type='button' class='btn btn-info btn-block' onclick=helpClose()>Close</button>
+                        </div>
+                    </div>
+                </div>
+        
+            </div>
+        </div>
+
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+{% endblock %}

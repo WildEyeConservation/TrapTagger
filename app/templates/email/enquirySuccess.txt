@@ -1,0 +1,32 @@
+Dear {{ organisation }},
+
+A TrapTagger account has been created for you. The credentials are as follows:
+Username: {{ organisation }}
+Password: {{ password }}
+You can follow this link to the login page: {{ url2 }}
+If you would like to change your password, please follow this link: {{ url2 }}
+
+Additionally, you have separate credentials to access our cloud storage directly. These are as follows:
+Bucket: {{ bucket_name }}
+Access key ID: {{ s3UserName }}
+Secret access key: {{ s3Password }}
+
+The recommended method for uploading images is to do so directly to our cloud storage using third-party software. We recommend using 
+CyberDuck (https://cyberduck.io/) as it has both Windows and Mac versions. The setup and upload procedure is as follows:
+    -Click Bookmark -> New Bookmark
+    -Select Amazon S3 in the drop down menu at the top of the form
+    -Choose a bookmark nickname if you like
+    -Fill in your Access Key ID
+    -Fill in your Secret Access Key
+    -Click on the 'More Options' arrow
+    -Set the path to your bucket name
+    -Close the form
+    -Open the bookmark by double clicking on it
+    -Upload a folder by dragging it into the application
+
+If you have any further questions, please send an email to  {{ email_address }}.
+
+Sincerely,
+The TrapTagger team
+
+

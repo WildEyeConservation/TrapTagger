@@ -1,0 +1,38 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<p align="justify">
+    Welcome to the data pipeline page. Here you can prepare images for classifier training by running them through a detector, and cropping out 
+    the animals. Additionally, all necessary information is stored in your database for easy annotation extraction at a later stage.
+</p>
+
+<p align="justify">
+    Begin by specifying the name for the survey you are processing, and the name of the bucket where you would like your training data to be 
+    stored. Alongside that, you must also specify the minimum detection size you would like to use, and a trapgroup code for differentiating different 
+    camera sites. The latter is helpful to prevent the classifier from learning species distributions in particular habitats.
+</p>
+
+<p align="justify">
+    Next you must specifiy the source of your data. If the data is stored in extrernal cloud storage, you can specify the base URL where the images 
+    should be fetched from, along with a csv file stipulating each filename and its associated label.
+</p>
+
+<p align="justify">
+    Alternatively, you can import your own S3-stored data by specifying an S3 bucket and folder to import. In such a case, you would need to import 
+    the labels separately from a csv file using the "add task" functionaly.
+</p>
+
+<p align="justify">
+    Submit when you are ready.
+</p>
