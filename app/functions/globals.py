@@ -317,9 +317,9 @@ def importMonitor():
 
                     # Command to be sent to the image
                     userData = '#!/bin/bash\n cd /home/ubuntu/TrapTagger;'
-                    userData += ' git fetch {};'.format(Config.QUEUES[queue]['repo'])
+                    userData += ' git fetch;'
                     userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
-                    userData += ' git pull {} {};'.format(Config.QUEUES[queue]['repo'],Config.QUEUES[queue]['branch'])
+                    userData += ' git pull;'
                     userData += ' cd /home/ubuntu; '
                     userData += Config.QUEUES[queue]['user_data']
 
