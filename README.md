@@ -171,6 +171,8 @@ You must download this code to your server:
 - Clone this repository `git clone https://github.com/WildEyeConservation/TrapTagger`
 - Navigate to the newly-added TrapTagger folder
 - Clone the submodules using the following command `git submodule update --init`
+- Install git lfs by following the instructions at https://git-lfs.github.com/
+- Clone the large files using `git lfs fetch --all; git lfs pull`
 
 ### Docker
 
