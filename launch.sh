@@ -72,7 +72,7 @@ printf \
 'MONITORED_EMAIL_ADDRESS='$MONITORED_EMAIL_ADDRESS'\n'\
 'BUCKET_ROOT='$BUCKET_ROOT'\n'
 
-docker-compose -f /home/ubuntu/wildcruweb/parallel-docker-compose.yml up > worker.log 2>&1 &
+docker-compose -f /home/ubuntu/TrapTagger/parallel-docker-compose.yml up > worker.log 2>&1 &
 LAUNCH_TIME="$(date -u +%s)"
 echo "Container launched"
 
@@ -123,6 +123,6 @@ while $flag; do
 
 done
 
-docker-compose -f /home/ubuntu/wildcruweb/parallel-docker-compose.yml down
+docker-compose -f /home/ubuntu/TrapTagger/parallel-docker-compose.yml down
 echo "Container shut down. Goodbye."
 poweroff

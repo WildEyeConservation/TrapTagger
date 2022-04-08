@@ -126,7 +126,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data':
-                'bash /home/ubuntu/wildcruweb/launch.sh ' + 
+                'bash /home/ubuntu/TrapTagger/launch.sh ' + 
                 'parallel_worker_{}' + ' ' + 
                 'parallel' + " '" + 
                 HOST_IP + "' '" + 
@@ -165,7 +165,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data':
-                'bash /home/ubuntu/wildcruweb/launch.sh ' + 
+                'bash /home/ubuntu/TrapTagger/launch.sh ' + 
                 'default_worker_{}' + ' ' + 
                 'default' + " '" + 
                 HOST_IP + "' '" + 
@@ -205,7 +205,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data': 
-                'bash /home/ubuntu/wildcruweb/megadetectorworker/launch.sh ' + 
+                'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
                 'celery_worker_{}' + ' ' + 
                 HOST_IP + ' ' + 
                 'celery ' + 
@@ -227,7 +227,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data': 
-                'bash /home/ubuntu/wildcruweb/megadetectorworker/launch.sh ' + 
+                'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
                 'classification_worker_{}' + ' ' + 
                 HOST_IP + ' ' + 
                 'classification ' + 

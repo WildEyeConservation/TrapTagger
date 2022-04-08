@@ -168,7 +168,7 @@ In order to work with your server, you must ssh into it via your terminal:
 
 You must download this code to your server:
 
-- Clone this repository
+- Clone this repository `git clone https://github.com/WildEyeConservation/TrapTagger`
 - Navigate to the newly-added TrapTagger folder
 - Clone the submodules using the following command `git submodule update --init`
 
