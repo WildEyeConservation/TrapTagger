@@ -1,0 +1,6 @@
+[submodule "CameraTraps"]
+	path = CameraTraps
+	url = https://github.com/microsoft/CameraTraps
+[submodule "wildbook-ia"]
+	path = wildbook-ia
+	url = https://github.com/WildMeOrg/wildbook-ia
