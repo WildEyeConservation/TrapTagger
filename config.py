@@ -96,8 +96,8 @@ class Config(object):
     }
 
     #Aurora DB stuff
-    MAX_AURORA = 64
-    DB_CLUSTER_NAME= 'wildcru-cluster'
+    # MAX_AURORA = 64
+    # DB_CLUSTER_NAME= 'clustername'
 
     # How many multiples of 5 seconds a worker is checked for idleness
     IDLE_MULTIPLIER = {
