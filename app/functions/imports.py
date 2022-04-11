@@ -2437,6 +2437,35 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
+def pipeline_cluster_camera(self,camera_id,task_id):
+    '''Helper function to parallelise pipeline clustering'''
+
+    try:
+        images = db.session.query(Image).filter(Image.camera_id==camera_id).distinct().all()
+        for image in images:
+            image.detection_rating = 1
+            cluster = Cluster(task_id=task_id)
+            db.session.add(cluster)
+            cluster.images = [image]
+            for detection in image.detections:
+                labelgroup = Labelgroup(detection_id=detection.id,task_id=task_id,checked=False)
+                db.session.add(labelgroup)
+            db.session.commit()
+    
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
 def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroupCode,min_area,exclusions,sourceBucket):
     '''
     Celery task for processing pre-annotated data. Creates a survey etc. as normal, but does not classify the data, nor bother to 
@@ -2492,27 +2521,39 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey.status = 'Clustering'
         db.session.commit()
+        survey_id = survey.id
 
         if fileAttached:
-            task = Task(name='import', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
+            task = Task(name='import', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
         else:
-            task = Task(name='default', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
+            task = Task(name='default', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
         db.session.add(task)
         db.session.commit()
 
-        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().all()
-        for image in images:
-            image.detection_rating = 1
-            cluster = Cluster(task_id=task.id)
-            db.session.add(cluster)
-            cluster.images = [image]
-            for detection in image.detections:
-                labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                db.session.add(labelgroup)
-            db.session.commit()
+        results = []
+        for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
+            results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera.id,'task_id':task.id},queue='parallel'))
+
+        # Wait for processing to finish
+        # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+        # See https://github.com/celery/celery/issues/4480
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in results:
+                try:
+                    result.get()
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+                result.forget()
+        GLOBALS.lock.release()        
 
         # Extract labels:
         if fileAttached:
+            survey = db.session.query(Survey).get(survey_id)
             survey.status = 'Extracting Labels'
             db.session.commit()
 
@@ -2525,18 +2566,38 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 translations[species] = label.id
 
             # Run the folders in parallel
+            results = []
             for dirpath in df['dirpath'].unique():
                 dirpathDF = df.loc[df['dirpath'] == dirpath]
                 key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
                 temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
                 dirpathDF.to_csv(temp_file.name,index=False)
                 GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
-                extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey.id,'destBucket':bucketName},queue='parallel')
+                results.append(extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey_id,'destBucket':bucketName},queue='parallel'))
 
+            # Wait for processing to finish
+            # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+            # See https://github.com/celery/celery/issues/4480
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in results:
+                    try:
+                        result.get()
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+                    result.forget()
+            GLOBALS.lock.release()
+
+        survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Static Detections'
         db.session.commit()
         processStaticDetections(survey)
 
+        survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
         survey.images_processing = 0
         db.session.commit()
