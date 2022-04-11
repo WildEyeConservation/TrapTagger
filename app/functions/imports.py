@@ -2413,10 +2413,27 @@ def extract_label(path,filename,species,translations,survey_id):
         db.session.commit()
     return True
 
-def extract_dirpath_labels(df,translations,survey_id):
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
-    df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
-    db.session.remove()
+    
+    try:
+        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
+        GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
+        df = pd.read_csv(temp_file.name)
+        df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
+    
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
@@ -2496,6 +2513,9 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
 
         # Extract labels:
         if fileAttached:
+            survey.status = 'Extracting Labels'
+            db.session.commit()
+
             # Create labels
             translations = {}
             for species in df['species'].unique():
@@ -2505,11 +2525,13 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 translations[species] = label.id
 
             # Run the folders in parallel
-            pool = Pool(processes=4)
             for dirpath in df['dirpath'].unique():
-                pool.apply_async(extract_dirpath_labels,(df.loc[df['dirpath'] == dirpath],translations,survey.id))
-            pool.close()
-            pool.join()
+                dirpathDF = df.loc[df['dirpath'] == dirpath]
+                key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
+                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
+                dirpathDF.to_csv(temp_file.name,index=False)
+                GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey.id,'destBucket':bucketName},queue='parallel')
 
         survey.status='Removing Static Detections'
         db.session.commit()
