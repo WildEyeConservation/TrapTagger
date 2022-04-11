@@ -2413,7 +2413,7 @@ def extract_label(path,filename,species,translations,survey_id):
         db.session.commit()
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=29,ignore_result=False)
 def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
@@ -2436,7 +2436,7 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=29,ignore_result=False)
 def pipeline_cluster_camera(self,camera_id,task_id):
     '''Helper function to parallelise pipeline clustering'''
 
