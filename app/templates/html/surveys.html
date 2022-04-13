@@ -1945,7 +1945,7 @@ limitations under the License. -->
 
         TGCheckReady = true
         tgInfoDiv = document.getElementById('addImagesTGInfo')
-        if (tgInfoDiv.innerHTML=='Checking...') {
+        if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML=='Checking...')) {
             TGCheckReady = false
             document.getElementById('addImagesErrors').innerHTML = 'Please wait for your trapgroup-code check to finish.'
         }

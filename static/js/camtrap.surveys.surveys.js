@@ -180,7 +180,7 @@ var barColours = {
 
 var btnOpacity = 0.2
 
-var disabledSurveyStatuses = ['correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','uploading','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
+var disabledSurveyStatuses = ['extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','uploading','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
 var diabledTaskStatuses = ['prepping','deleting','importing','processing','pending','started','initialising']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
@@ -555,7 +555,6 @@ function resetEditSurveyModal() {
     document.getElementById('addImagesAddImages').disabled = false
     document.getElementById('addImagesAddCoordinates').disabled = false
     document.getElementById('addImagesEditTimestamps').disabled = false
-    document.getElementById('addImagesTGInfo').innerHTML = ''
 
     addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv')
     while(addImagesAddImsDiv.firstChild){
@@ -1039,7 +1038,7 @@ function buildBucketUpload(divID) {
 
     div2 = document.createElement('div')
     div2.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div2.innerHTML = '<i>If you have already uploaded the survey to Amazon S3, please enter the same of the folder below.</i>'
+    div2.innerHTML = '<i>If you have already uploaded the survey to Amazon S3, please enter the name of the folder below.</i>'
     div.appendChild(div2)
 
     row = document.createElement('div')

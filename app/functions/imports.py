@@ -821,9 +821,14 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     try:
                         print('Extracting time stamp from {}'.format(filename))
                         t = pyexifinfo.get_json(temp_file.name)[0]
-                        timestamp = datetime.strptime(t['EXIF:DateTimeOriginal'], '%Y:%m:%d %H:%M:%S')
+                        timestamp = None
+                        for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                            if field in t.keys():
+                                timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                                break
+                        assert timestamp
                     except (KeyError, ValueError):
-                        app.logger.info("Skipping {} could not extract EXIF timestamp...".format(dirpath+'/'+filename))
+                        app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
                 else:
                     # don't need to download the image or even extract a timestamp if pipelining

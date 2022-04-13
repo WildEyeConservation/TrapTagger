@@ -1674,7 +1674,12 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
             print('Updating timestamp...')
             try:
                 t = pyexifinfo.get_json(temp_file.name)[0]
-                timestamp = datetime.strptime(t['EXIF:DateTimeOriginal'], '%Y:%m:%d %H:%M:%S')
+                timestamp = None
+                for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                    if field in t.keys():
+                        timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                        break
+                assert timestamp
                 image.timestamp = timestamp
                 db.session.commit()
                 print('Success')
