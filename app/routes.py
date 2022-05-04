@@ -1286,7 +1286,7 @@ def checkTrapgroupCode():
         else:
             task = findTrapgroupTags.AsyncResult(task_id)
             status = task.state
-            if 'result' in task.info:
+            if (status != 'FAILURE') and ('result' in task.info):
                 reply = task.info['result']
 
     return json.dumps({'status':status,'data':reply})
