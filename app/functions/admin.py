@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker
 from app.functions.individualID import calculate_individual_similarities
-from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey
+from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse
 import GLOBALS
 from sqlalchemy.sql import func, or_
 from datetime import datetime
