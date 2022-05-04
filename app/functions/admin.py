@@ -974,20 +974,35 @@ def generateLabels(labels, task_id):
     return True
 
 @celery.task(bind=True,max_retries=29)
-def findTrapgroupTags(tgCode,folder,user_id):
+def findTrapgroupTags(self,tgCode,folder,user_id):
     '''Celery task that does the trapgroup code check. Returns the user message.'''
 
-    sourceBucket = db.session.query(User).get(user_id).bucket+'-raw'
-    isjpeg = re.compile('\.jpe?g$', re.I)
-    tgCode = re.compile(tgCode)
-    allTags = []
-    for dirpath, folders, filenames in s3traverse(sourceBucket, folder):
-        jpegs = list(filter(isjpeg.search, filenames))
-        if len(jpegs):
-            tags = tgCode.findall(dirpath)
-            if len(tags) > 0:
-                tag = tags[0]
-                if tag not in allTags:
-                    allTags.append(tag)
+    try:
+        reply = None
+        sourceBucket = db.session.query(User).get(user_id).bucket+'-raw'
+        isjpeg = re.compile('\.jpe?g$', re.I)
+        tgCode = re.compile(tgCode)
+        allTags = []
+        for dirpath, folders, filenames in s3traverse(sourceBucket, folder):
+            jpegs = list(filter(isjpeg.search, filenames))
+            if len(jpegs):
+                tags = tgCode.findall(dirpath)
+                if len(tags) > 0:
+                    tag = tags[0]
+                    if tag not in allTags:
+                        allTags.append(tag)
 
-    return str(len(allTags)) + ' trapgroups found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+        reply = str(len(allTags)) + ' trapgroups found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return reply
