@@ -1288,6 +1288,7 @@ def checkTrapgroupCode():
             status = task.state
             if status == 'SUCCESS':
                 reply = task.result
+                task.forget()
 
     return json.dumps({'status':status,'data':reply})
 
