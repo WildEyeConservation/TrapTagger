@@ -89,7 +89,8 @@ var customColumns = {}
 var individual_next = null
 var individual_prev = null
 var surveyClassifications = null
-var currentReqID = null
+var tgCheckID = null
+var tgCheckTimer = null
 
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
@@ -664,6 +665,29 @@ function buildBrowserUpload(divID) {
     }
 }
 
+function pingTgCheck() {
+    var formData = new FormData()
+    formData.append("task_id", tgCheckID)
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            if (document.getElementById('S3FolderInput').value!='') {
+                response = JSON.parse(this.responseText)
+                if (response.status=='SUCCESS') {
+                    infoDiv.innerHTML = response.data
+                    clearInterval(tgCheckTimer)
+                } else if (response.status=='FAILURE') {
+                    clearInterval(tgCheckTimer)
+                }
+            }
+        }
+    }
+    xhttp.open("POST", '/checkTrapgroupCode');
+    xhttp.send(formData);
+}
+
 function checkTrapgroupCode() {
     /** Checks the trapgroup code and updates the TG info field. */
 
@@ -713,13 +737,11 @@ function checkTrapgroupCode() {
     
         if ((tgCode!='')&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
-            var reqID = Math.floor(Math.random() * 100000) + 1;
-            currentReqID = reqID
     
             var formData = new FormData()
             formData.append("tgCode", tgCode)
             formData.append("folder", folder)
-            formData.append("reqID", reqID)
+            formData.append("task_id", 'none')
         
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
@@ -727,8 +749,14 @@ function checkTrapgroupCode() {
                 if (this.readyState == 4 && this.status == 200) {
                     if (document.getElementById('S3FolderInput').value!='') {
                         response = JSON.parse(this.responseText)
-                        if (response.reqID==currentReqID) {
-                            infoDiv.innerHTML = response.data
+                        if (response.status == 'PENDING') {
+                            tgCheckID = response.data
+                            if (tgCheckTimer != null) {
+                                clearInterval(tgCheckTimer)
+                                tgCheckTimer = setInterval(pingTgCheck, 1000)
+                            } else {
+                                tgCheckTimer = setInterval(pingTgCheck, 1000)
+                            }
                         }
                     }
                 }

@@ -1273,26 +1273,23 @@ def requestLabelSpec():
 def checkTrapgroupCode():
     '''Checks the user's specified trapgroup code and returns the detected trapgroups in the specified folder.'''
 
-    tgCode = request.form['tgCode']
-    folder = request.form['folder']
-    reqID = request.form['reqID']
+    status = 'FAILURE'
+    reply = None
+    task_id = request.form['task_id']
+    if current_user.is_authenticated and current_user.admin:
+        if task_id == 'none':
+            tgCode = request.form['tgCode']
+            folder = request.form['folder']
+            task = findTrapgroupTags.delay(tgCode=tgCode,folder=folder,user_id=current_user.id)
+            reply = task.id
+            status = 'PENDING'
+        else:
+            task = findTrapgroupTags.AsyncResult(task_id)
+            status = task.state
+            if 'result' in task.info:
+                reply = task.info['result']
 
-    sourceBucket = current_user.bucket+'-raw'
-    isjpeg = re.compile('\.jpe?g$', re.I)
-    tgCode = re.compile(tgCode)
-    allTags = []
-    for dirpath, folders, filenames in s3traverse(sourceBucket, folder):
-        jpegs = list(filter(isjpeg.search, filenames))
-        if len(jpegs):
-            tags = tgCode.findall(dirpath)
-            if len(tags) > 0:
-                tag = tags[0]
-                if tag not in allTags:
-                    allTags.append(tag)
-    
-    reply = str(len(allTags)) + ' trapgroups found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
-
-    return json.dumps({'reqID':reqID,'data':reply})
+    return json.dumps({'status':status,'data':reply})
 
 @app.route('/getSurveysAndTasksByUser/<user_id>')
 @login_required

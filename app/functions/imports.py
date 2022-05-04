@@ -207,25 +207,28 @@ def importKML(survey_id):
             kmlData = kmlparser.parse(f).getroot()
 
         for trap in kmlData.Document.Folder.Placemark:
-            options = []
-            for trapgroup in survey.trapgroups:
-                if trapgroup.tag in trap.name.text:
-                    options.append(trapgroup)
-            if len(options) == 1:
-                trapgroup = options[0]
-            else:
-                trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==trap.name.text).first()
-            if trapgroup != None:
-                try:
-                    coords = trap.Point.coordinates.text.split(',')
-                    trapgroup.longitude = float(coords[0])
-                    trapgroup.latitude = float(coords[1])
-                    if len(coords) > 2:
-                        trapgroup.altitude = float(coords[2])
-                    else:
-                        trapgroup.altitude = 0
-                except:
-                    pass
+            try:
+                options = []
+                for trapgroup in survey.trapgroups:
+                    if trapgroup.tag in trap.name.text:
+                        options.append(trapgroup)
+                if len(options) == 1:
+                    trapgroup = options[0]
+                else:
+                    trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==trap.name.text).first()
+                if trapgroup != None:
+                    try:
+                        coords = trap.Point.coordinates.text.split(',')
+                        trapgroup.longitude = float(coords[0])
+                        trapgroup.latitude = float(coords[1])
+                        if len(coords) > 2:
+                            trapgroup.altitude = float(coords[2])
+                        else:
+                            trapgroup.altitude = 0
+                    except:
+                        pass
+            except:
+                pass
         db.session.commit()
     except:
         pass
