@@ -413,9 +413,15 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         if level == 'capture':
             level = 'unique_capture'
         for label in labels:
-            df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['label'].transform('count')
-            df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
-            df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
+            if level in ['cluster','capture']:
+                # Gives a minimum number of animals in the cluster/capture
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['image_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
+            else:
+                # Gives the total count of the detections over the level
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['label'].transform('count')
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
         df[level_name+'_animal_count'] = df[~df.label.isin(animal_exclusions)].groupby(level)[level].transform('count')
         df[level_name+'_animal_count'].fillna(0, inplace=True)
         df[level_name+'_animal_count'] = df.groupby(level)[level_name+'_animal_count'].transform('max')
@@ -564,7 +570,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             selectedLevel = 'unique_capture'
 
         allLevels = []
-        detection_count_levels = []
+        detection_count_levels = ['image']
         label_levels = []
         url_levels = []
         individual_levels = []
