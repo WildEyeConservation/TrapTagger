@@ -354,7 +354,7 @@ btnCsvDownload.addEventListener('click', ()=>{
             } else if (dataSelection == 'Species Count') {
                 csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
                 speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
-                selection = levelSelection+'_'+speciesSelection+'_count'
+                selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
             } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
                 selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
             } else if (dataSelection == 'Labels') {
