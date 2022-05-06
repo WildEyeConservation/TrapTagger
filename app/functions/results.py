@@ -415,7 +415,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         for label in labels:
             if level in ['cluster','capture']:
                 # Gives a minimum number of animals in the cluster/capture
-                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['image_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)['image_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
                 df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
             else:
                 # Gives the total count of the detections over the level
