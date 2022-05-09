@@ -749,16 +749,15 @@ def changeTimestamps(self,survey_id,timestamps):
         for item in timestamps:
             try:
                 timestamp = datetime.strptime(item['timestamp'],"%Y/%m/%d %H:%M:%S")
-                identifier = item['camera']
-                trapTag = re.split('/',identifier)[0]
-                folder = re.split('/',identifier)[1]
+                folder = item['camera']
+                # trapTag = re.split('/',identifier)[0]
+                # folder = re.split(trapTag+'/',item['camera'])[-1]
 
                 images = db.session.query(Image)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
                                 .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(Trapgroup.tag==trapTag)\
-                                .filter(Camera.path.contains(folder))\
+                                .filter(Camera.path==folder)\
                                 .order_by(Image.corrected_timestamp).all()
                                 
                 delta = timestamp-images[0].timestamp

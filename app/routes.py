@@ -552,10 +552,11 @@ def getCameraStamps(survey_id):
     if survey and (survey.user==current_user):
         for trapgroup in survey.trapgroups:
             data = {'tag': trapgroup.tag, 'cameras': []}
-            groups = get_groups(trapgroup)
-            for group in groups:
-                first = db.session.query(Image).filter(Image.camera_id.in_(groups[group])).order_by(Image.corrected_timestamp).first()
-                data['cameras'].append({    'folder': group,
+            # groups = get_groups(trapgroup)
+            # for group in groups:
+            for camera in trapgroup.cameras:
+                first = db.session.query(Image).filter(Image.camera==camera).order_by(Image.corrected_timestamp).first()
+                data['cameras'].append({    'folder': camera.path,
                                             'timestamp': first.timestamp.strftime("%Y/%m/%d %H:%M:%S"),
                                             'corrected_timestamp': first.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S")})
             reply.append(data)

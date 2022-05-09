@@ -1369,7 +1369,7 @@ function buildEditTimestamp() {
                         input.setAttribute('type','text')
                         input.classList.add('form-control')
                         input.value = reply[trapgroup].cameras[camera].corrected_timestamp
-                        input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].tag+'/'+reply[trapgroup].cameras[camera].folder)
+                        input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].folder)
                         col.appendChild(input)
                     }
     
