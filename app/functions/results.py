@@ -607,7 +607,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF = df
 
         for allLevel in allLevels:
-            column = allLevel+'_All_count'
+            column = allLevel+'_all_count'
             currentIndex = requestedColumns.index(column)
             parentLabels = [r[0] for r in db.session.query(Label.description).filter(Label.task_id.in_(selectedTasks)).filter(Label.parent_id == None).distinct().all()]
             parentLabels.append('Vehicles/Humans/Livestock')
