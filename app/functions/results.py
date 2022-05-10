@@ -580,7 +580,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 if level not in detection_count_levels:
                     detection_count_levels.append(level)
                 if '_all_count' in column:
-                    allLevels.append(re.split('_All_count',column)[0])
+                    allLevels.append(re.split('_all_count',column)[0])
             elif '_labels' in column:
                 label_levels.append(re.split('_labels',column)[0])
             elif '_url' in column:
