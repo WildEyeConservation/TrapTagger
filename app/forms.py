@@ -15,7 +15,7 @@ limitations under the License.
 '''
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, EqualTo, ValidationError, Email
 from app.models import User
 
@@ -51,6 +51,7 @@ class EnquiryForm(FlaskForm):
     organisation = StringField('Organisation', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
     description = TextAreaField('Description', validators=[DataRequired()])
+    info = HiddenField('info')
 
 class ResetPasswordForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])

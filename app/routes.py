@@ -1997,26 +1997,30 @@ def welcome():
     else:
         enquiryForm = EnquiryForm()
         if enquiryForm.validate_on_submit():
-            bucket = 'traptagger-' + enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
+            if enquiryForm.info.data == '':
+                bucket = 'traptagger-' + enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
 
-            check = db.session.query(User).filter(or_(
-                func.lower(User.username)==enquiryForm.organisation.data.lower(),
-                User.bucket==bucket
-            )).first()
+                check = db.session.query(User).filter(or_(
+                    func.lower(User.username)==enquiryForm.organisation.data.lower(),
+                    User.bucket==bucket
+                )).first()
 
-            disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
-            disallowed = any(r in disallowed_chars for r in enquiryForm.organisation.data)
+                disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+                disallowed = any(r in disallowed_chars for r in enquiryForm.organisation.data)
 
-            if (check == None) and (len(bucket) <= 64) and not disallowed:
-                send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
-                flash('Enquiry submitted.')
-                return redirect(url_for('welcome'))
-            elif disallowed:
-                flash('Your organisation name cannot contain special characters.')
-            elif len(bucket) <= 64:
-                flash('Your organisation name is too long.')
+                if (check == None) and (len(bucket) <= 64) and not disallowed:
+                    send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
+                    flash('Enquiry submitted.')
+                    return redirect(url_for('welcome'))
+                elif disallowed:
+                    flash('Your organisation name cannot contain special characters.')
+                elif len(bucket) <= 64:
+                    flash('Your organisation name is too long.')
+                else:
+                    flash('That organisation already has an account.')
             else:
-                flash('That organisation already has an account.')
+                flash('Enquiry (not) submitted.')
+                return redirect(url_for('welcome'))
         return render_template("html/welcome.html", enquiryForm=enquiryForm, helpFile='welcome_page')
 
 @app.route('/dataPipeline')

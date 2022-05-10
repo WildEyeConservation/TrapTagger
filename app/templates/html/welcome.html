@@ -67,6 +67,7 @@ limitations under the License. -->
                 <div class="col-lg-4">
                     <form action="" method="post" id='formEnquire'>
                         {{enquiryForm.hidden_tag() }}
+                        {{ enquiryForm.info() }}
 
                         <div align="justify">Organisation</div>
                         {{ enquiryForm.organisation(size=30) }}
