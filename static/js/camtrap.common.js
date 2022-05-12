@@ -1462,8 +1462,6 @@ function fetchTaggingLevel() {
             taggingLabel = taggingInfo.taggingLabel
             if (taggingLevel == '-3') {
                 isClassCheck = true
-            } else if (taggingLevel.includes('-2')) {
-                activateMultiple('map1')
             }
             if ((!taggingLevel.includes('-4'))&&(!taggingLevel.includes('-5'))) {
                 getKeys()
