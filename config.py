@@ -28,6 +28,7 @@ class Config(object):
     WORKER_NAME = 'celery@'+os.environ.get('WORKER_NAME')
     QUEUE = os.environ.get('QUEUE')
     BUCKET_ROOT = os.environ.get('BUCKET_ROOT')
+    SKIP_ID = -117
 
     # SQLAlchemy Config
     SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -241,12 +242,12 @@ class Config(object):
 
     # csv options
     CSV_INFO = {
-        '0':{'name': 'Image', 'columns': ['Image', 'ID', 'Species Count', 'Labels', 'Timestamp', 'URL', 'Individuals']},
-        '1':{'name': 'Capture', 'columns': ['Capture', 'ID', 'Species Count', 'Labels', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
-        '2':{'name': 'Cluster', 'columns': ['Cluster', 'Species Count', 'Labels', 'Notes', 'Image Count', 'URL', 'Individuals']},
-        '3':{'name': 'Camera', 'columns': ['Camera', 'Species Count', 'Labels', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
-        '4':{'name': 'Trapgroup', 'columns': ['Trapgroup', 'Species Count', 'Labels', 'Latitude', 'Longitude', 'Altitude', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
-        '5':{'name': 'Survey', 'columns': ['Survey', 'Species Count', 'Labels', 'Survey Description', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
+        '0':{'name': 'Image', 'columns': ['Image', 'ID', 'Species Count', 'Labels', 'Tags', 'Timestamp', 'URL', 'Individuals']},
+        '1':{'name': 'Capture', 'columns': ['Capture', 'ID', 'Species Count', 'Labels', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
+        '2':{'name': 'Cluster', 'columns': ['Cluster', 'Species Count', 'Labels', 'Tags', 'Notes', 'Image Count', 'URL', 'Individuals']},
+        '3':{'name': 'Camera', 'columns': ['Camera', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
+        '4':{'name': 'Trapgroup', 'columns': ['Trapgroup', 'Species Count', 'Labels', 'Tags', 'Latitude', 'Longitude', 'Altitude', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
+        '5':{'name': 'Survey', 'columns': ['Survey', 'Species Count', 'Labels', 'Tags', 'Survey Description', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '6':{'name': 'Custom', 'columns': []}
     }
 

@@ -297,7 +297,7 @@ def drop_nones(label_set):
         label_set.remove('None')
     return label_set
 
-def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels):
+def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels):
     '''
     Returns an all-encompassing dataframe for a task, subject to the parameter selections.
 
@@ -307,6 +307,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             label_levels (list): The levels of abstration for which a list of labels is required
             url_levels (list): The levels of abstraction for which urls are required
             individual_levels (list): The levels of abstration for which individual lists are required
+            tag_levels (list): The levels of abstration for which a list of tags is required
 
         Returns:
             df (pd.dataframe): task dataframe
@@ -321,6 +322,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         Cluster.notes.label('notes'), \
                         Cluster.id.label('cluster'), \
                         Label.description.label('label'), \
+                        Tag.description.label('tag'), \
                         Camera.id.label('camera'), \
                         Camera.path.label('file_path'), \
                         Trapgroup.id.label('trapgroup_id'), \
@@ -336,6 +338,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .join(Individual,Detection.individuals,isouter=True) \
                         .join(Labelgroup,Labelgroup.detection_id==Detection.id) \
                         .join(Label,Labelgroup.labels,isouter=True) \
+                        .join(Tag,Labelgroup.tags,isouter=True) \
                         .join(Camera,Image.camera_id==Camera.id) \
                         .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                         .join(Survey,Trapgroup.survey_id==Survey.id) \
@@ -381,6 +384,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .statement,db.session.bind)
 
         df2['label'] = 'None'
+        df2['tag'] = 'None'
         df2['individual'] = 'None'
         df = pd.concat([df,df2]).reset_index()
 
@@ -436,7 +440,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         del df[level_name+'_individuals_temp']
 
     #Combine multiple labels
-    # df = df.join(df.groupby('image')['label'].agg(lambda x: list(set(x))).to_frame('labels'), on='image')
     for level in label_levels:
         level_name = level
         if level == 'capture':
@@ -444,7 +447,17 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         df = df.join(df.groupby(level)['label'].apply(set).to_frame(level_name+'_labels_temp'), on=level)
         df[level_name+'_labels'] = df.apply(lambda x: drop_nones(x[level_name+'_labels_temp']), axis=1)
         del df[level_name+'_labels_temp']
-    # df = df.join(df.groupby('image')['label'].apply(list).to_frame('image_labels'), on='image')
+
+    #Combine multiple tags
+    for level in tag_levels:
+        level_name = level
+        if level == 'capture':
+            level = 'unique_capture'
+        df = df.join(df.groupby(level)['tag'].apply(set).to_frame(level_name+'_tags_temp'), on=level)
+        df[level_name+'_tags'] = df.apply(lambda x: drop_nones(x[level_name+'_tags_temp']), axis=1)
+        del df[level_name+'_tags_temp']
+    
+    #Drop suplicate images
     df = df.drop_duplicates(subset=['image'], keep='first').reset_index()
 
     #Generate necessary urls
@@ -467,6 +480,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     del df['file_path']
     del df['image_name']
     del df['label']
+    del df['tag']
     # del df['image_id']
     del df['trapgroup_id']
     del df['survey_id']
@@ -572,6 +586,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         allLevels = []
         detection_count_levels = ['image']
         label_levels = []
+        tag_levels = []
         url_levels = []
         individual_levels = []
         for column in requestedColumns:
@@ -583,6 +598,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                     allLevels.append(re.split('_all_count',column)[0])
             elif '_labels' in column:
                 label_levels.append(re.split('_labels',column)[0])
+            elif '_tags' in column:
+                tag_levels.append(re.split('_tags',column)[0])
             elif '_url' in column:
                 url_levels.append(re.split('_url',column)[0])
             elif '_individuals' in column:
@@ -590,7 +607,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
         outputDF = None
         for task_id in selectedTasks:
-            df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels)
+            df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels)
 
             # Generate custom columns
             for custom_name in custom_columns[str(task_id)]:
@@ -632,6 +649,23 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 # outputDF.rename(columns={label_level+'_labels':label_level+'_label'},inplace=True)
             elif label_type=='list':
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
+
+        for tag_level in tag_levels:
+            if label_type=='column':
+                tag_list = []
+                for i in range(outputDF[tag_level+'_tags'].apply(len).max()):
+                    tag_list.append(tag_level+'_tag_'+str(i+1))
+                outputDF[tag_list] = pd.DataFrame(outputDF[tag_level+'_tags'].tolist(), index=outputDF.index)
+                del outputDF[tag_level+'_tags']
+                for heading in tag_list:
+                    requestedColumns.insert(requestedColumns.index(tag_level+'_tags'), heading)
+                requestedColumns.remove(tag_level+'_tags')
+                outputDF.fillna('None', inplace=True)
+            elif label_type=='row':
+                outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: list(x[tag_level+'_tags']), axis=1)
+                outputDF = outputDF.explode(tag_level+'_tags')
+            elif label_type=='list':
+                outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: combine_list(x[tag_level+'_tags']), axis=1)
 
         for individual_level in individual_levels:
             individual_list = []
@@ -1141,6 +1175,16 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
                             .filter(Labelgroup.task_id==task_id)\
                             .distinct().order_by(Label.description).all()
 
+        imageTags = db.session.query(Tag)\
+                            .join(Labelgroup,Tag.labelgroups)\
+                            .join(Detection)\
+                            .filter(Detection.image==image)\
+                            .filter(Detection.score>0.8)\
+                            .filter(Detection.static==False)\
+                            .filter(Detection.status!='deleted')\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .distinct().order_by(Tag.description).all()
+
         destinationKeys = []
         baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
         for label in imageLabels:
@@ -1162,6 +1206,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
         exifData = b'ASCII\x00\x00\x00'
         xpKeywordData = ''
         IPTCData = []
+        imageLabels.extend(imageTags)
         for label in imageLabels:
             xpKeywordData += label.description
             exifData += label.description.encode()

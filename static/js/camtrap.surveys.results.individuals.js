@@ -488,7 +488,7 @@ function openIndividualsModal() {
     xhttp.send();
 
     var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/false/false/true');
+    xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/individualID');
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {

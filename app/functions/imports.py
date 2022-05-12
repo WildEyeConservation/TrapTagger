@@ -375,6 +375,7 @@ def cluster_trapgroup(self,trapgroup_id):
                             labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                             db.session.add(labelgroup)
                             labelgroup.labels = potentialClusters[0].labels
+                            labelgroup.tags = potentialClusters[0].tags
 
                     else:
                         sq = db.session.query(Image) \
@@ -413,6 +414,9 @@ def cluster_trapgroup(self,trapgroup_id):
                                 for label in cluster.labels:
                                     if label not in potentialClusters[0].labels[:]:
                                         potentialClusters[0].labels.append(label)
+                                for tag in cluster.tags:
+                                    if tag not in potentialClusters[0].tags[:]:
+                                        potentialClusters[0].tags.append(tag)
                                 db.session.delete(cluster)
                             potentialClusters[0].timestamp = datetime.utcnow()
 
@@ -425,6 +429,7 @@ def cluster_trapgroup(self,trapgroup_id):
                                 labelgroups = db.session.query(Labelgroup).join(Detection).filter(Detection.image_id==im.id).filter(Labelgroup.task_id==task.id).all()
                                 for labelgroup in labelgroups:
                                     labelgroup.labels = potentialClusters[0].labels
+                                    labelgroup.tags = potentialClusters[0].tags
             db.session.commit()
 
         else:
@@ -785,10 +790,6 @@ def setupDatabase():
     if db.session.query(Label).filter(Label.description=='Unknown').first()==None:
         unkown = Label(description='Unknown', hotkey='u')
         db.session.add(unkown)
-
-    if db.session.query(Label).filter(Label.description=='Skip').first()==None:
-        skip = Label(description='Skip', hotkey='0')
-        db.session.add(skip)
 
     if db.session.query(Label).filter(Label.description=='Vehicles/Humans/Livestock').first()==None:
         vehicles = Label(description='Vehicles/Humans/Livestock', hotkey='v')
@@ -1210,6 +1211,7 @@ def delete_duplicate_images(images):
 
             for labelgroup in detection.labelgroups:
                 labelgroup.labels = []
+                labelgroup.tags = []
                 db.session.delete(labelgroup)
             
             detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()

@@ -420,13 +420,9 @@ def launchTask(self,task_id):
             trapgroup.queueing = False
             trapgroup.user_id = None
 
-        skip = db.session.query(Label).get(GLOBALS.skip_id)
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(skip)).all()
-        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(skip)).all()
+        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
         for cluster in clusters:
-            cluster.labels.remove(skip)
-        for labelgroup in labelgroups:
-            labelgroup.labels.remove(skip)
+            cluster.skipped = False
         task.status = 'PROGRESS'
         db.session.commit()
 
@@ -655,13 +651,9 @@ def manageTasks():
                     GLOBALS.mutex[int(task_id)]['job'].release()
 
                     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
-                        skip = db.session.query(Label).get(GLOBALS.skip_id)
-                        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(skip)).all()
-                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(skip)).all()
+                        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
                         for cluster in clusters:
-                            cluster.labels.remove(skip)
-                        for labelgroup in labelgroups:
-                            labelgroup.labels.remove(skip)
+                            cluster.skipped = False
                         db.session.commit()
                     elif '-5' in taggingLevel:
                         cleanUpIndividuals(task_id)

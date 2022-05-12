@@ -1040,14 +1040,12 @@ def update_label_ids():
         knockdown = db.session.query(Label).filter(Label.description=='Knocked Down').first()
         vehicles = db.session.query(Label).filter(Label.description=='Vehicles/Humans/Livestock').first()
         unknown = db.session.query(Label).filter(Label.description=='Unknown').first()
-        skip = db.session.query(Label).filter(Label.description=='Skip').first()
         wrong = db.session.query(Label).filter(Label.description=='Wrong').first()
 
         GLOBALS.nothing_id = nothing.id
         GLOBALS.knocked_id = knockdown.id
         GLOBALS.vhl_id = vehicles.id
         GLOBALS.unknown_id = unknown.id
-        GLOBALS.skip_id = skip.id
         GLOBALS.wrong_id = wrong.id
         app.logger.info('Global label IDs updated')
 
@@ -1572,10 +1570,10 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
     elif (taggingLevel == '-2'):
         # info tagging (depricated)
         sq = sq.filter(Cluster.labels.any()) \
-                .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.nothing_id))) \
-                .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.knocked_id))) \
-                .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.vhl_id))) \
+                .join(Label,Cluster.labels) \
+                .filter(~Label.id.in_([GLOBALS.nothing_id,GLOBALS.knocked_id])) \
                 .filter(~Cluster.tags.any())                                    
+                # .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.vhl_id))) \
     elif (taggingLevel == '-3'):
         # Classifier checking
         sq = sq.filter(Cluster.classification_checked==False)
@@ -1585,15 +1583,21 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
             tL = re.split(',',taggingLevel)
             
             if tL[0] == '-4':
+                # Cluster-level individual ID
                 sq = sq.filter(Cluster.examined==False)
 
+            elif tL[0] == '-2':
+                # Species-level informational tagging
+                label = db.session.query(Label).get(int(tL[1]))
+                sq = sq.filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).filter(Cluster.skipped==False)
+
+        # Species-level labelling
         else:
             label = db.session.query(Label).get(int(taggingLevel))
             if isBounding:
                 sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Labelgroup.checked==False)
             else:
-                skip = db.session.query(Label).get(GLOBALS.skip_id)
-                sq = sq.filter(Cluster.labels.contains(label)).filter(~Cluster.labels.contains(skip))
+                sq = sq.filter(Cluster.labels.contains(label)).filter(Cluster.skipped==False)
 
     return sq
 

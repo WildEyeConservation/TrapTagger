@@ -75,6 +75,7 @@ def delete_task(self,task_id):
                 for chunk in chunker(labelgroups,1000):
                     for labelgroup in chunk:
                         labelgroup.labels = []
+                        labelgroup.tags = []
                         db.session.delete(labelgroup)
                     db.session.commit()
                 app.logger.info('Labelgroups deleted successfully.')
@@ -588,7 +589,7 @@ def reclusterAfterTimestampChange(survey_id):
                 newTask = task
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name==taskName).first()
 
-            #copy labels, and translations
+            #copy labels, tags, and translations
             labels = db.session.query(Label).filter(Label.task_id==task.id).all()
             for label in labels:
                 check = db.session.query(Label).filter(Label.task_id==newTask.id).filter(Label.description==label.description).filter(Label.hotkey==label.hotkey).first()
@@ -602,6 +603,17 @@ def reclusterAfterTimestampChange(survey_id):
                     if parent.task_id != None:
                         parent = db.session.query(Label).filter(Label.description==parent.description).filter(Label.task_id==newTask.id).first()
                     newLabel.parent = parent
+            db.session.commit()
+
+            #copy tags
+            tags = db.session.query(Tag).filter(Tag.task_id==task.id).all()
+            for tag in tags:
+                check = db.session.query(Tag).filter(Tag.task_id==newTask.id).filter(Tag.description==tag.description).first()
+                if not check:
+                    newTag = Tag(   task_id=newTask.id,
+                                    description=tag.description,
+                                    hotkey=tag.hotkey)
+                    db.session.add(newTag)
             db.session.commit()
 
             translations = db.session.query(Translation).filter(Translation.task_id==task.id).all()
@@ -637,11 +649,12 @@ def reclusterAfterTimestampChange(survey_id):
             pool.close()
             pool.join()
 
-            #copy labels
+            #copy labels & tags
             labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Detection.score>0.8).filter(Detection.status!='deleted').filter(Detection.static==False).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
             for labelgroup in labelgroups:
                 newGroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==newTask.id).filter(Labelgroup.detection_id==labelgroup.detection_id).first()
                 newGroup.checked = labelgroup.checked
+                
                 labels = []
                 for label in labelgroup.labels[:]:
                     if label.task_id != None:
@@ -650,22 +663,22 @@ def reclusterAfterTimestampChange(survey_id):
                         newLabel = label
                     labels.append(newLabel)
                 newGroup.labels = labels
+
+                tags = []
+                for tag in labelgroup.tags[:]:
+                    if tag.task_id != None:
+                        newTag = db.session.query(Tag).filter(Tag.description==Tag.description).filter(Tag.task_id==newTask.id).first()
+                    else:
+                        newTag = tag
+                    tags.append(newTag)
+                newGroup.tags = tags
+
             db.session.commit()
 
             clusters = db.session.query(Cluster).filter(Cluster.task_id==newTask.id).all()
             for cluster in clusters:
-                cluster.labels = db.session.query(Label).join(Labelgroup,Label.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).all()
-            db.session.commit()
-
-            #copy tags
-            tags = db.session.query(Tag).filter(Tag.task_id==task.id).all()
-            for tag in tags:
-                check = db.session.query(Tag).filter(Tag.task_id==newTask.id).filter(Tag.description==tag.description).first()
-                if not check:
-                    newTag = Tag(   task_id=newTask.id,
-                                    description=tag.description,
-                                    hotkey=tag.hotkey)
-                    db.session.add(newTag)
+                cluster.labels = db.session.query(Label).join(Labelgroup,Label.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
+                cluster.tags = db.session.query(Tag).join(Labelgroup,Tag.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
             db.session.commit()
 
             #copy individuals

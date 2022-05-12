@@ -723,7 +723,7 @@ function updateCanvas(mapID = 'map1') {
 
         }
     
-        if ((!isTagging) || (taggingLevel=='-2') || (taggingLevel=='-3') || (isClassCheck)) { //((!isTagging) || (taggingLevel=='-2'))
+        if ((!isTagging) || (taggingLevel=='-3') || (isClassCheck)) { //(taggingLevel=='-2'))
             if (clusters[mapID][clusterIndex[mapID]].images.length != 0) {
                 updateDebugInfo(mapID)
             }
@@ -795,44 +795,27 @@ function goToPrevCluster(mapID = 'map1') {
         clusterReadyTimer = null
     }
 
-    if (taggingLevel!='-2') {
-        if (multipleStatus && (divBtns != null)) {
-            if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-                    idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
-                    if (idx > -1) {
-                        var btn = document.getElementById(hotkeys[idx]);
-                        if (idx < 10) {
-                            btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
-                        } else {
-                            btn.setAttribute("class", "btn btn-info btn-block btn-sm");
-                        }   
-                    }
-                }
-            } 
-
-            divBtns.removeChild(document.getElementById('clearBtn'));
-        
-            var multibtn = document.getElementById('multipleBtn');
-            multibtn.innerHTML = 'Multiple Species (Ctrl)'
-            multibtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
-            multipleStatus = false
-        }
-
-    } else {
+    if (multipleStatus && (divBtns != null)) {
         if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
-                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
+            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
+                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
                 if (idx > -1) {
                     var btn = document.getElementById(hotkeys[idx]);
                     if (idx < 10) {
                         btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
                     } else {
                         btn.setAttribute("class", "btn btn-info btn-block btn-sm");
-                    }
+                    }   
                 }
             }
         } 
+
+        divBtns.removeChild(document.getElementById('clearBtn'));
+    
+        var multibtn = document.getElementById('multipleBtn');
+        multibtn.innerHTML = 'Multiple Species (Ctrl)'
+        multibtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
+        multipleStatus = false
     }
 
     if ((document.getElementById('btnSendToBack')!=null)&&(!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id))) {
@@ -877,15 +860,6 @@ function goToPrevCluster(mapID = 'map1') {
     if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
         prevCluster(mapID)
     } else {
-        if (taggingLevel=='-2') {
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
-                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
-                if (idx > -1) {
-                    var btn = document.getElementById(hotkeys[idx]);
-                    btn.setAttribute("class", "btn btn-success btn-block btn-sm");
-                }
-            } 
-        }
         update(mapID)
     }
 }
@@ -970,6 +944,7 @@ function updateDebugInfo(mapID = 'map1') {
                 }
             }
             document.getElementById('debugLabels').innerHTML = "Labels: "+temp;
+
             if (document.getElementById('groundLabels')) {
                 var temp =''
                 for (i=0;i<clusters[mapID][clusterIndex[mapID]].groundTruth[imageIndex[mapID]].length;i++) {
@@ -980,31 +955,30 @@ function updateDebugInfo(mapID = 'map1') {
                 }
                 document.getElementById('groundLabels').innerHTML = "Ground Truth: "+temp;
             }
+
+            if (taggingInfo.includes('-2')) {
+                var temp =''
+                for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]].length;i++) {
+                    temp += clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]][i]
+                    if (i != clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]].length-1) {
+                        temp += ', '
+                    }
+                }
+                document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
+            }
         }
     }
 
-    if (taggingLevel=='-2') {
+    if (multipleStatus) {
         if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
-                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
+            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
+                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
                 if (idx > -1) {
                     var btn = document.getElementById(hotkeys[idx]);
-                    btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+                    btn.setAttribute("class", "btn btn-success btn-block btn-sm");           
                 }
             }
         } 
-    } else {
-        if (multipleStatus) {
-            if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-                    idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
-                    if (idx > -1) {
-                        var btn = document.getElementById(hotkeys[idx]);
-                        btn.setAttribute("class", "btn btn-success btn-block btn-sm");           
-                    }
-                }
-            } 
-        }
     }
 }
 
@@ -1261,93 +1235,7 @@ function assignLabel(label,mapID = 'map1'){
     }
 
     if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-        if (taggingLevel=='-2') {
-
-            if ((label != EMPTY_HOTKEY_ID)&&(label != NEXT_CLUSTER_ID)) {
-                console.log(label);
-                clusterID=clusters[mapID][clusterIndex[mapID]].id;
-                idx = hotkeys.indexOf(label)
-
-                if (idx > -1) {
-                    if (clusters[mapID][clusterIndex[mapID]].tags.includes(names[idx])) {
-
-                        var btn = document.getElementById(label);
-                        if (idx < 10) {
-                            btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
-                        } else {
-                            btn.setAttribute("class", "btn btn-info btn-block btn-sm");
-                        }
-    
-                        clusters[mapID][clusterIndex[mapID]].tags.splice(clusters[mapID][clusterIndex[mapID]].tags.indexOf(names[idx]), 1);
-                        if (clusters[mapID][clusterIndex[mapID]].tags.length == 0) {
-                            clusters[mapID][clusterIndex[mapID]].tags = ['None']
-                        }
-                        updateDebugInfo(mapID)
-    
-                        if (!isTutorial) {
-                            var xhttp = new XMLHttpRequest();   
-                            xhttp.onreadystatechange =
-                            function(){
-                                if (this.readyState == 4 && this.status == 278) {
-                                    window.location.replace(JSON.parse(this.responseText)['redirect'])
-                                }
-                            }
-                            xhttp.open("GET", '/removeTag/'+clusterID+"/"+label, true);
-                            xhttp.send();
-                        }
-    
-                    } else {
-        
-                        if (clusters[mapID][clusterIndex[mapID]].tags.includes('None')) {
-                            clusters[mapID][clusterIndex[mapID]].tags = []
-                        }
-            
-                        clusters[mapID][clusterIndex[mapID]].tags.push(names[idx]);
-                        updateDebugInfo(mapID)
-            
-                        if (!isTutorial) {
-                            var xhttp = new XMLHttpRequest();  
-                            if (isTagging) { 
-                                xhttp.onreadystatechange =
-                                    function () {
-                                        if (this.readyState == 4 && this.status == 278) {
-                                            window.location.replace(JSON.parse(this.responseText)['redirect'])
-                                        } else if (this.readyState == 4 && this.status == 200) {                    
-                                            Progress = JSON.parse(this.responseText);
-                                        }
-                                    }
-                            } 
-                            xhttp.open("GET", '/assignTag/'+clusterID+"/"+label, true);
-                            xhttp.send();
-                        }
-                    }
-                }
-
-            } else if (label == NEXT_CLUSTER_ID) {
-
-                if (clusterIndex[mapID] < clusters[mapID].length) {
-                    for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
-                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
-                        if (idx > -1) {
-                            var btn = document.getElementById(hotkeys[idx]);
-                            if (idx < 10) {
-                                btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
-                            } else {
-                                btn.setAttribute("class", "btn btn-info btn-block btn-sm");
-                            }       
-                        }
-                    }
-                } 
-
-                if ((clusters[mapID][clusterIndex[mapID]].tags.length > 0) && (!clusters[mapID][clusterIndex[mapID]].tags.includes('None'))) {
-                    if (isTagging) {                     
-                        updateProgBar(Progress)
-                    }
-                    nextCluster(mapID)
-                }
-            }
-    
-        } else if (taggingLevel=='-3') {
+        if (taggingLevel=='-3') {
             // classification check
 
             var checkVar = 0
@@ -1475,7 +1363,7 @@ function assignLabel(label,mapID = 'map1'){
                     knockdown(mapID)
                 } else {
                     var checkVar = 0
-                    if ((label==unknownLabel)||(label==nothingLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1) {
+                    if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
                         if ((reachedEnd == false)&&(clusters[mapID][clusterIndex[mapID]].required.length>1)) {
                             text = 'This cluster may contain more species, please cycle through all images before tagging it.'
                             document.getElementById('modalAlertText').innerHTML = text
@@ -1955,29 +1843,16 @@ function initKeys(res){
             divBtns.removeChild(divBtns.firstChild);
         }
 
-        if (taggingLevel!='-2') {
-            // Add multiple species button
-            var newbtn = document.createElement('button');
-            newbtn.innerHTML = 'Multiple Species (Ctrl)';
-            newbtn.setAttribute("id", 'multipleBtn');
-            newbtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
-            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-            newbtn.addEventListener('click', (evt)=>{
-                activateMultiple();
-            });
-            divBtns.appendChild(newbtn);
-        } else {
-            // // Add Clear tags button
-            // var newbtn = document.createElement('button');
-            // newbtn.innerHTML = 'Clear Tags (Del)';
-            // newbtn.setAttribute("id", 'deleteBtn');
-            // newbtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
-            // newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-            // newbtn.addEventListener('click', (evt)=>{
-            //     deleteTags();
-            // });
-            // divBtns.appendChild(newbtn); 
-        }
+        // Add multiple species button
+        var newbtn = document.createElement('button');
+        newbtn.innerHTML = 'Multiple Species (Ctrl)';
+        newbtn.setAttribute("id", 'multipleBtn');
+        newbtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
+        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        newbtn.addEventListener('click', (evt)=>{
+            activateMultiple();
+        });
+        divBtns.appendChild(newbtn);
 
         labs = res[0]
         names = res[1]
@@ -2026,10 +1901,6 @@ function initKeys(res){
         } else {
             multipleStatus = false
         }
-
-        if (taggingLevel=='-2') { //set spacebar as next cluster for info tagging
-            hotkeys[36] = NEXT_CLUSTER_ID
-        }
     }
 }
 
@@ -2047,14 +1918,6 @@ document.onkeyup = function (event){
             return;
         }
     }
-    
-    // if (!isBounding) {
-    //     if ((event.keyCode == 46) && (taggingLevel=='-2')) {
-    //         deleteTags()
-    //     } else if ((event.keyCode == 46) && (taggingLevel!='-2') && (multipleStatus)) {
-    //         // resetLabels()
-    //     }
-    // }
 
     switch (event.key.toLowerCase()){
         case (']'):updateImageProperty('brightness','increase',10)

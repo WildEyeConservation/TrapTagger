@@ -43,6 +43,12 @@ requiredimagestable = db.Table('requiredimagestable',
     db.UniqueConstraint('image_id', 'cluster_id')
 )
 
+detectionTags = db.Table('detectionTags',
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), index=True),
+    db.Column('labelgroup_id', db.Integer, db.ForeignKey('labelgroup.id'), index=True),
+    db.UniqueConstraint('tag_id', 'labelgroup_id')
+)
+
 detectionLabels = db.Table('detectionLabels',
     db.Column('label_id', db.Integer, db.ForeignKey('label.id'), index=True),
     db.Column('labelgroup_id', db.Integer, db.ForeignKey('labelgroup.id'), index=True),
@@ -161,6 +167,7 @@ class Labelgroup(db.Model):
     detection_id = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
     labels = db.relationship('Label', secondary=detectionLabels, lazy='subquery', backref=db.backref('labelgroups', lazy=True))
+    tags = db.relationship('Tag', secondary=detectionTags, lazy='subquery', backref=db.backref('labelgroups', lazy=True))
 
     def __repr__(self):
         return '<Label group for detection {}>'.format(self.detection_id)
@@ -292,6 +299,7 @@ class Cluster(db.Model):
     classification_checked = db.Column(db.Boolean, default=False, index=True)
     classification = db.Column(db.String(64), index=True)
     examined = db.Column(db.Boolean, default=False, index=True)
+    skipped = db.Column(db.Boolean, default=False, index=True)
     images = db.relationship('Image', secondary=images, lazy='subquery', backref=db.backref('clusters', lazy=True))
     required_images = db.relationship('Image', secondary=requiredimagestable, lazy='subquery', backref=db.backref('required_for', lazy=True))
     tags = db.relationship('Tag', secondary=tags, lazy='subquery', backref=db.backref('clusters', lazy=True))

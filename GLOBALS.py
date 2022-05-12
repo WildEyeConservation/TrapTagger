@@ -25,6 +25,5 @@ nothing_id = 1
 knocked_id = 2
 wrong_id = 3
 unknown_id = 4
-skip_id = 5
 vhl_id = 6
 results_queue = []

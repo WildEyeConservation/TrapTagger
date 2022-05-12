@@ -111,12 +111,12 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
         else:
             isBounding = False
 
-        if ',' in taggingLevel:
+        if any(level in taggingLevel for level in ['-4','-5']):
             tL = re.split(',',taggingLevel)
             label = db.session.query(Label).get(int(tL[1]))
 
-            if int(taskSize) > 1000:
-                taskSize = 1000
+            if int(taskSize) > 10000:
+                taskSize = 10000
 
             if tL[0] == '-4':
                 identified = db.session.query(Detection)\
@@ -221,7 +221,7 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
             dbTask.tagging_level = taggingLevel
             db.session.commit()
 
-            if '-4' in taggingLevel:
+            if any(level in taggingLevel for level in ['-4','-2']):
                 tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task_id==int(task_id)).order_by(Tag.description).all()
                 checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
                 return json.dumps({'status': 'tags', 'tags': tags})
@@ -563,15 +563,15 @@ def getCameraStamps(survey_id):
 
     return json.dumps({'survey': survey_id, 'data': reply})
 
-@app.route('/getTaggingLevelsbyTask/<task_id>/<is_bounding>/<is_classCheck>/<is_clusterID>')
+@app.route('/getTaggingLevelsbyTask/<task_id>/<task_type>')
 @login_required
-def getTaggingLevelsbyTask(task_id,is_bounding,is_classCheck,is_clusterID):
+def getTaggingLevelsbyTask(task_id,task_type):
     '''Returns the available tagging levels and label-completion info for the specified task and tagging type.'''
 
     admin=db.session.query(User).filter(User.username=='Admin').first()
     task_id = int(task_id)
 
-    if is_clusterID=='true':
+    if task_type=='individualID':
         texts = []
         values = []
         colours = []
@@ -597,7 +597,7 @@ def getTaggingLevelsbyTask(task_id,is_bounding,is_classCheck,is_clusterID):
             texts.append(label.description)
             values.append(label.id)
 
-    elif is_classCheck=='true':
+    elif task_type=='AIcheck':
         texts = ['Comparison']
         values = ['-3']
         disabled = 'true'
@@ -634,96 +634,127 @@ def getTaggingLevelsbyTask(task_id,is_bounding,is_classCheck,is_clusterID):
         # else:
         #     colours = ['#0A7850']
 
-    else:
-        if is_bounding=='true':
-            checked = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==True).first()
-            
-            subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(labelstable.c.label_id).label('labelCount')) \
-                            .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
-                            .filter(Cluster.task_id==task_id) \
-                            .group_by(labelstable.c.cluster_id) \
-                            .subquery()
-            uncheckedMulti = db.session.query(Cluster) \
-                            .join(Image,Cluster.images) \
-                            .join(Detection) \
-                            .join(Labelgroup) \
-                            .join(subq, subq.c.clusterID==Cluster.id) \
-                            .filter(Labelgroup.task_id==task_id) \
-                            .filter(Labelgroup.checked==False) \
-                            .filter(Cluster.task_id==task_id) \
-                            .filter(Detection.score > 0.8) \
-                            .filter(Detection.static==False) \
-                            .filter(Detection.status!='deleted') \
-                            .filter(subq.c.labelCount>1).first()
+    elif task_type=='bounding':
+        checked = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==True).first()
+        
+        subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(labelstable.c.label_id).label('labelCount')) \
+                        .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
+                        .filter(Cluster.task_id==task_id) \
+                        .group_by(labelstable.c.cluster_id) \
+                        .subquery()
+        uncheckedMulti = db.session.query(Cluster) \
+                        .join(Image,Cluster.images) \
+                        .join(Detection) \
+                        .join(Labelgroup) \
+                        .join(subq, subq.c.clusterID==Cluster.id) \
+                        .filter(Labelgroup.task_id==task_id) \
+                        .filter(Labelgroup.checked==False) \
+                        .filter(Cluster.task_id==task_id) \
+                        .filter(Detection.score > 0.8) \
+                        .filter(Detection.static==False) \
+                        .filter(Detection.status!='deleted') \
+                        .filter(subq.c.labelCount>1).first()
 
-            if checked or (uncheckedMulti == None):
-                disabled = 'false'
-            else:
-                disabled = 'true'
-
-            if uncheckedMulti:
-                colours = ['#000000']
-            else:
-                colours = ['#0A7850']
-            texts = ['Multiples']
-            values = ['-1']
-
-            labels = db.session.query(Label).filter(Label.task_id==task_id).all()
-            labels.append(db.session.query(Label).get(GLOBALS.vhl_id))    
-
-            for label in labels:
-                check = db.session.query(Labelgroup) \
-                                .join(Detection) \
-                                .filter(Labelgroup.task_id==task_id) \
-                                .filter(Labelgroup.labels.contains(label)) \
-                                .filter(Labelgroup.checked==False) \
-                                .filter(Detection.static==False) \
-                                .filter(Detection.score > 0.8) \
-                                .filter(Detection.status!='deleted') \
-                                .first()
-                if check==None:
-                    colours.append('#0A7850')
-                else:
-                    colours.append('#000000')
-                
-                texts.append(label.description)
-                values.append(label.id)
-
+        if checked or (uncheckedMulti == None):
+            disabled = 'false'
         else:
-            check = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.any()).filter(Cluster.user_id!=admin.id).first()
-            if check == None:
-                disabled = 'true'
-            else:
-                disabled = 'false'
+            disabled = 'true'
 
-            labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
+        if uncheckedMulti:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
+        texts = ['Multiples']
+        values = ['-1']
+
+        labels = db.session.query(Label).filter(Label.task_id==task_id).all()
+        labels.append(db.session.query(Label).get(GLOBALS.vhl_id))    
+
+        for label in labels:
+            check = db.session.query(Labelgroup) \
+                            .join(Detection) \
+                            .filter(Labelgroup.task_id==task_id) \
+                            .filter(Labelgroup.labels.contains(label)) \
+                            .filter(Labelgroup.checked==False) \
+                            .filter(Detection.static==False) \
+                            .filter(Detection.score > 0.8) \
+                            .filter(Detection.status!='deleted') \
+                            .first()
+            if check==None:
+                colours.append('#0A7850')
+            else:
+                colours.append('#000000')
             
-            check = db.session.query(Cluster).join(Image, Cluster.images).join(Detection).filter(Cluster.task_id==int(task_id)).filter(~Cluster.labels.any()).filter(Detection.static==False).filter(Detection.score>0.8).filter(Detection.status!='deleted').first()
-            if check != None:
-                colours = ['#000000']
+            texts.append(label.description)
+            values.append(label.id)
+
+    elif task_type=='clusterTag':
+        check = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.any()).filter(Cluster.user_id!=admin.id).first()
+        if check == None:
+            disabled = 'true'
+        else:
+            disabled = 'false'
+
+        labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
+        
+        check = db.session.query(Cluster).join(Image, Cluster.images).join(Detection).filter(Cluster.task_id==int(task_id)).filter(~Cluster.labels.any()).filter(Detection.static==False).filter(Detection.score>0.8).filter(Detection.status!='deleted').first()
+        if check != None:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
+
+        texts = ['Initial']
+        values = ['-1']
+
+        vhl = db.session.query(Label).get(GLOBALS.vhl_id)
+        check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(vhl)).first()
+        if check != None:
+            colours.append('#000000')
+        else:
+            colours.append('#0A7850')
+        texts.append(vhl.description)
+        values.append(vhl.id)
+
+        for label in labels:      
+            if label.complete==True:
+                colours.append('#0A7850')
             else:
-                colours = ['#0A7850']
+                colours.append('#000000')
+            
+            texts.append(label.description)
+            values.append(label.id)
 
-            texts = ['Initial']
-            values = ['-1']
+    elif task_type=='infoTag':
+        disabled = 'false'
+        labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
+        labels.insert(0,db.session.query(Label).get(GLOBALS.vhl_id))
+        
+        check = db.session.query(Cluster)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .filter(Cluster.task_id==int(task_id))\
+                        .filter(Cluster.labels.any())\
+                        .filter(~Cluster.tags.any())\
+                        .filter(Detection.static==False)\
+                        .filter(Detection.score>0.8)\
+                        .filter(Detection.status!='deleted')\
+                        .first()
+        if check != None:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
 
-            vhl = db.session.query(Label).get(GLOBALS.vhl_id)
-            check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(vhl)).first()
+        texts = ['All']
+        values = ['-2']
+        for label in labels:
+            check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).first() 
             if check != None:
                 colours.append('#000000')
             else:
                 colours.append('#0A7850')
-            texts.append(vhl.description)
-            values.append(vhl.id)
-
-            for label in labels:      
-                if label.complete==True:
-                    colours.append('#0A7850')
-                else:
-                    colours.append('#000000')
-                
-                texts.append(label.description)
-                values.append(label.id)
+            
+            texts.append(label.description)
+            values.append('-2,'+str(label.id))
 
     return json.dumps({'texts': texts, 'values': values, 'disabled':disabled, 'colours':colours})
 
@@ -762,13 +793,9 @@ def stopTask(task_id):
         resolve_abandoned_jobs(abandoned_jobs)
 
         if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
-            skip = db.session.query(Label).get(GLOBALS.skip_id)
-            clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(skip)).all()
-            labelgroups = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(skip)).all()
+            clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
             for cluster in clusters:
-                cluster.labels.remove(skip)
-            for labelgroup in labelgroups:
-                labelgroup.labels.remove(skip)
+                cluster.skipped = False
             db.session.commit()
         elif '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
@@ -4368,7 +4395,7 @@ def assignLabel(clusterID):
                     newLabels = []
 
                     #pre-filter labels
-                    if int(task.tagging_level) < 1:
+                    if (',' in task.tagging_level) or (int(task.tagging_level) < 1):
                         # Can't have nothing label alongside other labels
                         if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
                             app.logger.info('Blocked nothing multi label!')
@@ -4383,10 +4410,6 @@ def assignLabel(clusterID):
                         if parentLabel in cluster.labels:
                             cluster.labels.remove(parentLabel)
 
-                        skip = db.session.query(Label).get(GLOBALS.skip_id)
-                        if skip in cluster.labels:
-                            cluster.labels.remove(skip)
-
                         to_remove = []
                         for lab in cluster.labels:
                             if lab.parent==parentLabel:
@@ -4395,34 +4418,48 @@ def assignLabel(clusterID):
                         for lab in to_remove:
                             cluster.labels.remove(lab)
 
+                    if cluster.skipped:
+                        cluster.skipped = False
+
                     for label_id in labels:
-                        newLabel = db.session.query(Label).get(label_id)
-                        if newLabel:
-                            if newLabel.id == GLOBALS.wrong_id:
-                                newLabels = []
-                                cluster.labels = []
-                                break
+                        if int(label_id)==Config.SKIP_ID:
+                            cluster.skipped = True
+
+                            if ('-2' not in task.tagging_level) and (parentLabel not in newLabels):
+                                newLabels.append(parentLabel)
+
+                        else:
+                            if '-2' in task.tagging_level:
+                                newLabel = db.session.query(Tag).get(label_id)
                             else:
+                                newLabel = db.session.query(Label).get(label_id)
+                            
+                            if newLabel:
+                                if newLabel.id == GLOBALS.wrong_id:
+                                    newLabels = []
+                                    cluster.labels = []
+                                    break
+                                
+                                else:
+                                    if newLabel.id == GLOBALS.nothing_id:
+                                        removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
 
-                                if newLabel.id == GLOBALS.nothing_id:
-                                    removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
-                                elif (newLabel.id == GLOBALS.skip_id) and (parentLabel not in newLabels):
-                                    newLabels.append(parentLabel)
+                                    if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
+                                        newLabels.append(newLabel)
 
-                                if (newLabel not in cluster.labels) and (newLabel not in newLabels):
-                                    newLabels.append(newLabel)
+                            elif int(label_id)==-254:
+                                translation = db.session.query(Translation)\
+                                                        .filter(Translation.task_id==cluster.task_id)\
+                                                        .filter(Translation.classification==cluster.classification)\
+                                                        .first()
 
-                        elif int(label_id)==-254:
-                            translation = db.session.query(Translation)\
-                                                    .filter(Translation.task_id==cluster.task_id)\
-                                                    .filter(Translation.classification==cluster.classification)\
-                                                    .first()
+                                newLabels.append(translation.label)
 
-                            newLabels.append(translation.label)
+                    if '-2' in task.tagging_level:
+                        cluster.tags.extend(newLabels)
+                    else:
+                        cluster.labels.extend(newLabels)
 
-                    # app.logger.info(newLabels)
-
-                    cluster.labels.extend(newLabels)
                     cluster.user_id = current_user.id
                     cluster.timestamp = datetime.utcnow()
 
@@ -4438,7 +4475,10 @@ def assignLabel(clusterID):
                                             .distinct().all()
 
                     for labelgroup in labelgroups:
-                        labelgroup.labels = cluster.labels
+                        if '-2' in task.tagging_level:
+                            labelgroup.tags = cluster.tags
+                        else:
+                            labelgroup.labels = cluster.labels
 
                     db.session.commit()
 
@@ -4499,6 +4539,7 @@ def initKeys(taggingLevel):
         taggingLevel = task.tagging_level
 
     if task and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user == task.survey.user)):
+        addSkip = False
         if taggingLevel == '-1':
             categories = db.session.query(Label).filter(Label.task_id == task.id).filter(Label.parent_id == None).all()
             special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
@@ -4512,15 +4553,15 @@ def initKeys(taggingLevel):
                     categories.append(category)
             special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
             categories.extend(special_categories)
-        elif taggingLevel == '-2':
+        elif '-2' in taggingLevel:
             categories = db.session.query(Tag).filter(Tag.task_id == task.id).all()
             categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
+            addSkip = True
         else:
             wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
-            skip = db.session.query(Label).get(GLOBALS.skip_id)
             categories = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.parent_id==int(taggingLevel)).all()
             categories.append(wrong_category)
-            categories.append(skip)
+            addSkip = True
 
         hotkeys = [Config.EMPTY_HOTKEY_ID] * Config.NUMBER_OF_HOTKEYS
         names = ['N'] * Config.NUMBER_OF_HOTKEYS
@@ -4542,6 +4583,10 @@ def initKeys(taggingLevel):
                 if hotkeys[indx] == Config.EMPTY_HOTKEY_ID:
                     hotkeys[indx] = category.id
                     names[indx] = category.description
+
+        if addSkip:
+            hotkeys[0] = Config.SKIP_ID
+            names[0] = 'Skip'
 
         return json.dumps((hotkeys, names))
     else:
@@ -4975,6 +5020,7 @@ def editSightings(image_id,task_id):
                                 labelgroup = Labelgroup(task_id=int(task_id), detection=detection, checked=True)
                                 db.session.add(labelgroup)
                                 labelgroup.labels = [label]
+                                labelgroup.tags = cluster.tags
 
                                 #new detection needs a new classification - user generated is probably correct. Will use that.
                                 translation = db.session.query(Translation)\
