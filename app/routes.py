@@ -4400,16 +4400,19 @@ def assignLabel(clusterID):
                     newLabels = []
 
                     #pre-filter labels
-                    if (',' in task.tagging_level) or (int(task.tagging_level) < 1):
-                        # Can't have nothing label alongside other labels
-                        if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
-                            app.logger.info('Blocked nothing multi label!')
-                            labels.remove(GLOBALS.nothing_id)
+                    if (',' in task.tagging_level) or (int(task.tagging_level) < 1):                            
+                        if '-2' in task.tagging_level:
+                            cluster.tags = []
+                        else:
+                            # Can't have nothing label alongside other labels
+                            if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
+                                app.logger.info('Blocked nothing multi label!')
+                                labels.remove(GLOBALS.nothing_id)
 
-                        if GLOBALS.nothing_id in [r.id for r in cluster.labels]:
-                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
-                            
-                        cluster.labels = []
+                            if GLOBALS.nothing_id in [r.id for r in cluster.labels]:
+                                removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
+                                
+                            cluster.labels = []
                     else:
                         parentLabel = db.session.query(Label).get(int(task.tagging_level))
                         if parentLabel in cluster.labels:
