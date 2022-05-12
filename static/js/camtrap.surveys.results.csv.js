@@ -359,6 +359,8 @@ btnCsvDownload.addEventListener('click', ()=>{
                 selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
             } else if (dataSelection == 'Labels') {
                 selection = levelSelection+'_labels'
+            } else if (dataSelection == 'Tags') {
+                selection = levelSelection+'_tags'
             } else if (dataSelection == 'URL') {
                 selection = levelSelection+'_url'
             } else if (dataSelection == 'Individuals') {
