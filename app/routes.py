@@ -4462,6 +4462,7 @@ def assignLabel(clusterID):
 
                     if '-2' in task.tagging_level:
                         cluster.tags.extend(newLabels)
+                        cluster.skipped = True
                     else:
                         cluster.labels.extend(newLabels)
 
@@ -4560,7 +4561,7 @@ def initKeys(taggingLevel):
             categories.extend(special_categories)
         elif '-2' in taggingLevel:
             categories = db.session.query(Tag).filter(Tag.task_id == task.id).all()
-            categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
+            # categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
             addSkip = True
         else:
             wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)

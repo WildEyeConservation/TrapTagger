@@ -815,7 +815,9 @@ function goToPrevCluster(mapID = 'map1') {
         var multibtn = document.getElementById('multipleBtn');
         multibtn.innerHTML = 'Multiple Species (Ctrl)'
         multibtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
-        multipleStatus = false
+        if (!taggingLevel.includes('-2')) {
+            multipleStatus = false
+        }
     }
 
     if ((document.getElementById('btnSendToBack')!=null)&&(!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id))) {
@@ -956,16 +958,14 @@ function updateDebugInfo(mapID = 'map1') {
                 document.getElementById('groundLabels').innerHTML = "Ground Truth: "+temp;
             }
 
-            if (taggingInfo.includes('-2')) {
-                var temp =''
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]].length;i++) {
-                    temp += clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]][i]
-                    if (i != clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]].length-1) {
-                        temp += ', '
-                    }
+            var temp =''
+            for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]].length;i++) {
+                temp += clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]][i]
+                if (i != clusters[mapID][clusterIndex[mapID]].tags[imageIndex[mapID]].length-1) {
+                    temp += ', '
                 }
-                document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
             }
+            document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
         }
     }
 
@@ -1290,7 +1290,10 @@ function assignLabel(label,mapID = 'map1'){
                     // other
                     if (divBtns != null) {
                         selectBtns = document.getElementById('selectBtns')
-                        multipleStatus = false
+
+                        if (!taggingLevel.includes('-2')) {
+                            multipleStatus = false
+                        }
                 
                         while(divBtns.firstChild){
                             divBtns.removeChild(divBtns.firstChild);
@@ -1464,6 +1467,8 @@ function fetchTaggingLevel() {
             taggingLabel = taggingInfo.taggingLabel
             if (taggingLevel == '-3') {
                 isClassCheck = true
+            } else if (taggingLevel.includes('-2')) {
+                multipleStatus = true
             }
             if ((!taggingLevel.includes('-4'))&&(!taggingLevel.includes('-5'))) {
                 getKeys()
@@ -1797,7 +1802,9 @@ function activateMultiple(mapID = 'map1') {
             }
 
         } else {
-            multipleStatus = false
+            if (!taggingLevel.includes('-2')) {
+                multipleStatus = false
+            }
 
             if (isClassCheck) {
                 suggestionBack()
@@ -1895,11 +1902,15 @@ function initKeys(res){
 
         if ((!isTagging) || isClassCheck) {
             if (multipleStatus==true) {
-                multipleStatus = false
+                if (!taggingLevel.includes('-2')) {
+                    multipleStatus = false
+                }
                 activateMultiple()
             }
         } else {
-            multipleStatus = false
+            if (!taggingLevel.includes('-2')) {
+                multipleStatus = false
+            }
         }
     }
 }

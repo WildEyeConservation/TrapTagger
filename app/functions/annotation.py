@@ -647,13 +647,13 @@ def manageTasks():
 
                     GLOBALS.mutex[int(task_id)]['job'].release()
 
-                    if (',' not in taggingLevel) and (int(taggingLevel) > 0):
-                        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
-                        for cluster in clusters:
-                            cluster.skipped = False
-                        db.session.commit()
-                    elif '-5' in taggingLevel:
+                    if '-5' in taggingLevel:
                         cleanUpIndividuals(task_id)
+
+                    clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
+                    for cluster in clusters:
+                        cluster.skipped = False
+                    db.session.commit()
 
                     updateTaskCompletionStatus(task_id)
                     updateLabelCompletionStatus(task_id)

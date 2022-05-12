@@ -1572,7 +1572,8 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         sq = sq.filter(Cluster.labels.any()) \
                 .join(Label,Cluster.labels) \
                 .filter(~Label.id.in_([GLOBALS.nothing_id,GLOBALS.knocked_id])) \
-                .filter(~Cluster.tags.any())                                    
+                .filter(Cluster.skipped==False)
+                # .filter(~Cluster.tags.any())                                    
                 # .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.vhl_id))) \
     elif (taggingLevel == '-3'):
         # Classifier checking
@@ -1589,7 +1590,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
             elif tL[0] == '-2':
                 # Species-level informational tagging
                 label = db.session.query(Label).get(int(tL[1]))
-                sq = sq.filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).filter(Cluster.skipped==False)
+                sq = sq.filter(Cluster.labels.contains(label)).filter(Cluster.skipped==False)
 
         # Species-level labelling
         else:
