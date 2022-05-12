@@ -420,9 +420,6 @@ def launchTask(self,task_id):
             trapgroup.queueing = False
             trapgroup.user_id = None
 
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
-        for cluster in clusters:
-            cluster.skipped = False
         task.status = 'PROGRESS'
         db.session.commit()
 

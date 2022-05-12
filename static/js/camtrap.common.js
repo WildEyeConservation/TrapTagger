@@ -1465,7 +1465,7 @@ function fetchTaggingLevel() {
             if (taggingLevel == '-3') {
                 isClassCheck = true
             }
-            if (!taggingLevel.includes(',')) {
+            if ((!taggingLevel.includes('-4'))&&(!taggingLevel.includes('-5'))) {
                 getKeys()
             }
         }

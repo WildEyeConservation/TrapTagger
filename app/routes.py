@@ -111,6 +111,11 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
         else:
             isBounding = False
 
+        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped!=False).distinct().all()
+        for cluster in clusters:
+            cluster.skipped = False
+        db.session.commit()
+
         if any(level in taggingLevel for level in ['-4','-5']):
             tL = re.split(',',taggingLevel)
             label = db.session.query(Label).get(int(tL[1]))
