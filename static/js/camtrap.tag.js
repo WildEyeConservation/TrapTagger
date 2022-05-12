@@ -54,6 +54,10 @@ function loadNewCluster(mapID = 'map1') {
                                     } else {
                                         clusters[mapID].push(newcluster)
                                     }
+
+                                    if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+                                        activateMultiple()
+                                    }
                                     
                                     if (clusters[mapID].length-1 == clusterIndex[mapID]){
                                         updateCanvas()

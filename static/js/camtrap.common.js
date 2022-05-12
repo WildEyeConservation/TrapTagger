@@ -1750,80 +1750,83 @@ function removeMultiLabel(label,mapID = 'map1') {
 
 function activateMultiple(mapID = 'map1') {
     /** Activates/deactivates multiple-label mode, submitting the labels if necessary. */
-    if (isTutorial) {
-        if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
-            if (!tutProcessUserInput("multiple")) return;
-        } else {
-            return;
-        }
-    }
 
-    allow = true
-    if (clusters[mapID][clusterIndex[mapID]].required.length>1) {
-        if (reachedEnd == false) {
-            allow = false
-            document.getElementById('modalAlertText').innerHTML = 'This cluster may contain more species, please cycle through all images before tagging it.'
-            modalAlert.modal({keyboard: true});
-        }
-    }
-
-
-    if ((modalActive == false) && (modalActive2 == false) && (allow==true) && (taggingLevel!='-3') && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-        if ((multipleStatus == false) && (divBtns != null)) {
-            var multibtn = document.getElementById('multipleBtn');
-            
-            if (taggingLevel.includes('-2')) {
-                multibtn.innerHTML = 'Submit (Ctrl)'
+    if (clusters[mapID][clusterIndex[mapID]] != undefined) {
+        if (isTutorial) {
+            if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
+                if (!tutProcessUserInput("multiple")) return;
             } else {
-                multibtn.innerHTML = 'Done (Ctrl)'
+                return;
             }
-
-            multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
-            multipleStatus = true
-
-            if (!taggingLevel.includes('-2')) {
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
-                    idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
-                    if (idx > -1) {
-                        var btn = document.getElementById(hotkeys[idx]);
-                        btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+        }
+    
+        allow = true
+        if (clusters[mapID][clusterIndex[mapID]].required.length>1) {
+            if (reachedEnd == false) {
+                allow = false
+                document.getElementById('modalAlertText').innerHTML = 'This cluster may contain more species, please cycle through all images before tagging it.'
+                modalAlert.modal({keyboard: true});
+            }
+        }
+    
+    
+        if ((modalActive == false) && (modalActive2 == false) && (allow==true) && (taggingLevel!='-3') && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+            if ((multipleStatus == false) && (divBtns != null)) {
+                var multibtn = document.getElementById('multipleBtn');
+                
+                if (taggingLevel.includes('-2')) {
+                    multibtn.innerHTML = 'Submit (Ctrl)'
+                } else {
+                    multibtn.innerHTML = 'Done (Ctrl)'
+                }
+    
+                multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
+                multipleStatus = true
+    
+                if (!taggingLevel.includes('-2')) {
+                    for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
+                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
+                        if (idx > -1) {
+                            var btn = document.getElementById(hotkeys[idx]);
+                            btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+                        }
+                    }
+                } else {
+                    for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
+                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
+                        if (idx > -1) {
+                            var btn = document.getElementById(hotkeys[idx]);
+                            btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+                        } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]].label[i].toLowerCase()!='none')) {
+                            // add selected buttons from other tagging levels
+                            var newbtn = document.createElement('button');
+                            newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]].label[i];
+                            newbtn.setAttribute("id", clusters[mapID][clusterIndex[mapID]].label[i]);
+                            newbtn.setAttribute("class", "btn btn-success btn-block btn-sm");
+                            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                            newbtn.addEventListener('click', (evt)=>{
+                                removeMultiLabel(evt.target.id);
+                            });
+                            divBtns.insertBefore(newbtn, multibtn.nextSibling);
+                        }
                     }
                 }
+    
             } else {
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-                    idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
-                    if (idx > -1) {
-                        var btn = document.getElementById(hotkeys[idx]);
-                        btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
-                    } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]].label[i].toLowerCase()!='none')) {
-                        // add selected buttons from other tagging levels
-                        var newbtn = document.createElement('button');
-                        newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]].label[i];
-                        newbtn.setAttribute("id", clusters[mapID][clusterIndex[mapID]].label[i]);
-                        newbtn.setAttribute("class", "btn btn-success btn-block btn-sm");
-                        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-                        newbtn.addEventListener('click', (evt)=>{
-                            removeMultiLabel(evt.target.id);
-                        });
-                        divBtns.insertBefore(newbtn, multibtn.nextSibling);
-                    }
+                multipleStatus = false
+    
+                if (isClassCheck) {
+                    suggestionBack()
+                } else {
+                    getKeys()
                 }
-            }
-
-        } else {
-            multipleStatus = false
-
-            if (isClassCheck) {
-                suggestionBack()
-            } else {
-                getKeys()
-            }
-
-            if (clusters[mapID][clusterIndex[mapID]].label.includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]].label.includes('Skip')) {
-                // nothing
-            } else if ((clusters[mapID][clusterIndex[mapID]].label.length > 0) && (!clusters[mapID][clusterIndex[mapID]].label.includes('None'))) {
-                submitLabels(mapID)
-                nextCluster(mapID)
+    
+                if (clusters[mapID][clusterIndex[mapID]].label.includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]].label.includes('Skip')) {
+                    // nothing
+                } else if ((clusters[mapID][clusterIndex[mapID]].label.length > 0) && (!clusters[mapID][clusterIndex[mapID]].label.includes('None'))) {
+                    submitLabels(mapID)
+                    nextCluster(mapID)
+                }
             }
         }
     }
