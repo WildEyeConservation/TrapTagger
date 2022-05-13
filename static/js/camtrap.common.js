@@ -800,25 +800,26 @@ function goToPrevCluster(mapID = 'map1') {
     }
 
     if (multipleStatus && (divBtns != null)) {
-        if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
-                if (idx > -1) {
-                    var btn = document.getElementById(hotkeys[idx]);
-                    if (idx < 10) {
-                        btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
-                    } else {
-                        btn.setAttribute("class", "btn btn-info btn-block btn-sm");
-                    }   
-                }
-            }
-        } 
+        // if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+        //     for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
+        //         idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
+        //         if (idx > -1) {
+        //             var btn = document.getElementById(hotkeys[idx]);
+        //             if (idx < 10) {
+        //                 btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
+        //             } else {
+        //                 btn.setAttribute("class", "btn btn-info btn-block btn-sm");
+        //             }   
+        //         }
+        //     }
+        // } 
 
-        divBtns.removeChild(document.getElementById('clearBtn'));
+        // divBtns.removeChild(document.getElementById('clearBtn'));
     
-        var multibtn = document.getElementById('multipleBtn');
-        multibtn.innerHTML = 'Multiple Species (Ctrl)'
-        multibtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
+        // var multibtn = document.getElementById('multipleBtn');
+        // multibtn.innerHTML = 'Multiple Species (Ctrl)'
+        // multibtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
+        getKeys()
         multipleStatus = false
     }
 
@@ -884,7 +885,7 @@ function prevCluster(mapID = 'map1'){
             return;
         }
     }
-    if ((finishedDisplaying[mapID] == true) && (multipleStatus==false)) {
+    if ((finishedDisplaying[mapID] == true) && ((taggingLevel.includes('-2')) || (multipleStatus==false))) {
         if (modalActive == false) {
             if (clusterIndex[mapID]>0){
                 if (isBounding||(document.getElementById('btnSendToBack')!=null)) {
