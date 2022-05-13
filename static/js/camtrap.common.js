@@ -54,6 +54,7 @@ var pingTimer
 var isViewing
 var PlsWaitCountDown
 var modalWait2Hide = false
+var globalKeys = null
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -785,6 +786,9 @@ function update(mapID = 'map1'){
     updateCanvas(mapID)
     preload(mapID)
     updateButtons(mapID)
+    if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+        activateMultiple()
+    }
 }
 
 function goToPrevCluster(mapID = 'map1') {
@@ -1783,7 +1787,7 @@ function activateMultiple(mapID = 'map1') {
                 multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
                 multipleStatus = true
     
-                if (!taggingLevel.includes('-2')) {
+                if (taggingLevel.includes('-2')) {
                     for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
                         idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
                         if (idx > -1) {
@@ -1910,9 +1914,10 @@ function initKeys(res){
             }
         }
 
-        if (taggingLevel.includes('-2')) {
-            activateMultiple()
-        } else if ((!isTagging) || isClassCheck) {
+        // if (taggingLevel.includes('-2')) {
+        //     activateMultiple()
+        // } else 
+        if ((!isTagging) || isClassCheck) {
             if (multipleStatus==true) {
                 multipleStatus = false
                 activateMultiple()

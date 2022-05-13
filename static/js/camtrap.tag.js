@@ -55,9 +55,9 @@ function loadNewCluster(mapID = 'map1') {
                                         clusters[mapID].push(newcluster)
                                     }
 
-                                    if (taggingLevel.includes('-2') && (multipleStatus==false)) {
-                                        activateMultiple()
-                                    }
+                                    // if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+                                    //     activateMultiple()
+                                    // }
                                     
                                     if (clusters[mapID].length-1 == clusterIndex[mapID]){
                                         updateCanvas()
@@ -192,18 +192,22 @@ function getKeys() {
             hotkeys[13] = '4' //d
 
         } else {
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("GET", '/initKeys/' + taggingLevel, true);
-            xhttp.onreadystatechange =
-                function () {
-                    if (this.readyState == 4 && this.status == 278) {
-                        window.location.replace(JSON.parse(this.responseText)['redirect'])
-                    } else if (this.readyState == 4 && this.status == 200) {
-                        res = JSON.parse(this.responseText);
-                        initKeys(res);
+            if (globalKeys==null) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("GET", '/initKeys/' + taggingLevel, true);
+                xhttp.onreadystatechange =
+                    function () {
+                        if (this.readyState == 4 && this.status == 278) {
+                            window.location.replace(JSON.parse(this.responseText)['redirect'])
+                        } else if (this.readyState == 4 && this.status == 200) {
+                            globalKeys = JSON.parse(this.responseText);
+                            initKeys(globalKeys);
+                        }
                     }
-                }
-            xhttp.send();
+                xhttp.send();
+            } else {
+                initKeys(globalKeys)
+            }
         }
     }
 }

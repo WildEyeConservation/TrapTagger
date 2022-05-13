@@ -4565,7 +4565,7 @@ def initKeys(taggingLevel):
         elif '-2' in taggingLevel:
             categories = db.session.query(Tag).filter(Tag.task_id == task.id).all()
             # categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
-            addSkip = True
+            # addSkip = True
         else:
             wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
             categories = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.parent_id==int(taggingLevel)).all()
