@@ -55,6 +55,8 @@ var isViewing
 var PlsWaitCountDown
 var modalWait2Hide = false
 var globalKeys = null
+var ITEMS='label'
+var ITEM_IDS='label_ids'
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -801,8 +803,8 @@ function goToPrevCluster(mapID = 'map1') {
 
     if (multipleStatus && (divBtns != null)) {
         // if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-        //     for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-        //         idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
+        //     for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+        //         idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
         //         if (idx > -1) {
         //             var btn = document.getElementById(hotkeys[idx]);
         //             if (idx < 10) {
@@ -907,9 +909,9 @@ function prevCluster(mapID = 'map1'){
 function updateClusterLabels(mapID = 'map1') {
     /** Updates the global list of labels for the current cluster. */
     clusterLabels[mapID] = []
-    if ((clusters[mapID][clusterIndex[mapID]]!=undefined)&&(clusters[mapID][clusterIndex[mapID]].label_ids!=undefined)) {
-        for (i=0;i<clusters[mapID][clusterIndex[mapID]].label_ids.length;i++) {
-            label_id = clusters[mapID][clusterIndex[mapID]].label_ids[i]
+    if ((clusters[mapID][clusterIndex[mapID]]!=undefined)&&(clusters[mapID][clusterIndex[mapID]][ITEM_IDS]!=undefined)) {
+        for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEM_IDS].length;i++) {
+            label_id = clusters[mapID][clusterIndex[mapID]][ITEM_IDS][i]
             if (parseInt(label_id) != 0) {
                 clusterLabels[mapID].push(label_id)
             }
@@ -942,9 +944,9 @@ function updateDebugInfo(mapID = 'map1') {
             }
             
             var temp =''
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
-                temp += clusters[mapID][clusterIndex[mapID]].label[i]
-                if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
+            for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++) {
+                temp += clusters[mapID][clusterIndex[mapID]][ITEMS][i]
+                if (i != clusters[mapID][clusterIndex[mapID]][ITEMS].length-1) {
                     temp += ', '
                 }
             }
@@ -974,8 +976,8 @@ function updateDebugInfo(mapID = 'map1') {
 
     if (multipleStatus) {
         if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
+            for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
                 if (idx > -1) {
                     var btn = document.getElementById(hotkeys[idx]);
                     btn.setAttribute("class", "btn btn-success btn-block btn-sm");           
@@ -1253,8 +1255,8 @@ function assignLabel(label,mapID = 'map1'){
             if (checkVar == 0) {
                 if (label == '1') {
                     // accept
-                    clusters[mapID][clusterIndex[mapID]].label = clusters[mapID][clusterIndex[mapID]].classification
-                    clusters[mapID][clusterIndex[mapID]].label_ids = ['-254']
+                    clusters[mapID][clusterIndex[mapID]][ITEMS] = clusters[mapID][clusterIndex[mapID]].classification
+                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['-254']
                     var xhttp = new XMLHttpRequest();
                     xhttp.onreadystatechange =
                         function () {
@@ -1332,9 +1334,9 @@ function assignLabel(label,mapID = 'map1'){
                     }
                 } else if (label == '4') {
                     // accept additional
-                    if (!clusters[mapID][clusterIndex[mapID]].label.includes(clusters[mapID][clusterIndex[mapID]].classification[0])) {
-                        clusters[mapID][clusterIndex[mapID]].label.push(clusters[mapID][clusterIndex[mapID]].classification[0])
-                        clusters[mapID][clusterIndex[mapID]].label_ids.push('-254')
+                    if (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes(clusters[mapID][clusterIndex[mapID]].classification[0])) {
+                        clusters[mapID][clusterIndex[mapID]][ITEMS].push(clusters[mapID][clusterIndex[mapID]].classification[0])
+                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push('-254')
                     }
                     var xhttp = new XMLHttpRequest();
                     xhttp.onreadystatechange =
@@ -1356,9 +1358,9 @@ function assignLabel(label,mapID = 'map1'){
             }
         
         } else {
-            if ((clusters[mapID][clusterIndex[mapID]].label.includes(downLabel)) && (label != downLabel)) { //If already marked as knocked down - undo that knockdown
+            if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(downLabel)) && (label != downLabel)) { //If already marked as knocked down - undo that knockdown
                 UndoKnockDown(label, mapID)
-            } else if ((clusters[mapID][clusterIndex[mapID]].label.includes(unKnockLabel)) && (label == downLabel)) {
+            } else if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) && (label == downLabel)) {
                 // disallow undo of undo knockdown
                 nextCluster()
             } else {
@@ -1380,7 +1382,7 @@ function assignLabel(label,mapID = 'map1'){
                         idx = hotkeys.indexOf(label)
 
                         if (idx > -1) {
-                            if (clusters[mapID][clusterIndex[mapID]].label.includes(names[idx])) {
+                            if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(names[idx])) {
         
                                 var btn = document.getElementById(label);
                                 if (idx < 10) {
@@ -1389,11 +1391,11 @@ function assignLabel(label,mapID = 'map1'){
                                     btn.setAttribute("class", "btn btn-info btn-block btn-sm");
                                 }
             
-                                clusters[mapID][clusterIndex[mapID]].label.splice(clusters[mapID][clusterIndex[mapID]].label.indexOf(names[idx]), 1);
-                                clusters[mapID][clusterIndex[mapID]].label_ids.splice(clusters[mapID][clusterIndex[mapID]].label_ids.indexOf(label), 1);
-                                if (clusters[mapID][clusterIndex[mapID]].label.length == 0) {
-                                    clusters[mapID][clusterIndex[mapID]].label = ['None']
-                                    clusters[mapID][clusterIndex[mapID]].label_ids = ['0']
+                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(names[idx]), 1);
+                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label), 1);
+                                if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
                                 }
                                 updateDebugInfo(mapID)
 
@@ -1401,30 +1403,30 @@ function assignLabel(label,mapID = 'map1'){
                             } else {
 
                                 unknocked = false
-                                if (clusters[mapID][clusterIndex[mapID]].label.includes(unKnockLabel)) {
+                                if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) {
                                     unknocked = true
                                 }
     
                                 if (multipleStatus) {
-                                    if (clusters[mapID][clusterIndex[mapID]].label.includes('None')) {
-                                        clusters[mapID][clusterIndex[mapID]].label = []
-                                        clusters[mapID][clusterIndex[mapID]].label_ids = []
+                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS] = []
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
                                     }
-                                    if (clusters[mapID][clusterIndex[mapID]].label.includes(taggingLabel)) {
-                                        clusters[mapID][clusterIndex[mapID]].label.splice(clusters[mapID][clusterIndex[mapID]].label.indexOf(taggingLabel), 1);
-                                        clusters[mapID][clusterIndex[mapID]].label_ids.splice(clusters[mapID][clusterIndex[mapID]].label_ids.indexOf(taggingLevel), 1);
+                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel)) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(taggingLabel), 1);
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel), 1);
                                     }
-                                    clusters[mapID][clusterIndex[mapID]].label.push(names[idx]);
-                                    clusters[mapID][clusterIndex[mapID]].label_ids.push(label);
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS].push(names[idx]);
+                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
                                     clusterLabels[mapID].push(label)
     
                                 } else {
-                                    clusters[mapID][clusterIndex[mapID]].label = [names[idx]]
-                                    clusters[mapID][clusterIndex[mapID]].label_ids = [label]
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS] = [names[idx]]
+                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
                                     clusterLabels[mapID] = [label]
 
                                     if (unknocked) {
-                                        clusters[mapID][clusterIndex[mapID]].label.push(unKnockLabel)
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
                                     }
                                 }
                                 updateDebugInfo(mapID)                                
@@ -1464,6 +1466,13 @@ function fetchTaggingLevel() {
         } else if (this.readyState == 4 && this.status == 200) {
             taggingInfo = JSON.parse(this.responseText);
             taggingLevel = taggingInfo.taggingLevel
+            if (taggingLevel.includes('-2')) {
+                ITEMS = 'tags'
+                ITEM_IDS = 'tag_ids'
+            } else {
+                ITEMS = 'label'
+                ITEM_IDS = 'label_ids'
+            }
             taggingLabel = taggingInfo.taggingLabel
             if (taggingLevel == '-3') {
                 isClassCheck = true
@@ -1739,15 +1748,15 @@ function removeMultiLabel(label,mapID = 'map1') {
         divBtns.removeChild(labelbtn)
     }
 
-    labelIndex = clusters[mapID][clusterIndex[mapID]].label.indexOf(label)
-    label_id = clusters[mapID][clusterIndex[mapID]].label_ids[labelIndex]
-    clusters[mapID][clusterIndex[mapID]].label.splice(labelIndex, 1);
-    clusters[mapID][clusterIndex[mapID]].label_ids.splice(labelIndex, 1);
+    labelIndex = clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label)
+    label_id = clusters[mapID][clusterIndex[mapID]][ITEM_IDS][labelIndex]
+    clusters[mapID][clusterIndex[mapID]][ITEMS].splice(labelIndex, 1);
+    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(labelIndex, 1);
     clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
 
-    if (clusters[mapID][clusterIndex[mapID]].label.length == 0) {
-        clusters[mapID][clusterIndex[mapID]].label = ['None']
-        clusters[mapID][clusterIndex[mapID]].label_ids = ['0']
+    if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
+        clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
     }
     updateDebugInfo(mapID) 
 }
@@ -1797,16 +1806,16 @@ function activateMultiple(mapID = 'map1') {
                         }
                     }
                 } else {
-                    for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++){
-                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].label[i])
+                    for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
                         if (idx > -1) {
                             var btn = document.getElementById(hotkeys[idx]);
                             btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
-                        } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]].label[i].toLowerCase()!='none')) {
+                        } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
                             // add selected buttons from other tagging levels
                             var newbtn = document.createElement('button');
-                            newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]].label[i];
-                            newbtn.setAttribute("id", clusters[mapID][clusterIndex[mapID]].label[i]);
+                            newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]][ITEMS][i];
+                            newbtn.setAttribute("id", clusters[mapID][clusterIndex[mapID]][ITEMS][i]);
                             newbtn.setAttribute("class", "btn btn-success btn-block btn-sm");
                             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
                             newbtn.addEventListener('click', (evt)=>{
@@ -1826,9 +1835,9 @@ function activateMultiple(mapID = 'map1') {
                     getKeys()
                 }
     
-                if (clusters[mapID][clusterIndex[mapID]].label.includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]].label.includes('Skip')) {
+                if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]][ITEMS].includes('Skip')) {
                     // nothing
-                } else if ((clusters[mapID][clusterIndex[mapID]].label.length > 0) && (!clusters[mapID][clusterIndex[mapID]].label.includes('None'))) {
+                } else if ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None'))) {
                     submitLabels(mapID)
                     nextCluster(mapID)
                 }

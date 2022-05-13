@@ -3851,11 +3851,14 @@ def get_clusters():
                             cluster_label_ids.append(str(label.id))
 
             tags = []
+            tag_ids = []
             if cluster.tags == []:
                 tags.append('None')
+                tag_ids.append('0')
             else:
                 for tag in cluster.tags:
                     tags.append(tag.description)
+                    tag_ids.append(str(tag.id))
 
             groundTruth = []
             classification = [cluster.classification]
@@ -3865,7 +3868,7 @@ def get_clusters():
             else:
                 trapGroup = 'None'
 
-            reply['info'].append({'id': cluster.id,'classification': classification,'required': required, 'images': images, 'label': cluster_labels, 'label_ids': cluster_label_ids, 'tags': tags, 'groundTruth': groundTruth, 'trapGroup': trapGroup})
+            reply['info'].append({'id': cluster.id,'classification': classification,'required': required, 'images': images, 'label': cluster_labels, 'label_ids': cluster_label_ids, 'tags': tags, 'tag_ids': tag_ids, 'groundTruth': groundTruth, 'trapGroup': trapGroup})
 
     if (id is None) and (current_user.clusters_allocated >= task.size):
         reply['info'].append(Config.FINISHED_CLUSTER)

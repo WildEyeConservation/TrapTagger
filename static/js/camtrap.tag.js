@@ -214,7 +214,7 @@ function getKeys() {
 
 function knockdown(mapID = 'map1'){
     /** Marks the currently-viewed image as knocked down if it is not already labelled as such. */
-    if (!clusters[mapID][clusterIndex[mapID]].label.includes(downLabel)) {
+    if (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes(downLabel)) {
         knockedTG = clusters[mapID][clusterIndex[mapID]].trapGroup
         clusterRequests[mapID] = [];
         clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
@@ -230,8 +230,8 @@ function knockdown(mapID = 'map1'){
         xhttp.open("GET", '/knockdown/'+imageID+'/'+clusterID, true);
         xhttp.send();
     
-        clusters[mapID][clusterIndex[mapID]].label = [downLabel];
-        clusters[mapID][clusterIndex[mapID]].label_id = [downLabel];
+        clusters[mapID][clusterIndex[mapID]][ITEMS] = [downLabel];
+        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [downLabel];
 
         if (batchComplete) {
             window.location.replace("done")
@@ -258,8 +258,8 @@ function UndoKnockDown(label,mapID = 'map1') {
     xhttp.send();
 
     clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
-    clusters[mapID][clusterIndex[mapID]].label = [unKnockLabel,label]
-    clusters[mapID][clusterIndex[mapID]].label_ids = [unKnockLabel,label]
+    clusters[mapID][clusterIndex[mapID]][ITEMS] = [unKnockLabel,label]
+    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [unKnockLabel,label]
     if (!multipleStatus) {
         if (batchComplete) {
             window.location.replace("done")
