@@ -1692,6 +1692,18 @@ function onload (){
         pingTimer = setInterval(pingServer, 30000);
     }
 
+    if (document.location.href.includes('task')) {
+        switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
+    }
+
+    if (isTagging) { 
+        fetchTaggingLevel()
+
+        if (!isTutorial) {
+            updateProgress()
+        }
+    }
+
     if (isComparison) {
         prepareTable()
     }
@@ -1727,17 +1739,17 @@ function onload (){
         }
     }
 
-    if (document.location.href.includes('task')) {
-        switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
-    }
+    // if (document.location.href.includes('task')) {
+    //     switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
+    // }
 
-    if (isTagging) { 
-        fetchTaggingLevel()
+    // if (isTagging) { 
+    //     fetchTaggingLevel()
 
-        if (!isTutorial) {
-            updateProgress()
-        }
-    }
+    //     if (!isTutorial) {
+    //         updateProgress()
+    //     }
+    // }
 }
 
 function removeMultiLabel(label,mapID = 'map1') {
@@ -1784,7 +1796,7 @@ function activateMultiple(mapID = 'map1') {
         }
     
     
-        if ((modalActive == false) && (modalActive2 == false) && (allow==true) && (taggingLevel!='-3') && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+        if ((((modalActive == false) && (modalActive2 == false)) || (taggingLevel.includes('-2'))) && (allow==true) && (taggingLevel!='-3') && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
             if ((multipleStatus == false) && (divBtns != null)) {
                 var multibtn = document.getElementById('multipleBtn');
                 
