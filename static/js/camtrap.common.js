@@ -944,9 +944,9 @@ function updateDebugInfo(mapID = 'map1') {
             }
             
             var temp =''
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++) {
-                temp += clusters[mapID][clusterIndex[mapID]][ITEMS][i]
-                if (i != clusters[mapID][clusterIndex[mapID]][ITEMS].length-1) {
+            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
+                temp += clusters[mapID][clusterIndex[mapID]].label[i]
+                if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
                     temp += ', '
                 }
             }
