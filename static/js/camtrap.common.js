@@ -1835,7 +1835,7 @@ function activateMultiple(mapID = 'map1') {
                     getKeys()
                 }
     
-                if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]][ITEMS].includes('Skip')) {
+                if (!taggingLevel.includes('-2') && clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]][ITEMS].includes('Skip')) {
                     // nothing
                 } else if ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None'))) {
                     submitLabels(mapID)

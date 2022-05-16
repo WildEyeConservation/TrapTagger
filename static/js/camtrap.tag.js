@@ -60,8 +60,9 @@ function loadNewCluster(mapID = 'map1') {
                                     // }
                                     
                                     if (clusters[mapID].length-1 == clusterIndex[mapID]){
-                                        updateCanvas()
-                                        updateButtons()
+                                        // updateCanvas()
+                                        // updateButtons()
+                                        update(mapID)
                                     } else if (knockWait == true) {
                                         if (modalWait2.is(':visible')) {
                                             modalWait2.modal('hide');
