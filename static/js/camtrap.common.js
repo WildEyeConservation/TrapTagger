@@ -1937,9 +1937,10 @@ function initKeys(res){
             }
         }
 
-        if (taggingLevel.includes('-2') && (multipleStatus==false)) {
-            activateMultiple()
-        } else if ((!isTagging) || isClassCheck) {
+        // if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+        //     activateMultiple()
+        // } else 
+        if ((!isTagging) || isClassCheck) {
             if (multipleStatus==true) {
                 multipleStatus = false
                 activateMultiple()

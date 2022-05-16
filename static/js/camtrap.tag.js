@@ -203,6 +203,9 @@ function getKeys() {
                         } else if (this.readyState == 4 && this.status == 200) {
                             globalKeys = JSON.parse(this.responseText);
                             initKeys(globalKeys);
+                            if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+                                activateMultiple()
+                            }
                         }
                     }
                 xhttp.send();
