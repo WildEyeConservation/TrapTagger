@@ -4388,6 +4388,11 @@ def assignLabel(clusterID):
         num2 = task.size + task.test_size
         cluster = db.session.query(Cluster).get(int(clusterID))
 
+        if 'taggingLevel' in request.form:
+            taggingLevel = request.form['taggingLevel']
+        else:
+            taggingLevel = task.tagging_level
+
         if turkcode.active:
             turkcode.active = False
 
@@ -4403,8 +4408,8 @@ def assignLabel(clusterID):
                     newLabels = []
 
                     #pre-filter labels
-                    if (',' in task.tagging_level) or (int(task.tagging_level) < 1):                            
-                        if '-2' in task.tagging_level:
+                    if (',' in taggingLevel) or (int(taggingLevel) < 1):                            
+                        if '-2' in taggingLevel:
                             cluster.tags = []
                         else:
                             # Can't have nothing label alongside other labels
@@ -4417,7 +4422,7 @@ def assignLabel(clusterID):
                                 
                             cluster.labels = []
                     else:
-                        parentLabel = db.session.query(Label).get(int(task.tagging_level))
+                        parentLabel = db.session.query(Label).get(int(taggingLevel))
                         if parentLabel in cluster.labels:
                             cluster.labels.remove(parentLabel)
 
@@ -4436,11 +4441,11 @@ def assignLabel(clusterID):
                         if int(label_id)==Config.SKIP_ID:
                             cluster.skipped = True
 
-                            if ('-2' not in task.tagging_level) and (parentLabel not in newLabels):
+                            if ('-2' not in taggingLevel) and (parentLabel not in newLabels):
                                 newLabels.append(parentLabel)
 
                         else:
-                            if '-2' in task.tagging_level:
+                            if '-2' in taggingLevel:
                                 newLabel = db.session.query(Tag).get(label_id)
                             else:
                                 newLabel = db.session.query(Label).get(label_id)
@@ -4466,7 +4471,7 @@ def assignLabel(clusterID):
 
                                 newLabels.append(translation.label)
 
-                    if '-2' in task.tagging_level:
+                    if '-2' in taggingLevel:
                         cluster.tags.extend(newLabels)
                         cluster.skipped = True
                     else:
@@ -4475,7 +4480,7 @@ def assignLabel(clusterID):
                     cluster.user_id = current_user.id
                     cluster.timestamp = datetime.utcnow()
 
-                    if task.tagging_level == '-3':
+                    if taggingLevel == '-3':
                         cluster.classification_checked = True
 
                     # Copy labels over to labelgroups
@@ -4487,7 +4492,7 @@ def assignLabel(clusterID):
                                             .distinct().all()
 
                     for labelgroup in labelgroups:
-                        if '-2' in task.tagging_level:
+                        if '-2' in taggingLevel:
                             labelgroup.tags = cluster.tags
                         else:
                             labelgroup.labels = cluster.labels
