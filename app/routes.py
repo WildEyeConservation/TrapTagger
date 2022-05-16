@@ -5226,6 +5226,7 @@ def getTaggingLevels():
         parent_labels.append((GLOBALS.vhl_id,'Vehicles/Humans/Livestock'))
         parent_labels.insert(0,(0, 'All Children Categories'))
         parent_labels.insert(0,(-1, 'All Parent Categories'))
+        parent_labels.insert(0,(-2, 'Informational Tags'))
 
     return json.dumps(parent_labels)
 
