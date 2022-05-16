@@ -1800,44 +1800,45 @@ function activateMultiple(mapID = 'map1') {
             if ((multipleStatus == false) && (divBtns != null)) {
                 var multibtn = document.getElementById('multipleBtn');
                 
-                if (taggingLevel.includes('-2')) {
-                    multibtn.innerHTML = 'Submit (Ctrl)'
-                } else {
-                    multibtn.innerHTML = 'Done (Ctrl)'
-                }
-    
-                multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
-                multipleStatus = true
-    
-                if (taggingLevel.includes('-2')) {
-                    for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
-                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
-                        if (idx > -1) {
-                            var btn = document.getElementById(hotkeys[idx]);
-                            btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+                if (multibtn!=null) {
+                    if (taggingLevel.includes('-2')) {
+                        multibtn.innerHTML = 'Submit (Ctrl)'
+                    } else {
+                        multibtn.innerHTML = 'Done (Ctrl)'
+                    }
+        
+                    multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
+                    multipleStatus = true
+        
+                    if (taggingLevel.includes('-2')) {
+                        for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
+                            idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
+                            if (idx > -1) {
+                                var btn = document.getElementById(hotkeys[idx]);
+                                btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+                            }
+                        }
+                    } else {
+                        for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+                            idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
+                            if (idx > -1) {
+                                var btn = document.getElementById(hotkeys[idx]);
+                                btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
+                            } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
+                                // add selected buttons from other tagging levels
+                                var newbtn = document.createElement('button');
+                                newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]][ITEMS][i];
+                                newbtn.setAttribute("id", clusters[mapID][clusterIndex[mapID]][ITEMS][i]);
+                                newbtn.setAttribute("class", "btn btn-success btn-block btn-sm");
+                                newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                                newbtn.addEventListener('click', (evt)=>{
+                                    removeMultiLabel(evt.target.id);
+                                });
+                                divBtns.insertBefore(newbtn, multibtn.nextSibling);
+                            }
                         }
                     }
-                } else {
-                    for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
-                        idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
-                        if (idx > -1) {
-                            var btn = document.getElementById(hotkeys[idx]);
-                            btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
-                        } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
-                            // add selected buttons from other tagging levels
-                            var newbtn = document.createElement('button');
-                            newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]][ITEMS][i];
-                            newbtn.setAttribute("id", clusters[mapID][clusterIndex[mapID]][ITEMS][i]);
-                            newbtn.setAttribute("class", "btn btn-success btn-block btn-sm");
-                            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-                            newbtn.addEventListener('click', (evt)=>{
-                                removeMultiLabel(evt.target.id);
-                            });
-                            divBtns.insertBefore(newbtn, multibtn.nextSibling);
-                        }
-                    }
                 }
-    
             } else {
                 multipleStatus = false
     
@@ -1936,10 +1937,9 @@ function initKeys(res){
             }
         }
 
-        // if (taggingLevel.includes('-2')) {
-        //     activateMultiple()
-        // } else 
-        if ((!isTagging) || isClassCheck) {
+        if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+            activateMultiple()
+        } else if ((!isTagging) || isClassCheck) {
             if (multipleStatus==true) {
                 multipleStatus = false
                 activateMultiple()
