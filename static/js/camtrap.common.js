@@ -788,7 +788,7 @@ function update(mapID = 'map1'){
     updateCanvas(mapID)
     preload(mapID)
     updateButtons(mapID)
-    if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+    if (isTagging && taggingLevel.includes('-2') && (multipleStatus==false)) {
         activateMultiple()
     }
 }
