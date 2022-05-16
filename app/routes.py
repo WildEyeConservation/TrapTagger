@@ -5211,7 +5211,7 @@ def populateTagSelector():
     task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
 
     if task and (current_user==task.survey.user):
-        tags = db.session.query(Tag).filter(Label.task_id == task.id).all()
+        tags = db.session.query(Tag).filter(Tag.task_id == task.id).all()
         response.append((0, 'All'))
         for tag in tags:
             response.append((tag.id, tag.description))
