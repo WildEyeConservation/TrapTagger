@@ -1889,7 +1889,13 @@ function initKeys(res){
 
         // Add multiple species button
         var newbtn = document.createElement('button');
-        newbtn.innerHTML = 'Multiple Species (Ctrl)';
+
+        if (taggingLevel.includes('-2')) {
+            newbtn.innerHTML = 'Multiple Tags (Ctrl)';
+        } else {
+            newbtn.innerHTML = 'Multiple Species (Ctrl)';
+        }
+
         newbtn.setAttribute("id", 'multipleBtn');
         newbtn.setAttribute("class", "btn btn-danger btn-block btn-sm");
         newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
