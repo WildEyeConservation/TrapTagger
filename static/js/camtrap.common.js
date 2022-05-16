@@ -1204,6 +1204,7 @@ function switchToTask(task){
                 } else if (isReviewing) {
                     populateLevels()
                     populateSpeciesSelector(0)
+                    populateTagSelector()
                 } else if (isKnockdown) {
                     clusters['map1'] = []
                     clusterIndex['map1'] = 0

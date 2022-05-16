@@ -4149,9 +4149,9 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag>')
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>')
 @login_required
-def getClustersBySpecies(task_id, species, tag):
+def getClustersBySpecies(task_id, species, tag_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
     Returns all clusters if species is 0.'''
 
@@ -4176,7 +4176,11 @@ def getClustersBySpecies(task_id, species, tag):
 
             clusters = clusters.filter(Cluster.labels.any(Label.id.in_(label_ids)))
 
-        clusters = clusters.all()
+        if tag_id != '0':
+            tag = db.session.query(Tag).get(int(tag_id))
+            clusters = clusters.filter(Cluster.tags.contains(tag))
+
+        clusters = clusters.distinct().all()
     else:
         clusters = []
 
@@ -5195,6 +5199,22 @@ def getSpeciesSelectorBySurvey(label):
                     temp.append((lab.id, lab.description))
                 temp.insert(0,(root_label.id, 'All'))
                 response.append(temp)
+
+    return json.dumps(response)
+
+@app.route('/populateTagSelector')
+@login_required
+def populateTagSelector():
+    '''Returns tag list for populating the tag selector.'''
+
+    response = []
+    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+
+    if task and (current_user==task.survey.user):
+        tags = db.session.query(Tag).filter(Label.task_id == task.id).all()
+        response.append((0, 'All'))
+        for tag in tags:
+            response.append((tag.id, tag.description))
 
     return json.dumps(response)
 

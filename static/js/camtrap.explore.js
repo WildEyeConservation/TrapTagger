@@ -15,7 +15,7 @@
 var clusterIDs
 var clusterReadAheadIndex=0;
 var currentLabel = '0';
-var currentTagLevel = '0';
+var currentTag = '0';
 isTagging = false
 isReviewing = true
 isKnockdown = false
@@ -117,7 +117,7 @@ function getClusterIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("GET", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTagLevel);
+    xhttp.open("GET", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
     xhttp.send();
 }
 
@@ -175,6 +175,59 @@ function populateSpeciesSelector(label, mapID = 'map1'){
     }
     xhttp.open("GET", '/getSpeciesSelectorBySurvey/'+label);
     xhttp.send();
+}
+
+function populateTagSelector() {
+    /** Populates the tag selector. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            response = JSON.parse(this.responseText);
+
+            divTagSelector = document.getElementById('divTagSelector')
+            while(divTagSelector.firstChild){
+                divTagSelector.removeChild(divTagSelector.firstChild);
+            }
+
+            newdiv = document.createElement('div');
+            newdiv.classList.add('dropdown');
+            
+            newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-danger');
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.classList.add('dropdown-toggle');
+            newbtn.setAttribute("type", 'button');
+            newbtn.setAttribute("data-toggle", 'dropdown');
+            newbtn.innerHTML = 'Select Tag to be Explored';
+
+            newul = document.createElement('div');
+            newul.classList.add('dropdown-menu');
+
+            for (iii=0;iii<response.length;iii++) {
+                a = document.createElement('button');
+                a.classList.add('dropdown-item');
+                a.setAttribute('type', 'button')
+                a.setAttribute('onclick', 'selectTag('+response[iii][0]+')');
+                a.innerHTML = "Show "+response[iii][1];
+                newul.appendChild(a);
+            }
+
+            newdiv.appendChild(newbtn);
+            newdiv.appendChild(newul);
+            divTagSelector.appendChild(newdiv);
+        }
+    }
+    xhttp.open("GET", '/populateTagSelector');
+    xhttp.send();
+}
+
+function selectTag(tag) {
+    currentTag = tag
+    clusterRequests[mapID] = [];
+    getClusterIDs()
 }
 
 window.addEventListener('load', onload, false);

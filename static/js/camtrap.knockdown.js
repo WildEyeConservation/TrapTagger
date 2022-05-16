@@ -15,7 +15,6 @@
 var clusterIDs
 var clusterReadAheadIndex=0;
 var currentLabel = '0';
-var currentTagLevel = '0';
 var selectedCamera = 1;
 var currentCluster = 0;
 var T_index = 0
