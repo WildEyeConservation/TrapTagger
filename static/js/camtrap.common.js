@@ -1870,7 +1870,7 @@ function submitLabels(mapID = 'map1') {
     /** Submits the labels contained in the clusterLabels global as the labels for the current cluster. */
     var formData = new FormData()
     formData.append("labels", JSON.stringify(clusterLabels[mapID]))
-    if (taggingLevel.contains('-2') && isReviewing) {
+    if (taggingLevel.includes('-2') && isReviewing) {
         formData.append("taggingLevel", '-2')
     }
     clusterID = clusters[mapID][clusterIndex[mapID]].id

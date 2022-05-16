@@ -4389,7 +4389,7 @@ def assignLabel(clusterID):
         cluster = db.session.query(Cluster).get(int(clusterID))
 
         if 'taggingLevel' in request.form:
-            taggingLevel = request.form['taggingLevel']
+            taggingLevel = str(request.form['taggingLevel'])
         else:
             taggingLevel = task.tagging_level
 
