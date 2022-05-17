@@ -940,6 +940,26 @@ limitations under the License. -->
                 <br>
                 <br>
 
+                <h5 style="margin-bottom: 2px">Include/Exclude</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to be included or excluded from the file.</i></div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="includeLabels" name="includeExcludeSelection" value="customEx">
+                    <label class="custom-control-label" for="includeLabels">Include</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="excludeLabels" name="includeExcludeSelection" value="customEx">
+                    <label class="custom-control-label" for="excludeLabels">Exclude</label>
+                </div>
+                <div id="csvIncludeDiv"></div>
+                <div class="row">
+                    <div class='col-lg-6'></div>
+                    <div class='col-lg-1'>
+                        <button type='button' class='btn btn-info btn-block' onclick="buildIncludeRow()">+</button>
+                    </div>
+                    <div class='col-lg-4'></div>
+                </div>
+                <br>
+
                 <h5 style="margin-bottom: 2px">Custom Columns</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Stipulate the format of custom csv columns.</i></div>
                 <div id="customColumnHeadingDiv"></div>

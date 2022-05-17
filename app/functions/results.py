@@ -297,7 +297,7 @@ def drop_nones(label_set):
         label_set.remove('None')
     return label_set
 
-def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels):
+def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude):
     '''
     Returns an all-encompassing dataframe for a task, subject to the parameter selections.
 
@@ -308,85 +308,98 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             url_levels (list): The levels of abstraction for which urls are required
             individual_levels (list): The levels of abstration for which individual lists are required
             tag_levels (list): The levels of abstration for which a list of tags is required
+            include (list): The label ids to include
+            exclude (list): The label ids to exclude
 
         Returns:
             df (pd.dataframe): task dataframe
     '''
-    
-    df = pd.read_sql(db.session.query( \
-                        Image.id.label('image_id'),\
-                        Image.filename.label('image_name'), \
-                        Image.corrected_timestamp.label('timestamp'), \
-                        Detection.id.label('detection'), \
-                        Individual.name.label('individual'), \
-                        Cluster.notes.label('notes'), \
-                        Cluster.id.label('cluster'), \
-                        Label.description.label('label'), \
-                        Tag.description.label('tag'), \
-                        Camera.id.label('camera'), \
-                        Camera.path.label('file_path'), \
-                        Trapgroup.id.label('trapgroup_id'), \
-                        Trapgroup.tag.label('trapgroup'), \
-                        Trapgroup.latitude.label('latitude'), \
-                        Trapgroup.longitude.label('longitude'), \
-                        Trapgroup.altitude.label('altitude'), \
-                        Survey.id.label('survey_id'), \
-                        Survey.name.label('survey'), \
-                        Survey.description.label('survey_description')) \
-                        .join(Image,Cluster.images) \
-                        .join(Detection,Detection.image_id==Image.id) \
-                        .join(Individual,Detection.individuals,isouter=True) \
-                        .join(Labelgroup,Labelgroup.detection_id==Detection.id) \
-                        .join(Label,Labelgroup.labels,isouter=True) \
-                        .join(Tag,Labelgroup.tags,isouter=True) \
-                        .join(Camera,Image.camera_id==Camera.id) \
-                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
-                        .join(Survey,Trapgroup.survey_id==Survey.id) \
-                        .filter(Cluster.task_id==task_id) \
-                        .filter(Labelgroup.task_id==task_id) \
-                        .filter(Detection.static==False) \
-                        .filter(Detection.score>0.8) \
-                        .filter(Detection.status!='deleted') \
-                        .statement,db.session.bind)
 
+    query = db.session.query( \
+                Image.id.label('image_id'),\
+                Image.filename.label('image_name'), \
+                Image.corrected_timestamp.label('timestamp'), \
+                Detection.id.label('detection'), \
+                Individual.name.label('individual'), \
+                Cluster.notes.label('notes'), \
+                Cluster.id.label('cluster'), \
+                Label.description.label('label'), \
+                Tag.description.label('tag'), \
+                Camera.id.label('camera'), \
+                Camera.path.label('file_path'), \
+                Trapgroup.id.label('trapgroup_id'), \
+                Trapgroup.tag.label('trapgroup'), \
+                Trapgroup.latitude.label('latitude'), \
+                Trapgroup.longitude.label('longitude'), \
+                Trapgroup.altitude.label('altitude'), \
+                Survey.id.label('survey_id'), \
+                Survey.name.label('survey'), \
+                Survey.description.label('survey_description')) \
+                .join(Image,Cluster.images) \
+                .join(Detection,Detection.image_id==Image.id) \
+                .join(Individual,Detection.individuals,isouter=True) \
+                .join(Labelgroup,Labelgroup.detection_id==Detection.id) \
+                .join(Label,Labelgroup.labels,isouter=True) \
+                .join(Tag,Labelgroup.tags,isouter=True) \
+                .join(Camera,Image.camera_id==Camera.id) \
+                .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                .join(Survey,Trapgroup.survey_id==Survey.id) \
+                .filter(Cluster.task_id==task_id) \
+                .filter(Labelgroup.task_id==task_id) \
+                .filter(Detection.static==False) \
+                .filter(Detection.score>0.8) \
+                .filter(Detection.status!='deleted')
+
+    if len(include) != 0:
+        query = query.filter(Label.id.in_(include))
+
+    if len(exclude) != 0:
+        query = query.filter(~Label.id.in_(exclude))
+
+    if GLOBALS.nothing_id in exclude:
+        query = query.filter(Labelgroup.labels.any())
+
+    df = pd.read_sql(query.statement,db.session.bind)
     task = db.session.query(Task).get(task_id)
-    covered_images = df['image_id'].unique()
-    covered_images = [int(r) for r in covered_images]
-    missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images)).all()
-    missing_images = [r.id for r in missing_images]
 
-    if len(missing_images) != 0:
-        #This includes all the images with no detections
-        df2 = pd.read_sql(db.session.query( \
-                        Image.id.label('image_id'),\
-                        Image.filename.label('image_name'), \
-                        Image.corrected_timestamp.label('timestamp'), \
-                        Detection.id.label('detection'), \
-                        Cluster.notes.label('notes'), \
-                        Cluster.id.label('cluster'), \
-                        Camera.id.label('camera'), \
-                        Camera.path.label('file_path'), \
-                        Trapgroup.id.label('trapgroup_id'), \
-                        Trapgroup.tag.label('trapgroup'), \
-                        Trapgroup.latitude.label('latitude'), \
-                        Trapgroup.longitude.label('longitude'), \
-                        Trapgroup.altitude.label('altitude'), \
-                        Survey.id.label('survey_id'), \
-                        Survey.name.label('survey'), \
-                        Survey.description.label('survey_description')) \
-                        .join(Image,Cluster.images) \
-                        .join(Detection,Detection.image_id==Image.id) \
-                        .join(Camera,Image.camera_id==Camera.id) \
-                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
-                        .join(Survey,Trapgroup.survey_id==Survey.id) \
-                        .filter(Image.id.in_(missing_images)) \
-                        .filter(Cluster.task_id==task_id) \
-                        .statement,db.session.bind)
+    if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
+        covered_images = df['image_id'].unique()
+        covered_images = [int(r) for r in covered_images]
+        missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images)).all()
+        missing_images = [r.id for r in missing_images]
 
-        df2['label'] = 'None'
-        df2['tag'] = 'None'
-        df2['individual'] = 'None'
-        df = pd.concat([df,df2]).reset_index()
+        if len(missing_images) != 0:
+            #This includes all the images with no detections
+            df2 = pd.read_sql(db.session.query( \
+                            Image.id.label('image_id'),\
+                            Image.filename.label('image_name'), \
+                            Image.corrected_timestamp.label('timestamp'), \
+                            Detection.id.label('detection'), \
+                            Cluster.notes.label('notes'), \
+                            Cluster.id.label('cluster'), \
+                            Camera.id.label('camera'), \
+                            Camera.path.label('file_path'), \
+                            Trapgroup.id.label('trapgroup_id'), \
+                            Trapgroup.tag.label('trapgroup'), \
+                            Trapgroup.latitude.label('latitude'), \
+                            Trapgroup.longitude.label('longitude'), \
+                            Trapgroup.altitude.label('altitude'), \
+                            Survey.id.label('survey_id'), \
+                            Survey.name.label('survey'), \
+                            Survey.description.label('survey_description')) \
+                            .join(Image,Cluster.images) \
+                            .join(Detection,Detection.image_id==Image.id) \
+                            .join(Camera,Image.camera_id==Camera.id) \
+                            .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                            .join(Survey,Trapgroup.survey_id==Survey.id) \
+                            .filter(Image.id.in_(missing_images)) \
+                            .filter(Cluster.task_id==task_id) \
+                            .statement,db.session.bind)
+
+            df2['label'] = 'None'
+            df2['tag'] = 'None'
+            df2['individual'] = 'None'
+            df = pd.concat([df,df2]).reset_index()
 
     #Combine file paths
     df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
@@ -565,7 +578,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -574,6 +587,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             selectedLevel (string): The level of abstration each row in the csv is to represent (image, cluster, camera etc.)
             requestedColumns (list): List of columns for the csv, in the order in which they are required
             custom_columns (list): List of the descriptions of custom columns requested in the csv
+            includes (list): List of label names that should included
+            excludes (list): List of label names that should excluded
     '''
     
     try:
@@ -589,6 +604,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         tag_levels = []
         url_levels = []
         individual_levels = []
+        count_levels = []
         for column in requestedColumns:
             if '_count' in column:
                 level = re.split('_.+_count',column)[0]
@@ -605,9 +621,15 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             elif '_individuals' in column:
                 individual_levels.append(re.split('_individuals',column)[0])
 
+        # Generate include an exclude lists
+        include = [r.id for r in db.session.query(Label).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(includes)).distinct().all()]
+        include.extend([r.id for r in db.session.query(Label).filter(Label.task_id==None).filter(Label.description.in_(includes)).distinct().all()])
+        exclude = [r.id for r in db.session.query(Label).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(excludes)).distinct().all()]
+        exclude.extend([r.id for r in db.session.query(Label).filter(Label.task_id==None).filter(Label.description.in_(excludes)).distinct().all()])
+
         outputDF = None
         for task_id in selectedTasks:
-            df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels)
+            df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude)
 
             # Generate custom columns
             for custom_name in custom_columns[str(task_id)]:
@@ -646,7 +668,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             elif label_type=='row':
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
                 outputDF = outputDF.explode(label_level+'_labels')
-                # outputDF.rename(columns={label_level+'_labels':label_level+'_label'},inplace=True)
+                # if label_level in count_levels:
+                #     outputDF[label_level+'_'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels']+'_count'], axis=1)
             elif label_type=='list':
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
 

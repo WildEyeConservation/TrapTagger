@@ -5288,6 +5288,8 @@ def generateCSV():
         columns = ast.literal_eval(request.form['columns'])
         custom_columns = ast.literal_eval(request.form['custom_columns'])
         label_type = ast.literal_eval(request.form['label_type'])
+        includes = ast.literal_eval(request.form['includes'])
+        excludes = ast.literal_eval(request.form['excludes'])
     except:
         return json.dumps('error')
 
@@ -5305,7 +5307,7 @@ def generateCSV():
             pass
 
     app.logger.info('Calling generate_csv: {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns))
-    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type)
+    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes)
 
     return json.dumps('success')
 

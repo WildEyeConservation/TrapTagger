@@ -380,6 +380,19 @@ btnCsvDownload.addEventListener('click', ()=>{
             }
         }
 
+        // Handle include/exclude
+        includes = []
+        excludes = []
+        includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
+        for (tas=0;tas<includeSelectors.length;tas++) {
+            label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+            if (document.getElementById('excludeLabels').checked) {
+                excludes.push(label)
+            } else {
+                includes.push(label)
+            }
+        }
+
         custom_columns = {}
         for (tid=0;tid<selectedTasks.length;tid++) {
             task_id = selectedTasks[tid]
@@ -432,6 +445,8 @@ btnCsvDownload.addEventListener('click', ()=>{
             formData.append("columns", JSON.stringify(columns))
             formData.append("custom_columns", JSON.stringify(custom_columns))
             formData.append("label_type", JSON.stringify(label_type))
+            formData.append("includes", JSON.stringify(includes))
+            formData.append("excludes", JSON.stringify(excludes))
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/generateCSV');
@@ -923,6 +938,21 @@ function buildCSVsurveyRow() {
     })
 }
 
+function updateIncludeFields() {
+    /** Updates all include/exclude fields */
+    includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
+    for (tas=0;tas<includeSelectors.length;tas++) {
+        label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+        clearSelect(includeSelectors[tas])
+        fillSelect(includeSelectors[tas],speciesChoiceTexts,speciesChoiceValues)
+        index = includeSelectors[tas].options.indexOf(label)
+        if (index==-1) {
+            index = 0
+        }
+        includeSelectors[tas].selectedIndex = index
+    }
+}
+
 function csvSurveyUpdates() {
     /** Updates all necessary selectors and rows when the survey list in the csv form changes. */
     updateCustomRows()
@@ -957,9 +987,47 @@ function csvSurveyUpdates() {
                 fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
                 csvColSpeciesElement.selectedIndex = index
             }
+
+            updateIncludeFields()
         }
     }
     xhttp.send(formData);
+}
+
+function buildIncludeRow() {
+    /** Builds an include/exclude row */
+
+    IDNum = getIdNumforNext('includeSelect')
+    csvIncludeDiv = document.getElementById('csvIncludeDiv')
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    csvIncludeDiv.appendChild(row)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-6')
+    row.appendChild(col1)
+
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.id = 'includeSelect-'+String(IDNum)
+    select.name = select.id
+    col1.appendChild(select)
+
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-1')
+    row.appendChild(col2)
+
+    btnRemove = document.createElement('button');
+    btnRemove.classList.add('btn');
+    btnRemove.classList.add('btn-default');
+    btnRemove.innerHTML = '&times;';
+    btnRemove.addEventListener('click', (evt)=>{
+        evt.target.parentNode.parentNode.remove();
+    });
+    col2.appendChild(btnRemove);
+
+    updateIncludeFields()
 }
 
 function finishCSVprep() {
@@ -1047,6 +1115,13 @@ function finishCSVprep() {
         }
     }
 
+    // Build include/exclude row
+    csvIncludeDiv = document.getElementById('csvIncludeDiv')
+    while(csvIncludeDiv.firstChild){
+        csvIncludeDiv.removeChild(csvIncludeDiv.firstChild);
+    }
+    buildIncludeRow()
+
     // Build first row
     buildCSVrow(0)
 
@@ -1102,6 +1177,8 @@ modalCSVGenerate.on('shown.bs.modal', function(){
         document.getElementById('listLabelFormat').checked = false
         document.getElementById('columnLabelFormat').checked = true
         document.getElementById('rowLabelFormat').checked = false
+        document.getElementById('includeLabels').checked = true
+        document.getElementById('excludeLabels').checked = false
         if (csvInfo==null) {
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/getCSVinfo');
@@ -1176,6 +1253,10 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
             customColumnBtnDiv.removeChild(customColumnBtnDiv.firstChild);
         }
         customColumns = {}
+        csvIncludeDiv = document.getElementById('csvIncludeDiv')
+        while(csvIncludeDiv.firstChild){
+            csvIncludeDiv.removeChild(csvIncludeDiv.firstChild);
+        }
     }
 });
 

@@ -226,7 +226,7 @@ function populateTagSelector() {
 
 function selectTag(tag) {
     currentTag = tag
-    clusterRequests[mapID] = [];
+    clusterRequests['map1'] = [];
     getClusterIDs()
 }
 
