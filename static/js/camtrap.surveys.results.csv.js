@@ -221,6 +221,19 @@ function checkCSV() {
     trapSpecies = false
     cameraAll = false
     cameraSpecies = false
+    excludeProblem = false
+
+    // Handle include/exclude
+    if (document.getElementById('excludeLabels').checked) {
+        includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
+        for (tas=0;tas<includeSelectors.length;tas++) {
+            label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+            if (label == 'All') {
+                excludeProblem = true
+                break
+            }
+        }
+    }
 
     species_count_warning = false
     for (i=0;i<allLevels.length;i++) {
@@ -295,6 +308,12 @@ function checkCSV() {
         allClash = true
     }
 
+    if (excludeProblem) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML = 'You cannot exclude all labels. This results in an empty csv.'
+        csvErrors.appendChild(newdiv)
+    }
+
     if (allClash) {
         newdiv = document.createElement('div')
         newdiv.innerHTML = 'You can either have all species counts for a particular level, or specific species counts, but not both.'
@@ -307,7 +326,7 @@ function checkCSV() {
         csvErrors.appendChild(newdiv)
     }
 
-    if (allClash||duplicateColumns||(allLevels.length==0)) {
+    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)) {
         legalCSV = false
     } else {
         legalCSV = true
@@ -386,6 +405,11 @@ btnCsvDownload.addEventListener('click', ()=>{
         includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
         for (tas=0;tas<includeSelectors.length;tas++) {
             label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+            if (label == 'All') {
+                includes = []
+                excludes = []
+                break
+            }
             if (document.getElementById('excludeLabels').checked) {
                 excludes.push(label)
             } else {
