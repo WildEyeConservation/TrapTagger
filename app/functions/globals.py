@@ -1653,73 +1653,73 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
 
         # Download file
         print('Downloading file...')
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-        if external:
-            attempts = 0
-            retry = True
-            while retry and (attempts < 10):
-                attempts += 1
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            if external:
+                attempts = 0
+                retry = True
+                while retry and (attempts < 10):
+                    attempts += 1
+                    try:
+                        response = requests.get(source+'/'+image.camera.path+'/'+image.filename, timeout=30)
+                        assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
+                        retry = False
+                    except:
+                        retry = True
+                with open(temp_file.name, 'wb') as handler:
+                    handler.write(response.content)
+            else:
+                GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+            print('Success')
+
+            print('Opening image...')
+            with pilImage.open(temp_file.name) as img:
+                img.load()
+
+            assert img
+            print('Success')
+                
+            # always save as RGB for consistency
+            if img.mode != 'RGB':
+                print('Converting to RGB')
+                img = img.convert(mode='RGB')
+
+            if update_image_info:
+                # Get image hash
+                print('Updating image hash...')
                 try:
-                    response = requests.get(source+'/'+image.camera.path+'/'+image.filename, timeout=30)
-                    assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
-                    retry = False
+                    image.hash = md5(temp_file.name)
+                    db.session.commit()
+                    print('Success')
                 except:
-                    retry = True
-            with open(temp_file.name, 'wb') as handler:
-                handler.write(response.content)
-        else:
-            GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
-        print('Success')
+                    print("Skipping {} could not generate hash...".format(image.camera.path+'/'+image.filename))
 
-        print('Opening image...')
-        with pilImage.open(temp_file.name) as img:
-            img.load()
+                # Attempt to extract and save timestamp
+                print('Updating timestamp...')
+                try:
+                    t = pyexifinfo.get_json(temp_file.name)[0]
+                    timestamp = None
+                    for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                        if field in t.keys():
+                            timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                            break
+                    assert timestamp
+                    image.timestamp = timestamp
+                    db.session.commit()
+                    print('Success')
+                except (KeyError, ValueError):
+                    print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
 
-        assert img
-        print('Success')
-            
-        # always save as RGB for consistency
-        if img.mode != 'RGB':
-            print('Converting to RGB')
-            img = img.convert(mode='RGB')
-
-        if update_image_info:
-            # Get image hash
-            print('Updating image hash...')
-            try:
-                image.hash = md5(temp_file.name)
-                db.session.commit()
-                print('Success')
-            except:
-                print("Skipping {} could not generate hash...".format(image.camera.path+'/'+image.filename))
-
-            # Attempt to extract and save timestamp
-            print('Updating timestamp...')
-            try:
-                t = pyexifinfo.get_json(temp_file.name)[0]
-                timestamp = None
-                for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
-                    if field in t.keys():
-                        timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
-                        break
-                assert timestamp
-                image.timestamp = timestamp
-                db.session.commit()
-                print('Success')
-            except (KeyError, ValueError):
-                print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
-
-        # crop the detections if they have sufficient area and score
-        print('Cropping detections...')
-        for detection in image.detections:
-            area = (detection.right-detection.left)*(detection.bottom-detection.top)
-            
-            if (area > min_area) and (detection.score > 0.8):
-                key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
-                bbox = [detection.left,detection.top,(detection.right-detection.left),(detection.bottom-detection.top)]
-                print('Crropping detection {} on image {}'.format(bbox,key))
-                save_crop(img, bbox_norm=bbox, square_crop=True, bucket=destBucket, key=key)
-                print('Success')
+            # crop the detections if they have sufficient area and score
+            print('Cropping detections...')
+            for detection in image.detections:
+                area = (detection.right-detection.left)*(detection.bottom-detection.top)
+                
+                if (area > min_area) and (detection.score > 0.8):
+                    key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
+                    bbox = [detection.left,detection.top,(detection.right-detection.left),(detection.bottom-detection.top)]
+                    print('Crropping detection {} on image {}'.format(bbox,key))
+                    save_crop(img, bbox_norm=bbox, square_crop=True, bucket=destBucket, key=key)
+                    print('Success')
         print('Finished processing image!')
     
     except:
@@ -1783,9 +1783,9 @@ def save_crop(img, bbox_norm, square_crop, bucket, key):
         crop = ImageOps.pad(crop, size=(box_size, box_size), color=0)
 
     try:
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.jpg')
-        crop.save(temp_file.name)
-        GLOBALS.s3client.put_object(Bucket=bucket,Key=key,Body=temp_file)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+            crop.save(temp_file.name)
+            GLOBALS.s3client.put_object(Bucket=bucket,Key=key,Body=temp_file)
     except:
         print('Error saving crop: {}'.format(key))
 

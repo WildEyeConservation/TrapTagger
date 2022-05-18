@@ -96,28 +96,29 @@ def infer(batch,sourceBucket,external):
         for image in batch:
             index += 1
             try:
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-                if external:
-                    print('Downloading {} from external source.'.format(image))
-                    attempts = 0
-                    retry = True
-                    while retry and (attempts < 10):
-                        attempts += 1
-                        try:
-                            response = requests.get(sourceBucket+'/'+image, timeout=30)
-                            assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
-                            retry = False
-                        except:
-                            retry = True
-                    with open(temp_file.name, 'wb') as handler:
-                        handler.write(response.content)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    if external:
+                        print('Downloading {} from external source.'.format(image))
+                        attempts = 0
+                        retry = True
+                        while retry and (attempts < 10):
+                            attempts += 1
+                            try:
+                                response = requests.get(sourceBucket+'/'+image, timeout=30)
+                                assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
+                                retry = False
+                            except:
+                                retry = True
+                        with open(temp_file.name, 'wb') as handler:
+                            handler.write(response.content)
 
-                else:
-                    print('Downloading {} from S3'.format(image))
-                    s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
+                    else:
+                        print('Downloading {} from S3'.format(image))
+                        s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
 
-                print('Done')
-                imstack.append(np.asarray(Image.open(temp_file.name).resize((1024, 600)),np.uint8))
+                    print('Done')
+                    imstack.append(np.asarray(Image.open(temp_file.name).resize((1024, 600)),np.uint8))
+                
                 print('Added to batch')
                 batch_index += 1
                 translations[index] = batch_index
@@ -225,20 +226,20 @@ def inferAndClassify(batch):
         for imageURL in batch:
             image_detections[imageURL] = []
             try:
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-                attempts = 0
-                retry = True
-                while retry and (attempts < 2):
-                    attempts += 1
-                    try:
-                        response = requests.get(imageURL, timeout=5)
-                        assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
-                        retry = False
-                    except:
-                        retry = True
-                with open(temp_file.name, 'wb') as handler:
-                    handler.write(response.content)
-                image = Image.open(temp_file.name)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    attempts = 0
+                    retry = True
+                    while retry and (attempts < 2):
+                        attempts += 1
+                        try:
+                            response = requests.get(imageURL, timeout=5)
+                            assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
+                            retry = False
+                        except:
+                            retry = True
+                    with open(temp_file.name, 'wb') as handler:
+                        handler.write(response.content)
+                    image = Image.open(temp_file.name)
                 output_batch.append(np.asarray(image.resize((1024, 600)), np.uint8))
                 images[imageURL] = image
             except:
@@ -409,9 +410,9 @@ class SimpleDataset(torch.utils.data.Dataset):
 
         ###########Local Download appoach
         if image_id not in self.ims.keys():
-            temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-            s3client.download_file(Bucket=self.bucket, Key=self.images[image_id], Filename=temp_file.name)
-            img = Image.open(temp_file.name)
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                s3client.download_file(Bucket=self.bucket, Key=self.images[image_id], Filename=temp_file.name)
+                img = Image.open(temp_file.name)
             self.ims[image_id] = img
         else:
             img = self.ims[image_id]

@@ -198,38 +198,38 @@ def importKML(survey_id):
     survey = db.session.query(Survey).get(survey_id)
     bucketName = survey.user.bucket
     key = 'kmlFiles/' + survey.name + '.kml'
-    temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.kml')
-
+    
     try:
-        GLOBALS.s3client.download_file(Bucket=bucketName, Key=key, Filename=temp_file.name)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=bucketName, Key=key, Filename=temp_file.name)
 
-        with open(temp_file.name) as f:
-            kmlData = kmlparser.parse(f).getroot()
+            with open(temp_file.name) as f:
+                kmlData = kmlparser.parse(f).getroot()
 
-        for trap in kmlData.Document.Folder.Placemark:
-            try:
-                options = []
-                for trapgroup in survey.trapgroups:
-                    if trapgroup.tag in trap.name.text:
-                        options.append(trapgroup)
-                if len(options) == 1:
-                    trapgroup = options[0]
-                else:
-                    trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==trap.name.text).first()
-                if trapgroup != None:
-                    try:
-                        coords = trap.Point.coordinates.text.split(',')
-                        trapgroup.longitude = float(coords[0])
-                        trapgroup.latitude = float(coords[1])
-                        if len(coords) > 2:
-                            trapgroup.altitude = float(coords[2])
-                        else:
-                            trapgroup.altitude = 0
-                    except:
-                        pass
-            except:
-                pass
-        db.session.commit()
+            for trap in kmlData.Document.Folder.Placemark:
+                try:
+                    options = []
+                    for trapgroup in survey.trapgroups:
+                        if trapgroup.tag in trap.name.text:
+                            options.append(trapgroup)
+                    if len(options) == 1:
+                        trapgroup = options[0]
+                    else:
+                        trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==trap.name.text).first()
+                    if trapgroup != None:
+                        try:
+                            coords = trap.Point.coordinates.text.split(',')
+                            trapgroup.longitude = float(coords[0])
+                            trapgroup.latitude = float(coords[1])
+                            if len(coords) > 2:
+                                trapgroup.altitude = float(coords[2])
+                            else:
+                                trapgroup.altitude = 0
+                        except:
+                            pass
+                except:
+                    pass
+            db.session.commit()
     except:
         pass
 
@@ -817,59 +817,59 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
             hash = None
             if not pipeline: hash = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
             if pipeline or ((db.session.query(Image).filter(Image.camera_id==camera_id).filter(Image.filename==filename).first()==None) and (db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.hash==hash).first()==None)):
-                if not pipeline:
-                    print('Downloading {}'.format(filename))
-                    temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    if not pipeline:
+                        print('Downloading {}'.format(filename))
+                        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+                        
+                        try:
+                            print('Extracting time stamp from {}'.format(filename))
+                            t = pyexifinfo.get_json(temp_file.name)[0]
+                            timestamp = None
+                            for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                                if field in t.keys():
+                                    timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                                    break
+                            assert timestamp
+                        except (KeyError, ValueError):
+                            app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
+                            continue
+                    else:
+                        # don't need to download the image or even extract a timestamp if pipelining
+                        timestamp = None
                     
                     try:
-                        print('Extracting time stamp from {}'.format(filename))
-                        t = pyexifinfo.get_json(temp_file.name)[0]
-                        timestamp = None
-                        for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
-                            if field in t.keys():
-                                timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
-                                break
-                        assert timestamp
-                    except (KeyError, ValueError):
-                        app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
+                        if not pipeline:
+                            # don't compress and upload the image if its a training-data pipeline
+                            print('Compressing {}'.format(filename))
+                            with wandImage(filename=temp_file.name).convert('jpeg') as img:
+                                # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                                # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                                # problems for MegaDetector which expects a 3 channel image as input.
+                                img.metadata['colorspace:auto-grayscale'] = 'false'
+                                img.transform(resize='800')
+                                if not pipeline:
+                                    print('Uploading {}'.format(filename))
+                                    GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, dirpath + '/' + filename)
+                                # bio=BytesIO(img.make_blob())
+                                # b64blob=base64.b64encode(bio.getvalue()).decode()
+
+                        ########Blob Approach
+                        #The wandImage approach seems lossy, and the double resize seems dangerous
+                        # with open(temp_file.name, "rb") as f:
+                        #     bio = BytesIO(f.read())
+                        # b64blob=base64.b64encode(bio.getvalue()).decode()
+                        # batch.append(b64blob)
+
+                        #########Local Download
+                        batch.append(dirpath + '/' + filename)
+
+                        image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash}
+                        images.append(image)
+                        
+                    except (ValueError):
+                        app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
                         continue
-                else:
-                    # don't need to download the image or even extract a timestamp if pipelining
-                    timestamp = None
-                
-                try:
-                    if not pipeline:
-                        # don't compress and upload the image if its a training-data pipeline
-                        print('Compressing {}'.format(filename))
-                        with wandImage(filename=temp_file.name).convert('jpeg') as img:
-                            # This is required, because if we don't have it ImageMagick gets too clever for it's own good
-                            # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
-                            # problems for MegaDetector which expects a 3 channel image as input.
-                            img.metadata['colorspace:auto-grayscale'] = 'false'
-                            img.transform(resize='800')
-                            if not pipeline:
-                                print('Uploading {}'.format(filename))
-                                GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, dirpath + '/' + filename)
-                            # bio=BytesIO(img.make_blob())
-                            # b64blob=base64.b64encode(bio.getvalue()).decode()
-
-                    ########Blob Approach
-                    #The wandImage approach seems lossy, and the double resize seems dangerous
-                    # with open(temp_file.name, "rb") as f:
-                    #     bio = BytesIO(f.read())
-                    # b64blob=base64.b64encode(bio.getvalue()).decode()
-                    # batch.append(b64blob)
-
-                    #########Local Download
-                    batch.append(dirpath + '/' + filename)
-
-                    image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash}
-                    images.append(image)
-                    
-                except (ValueError):
-                    app.logger.info("Skipping {} because it appears to be corrupt".format(temp_file.name))
-                    continue
         
         print('Acquiring lock')
         GLOBALS.lock.acquire()
@@ -926,9 +926,9 @@ def importImages(self,batch,csv,pipeline,external,min_area):
             if csv:
                 # Allows for the fetching of images according to a csv eg. for collecting Snapshot Safari data for training
                 key = item['key']
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-                GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
-                df = pd.read_csv(temp_file.name)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
+                    df = pd.read_csv(temp_file.name)
                 jpegs = list(df['filename'].unique())
 
             else:
@@ -1003,10 +1003,10 @@ def importImages(self,batch,csv,pipeline,external,min_area):
 
                 if csv:
                     key = item['key']
-                    temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-                    GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
-                    GLOBALS.s3client.delete_object(Bucket=destBucket, Key=key)
-                    df = pd.read_csv(temp_file.name)
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                        GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
+                        GLOBALS.s3client.delete_object(Bucket=destBucket, Key=key)
+                        df = pd.read_csv(temp_file.name)
                     jpegs = list(df['filename'].unique())
 
                 else:
@@ -1057,15 +1057,15 @@ def classifier_batching(chunk,sourceBucket):
                                     .all()
 
                 ######################Blob approach
-                # temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-                # GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(detections[0].image.camera.path, detections[0].image.filename), Filename=temp_file.name)
+                # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                #     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(detections[0].image.camera.path, detections[0].image.filename), Filename=temp_file.name)
 
-                # try:
-                #     with open(temp_file.name, "rb") as f:
-                #         bio = BytesIO(f.read())
-                #     b64blob=base64.b64encode(bio.getvalue()).decode()
-                # except:
-                #     continue
+                #     try:
+                #         with open(temp_file.name, "rb") as f:
+                #             bio = BytesIO(f.read())
+                #         b64blob=base64.b64encode(bio.getvalue()).decode()
+                #     except:
+                #         continue
 
                 # batch['images'][str(image_id)] = b64blob
 
@@ -1454,9 +1454,9 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 chunked_df = current_df.loc[lower_index:upper_index]
 
                 key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-                chunked_df.to_csv(temp_file.name,index=False)
-                GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    chunked_df.to_csv(temp_file.name,index=False)
+                    GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
 
                 batch.append({'sourceBucket':source,
                                 'dirpath':dirpath,
@@ -2428,9 +2428,9 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
     try:
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-        GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
-        df = pd.read_csv(temp_file.name)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
         df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
     
     except Exception as exc:
@@ -2580,9 +2580,9 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             for dirpath in df['dirpath'].unique():
                 dirpathDF = df.loc[df['dirpath'] == dirpath]
                 key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-                dirpathDF.to_csv(temp_file.name,index=False)
-                GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    dirpathDF.to_csv(temp_file.name,index=False)
+                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
                 results.append(extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey_id,'destBucket':bucketName},queue='parallel'))
 
             # Wait for processing to finish

@@ -1135,9 +1135,9 @@ def createNewSurvey(surveyName, newSurveyDescription, newSurveyTGCode, newSurvey
             if fileAttached:
                 bucketName = current_user.bucket
                 key = 'kmlFiles/' + surveyName + '.kml'
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.kml')
-                uploaded_file.save(temp_file.name)
-                GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
+                    uploaded_file.save(temp_file.name)
+                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
 
             if newSurveyS3Folder=='none':
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='uploading', correct_timestamps=correctTimestamps)
@@ -1256,9 +1256,10 @@ def getClassificationDsLables():
 
         # try download classification_ds. Create a new one otherwise.
         try:
-            temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-            GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/classification_ds.csv', Filename=temp_file.name)
-            df = pd.read_csv(temp_file.name)
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/classification_ds.csv', Filename=temp_file.name)
+                df = pd.read_csv(temp_file.name)
+
             labels = sorted(list(set([r.lower() for r in df['label'].unique()])))
 
             for label in labels:
@@ -1444,9 +1445,9 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox):
             if fileAttached:
                 bucketName = current_user.bucket
                 key = 'kmlFiles/' + surveyName + '.kml'
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.kml')
-                uploaded_file.save(temp_file.name)
-                GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
+                    uploaded_file.save(temp_file.name)
+                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
 
             if newSurveyTGCode!=' ':
                 if checkbox=='false':

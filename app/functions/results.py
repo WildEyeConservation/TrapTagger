@@ -1433,9 +1433,9 @@ def generate_training_csv(self,tasks,destBucket,min_area):
 
         # Write output to S3
         user = task.survey.user.username
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-        outputDF.to_csv(temp_file.name,index=False)
-        GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+user+'_classification_ds.csv',Body=temp_file)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            outputDF.to_csv(temp_file.name,index=False)
+            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+user+'_classification_ds.csv',Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1538,9 +1538,9 @@ def generate_classification_ds(self,sourceBucket):
         folders,filenames = list_all(sourceBucket,'classification_ds/')
         for filename in filenames:
             if filename != 'classification_ds.csv':
-                temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-                GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/'+filename, Filename=temp_file.name)
-                df = pd.read_csv(temp_file.name)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/'+filename, Filename=temp_file.name)
+                    df = pd.read_csv(temp_file.name)
 
                 # Add to output
                 if outputDF is not None:
@@ -1550,9 +1550,9 @@ def generate_classification_ds(self,sourceBucket):
                     outputDF = df
 
         # Write output to S3
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-        outputDF.to_csv(temp_file.name,index=False)
-        GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='classification_ds/classification_ds.csv',Body=temp_file)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            outputDF.to_csv(temp_file.name,index=False)
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='classification_ds/classification_ds.csv',Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1576,9 +1576,9 @@ def generate_label_spec(self,sourceBucket,translations):
     '''
 
     try:
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.csv')
-        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/classification_ds.csv', Filename=temp_file.name)
-        df = pd.read_csv(temp_file.name)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/classification_ds.csv', Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
 
         # Generate Label Spec
         label_spec = {}
@@ -1592,10 +1592,9 @@ def generate_label_spec(self,sourceBucket,translations):
                     if translation in labels:
                         label_spec[label]['dataset_labels'][dataset].append(translation)
 
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.json')
-        with open(temp_file.name, 'w') as f:
-            f.write(json.dumps(label_spec))
-        GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=temp_file)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
+            temp_file.write(json.dumps(label_spec))
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=temp_file)
 
         # Generate accompanying label index
         index = 0
@@ -1604,10 +1603,9 @@ def generate_label_spec(self,sourceBucket,translations):
             label_index[index] = label
             index += 1
 
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.json')
-        with open(temp_file.name, 'w') as f:
-            f.write(json.dumps(label_index))
-        GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=temp_file)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
+            temp_file.write(json.dumps(label_index))
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
