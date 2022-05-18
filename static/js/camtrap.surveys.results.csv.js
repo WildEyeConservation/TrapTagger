@@ -966,17 +966,24 @@ function updateIncludeFields() {
     /** Updates all include/exclude fields */
     includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
     for (tas=0;tas<includeSelectors.length;tas++) {
-        if (includeSelectors[tas].selectedIndex != -1) {
+        if (includeSelectors[tas].selectedIndex == -1) {
+            label = null
+        } else {
             label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
         }
         clearSelect(includeSelectors[tas])
-        fillSelect(includeSelectors[tas],speciesChoiceTexts,speciesChoiceValues)
-        if (includeSelectors[tas].selectedIndex != -1) {
-            index = includeSelectors[tas].options.indexOf(label)
-            if (index==-1) {
-                index = 0
+        texts = speciesChoiceTexts
+        texts.splice(1, 0, 'Nothing')
+        values = speciesChoiceValues
+        values.splice(1, 0, '-98')
+        fillSelect(includeSelectors[tas],texts,values)
+        if (label != null) {
+            for (gh=0;gh<includeSelectors[tas].options.length;gh++) {
+                if (includeSelectors[tas].options[gh].text == label) {
+                    includeSelectors[tas].selectedIndex = gh
+                    break
+                }
             }
-            includeSelectors[tas].selectedIndex = index
         }
     }
 }
@@ -1054,6 +1061,10 @@ function buildIncludeRow() {
         evt.target.parentNode.parentNode.remove();
     });
     col2.appendChild(btnRemove);
+
+    $('#includeSelect-'+String(IDNum)).change( function() {
+        checkCSV()
+    });
 
     updateIncludeFields()
 }
@@ -1291,4 +1302,9 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
 csvGenClose.addEventListener('click', ()=>{
     /** Returns the user to the results modal when they close the generate-csv modal. */
     modalResults.modal({keyboard: true});
+});
+
+$('#excludeLabels').change( function() {
+    /** When include/exclude selctor is changed, check the csv file format */
+    checkCSV()
 });
