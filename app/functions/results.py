@@ -604,16 +604,25 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         tag_levels = []
         url_levels = []
         individual_levels = []
-        count_levels = []
+        sighting_count_levels = []
         for column in requestedColumns:
-            if '_count' in column:
+            if 'sighting_count' in column:
+                level = re.split('_sighting_count',column)[0]
+                if level not in sighting_count_levels:
+                    sighting_count_levels.append(level)
+                if level not in label_levels:
+                    label_levels.append(level)
+                if level not in detection_count_levels:
+                    detection_count_levels.append(level)
+            elif '_count' in column:
                 level = re.split('_.+_count',column)[0]
                 if level not in detection_count_levels:
                     detection_count_levels.append(level)
                 if '_all_count' in column:
                     allLevels.append(re.split('_all_count',column)[0])
             elif '_labels' in column:
-                label_levels.append(re.split('_labels',column)[0])
+                if level not in label_levels:
+                    label_levels.append(re.split('_labels',column)[0])
             elif '_tags' in column:
                 tag_levels.append(re.split('_tags',column)[0])
             elif '_url' in column:
@@ -657,20 +666,30 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         for label_level in label_levels:
             if label_type=='column':
                 label_list = []
+                label_list2 = []
                 for i in range(outputDF[label_level+'_labels'].apply(len).max()):
                     label_list.append(label_level+'_label_'+str(i+1))
+                    label_list2.append(label_level+'_sighting_count_'+str(i+1))
                 outputDF[label_list] = pd.DataFrame(outputDF[label_level+'_labels'].tolist(), index=outputDF.index)
                 del outputDF[label_level+'_labels']
                 for heading in label_list:
                     requestedColumns.insert(requestedColumns.index(label_level+'_labels'), heading)
+                if label_level in sighting_count_levels:
+                    for heading in label_list2:
+                        requestedColumns.insert(requestedColumns.index(label_level+'_labels'), heading)
+                    for n in range(len(label_list2)):
+                        outputDF[label_list2[n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[n]]+'_count'], axis=1)
                 requestedColumns.remove(label_level+'_labels')
                 outputDF.fillna('None', inplace=True)
             elif label_type=='row':
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
                 outputDF = outputDF.explode(label_level+'_labels')
-                # if label_level in count_levels:
-                #     outputDF[label_level+'_'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels']+'_count'], axis=1)
+                if label_level in sighting_count_levels:
+                    outputDF[label_level+'_sighting_counts'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels']+'_count'], axis=1)
             elif label_type=='list':
+                if label_level in sighting_count_levels:
+                    outputDF[label_level+'_sighting_counts'] = outputDF.apply(lambda x: [x[label_level+'_'+label+'_count'] for label in x[label_level+'_labels']], axis=1)
+                    outputDF[label_level+'_sighting_counts'] = outputDF.apply(lambda x: combine_list(x[label_level+'_sighting_counts']), axis=1)
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
 
         for tag_level in tag_levels:

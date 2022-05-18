@@ -242,9 +242,9 @@ class Config(object):
 
     # csv options
     CSV_INFO = {
-        '0':{'name': 'Image', 'columns': ['Image', 'ID', 'Species Count', 'Labels', 'Tags', 'Timestamp', 'URL', 'Individuals']},
-        '1':{'name': 'Capture', 'columns': ['Capture', 'ID', 'Species Count', 'Labels', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
-        '2':{'name': 'Cluster', 'columns': ['Cluster', 'Species Count', 'Labels', 'Tags', 'Notes', 'Image Count', 'URL', 'Individuals']},
+        '0':{'name': 'Image', 'columns': ['Image', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals']},
+        '1':{'name': 'Capture', 'columns': ['Capture', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
+        '2':{'name': 'Cluster', 'columns': ['Cluster', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Notes', 'Image Count', 'URL', 'Individuals']},
         '3':{'name': 'Camera', 'columns': ['Camera', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '4':{'name': 'Trapgroup', 'columns': ['Trapgroup', 'Species Count', 'Labels', 'Tags', 'Latitude', 'Longitude', 'Altitude', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
         '5':{'name': 'Survey', 'columns': ['Survey', 'Species Count', 'Labels', 'Tags', 'Survey Description', 'Animal Count', 'Image Count', 'URL', 'Individuals']},

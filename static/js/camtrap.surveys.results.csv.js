@@ -384,6 +384,8 @@ btnCsvDownload.addEventListener('click', ()=>{
                 selection = levelSelection+'_url'
             } else if (dataSelection == 'Individuals') {
                 selection = levelSelection+'_individuals'
+            } else if (dataSelection == 'Sighting Count') {
+                selection = levelSelection+'_sighting_count'
             } else {
                 selection = dataSelection.toLowerCase().replace(' ','_')
             }
@@ -450,6 +452,8 @@ btnCsvDownload.addEventListener('click', ()=>{
                             selection = levelSelection+'_url'
                         } else if (dataSelection == 'Individuals') {
                             selection = levelSelection+'_individuals'
+                        } else if (dataSelection == 'Sighting Count') {
+                            selection = levelSelection+'_sighting_count'
                         } else {
                             selection = dataSelection.toLowerCase().replace(' ','_')
                         }
@@ -1307,4 +1311,4 @@ csvGenClose.addEventListener('click', ()=>{
 $('#excludeLabels').change( function() {
     /** When include/exclude selctor is changed, check the csv file format */
     checkCSV()
-});s
+});
