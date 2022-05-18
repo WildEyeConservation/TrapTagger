@@ -966,14 +966,18 @@ function updateIncludeFields() {
     /** Updates all include/exclude fields */
     includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
     for (tas=0;tas<includeSelectors.length;tas++) {
-        label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+        if (includeSelectors[tas].selectedIndex != -1) {
+            label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+        }
         clearSelect(includeSelectors[tas])
         fillSelect(includeSelectors[tas],speciesChoiceTexts,speciesChoiceValues)
-        index = includeSelectors[tas].options.indexOf(label)
-        if (index==-1) {
-            index = 0
+        if (includeSelectors[tas].selectedIndex != -1) {
+            index = includeSelectors[tas].options.indexOf(label)
+            if (index==-1) {
+                index = 0
+            }
+            includeSelectors[tas].selectedIndex = index
         }
-        includeSelectors[tas].selectedIndex = index
     }
 }
 
