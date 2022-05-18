@@ -1223,50 +1223,50 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
                 destinationKey += '/' +image.filename
             destinationKeys.append(destinationKey)
 
-        temp_file = tempfile.NamedTemporaryFile(delete=True, suffix='.JPG')
-        GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
 
-        exifData = b'ASCII\x00\x00\x00'
-        xpKeywordData = ''
-        IPTCData = []
-        imageLabels.extend(imageTags)
-        for label in imageLabels:
-            xpKeywordData += label.description
-            exifData += label.description.encode()
-            IPTCData.append(label.description.encode())
-            if label != imageLabels[-1]:
-                xpKeywordData += ', '
-                exifData += b', '
+            exifData = b'ASCII\x00\x00\x00'
+            xpKeywordData = ''
+            IPTCData = []
+            imageLabels.extend(imageTags)
+            for label in imageLabels:
+                xpKeywordData += label.description
+                exifData += label.description.encode()
+                IPTCData.append(label.description.encode())
+                if label != imageLabels[-1]:
+                    xpKeywordData += ', '
+                    exifData += b', '
 
-        # EXIF
-        try:
+            # EXIF
             try:
-                exif_dict = piexif.load(temp_file.name)
+                try:
+                    exif_dict = piexif.load(temp_file.name)
+                    exif_bytes = piexif.dump(exif_dict)
+                except:
+                    # If exif data is corrupt, then just overwite it entirely
+                    exif_dict={'0th':{},'Exif':{}}
+                exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
+                exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
+                exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
+                exif_dict['0th'][40094] = tuple([ord(r) for r in xpKeywordData])
                 exif_bytes = piexif.dump(exif_dict)
+                piexif.insert(exif_bytes, temp_file.name) #insert new exif data without opening & re-saving image
             except:
-                # If exif data is corrupt, then just overwite it entirely
-                exif_dict={'0th':{},'Exif':{}}
-            exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
-            exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
-            exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
-            exif_dict['0th'][40094] = tuple([ord(r) for r in xpKeywordData])
-            exif_bytes = piexif.dump(exif_dict)
-            piexif.insert(exif_bytes, temp_file.name) #insert new exif data without opening & re-saving image
-        except:
-            # Rather ensure that the image is there, without exif data than the opposite.
-            pass
+                # Rather ensure that the image is there, without exif data than the opposite.
+                pass
 
-        # IPTC
-        try:
-            info = IPTCInfo(temp_file.name)
-            info['keywords'] = IPTCData
-            info.save()
-        except:
-            # Rather ensure image is there
-            pass
+            # IPTC
+            try:
+                info = IPTCInfo(temp_file.name)
+                info['keywords'] = IPTCData
+                info.save()
+            except:
+                # Rather ensure image is there
+                pass
 
-        for destinationKey in destinationKeys:
-            GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
+            for destinationKey in destinationKeys:
+                GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
 
     except Exception:
         app.logger.info(' ')

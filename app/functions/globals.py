@@ -400,26 +400,44 @@ def importMonitor():
 
 def updateTaskCompletionStatus(task_id):
     '''
-    Checks to see if species classification has been completed for a task, and sets the task complete sttus accordingly.
+    Checks to see if species classification has been completed for a task, and sets the task complete status accordingly.
 
         Parameters:
             task_id (int): Task the must be checked.
     '''
-    
+
     complete = True
+    
+    # Check if there init level is complete
+    check = db.session.query(Cluster)\
+                    .join(Image,Cluster.images)\
+                    .join(Detection)\
+                    .filter(Detection.score>0.8)\
+                    .filter(Detection.static==False)\
+                    .filter(Detection.status!='deleted')\
+                    .filter(Cluster.task_id==task_id)\
+                    .filter(~Cluster.labels.any())\
+                    .first()
+    if check:
+        complete = False
+
+    # Check if parent categories are complete
     parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-    parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+    if db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==GLOBALS.vhl_id).first():
+        parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
     for parentLabel in parentLabels:
         parentCheck = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(parentLabel)).first()
-        for childLabel in parentLabel.children:
+        for childLabel in db.session.query(Label).filter(Label.task_id).filter(Label.parent==parentLabel).distinct().all():
             childCheck = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(childLabel)).first()
             if childCheck != None:
                 break
         if (parentCheck!=None) and (childCheck==None):
             complete = False
             break
+    
     db.session.query(Task).get(task_id).complete = complete
     db.session.commit()
+
     return True
 
 def clusterIdComplete(task_id,label_id):

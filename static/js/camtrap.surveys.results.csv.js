@@ -309,9 +309,9 @@ function checkCSV() {
     }
 
     if (excludeProblem) {
-        newdiv = document.createElement('div')
-        newdiv.innerHTML = 'You cannot exclude all labels. This results in an empty csv.'
-        csvErrors.appendChild(newdiv)
+        document.createElement('cludeErrors').innerHTML = 'You cannot exclude all labels. This results in an empty csv.'
+    } else {
+        document.createElement('cludeErrors').innerHTML = ''
     }
 
     if (allClash) {
@@ -1307,4 +1307,4 @@ csvGenClose.addEventListener('click', ()=>{
 $('#excludeLabels').change( function() {
     /** When include/exclude selctor is changed, check the csv file format */
     checkCSV()
-});
+});s
