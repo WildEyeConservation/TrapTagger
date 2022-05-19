@@ -681,7 +681,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                     for heading in label_list2:
                         requestedColumns.insert(requestedColumns.index(label_level+'_labels'), heading)
                     for n in range(len(label_list2)):
-                        outputDF[label_list2[n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[n].lower().replace(' ','_')]+'_count'], axis=1)
+                        outputDF[label_list2[n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[n]].lower().replace(' ','_')+'_count'], axis=1)
                 requestedColumns.remove(label_level+'_labels')
                 outputDF.fillna('None', inplace=True)
             elif label_type=='row':
