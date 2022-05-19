@@ -1399,7 +1399,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     localsession.close()
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
-    remove_duplicate_images(sid)
+    # remove_duplicate_images(sid)
 
 def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions):
     '''

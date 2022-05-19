@@ -174,7 +174,7 @@ def infer(batch,sourceBucket,external):
                                     'right':0.0,
                                     'category': 0,
                                     'score': 0.0,
-                                    'source' : workername}]
+                                    'source' : 'error'}]
             results.append(detections)
     
     return results
