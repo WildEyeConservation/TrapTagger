@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, save_crops, list_all
+from app.functions.globals import retryTime, save_crops, list_all, chunker
 import GLOBALS
 from flask_login import current_user
 from sqlalchemy.sql import alias, func
@@ -37,6 +37,8 @@ from openpyxl.styles.borders import Border, Side
 from openpyxl.styles import PatternFill, Font
 import pandas as pd
 import json
+import io
+from celery.result import allow_join_result
 
 def translate(labels, dictionary):
     '''
@@ -1242,50 +1244,55 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
                 destinationKey += '/' +image.filename
             destinationKeys.append(destinationKey)
 
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-            GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
+        # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+        # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
 
-            exifData = b'ASCII\x00\x00\x00'
-            xpKeywordData = ''
-            IPTCData = []
-            imageLabels.extend(imageTags)
-            for label in imageLabels:
-                xpKeywordData += label.description
-                exifData += label.description.encode()
-                IPTCData.append(label.description.encode())
-                if label != imageLabels[-1]:
-                    xpKeywordData += ', '
-                    exifData += b', '
+        s3_response_object = GLOBALS.s3client.get_object(Bucket=bucket,Key=sourceKey)
+        imageData = s3_response_object['Body'].read()
 
-            # EXIF
+        exifData = b'ASCII\x00\x00\x00'
+        xpKeywordData = ''
+        # IPTCData = []
+        imageLabels.extend(imageTags)
+        for label in imageLabels:
+            xpKeywordData += label.description
+            exifData += label.description.encode()
+            # IPTCData.append(label.description.encode())
+            if label != imageLabels[-1]:
+                xpKeywordData += ', '
+                exifData += b', '
+
+        # EXIF
+        try:
             try:
-                try:
-                    exif_dict = piexif.load(temp_file.name)
-                    exif_bytes = piexif.dump(exif_dict)
-                except:
-                    # If exif data is corrupt, then just overwite it entirely
-                    exif_dict={'0th':{},'Exif':{}}
-                exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
-                exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
-                exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
-                exif_dict['0th'][40094] = tuple([ord(r) for r in xpKeywordData])
+                exif_dict = piexif.load(imageData)
                 exif_bytes = piexif.dump(exif_dict)
-                piexif.insert(exif_bytes, temp_file.name) #insert new exif data without opening & re-saving image
             except:
-                # Rather ensure that the image is there, without exif data than the opposite.
-                pass
+                # If exif data is corrupt, then just overwite it entirely
+                exif_dict={'0th':{},'Exif':{}}
+            exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
+            exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
+            exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
+            exif_dict['0th'][40094] = tuple([ord(r) for r in xpKeywordData])
+            exif_bytes = piexif.dump(exif_dict)
+            output=io.BytesIO()
+            piexif.insert(exif_bytes,imageData,output) #insert new exif data without opening & re-saving image
+        except:
+            # Rather ensure that the image is there, without exif data than the opposite.
+            pass
 
-            # IPTC
-            try:
-                info = IPTCInfo(temp_file.name)
-                info['keywords'] = IPTCData
-                info.save()
-            except:
-                # Rather ensure image is there
-                pass
+        # # IPTC
+        # try:
+        #     info = IPTCInfo(temp_file.name)
+        #     info['keywords'] = IPTCData
+        #     info.save()
+        # except:
+        #     # Rather ensure image is there
+        #     pass
 
-            for destinationKey in destinationKeys:
-                GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
+        for destinationKey in destinationKeys:
+            GLOBALS.s3client.put_object(Body=output,Bucket=bucket,Key=destinationKey)
+            # GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
 
     except Exception:
         app.logger.info(' ')
@@ -1293,6 +1300,30 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29)
+def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structure,surveyName):
+    ''' Prepares a batch of exif images, allowing for parallelisation across instances. '''
+
+    try:
+        pool = Pool(processes=4)
+        for image_id in image_ids:
+            pool.apply_async(prepare_exif_image,(image_id,task_id,species_sorted,bucket,flat_structure,surveyName))
+        pool.close()
+        pool.join()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
         db.session.remove()
@@ -1339,14 +1370,34 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure):
                         .filter(Labelgroup.task_id==task.id)\
                         .filter(Label.id.in_([r.id for r in labels]))\
                         .distinct().all()
-        
-        pool = Pool(processes=4)
-        for image in images:
-            pool.apply_async(prepare_exif_image,(image.id,task_id,species_sorted,bucket,flat_structure,surveyName))
-        pool.close()
-        pool.join()
 
-        task.survey.status = 'Ready'
+        results = []
+        for batch in chunker(images,5000):
+            results.append(prepare_exif_batch.apply_async(kwargs={  'image_ids':[r.id for r in batch],
+                                                                    'task_id':task_id,
+                                                                    'species_sorted':species_sorted,
+                                                                    'bucket':bucket,
+                                                                    'flat_structure':flat_structure,
+                                                                    'surveyName': surveyName}))
+
+        #Wait for processing to complete
+        # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+        # See https://github.com/celery/celery/issues/4480
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in results:
+                try:
+                    result.get()
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+                result.forget()
+        GLOBALS.lock.release()
+
+        db.session.query(Task).get(task_id).survey.status = 'Ready'
         db.session.commit()
 
     except Exception as exc:
