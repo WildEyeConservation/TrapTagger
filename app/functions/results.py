@@ -691,11 +691,11 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
                 outputDF = outputDF.explode(label_level+'_labels')
                 if label_level in sighting_count_levels:
-                    outputDF[label_level+'_sighting_counts'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'], axis=1)
+                    outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'], axis=1)
             elif label_type=='list':
                 if label_level in sighting_count_levels:
-                    outputDF[label_level+'_sighting_counts'] = outputDF.apply(lambda x: [x[label_level+'_'+label.lower().replace(' ','_')+'_count'] for label in x[label_level+'_labels']], axis=1)
-                    outputDF[label_level+'_sighting_counts'] = outputDF.apply(lambda x: combine_list(x[label_level+'_sighting_counts']), axis=1)
+                    outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: [x[label_level+'_'+label.lower().replace(' ','_')+'_count'] for label in x[label_level+'_labels']], axis=1)
+                    outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: combine_list(x[label_level+'_sighting_counts']), axis=1)
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
 
         for tag_level in tag_levels:
