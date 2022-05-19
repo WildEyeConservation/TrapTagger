@@ -623,6 +623,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 if '_all_count' in column:
                     allLevels.append(re.split('_all_count',column)[0])
             elif '_labels' in column:
+                level = re.split('_labels',column)[0]
                 if level not in label_levels:
                     label_levels.append(re.split('_labels',column)[0])
             elif '_tags' in column:
@@ -1323,11 +1324,8 @@ def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structu
     '''
 
     try:
-        pool = Pool(processes=4)
         for image_id in image_ids:
-            pool.apply_async(prepare_exif_image,(image_id,task_id,species_sorted,bucket,flat_structure,surveyName,labels))
-        pool.close()
-        pool.join()
+            prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,surveyName,labels)
 
     except Exception as exc:
         app.logger.info(' ')
