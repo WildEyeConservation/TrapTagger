@@ -678,12 +678,14 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF[label_list] = pd.DataFrame(outputDF[label_level+'_labels'].tolist(), index=outputDF.index)
                 del outputDF[label_level+'_labels']
                 for heading in label_list:
-                    if heading in requestedColumns:
+                    if label_level+'_labels' in requestedColumns:
                         requestedColumns.insert(requestedColumns.index(label_level+'_labels'), heading)
                 if label_level in sighting_count_levels:
                     for heading in label_list2:
-                        if heading in requestedColumns:
+                        if label_level+'_labels' in requestedColumns:
                             requestedColumns.insert(requestedColumns.index(label_level+'_labels'), heading)
+                        else:
+                            requestedColumns.append(heading)
                     for n in range(len(label_list2)):
                         outputDF[label_list2[n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[n]].lower().replace(' ','_')+'_count'], axis=1)
                 if label_level+'_labels' in requestedColumns: requestedColumns.remove(label_level+'_labels')
