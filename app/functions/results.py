@@ -438,7 +438,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
             else:
                 # Gives the total count of the detections over the level
-                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['label'].transform('count')
+                df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df[df['label']==label.description].groupby(level)['detection'].transform('nunique')
                 df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].fillna(0, inplace=True)
                 df[level_name+'_'+label.description.replace(' ','_').lower()+'_count'] = df.groupby(level)[level_name+'_'+label.description.replace(' ','_').lower()+'_count'].transform('max')
         df[level_name+'_animal_count'] = df[~df.label.isin(animal_exclusions)].groupby(level)[level].transform('count')
@@ -589,6 +589,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             selectedLevel (string): The level of abstration each row in the csv is to represent (image, cluster, camera etc.)
             requestedColumns (list): List of columns for the csv, in the order in which they are required
             custom_columns (list): List of the descriptions of custom columns requested in the csv
+            label_type (str): The type of labelling scheme to be uses - row, column or list
             includes (list): List of label names that should included
             excludes (list): List of label names that should excluded
     '''
