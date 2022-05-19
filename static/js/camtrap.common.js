@@ -963,14 +963,16 @@ function updateDebugInfo(mapID = 'map1') {
                 document.getElementById('groundLabels').innerHTML = "Ground Truth: "+temp;
             }
 
-            var temp =''
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++) {
-                temp += clusters[mapID][clusterIndex[mapID]].tags[i]
-                if (i != clusters[mapID][clusterIndex[mapID]].tags.length-1) {
-                    temp += ', '
+            if (!isClassCheck) {
+                var temp =''
+                for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++) {
+                    temp += clusters[mapID][clusterIndex[mapID]].tags[i]
+                    if (i != clusters[mapID][clusterIndex[mapID]].tags.length-1) {
+                        temp += ', '
+                    }
                 }
+                document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
             }
-            document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
         }
     }
 
