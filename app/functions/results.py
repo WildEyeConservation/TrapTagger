@@ -1191,7 +1191,7 @@ def generate_excel(self,task_id):
 
     return None
 
-def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,surveyName):
+def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,surveyName,labels):
     '''
     Processes a single image for exif download by downloading the file locally, editing its metadata (without opening it) and saving it 
     to a Downloads folder in the user's bucket. Labels are saved in the user comment exif data, xpkeyword data and the IPTC keywords.
@@ -1203,6 +1203,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
             bucket (str): The bucket where the image should be uploaded
             flat_structure (bool): Whether the folder structure should be flattened
             surveyName (str): The name of the survey associated with the image
+            labels (list): The requested label ids
     '''
     try:
         image = db.session.query(Image).get(image_id)
@@ -1232,17 +1233,18 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
         destinationKeys = []
         baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
         for label in imageLabels:
-            destinationKey = 'Downloads/' + surveyName
-            if species_sorted:  destinationKey += '/' + label.description
-            if flat_structure:
-                filename = baseName
-                for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
-                filename += '_' + str(image.id) + '.jpg'
-                destinationKey += '/' + filename
-            else:
-                for split in splitPath: destinationKey += '/' + split
-                destinationKey += '/' +image.filename
-            destinationKeys.append(destinationKey)
+            if not (species_sorted and (label.id not in labels)):
+                destinationKey = 'Downloads/' + surveyName
+                if species_sorted:  destinationKey += '/' + label.description
+                if flat_structure:
+                    filename = baseName
+                    for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
+                    filename += '_' + str(image.id) + '.jpg'
+                    destinationKey += '/' + filename
+                else:
+                    for split in splitPath: destinationKey += '/' + split
+                    destinationKey += '/' +image.filename
+                destinationKeys.append(destinationKey)
 
         # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
         # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
@@ -1307,13 +1309,23 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
     return True
 
 @celery.task(bind=True,max_retries=29)
-def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structure,surveyName):
-    ''' Prepares a batch of exif images, allowing for parallelisation across instances. '''
+def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structure,surveyName,labels):
+    ''' Prepares a batch of exif images, allowing for parallelisation across instances. 
+    
+        Parameters:
+            image_ids (list): The batch of images to process
+            task_id (int): The task whose labels must be used
+            species_sorted (bool): Whether the dataset should be sorted into species folders
+            bucket (str): The bucket where the image should be uploaded
+            flat_structure (bool): Whether the folder structure should be flattened
+            surveyName (str): The name of the survey associated with the image
+            labels (list): The requested label ids
+    '''
 
     try:
         pool = Pool(processes=4)
         for image_id in image_ids:
-            pool.apply_async(prepare_exif_image,(image_id,task_id,species_sorted,bucket,flat_structure,surveyName))
+            pool.apply_async(prepare_exif_image,(image_id,task_id,species_sorted,bucket,flat_structure,surveyName,labels))
         pool.close()
         pool.join()
 
@@ -1378,7 +1390,8 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure):
                                                                     'species_sorted':species_sorted,
                                                                     'bucket':bucket,
                                                                     'flat_structure':flat_structure,
-                                                                    'surveyName': surveyName}))
+                                                                    'surveyName': surveyName,
+                                                                    'labels': [r.id for r in labels]}))
 
         #Wait for processing to complete
         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
