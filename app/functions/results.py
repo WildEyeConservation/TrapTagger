@@ -1356,7 +1356,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure):
         
         if '0' in species:
             labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
-            labels.extend(db.session.query(Label).filter(Label.task_id==None).filte(Label.desciption.in_(['Vehicles/Humans/Livestock'])).distinct().all())
+            labels.extend(db.session.query(Label).filter(Label.task_id==None).filter(Label.desciption.in_(['Vehicles/Humans/Livestock'])).distinct().all())
         else:
             labels = db.session.query(Label).filter(Label.id.in_(species)).distinct().all()
 
