@@ -89,12 +89,12 @@ def infer(batch,sourceBucket,external):
             init=True
 
         ######Local Download
-        index = -1
-        batch_index = -1
+        # index = -1
+        # batch_index = -1
         imstack = []
-        translations = {}
+        # translations = {}
         for image in batch:
-            index += 1
+            # index += 1
             try:
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                     if external:
@@ -120,11 +120,12 @@ def infer(batch,sourceBucket,external):
                     imstack.append(np.asarray(Image.open(temp_file.name).resize((1024, 600)),np.uint8))
                 
                 print('Added to batch')
-                batch_index += 1
-                translations[index] = batch_index
+                # batch_index += 1
+                # translations[index] = batch_index
             
             except:
-                translations[index] = None
+                # translations[index] = None
+                print('Failed to retrieve image {}'.format(image))
             
         imstack = np.stack(imstack)
         
@@ -140,18 +141,16 @@ def infer(batch,sourceBucket,external):
         for i,fullname in enumerate(batch):
             print('Next image')
             detections=[]
-            index = translations[i]
-            if index:
-                for j, scr in enumerate(score_np[index, :]):
-                    if scr < 0.05:
-                        break
-                    detections.append( {'top':float(box_np[index, j, 0]),
-                                        'left':float(box_np[index, j, 1]),
-                                        'bottom':float(box_np[index, j, 2]),
-                                        'right':float(box_np[index, j, 3]),
-                                        'category':int(clss_np[index, j]),
-                                        'score': float(score_np[index, j]),
-                                        'source' : workername})
+            for j, scr in enumerate(score_np[i, :]):
+                if scr < 0.05:
+                    break
+                detections.append( {'top':float(box_np[i, j, 0]),
+                                    'left':float(box_np[i, j, 1]),
+                                    'bottom':float(box_np[i, j, 2]),
+                                    'right':float(box_np[i, j, 3]),
+                                    'category':int(clss_np[i, j]),
+                                    'score': float(score_np[i, j]),
+                                    'source' : workername})
             if len(detections)==0:
                 print('No detections found...')
                 detections.append( {'top':0.0,
