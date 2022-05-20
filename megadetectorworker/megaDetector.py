@@ -89,12 +89,8 @@ def infer(batch,sourceBucket,external):
             init=True
 
         ######Local Download
-        # index = -1
-        # batch_index = -1
         imstack = []
-        # translations = {}
         for image in batch:
-            # index += 1
             try:
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                     if external:
@@ -120,11 +116,8 @@ def infer(batch,sourceBucket,external):
                     imstack.append(np.asarray(Image.open(temp_file.name).resize((1024, 600)),np.uint8))
                 
                 print('Added to batch')
-                # batch_index += 1
-                # translations[index] = batch_index
             
             except:
-                # translations[index] = None
                 print('Failed to retrieve image {}'.format(image))
             
         imstack = np.stack(imstack)
