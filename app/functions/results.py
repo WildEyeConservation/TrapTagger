@@ -687,7 +687,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                         else:
                             requestedColumns.append(heading)
                     for n in range(len(label_list2)):
-                        outputDF[label_list2[n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[n]].lower().replace(' ','_')+'_count'] if (x[label_list[n]].lower().replace(' ','_') != 'none') else 0, axis=1)
+                        outputDF[label_list2[n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[n]].lower().replace(' ','_')+'_count'] if (x[label_list[n]].lower().replace(' ','_') not in ['none','knocked_down']) else 0, axis=1)
                 if label_level+'_labels' in requestedColumns: requestedColumns.remove(label_level+'_labels')
                 if label_level+'_sighting_count' in requestedColumns: requestedColumns.remove(label_level+'_sighting_count')
                 outputDF.fillna('None', inplace=True)
@@ -695,7 +695,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
                 outputDF = outputDF.explode(label_level+'_labels')
                 if label_level in sighting_count_levels:
-                    outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'] if (x[label_level+'_labels'].lower().replace(' ','_') != 'none') else 0, axis=1)
+                    outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'] if (x[label_level+'_labels'].lower().replace(' ','_') not in ['none','knocked_down']) else 0, axis=1)
             elif label_type=='list':
                 if label_level in sighting_count_levels:
                     outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: [x[label_level+'_'+label.lower().replace(' ','_')+'_count'] for label in x[label_level+'_labels']], axis=1)
