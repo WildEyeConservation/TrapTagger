@@ -111,7 +111,7 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
         else:
             isBounding = False
 
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped!=False).distinct().all()
+        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).distinct().all()
         for cluster in clusters:
             cluster.skipped = False
         db.session.commit()
