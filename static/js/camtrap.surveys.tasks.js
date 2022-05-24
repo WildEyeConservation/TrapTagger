@@ -65,18 +65,18 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         taskStatusElement.innerHTML = status
     }      
 
-    taskStatusBtn.addEventListener('click', function(wrapTaskId) {
-        return function() {
-            selectedTask = wrapTaskId
-            modalStatus.modal({keyboard: true});
-        }
-    }(task.id));
-
     if ((task.status!='PROGRESS')) {
         taskStatusBtn = document.createElement('button')
         taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         taskStatusBtn.innerHTML = 'Status'
         taskInfoCol.appendChild(taskStatusBtn)
+
+        taskStatusBtn.addEventListener('click', function(wrapTaskId) {
+            return function() {
+                selectedTask = wrapTaskId
+                modalStatus.modal({keyboard: true});
+            }
+        }(task.id));
 
         launchTaskCol = document.createElement('div')
         launchTaskCol.classList.add('col-lg-2');
