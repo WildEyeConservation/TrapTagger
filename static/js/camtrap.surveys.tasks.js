@@ -30,24 +30,21 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
 
     taskNameElement = document.createElement('div')
     taskNameElement.classList.add('row');
+    taskNameElement.classList.add('taskStatus');
     taskNameElement.setAttribute("style","font-size:100%")
     taskNameElement.innerHTML = task.name
     col.appendChild(taskNameElement)
 
     taskStatusElement = document.createElement('div')
     taskStatusElement.classList.add('row');
-    // taskStatusElement.classList.add('taskStatus');
+    taskStatusElement.classList.add('taskStatus');
     taskStatusElement.setAttribute("id","taskStatusElement"+task.id)
     taskStatusElement.setAttribute("style","font-size: 70%")
     col.appendChild(taskStatusElement)
 
-    taskStatusBtnCol = document.createElement('div')
-    taskStatusBtnCol.classList.add('col-lg-2');
-    taskStatusBtn = document.createElement('button')
-    taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-    taskStatusBtn.appendChild(taskStatusBtnCol)
-    taskStatusBtn.innerHTML = 'Status'
-    newTaskDiv.appendChild(taskStatusBtnCol)
+    taskInfoCol = document.createElement('div')
+    taskInfoCol.classList.add('col-lg-2');
+    newTaskDiv.appendChild(taskInfoCol)
 
     if (task.status==null) {
         taskStatusElement.innerHTML = 'Status: Unlaunched'
@@ -65,7 +62,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         } else {
             status = task.status
         }
-        taskStatusElement.innerHTML = 'Status: ' + status
+        taskStatusElement.innerHTML = status
     }      
 
     taskStatusBtn.addEventListener('click', function(wrapTaskId) {
@@ -76,6 +73,11 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     }(task.id));
 
     if ((task.status!='PROGRESS')) {
+        taskStatusBtn = document.createElement('button')
+        taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+        taskStatusBtn.innerHTML = 'Status'
+        taskInfoCol.appendChild(taskStatusBtn)
+
         launchTaskCol = document.createElement('div')
         launchTaskCol.classList.add('col-lg-2');
         launchTaskBtn = document.createElement('button')
