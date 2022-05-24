@@ -1730,8 +1730,8 @@ def getDetailedTaskStatus(task_id):
             reply['data']['deleted_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='deleted').distinct(Labelgroup.id).count()
             reply['data']['added_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='added').distinct(Labelgroup.id).count()
 
-            names = [label.description]
-            ids = [label.id]
+            names = []
+            ids = []
             if len(label.children[:])>0:
                 names, ids = addChildLabels(names,ids,label,task_id)
 
@@ -1748,7 +1748,7 @@ def getDetailedTaskStatus(task_id):
                 else:
                     reply['data']['complete'] = 'Yes'
 
-                if test1 or test2:
+                if test2:
                     reply['data']['tagged'] = 'Yes'
                 else:
                     reply['data']['tagged'] = 'No'

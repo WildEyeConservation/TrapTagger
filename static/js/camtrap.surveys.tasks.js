@@ -24,21 +24,30 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     newTaskDiv = document.createElement('div')
     newTaskDiv.classList.add('row');
 
+    col = document.createElement('div')
+    col.classList.add('col-lg-2');
+    newTaskDiv.appendChild(col)
+
     taskNameElement = document.createElement('div')
-    taskNameElement.classList.add('col-lg-2');
+    taskNameElement.classList.add('row');
     taskNameElement.setAttribute("style","font-size:100%")
     taskNameElement.innerHTML = task.name
-    newTaskDiv.appendChild(taskNameElement)
-
-    taskInfoCol = document.createElement('div')
-    taskInfoCol.classList.add('col-lg-2');
-    newTaskDiv.appendChild(taskInfoCol)
+    col.appendChild(taskNameElement)
 
     taskStatusElement = document.createElement('div')
-    taskStatusElement.classList.add('taskStatus');
+    taskStatusElement.classList.add('row');
+    // taskStatusElement.classList.add('taskStatus');
     taskStatusElement.setAttribute("id","taskStatusElement"+task.id)
     taskStatusElement.setAttribute("style","font-size: 70%")
-    taskInfoCol.appendChild(taskStatusElement)
+    col.appendChild(taskStatusElement)
+
+    taskStatusBtnCol = document.createElement('div')
+    taskStatusBtnCol.classList.add('col-lg-2');
+    taskStatusBtn = document.createElement('button')
+    taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+    taskStatusBtn.appendChild(taskStatusBtnCol)
+    taskStatusBtn.innerHTML = 'Status'
+    newTaskDiv.appendChild(taskStatusBtnCol)
 
     if (task.status==null) {
         taskStatusElement.innerHTML = 'Status: Unlaunched'
@@ -59,7 +68,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         taskStatusElement.innerHTML = 'Status: ' + status
     }      
 
-    taskStatusElement.addEventListener('click', function(wrapTaskId) {
+    taskStatusBtn.addEventListener('click', function(wrapTaskId) {
         return function() {
             selectedTask = wrapTaskId
             modalStatus.modal({keyboard: true});
