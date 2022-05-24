@@ -1669,7 +1669,8 @@ function buildStatusTable(labels) {
     table.appendChild(tbody)
 
     headings = ['clusters','images','detections','checked_detections','deleted_detections','added_detections','default_accuracy','tagged','complete']
-    for (label in labels) {
+    for (ln=0;ln<labels.length;ln++) {
+        label = labels[ln]
         tableRow = document.createElement('tr')
         tbody.appendChild(tableRow)
 
