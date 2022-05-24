@@ -2349,6 +2349,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         import_folder(s3Folder, tag, surveyName,sourceBucket,destBucket,user_id,False,None,[],processes)
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey.correct_timestamps = correctTimestamps
+        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
         db.session.commit()
         skip = False
         if correctTimestamps:

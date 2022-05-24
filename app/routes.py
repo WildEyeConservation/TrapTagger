@@ -1687,38 +1687,48 @@ def setAdminTask(task):
         db.session.commit()
     return json.dumps('')
 
-@app.route('/getDetailedTaskStatus/<task_id>')
+@app.route('/getDetailedTaskStatus/<task_id>', methods=['POST'])
 @login_required
 def getDetailedTaskStatus(task_id):
     '''Returns a detailed status for the specified task, including the numbers of each species, and the numbers of bounding boxes added or deleted etc.'''
 
     task_id==int(task_id)
     task = db.session.query(Task).get(task_id)
+    
+    init = request.args.get('init', None)
+    label_id = request.args.get('label', None)
+    
     reply = {}
-
     if (task!=None) and (task.survey.user_id==current_user.id):
-        labels = []
-        parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).all()
-        parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
-        parentLabels.append(db.session.query(Label).get(GLOBALS.knocked_id))
-        parentLabels.append(db.session.query(Label).get(GLOBALS.nothing_id))
-        parentLabels.append(db.session.query(Label).get(GLOBALS.unknown_id))
 
-        for label in parentLabels:
-            labels.append(label)
-            children = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
-            for child in children:
-                labels = addChildLabs(task_id,child,labels)
+        if init:
+            labels = []
+            parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).all()
+            parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+            parentLabels.append(db.session.query(Label).get(GLOBALS.knocked_id))
+            parentLabels.append(db.session.query(Label).get(GLOBALS.nothing_id))
+            parentLabels.append(db.session.query(Label).get(GLOBALS.unknown_id))
 
-        for label in labels:
-            reply[label.description] = {}
-            reply[label.description]['images'] = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct(Image.id).count()
-            reply[label.description]['clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
-            reply[label.description]['detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status!='deleted').distinct(Labelgroup.id).count()
-            reply[label.description]['checked_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status!='deleted').filter(Labelgroup.checked==True).distinct(Labelgroup.id).count()
+            for label in parentLabels:
+                labels.append(label)
+                children = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
+                for child in children:
+                    labels = addChildLabs(task_id,child,labels)
+
+            reply = [r.id for r in labels]
+
+        if label_id:
+            label = db.session.query(Label).get(int(label_id))
+            reply['label'] = label.description
+
+            reply['data'] = {}
+            reply['data']['images'] = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct(Image.id).count()
+            reply['data']['clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
+            reply['data']['detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status!='deleted').distinct(Labelgroup.id).count()
+            reply['data']['checked_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status!='deleted').filter(Labelgroup.checked==True).distinct(Labelgroup.id).count()
             
-            reply[label.description]['deleted_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='deleted').distinct(Labelgroup.id).count()
-            reply[label.description]['added_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='added').distinct(Labelgroup.id).count()
+            reply['data']['deleted_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='deleted').distinct(Labelgroup.id).count()
+            reply['data']['added_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='added').distinct(Labelgroup.id).count()
 
             names = [label.description]
             ids = [label.id]
@@ -1730,32 +1740,32 @@ def getDetailedTaskStatus(task_id):
             test3 = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Labelgroup.checked==True).first()
 
             if len(label.children[:])==0:
-                reply[label.description]['complete'] = '-'
-                reply[label.description]['tagged'] = '-'
+                reply['data']['complete'] = '-'
+                reply['data']['tagged'] = '-'
             else:
                 if test1:
-                    reply[label.description]['complete'] = 'No'
+                    reply['data']['complete'] = 'No'
                 else:
-                    reply[label.description]['complete'] = 'Yes'
+                    reply['data']['complete'] = 'Yes'
 
                 if test1 or test2:
-                    reply[label.description]['tagged'] = 'Yes'
+                    reply['data']['tagged'] = 'Yes'
                 else:
-                    reply[label.description]['tagged'] = 'No'
+                    reply['data']['tagged'] = 'No'
 
-            if reply[label.description]['detections'] == 0:
-                reply[label.description]['checked_perc'] = '-'
-                reply[label.description]['deleted_perc'] = '-'
-                reply[label.description]['added_perc'] = '-'
-                reply[label.description]['default_accuracy'] = '-'
+            if reply['data']['detections'] == 0:
+                reply['data']['checked_perc'] = '-'
+                reply['data']['deleted_perc'] = '-'
+                reply['data']['added_perc'] = '-'
+                reply['data']['default_accuracy'] = '-'
             else:
-                reply[label.description]['checked_perc'] = round((reply[label.description]['checked_detections']/reply[label.description]['detections'])*100,2)
-                reply[label.description]['deleted_perc'] = round((reply[label.description]['deleted_detections']/reply[label.description]['detections'])*100,2)
-                reply[label.description]['added_perc'] = round((reply[label.description]['added_detections']/reply[label.description]['detections'])*100,2)
+                reply['data']['checked_perc'] = round((reply['data']['checked_detections']/reply['data']['detections'])*100,2)
+                reply['data']['deleted_perc'] = round((reply['data']['deleted_detections']/reply['data']['detections'])*100,2)
+                reply['data']['added_perc'] = round((reply['data']['added_detections']/reply['data']['detections'])*100,2)
                 if test3:
-                    reply[label.description]['default_accuracy'] = round(100-abs((reply[label.description]['added_detections']-reply[label.description]['deleted_detections'])/reply[label.description]['detections']*100),2)
+                    reply['data']['default_accuracy'] = round(100-abs((reply['data']['added_detections']-reply['data']['deleted_detections'])/reply['data']['detections']*100),2)
                 else:
-                    reply[label.description]['default_accuracy'] = '-'
+                    reply['data']['default_accuracy'] = '-'
 
     return json.dumps(reply)
 
@@ -2316,23 +2326,25 @@ def getHomeSurveys():
             survey_dict['name'] = survey.name
             survey_dict['description'] = survey.description
             survey_dict['numTrapgroups'] = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey.id).count()
-            survey_dict['numImages'] = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
+            if survey.image_count == None:
+                survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
+                db.session.commit()
+            survey_dict['numImages'] = survey.image_count
+
             
             if survey.status in ['indprocessing']:
                 survey_dict['status'] = 'processing'
             else:
                 survey_dict['status'] = survey.status
 
-            tasks = db.session.query(Task).filter(Task.survey_id==survey.id).all()
-
             disabledLaunch='false'
-            for task in tasks:
+            for task in survey.tasks:
                 if task.status.lower() not in Config.TASK_READY_STATUSES:
                     disabledLaunch='true'
                     break
 
             task_info = []
-            for task in tasks:
+            for task in survey.tasks:
                 if (task.name != 'default') and ('_o_l_d_' not in task.name) and ('_copying' not in task.name):
                     task_dict = {}
                     task_dict['id'] = task.id

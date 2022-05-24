@@ -120,6 +120,7 @@ class Survey(db.Model):
     status = db.Column(db.String(64), index=False)
     images_processing = db.Column(db.Integer, default=0, index=False)
     processing_initialised = db.Column(db.Boolean, default=False, index=False)
+    image_count = db.Column(db.Integer, default=0, index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     classifier_version = db.Column(db.String(64), default='None', index=False)
     correct_timestamps = db.Column(db.Boolean, default=False, index=False)

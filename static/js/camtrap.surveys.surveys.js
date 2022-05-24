@@ -1586,7 +1586,52 @@ btnPrevSurveys.addEventListener('click', ()=>{
     updatePage(prev_url)
 });
 
-function buildStatusTable(data) {
+function buildStatusRow(info,tableRow,headings) {
+    /** Builds a row for the detailed task status table */
+
+    label = info.label
+    data = info.data
+
+    tableCol = document.createElement('th')
+    tableCol.setAttribute('scope','row')
+    tableCol.innerHTML = label
+    tableRow.appendChild(tableCol)
+
+    for (qq=0;qq<headings.length;qq++) {
+        tableCol = document.createElement('td')
+        if (headings[qq]=='checked_detections') {
+            if (data['checked_perc']=='-') {
+                tableCol.innerHTML = '-'
+            } else {
+                tableCol.innerHTML = data[headings[qq]]+' ('+data['checked_perc']+'%)'
+            }
+        } else if (headings[qq]=='deleted_detections') {
+            if (data['deleted_perc']=='-') {
+                tableCol.innerHTML = '-'
+            } else {
+                tableCol.innerHTML = data[headings[qq]]+' ('+data['deleted_perc']+'%)'
+            }
+        } else if (headings[qq]=='added_detections') {
+            if (data['added_perc']=='-') {
+                tableCol.innerHTML = '-'
+            } else {
+                tableCol.innerHTML = data[headings[qq]]+' ('+data['added_perc']+'%)'
+            }
+        } else if (headings[qq]=='default_accuracy') {
+            if (data['default_accuracy']=='-') {
+                tableCol.innerHTML = '-'
+            } else {
+                tableCol.innerHTML = data['default_accuracy']+'%'
+            }
+        } else {
+            tableCol.innerHTML = data[headings[qq]]
+        }
+        tableCol.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+        tableRow.appendChild(tableCol)
+    }
+}
+
+function buildStatusTable(labels) {
     /** Builds the status table with the given data object. */
 
     tableDiv = document.getElementById('StatusTableDiv')
@@ -1623,51 +1668,25 @@ function buildStatusTable(data) {
     tbody = document.createElement('tbody')
     table.appendChild(tbody)
 
-    rowIndex = 2
     headings = ['clusters','images','detections','checked_detections','deleted_detections','added_detections','default_accuracy','tagged','complete']
-    for (label in data) {
+    for (label in labels) {
         tableRow = document.createElement('tr')
-        tableCol = document.createElement('th')
-        tableCol.setAttribute('scope','row')
-        tableCol.innerHTML = label
-        tableRow.appendChild(tableCol)
         tbody.appendChild(tableRow)
-        colIndex = 2
 
-        for (qq=0;qq<headings.length;qq++) {
-            tableCol = document.createElement('td')
-            if (headings[qq]=='checked_detections') {
-                if (data[label]['checked_perc']=='-') {
-                    tableCol.innerHTML = '-'
-                } else {
-                    tableCol.innerHTML = data[label][headings[qq]]+' ('+data[label]['checked_perc']+'%)'
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/getDetailedTaskStatus/'+selectedTask+'?label='+label);
+        xhttp.onreadystatechange =
+        function(wrapTableRow){
+            return function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    if (modalStatus.is(':visible')) {
+                        buildStatusRow(reply,wrapTableRow,headings)
+                    }
                 }
-            } else if (headings[qq]=='deleted_detections') {
-                if (data[label]['deleted_perc']=='-') {
-                    tableCol.innerHTML = '-'
-                } else {
-                    tableCol.innerHTML = data[label][headings[qq]]+' ('+data[label]['deleted_perc']+'%)'
-                }
-            } else if (headings[qq]=='added_detections') {
-                if (data[label]['added_perc']=='-') {
-                    tableCol.innerHTML = '-'
-                } else {
-                    tableCol.innerHTML = data[label][headings[qq]]+' ('+data[label]['added_perc']+'%)'
-                }
-            } else if (headings[qq]=='default_accuracy') {
-                if (data[label]['default_accuracy']=='-') {
-                    tableCol.innerHTML = '-'
-                } else {
-                    tableCol.innerHTML = data[label]['default_accuracy']+'%'
-                }
-            } else {
-                tableCol.innerHTML = data[label][headings[qq]]
             }
-            tableCol.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-            tableRow.appendChild(tableCol)
-            colIndex++
-        }
-        rowIndex++ 
+        }(tableRow);
+        xhttp.send();
     }
 }
 
@@ -1677,7 +1696,7 @@ modalStatus.on('shown.bs.modal', function(){
     if (!helpReturn) {
         document.getElementById('StatusTableDiv').innerHTML = 'Loading... Please be patient.'
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/getDetailedTaskStatus/'+selectedTask);
+        xhttp.open("POST", '/getDetailedTaskStatus/'+selectedTask+'?init=true');
         xhttp.onreadystatechange =
         function(wrapSelectedTask){
             return function() {
