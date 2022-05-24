@@ -23,6 +23,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
 
     newTaskDiv = document.createElement('div')
     newTaskDiv.classList.add('row');
+    newTaskDiv.classList.add('center');
 
     col = document.createElement('div')
     col.classList.add('col-lg-2');

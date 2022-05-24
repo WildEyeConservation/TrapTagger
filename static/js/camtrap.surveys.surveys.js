@@ -244,6 +244,7 @@ function buildSurveys(survey,disableSurvey) {
 
     infoElementRow = document.createElement('div')
     infoElementRow.classList.add('row');
+    infoElementRow.classList.add('center');
     infoElementRow.setAttribute('style',"margin-left: 10px")
 
     infoElementNumTrapgroups = document.createElement('div')
