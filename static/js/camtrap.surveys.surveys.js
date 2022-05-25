@@ -226,6 +226,8 @@ function buildSurveys(survey,disableSurvey) {
     surveyDivHeading.classList.add('col-lg-6');
     taskDivHeading = document.createElement('div')
     taskDivHeading.classList.add('col-lg-6');
+    taskDivHeading.setAttribute('style',"padding-left: 10px;")
+    taskDivHeading.innerHTML = 'Tasks:'
     entireRowHeading.appendChild(surveyDivHeading)
     entireRowHeading.appendChild(taskDivHeading)
     newSurveyDiv.appendChild(entireRowHeading)
@@ -244,12 +246,6 @@ function buildSurveys(survey,disableSurvey) {
     headingElement.innerHTML = survey.name
     headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
     surveyDivHeading.appendChild(headingElement)
-
-    taskHeadingElement = document.createElement('div')
-    taskHeadingElement.setAttribute('class','bottom')
-    taskHeadingElement.setAttribute('style',"padding-left: 10px;")
-    taskHeadingElement.innerHTML = 'Tasks:'
-    taskDivHeading.appendChild(taskHeadingElement)
 
     newSurveyDiv.appendChild(entireRow)
 
