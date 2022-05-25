@@ -1659,7 +1659,6 @@ function iterateRows(labels,targetRow) {
 function iterateLabels(labels,headings,init=false) {
     /** Iterates through a nested object */
     for (label in labels) {
-        label = labels[ln]
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         if (!init) {
