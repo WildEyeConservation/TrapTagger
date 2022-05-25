@@ -1702,6 +1702,15 @@ function iterateLabels(labels,headings,init=false) {
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         tbody.appendChild(tableRow)
+
+        tableCol = document.createElement('th')
+        tableCol.setAttribute('scope','row')
+        tableRow.appendChild(tableCol)
+    
+        for (qq=0;qq<headings.length;qq++) {
+            tableCol = document.createElement('td')
+            tableRow.appendChild(tableCol)
+        }
     }
 }
 
