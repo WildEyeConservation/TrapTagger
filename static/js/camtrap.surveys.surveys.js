@@ -1674,6 +1674,10 @@ function iterateLabels(labels,headings,init=false) {
         }
         tbody.appendChild(tableRow)
 
+        if (Object.keys(labels[label]).length!=0) {
+            tbody.appendChild(document.createElement('br'))
+        }
+
         tableRow.addEventListener('click', function(wraplabel) {
             return function() {
                 iterateRows(hierarchicalLabels,wraplabel)
@@ -1701,16 +1705,17 @@ function iterateLabels(labels,headings,init=false) {
     if ((Object.keys(labels).length%2!=0)&&(!init)) {
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
+        tableRow.setAttribute('style','display:none')
         tbody.appendChild(tableRow)
 
-        tableCol = document.createElement('th')
-        tableCol.setAttribute('scope','row')
-        tableRow.appendChild(tableCol)
+        // tableCol = document.createElement('th')
+        // tableCol.setAttribute('scope','row')
+        // tableRow.appendChild(tableCol)
     
-        for (qq=0;qq<headings.length;qq++) {
-            tableCol = document.createElement('td')
-            tableRow.appendChild(tableCol)
-        }
+        // for (qq=0;qq<headings.length;qq++) {
+        //     tableCol = document.createElement('td')
+        //     tableRow.appendChild(tableCol)
+        // }
     }
 }
 
