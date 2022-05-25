@@ -220,6 +220,11 @@ function buildSurveys(survey,disableSurvey) {
 
     newSurveyDiv.appendChild(document.createElement('br'))
 
+    headingElement = document.createElement('h4')
+    headingElement.innerHTML = survey.name
+    headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
+    newSurveyDiv.appendChild(headingElement)
+
     entireRowHeading = document.createElement('div')
     entireRowHeading.classList.add('row');
     surveyDivHeading = document.createElement('div')
@@ -239,11 +244,6 @@ function buildSurveys(survey,disableSurvey) {
     taskDiv.classList.add('col-lg-6');
     entireRow.appendChild(surveyDiv)
     entireRow.appendChild(taskDiv)
-
-    headingElement = document.createElement('h4')
-    headingElement.innerHTML = survey.name
-    headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
-    newSurveyDiv.appendChild(headingElement)
 
     taskHeadingElement = document.createElement('div')
     taskHeadingElement.innerHTML = 'Tasks:'
