@@ -1633,11 +1633,16 @@ function buildStatusRow(info,tableRow,headings) {
     }
 }
 
-function changeRowVisibility(labels) {
+function changeRowVisibility(labels,init=false) {
+    /** Iterates through the selected row and its children, changing their visibility as needed. */
     for (label in labels) {
         tableRow = document.getElementById('detailedStatusRow-'+label.toString())
-        if (tableRow.style.display == 'none') {
-            tableRow.setAttribute('style','')
+        if (init) {
+            if (tableRow.style.display == 'none') {
+                tableRow.setAttribute('style','')
+            } else {
+                tableRow.setAttribute('style','display:none')
+            }
         } else {
             tableRow.setAttribute('style','display:none')
         }
@@ -1646,10 +1651,10 @@ function changeRowVisibility(labels) {
 }
 
 function iterateRows(labels,targetRow) {
-
+    /** Iterates through the detailed status rows and if it finds the target row, it changes that row's visibility */
     for (label in labels) {
         if (label==targetRow) {
-            changeRowVisibility(labels[label])
+            changeRowVisibility(labels[label],true)
             break
         }
         iterateRows(labels[label],targetRow)
@@ -1687,7 +1692,7 @@ function iterateLabels(labels,headings,init=false) {
         }(tableRow);
         xhttp.send();
 
-        iterateLabels(labels[label])
+        iterateLabels(labels[label],headings)
     }
 }
 

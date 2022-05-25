@@ -1556,7 +1556,7 @@ def addChildToDict(childLabels,reply,task_id,useLabelIDs=False,addParent=True):
         for label in childLabels:
             response = {}
             childLabels2 = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).order_by(Label.description).all()
-            response = addChildToDict(childLabels2,response,task_id)
+            response = addChildToDict(childLabels2,response,task_id,useLabelIDs,addParent)
             reply[label.id] = response
     else:
         if (len(childLabels) != 0) and (childLabels[0].parent_id!=None) and addParent:
@@ -1564,7 +1564,7 @@ def addChildToDict(childLabels,reply,task_id,useLabelIDs=False,addParent=True):
         for label in childLabels:
             response = {}
             childLabels2 = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).order_by(Label.description).all()
-            response = addChildToDict(childLabels2,response,task_id)
+            response = addChildToDict(childLabels2,response,task_id,useLabelIDs,addParent)
             reply[label.description] = response
     return reply
 
