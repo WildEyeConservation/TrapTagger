@@ -243,7 +243,7 @@ function buildSurveys(survey,disableSurvey) {
     headingElement = document.createElement('h4')
     headingElement.innerHTML = survey.name
     headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
-    surveyDivHeading.appendChild(headingElement)
+    newSurveyDiv.appendChild(headingElement)
 
     taskHeadingElement = document.createElement('div')
     taskHeadingElement.innerHTML = 'Tasks:'
