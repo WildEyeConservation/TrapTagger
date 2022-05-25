@@ -1702,7 +1702,6 @@ def getDetailedTaskStatus(task_id):
     if (task!=None) and (task.survey.user_id==current_user.id):
 
         if init:
-
             labels = {}
             parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).order_by(Label.description).all()
             parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
@@ -1733,13 +1732,40 @@ def getDetailedTaskStatus(task_id):
             if len(label.children[:])>0:
                 names, ids = addChildLabels(names,ids,label,task_id)
 
+            initial_not_complete = db.session.query(Cluster)\
+                                        .join(Image,Cluster.images)\
+                                        .join(Detection)\
+                                        .filter(Cluster.task_id==int(task_id))\
+                                        .filter(~Cluster.labels.any())\
+                                        .filter(Detection.score>0.8)\
+                                        .filter(Detection.static==False)\
+                                        .filter(Detection.status!='deleted')\
+                                        .first()
+
+            initial_tagged = db.session.query(Cluster)\
+                                        .join(Image,Cluster.images)\
+                                        .join(Detection)\
+                                        .filter(Cluster.task_id==int(task_id))\
+                                        .filter(Cluster.labels.any())\
+                                        .filter(Cluster.user_id!=1)\
+                                        .filter(Detection.score>0.8)\
+                                        .filter(Detection.static==False)\
+                                        .filter(Detection.status!='deleted')\
+                                        .first()
+
             test1 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(label)).first()
             test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
             test3 = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Labelgroup.checked==True).first()
 
             if len(label.children[:])==0:
-                reply['data']['complete'] = '-'
-                reply['data']['tagged'] = '-'
+                if initial_not_complete:
+                    reply['data']['complete'] = 'No'
+                else:
+                    reply['data']['complete'] = 'Yes'
+                if initial_tagged:
+                    reply['data']['tagged'] = 'Yes'
+                else:
+                    reply['data']['tagged'] = 'No'
             else:
                 if test1:
                     reply['data']['complete'] = 'No'
