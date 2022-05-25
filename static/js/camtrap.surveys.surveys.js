@@ -92,6 +92,7 @@ var surveyClassifications = null
 var tgCheckID = null
 var tgCheckTimer = null
 var hierarchicalLabels=null
+var detailledStatusCount = 0
 
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
@@ -1705,11 +1706,16 @@ function iterateLabels(labels,headings,init=false) {
                     reply = JSON.parse(this.responseText);  
                     if (modalStatus.is(':visible')) {
                         buildStatusRow(reply,wrapTableRow,headings)
+                        detailledStatusCount -= 1
+                        if (detailledStatusCount==0) {
+                            document.getElementById(detailledStatusPleaseWait).remove()
+                        }
                     }
                 }
             }
         }(tableRow);
         xhttp.send();
+        detailledStatusCount += 1
 
         iterateLabels(labels[label],headings)
     }
@@ -1776,7 +1782,16 @@ modalStatus.on('shown.bs.modal', function(){
     /** Populates the status table modal when it is opened. */
 
     if (!helpReturn) {
-        document.getElementById('StatusTableDiv').innerHTML = 'Loading... Please be patient.'
+        StatusTableDiv = document.getElementById('StatusTableDiv')
+        while(StatusTableDiv.firstChild){
+            StatusTableDiv.removeChild(StatusTableDiv.firstChild);
+        }
+
+        div = document.createElement('p')
+        div.innerHTML = 'Loading... Please be patient.'
+        div.setAttribute('id','detailledStatusPleaseWait')
+        StatusTableDiv.appendChild(div)
+
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", '/getDetailedTaskStatus/'+selectedTask+'?init=true');
         xhttp.onreadystatechange =
@@ -1785,6 +1800,7 @@ modalStatus.on('shown.bs.modal', function(){
                 if (this.readyState == 4 && this.status == 200) {
                     hierarchicalLabels = JSON.parse(this.responseText);  
                     if (modalStatus.is(':visible')&&(selectedTask==wrapSelectedTask)) {
+                        detailledStatusCount = 0
                         buildStatusTable(hierarchicalLabels)
                     }
                 }
