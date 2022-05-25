@@ -31,14 +31,14 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
 
     taskNameElement = document.createElement('div')
     taskNameElement.classList.add('row');
-    taskNameElement.setAttribute("style","padding-left: 10px; font-size:100%")
+    taskNameElement.setAttribute("style","padding-left: 15px; font-size:100%")
     taskNameElement.innerHTML = task.name
     col.appendChild(taskNameElement)
 
     taskStatusElement = document.createElement('div')
     taskStatusElement.classList.add('row');
     taskStatusElement.setAttribute("id","taskStatusElement"+task.id)
-    taskStatusElement.setAttribute("style","padding-left: 10px; font-size: 70%")
+    taskStatusElement.setAttribute("style","padding-left: 15px; font-size: 70%")
     col.appendChild(taskStatusElement)
 
     taskInfoCol = document.createElement('div')
