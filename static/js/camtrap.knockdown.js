@@ -77,7 +77,7 @@ function getKnock(KnockedStatus, mapID = 'map1') {
                         preload()
                         waiting = false
                     } else {
-                        window.location.replace("surveys")
+                        window.location.replace("index")
                     }
     
                 }

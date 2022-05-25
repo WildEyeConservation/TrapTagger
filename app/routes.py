@@ -3985,8 +3985,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     F_index = int(F_index)
     
     task = db.session.query(Task).get(int(task_id))
-    if (task.survey.user==current_user) and (int(knockedstatus) == 87):
-        task.status = 'Processing'
+    if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status != 'Knockdown Analysis')):
+        task.status = 'Knockdown Analysis'
         db.session.commit()
 
     if not populateMutex(int(task_id)): return json.dumps('error')
@@ -4155,8 +4155,55 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Trapgroup.processing==True).count()
 
             if (queueing==0) and (processing==0):
-                task.status = 'SUCCESS'
-                db.session.commit()
+                # Check if there are clusters to tag. If so, auto-launch initial
+                taggingLevel = '-1'
+                isBounding = False
+
+                sq = db.session.query(Cluster) \
+                    .join(Image, Cluster.images) \
+                    .join(Camera) \
+                    .join(Trapgroup) \
+                    .join(Detection)
+
+                sq = taggingLevelSQ(sq,taggingLevel,isBounding,int(task_id))
+
+                cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
+                                        .filter(Detection.score > 0.8) \
+                                        .filter(Detection.static == False) \
+                                        .filter(Detection.status!='deleted') \
+                                        .distinct().count()
+
+                launchInital = False
+                if cluster_count > 0:
+                    untranslated = []
+                    translations = db.session.query(Translation).filter(Translation.task_id==int(task_id)).all()
+                    translations = [translation.classification for translation in translations]
+
+                    untranslated_prior = db.session.query(Detection.classification)\
+                                            .join(Image)\
+                                            .join(Camera)\
+                                            .join(Trapgroup)\
+                                            .filter(Trapgroup.survey_id==task.survey_id)\
+                                            .filter(~Detection.classification.in_(translations))\
+                                            .distinct().all()
+
+                    untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
+                    
+                    if len(untranslated) == 0:
+                        task.tagging_level = taggingLevel
+                        task.is_bounding = isBounding
+                        task.status = 'PENDING'
+                        task.survey.status = 'Launched'
+                        db.session.commit()
+                        launchInital = True
+                        
+                    else:
+                        task.status = 'SUCCESS'
+                        db.session.commit()
+                else:
+                    task.status = 'SUCCESS'
+                    db.session.commit()
+
             else:
                 checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
 
@@ -4164,6 +4211,9 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         if finished:
             GLOBALS.mutex.pop(int(task_id), None)
+        
+            if launchInital:
+                launchTask.apply_async(kwargs={'task_id':task_id})
 
     else:
         result = json.dumps('error')

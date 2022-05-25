@@ -1698,7 +1698,7 @@ function updateProgress() {
 
 function onload (){
     /** Initialises the page on load. */
-    if (!isKnockdown && !isReviewing && !isViewing) {
+    if (!isReviewing && !isViewing) {
         pingTimer = setInterval(pingServer, 30000);
     }
 

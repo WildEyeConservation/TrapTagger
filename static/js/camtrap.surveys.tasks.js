@@ -84,16 +84,24 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         launchTaskBtn.setAttribute("id","launchTaskBtn"+task.id)
         launchTaskCol.appendChild(launchTaskBtn)
         newTaskDiv.appendChild(launchTaskCol)
+        launchTaskBtn.innerHTML = 'Launch'
 
         if (task.status=='successInitial') {
-            launchTaskBtn.innerHTML = 'Knockdowns'
             launchTaskBtn.addEventListener('click', function(wrapTaskId) {
                 return function() {
-                    window.location.href = '/exploreKnockdowns?task='+wrapTaskId;
+                    document.getElementById('modalConfirmHeader') = 'Confirm Selection'
+                    document.getElementById('modalConfirmBody') = 'You have marked cameras as knocked down. You now need to check whether they were picked up before the end of the survey. \
+                    This is performed in the knocked-down analysis where you are shown a number of images from each knocked-down camera. You must indicate whether they are knocked down or not \
+                    to determine if/when the camera was picked up. Do you wish to continue?'
+                    document.getElementById('btnConfirm').addEventListener('click', function(wrapWrapTaskId) {
+                        return function() {
+                            window.location.href = '/exploreKnockdowns?task='+wrapWrapTaskId;
+                        }
+                    }(wrapTaskId));
+                    modalConfirm.modal({keyboard: true});
                 }
             }(task.id));
         } else {
-            launchTaskBtn.innerHTML = 'Launch'
             launchTaskBtn.addEventListener('click', function(wrapTaskId) {
                 return function() {
                     selectedTask = wrapTaskId

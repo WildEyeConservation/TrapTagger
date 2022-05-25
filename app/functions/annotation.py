@@ -444,6 +444,15 @@ def manageTasks():
 
     try:
         startTime = datetime.utcnow()
+
+        # Check Knockdown for timeout
+        tasks = db.session.query(Task).filter(Task.status=='Knockdown Analysis').all()
+        for task in tasks:
+            user = task.survey.user
+            if user.last_ping < (datetime.utcnow()-timedelta(minutes=5)):
+                task.status = 'successInitial'
+                db.session.commit()
+
         tasks = db.session.query(Task).filter(Task.status=='PROGRESS').all()
         print('{} tasks are currently active.'.format(len(tasks)))
 
