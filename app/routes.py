@@ -1702,20 +1702,18 @@ def getDetailedTaskStatus(task_id):
     if (task!=None) and (task.survey.user_id==current_user.id):
 
         if init:
-            labels = []
-            parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).all()
+
+            labels = {}
+            parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).order_by(Label.description).all()
             parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
             parentLabels.append(db.session.query(Label).get(GLOBALS.knocked_id))
             parentLabels.append(db.session.query(Label).get(GLOBALS.nothing_id))
             parentLabels.append(db.session.query(Label).get(GLOBALS.unknown_id))
-
             for label in parentLabels:
-                labels.append(label)
-                children = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
-                for child in children:
-                    labels = addChildLabs(task_id,child,labels)
+                childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
+                labels[label.id] = addChildToDict(childLabels,{},task_id,True,False)
 
-            reply = [r.id for r in labels]
+            reply = labels
 
         if label_id:
             label = db.session.query(Label).get(int(label_id))

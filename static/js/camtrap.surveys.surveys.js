@@ -91,6 +91,7 @@ var individual_prev = null
 var surveyClassifications = null
 var tgCheckID = null
 var tgCheckTimer = null
+var hierarchicalLabels=null
 
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
@@ -1632,6 +1633,65 @@ function buildStatusRow(info,tableRow,headings) {
     }
 }
 
+function changeRowVisibility(labels) {
+    for (label in labels) {
+        tableRow = document.getElementById('detailedStatusRow-'+label.toString())
+        if (tableRow.style.display == 'none') {
+            tableRow.setAttribute('style','')
+        } else {
+            tableRow.setAttribute('style','display:none')
+        }
+        changeRowVisibility(labels[label])
+    }
+}
+
+function iterateRows(labels,targetRow) {
+
+    for (label in labels) {
+        if (label==targetRow) {
+            changeRowVisibility(labels[label])
+            break
+        }
+        iterateRows(labels[label],targetRow)
+    }
+}
+
+function iterateLabels(labels,headings,init=false) {
+    /** Iterates through a nested object */
+    for (label in labels) {
+        label = labels[ln]
+        tableRow = document.createElement('tr')
+        tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
+        if (!init) {
+            tableRow.setAttribute('style','display:none')
+        }
+        tbody.appendChild(tableRow)
+
+        tableRow.addEventListener('click', function(wraplabel) {
+            return function() {
+                iterateRows(hierarchicalLabels,wraplabel)
+            }
+        }(label));
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/getDetailedTaskStatus/'+selectedTask+'?label='+label);
+        xhttp.onreadystatechange =
+        function(wrapTableRow){
+            return function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    if (modalStatus.is(':visible')) {
+                        buildStatusRow(reply,wrapTableRow,headings)
+                    }
+                }
+            }
+        }(tableRow);
+        xhttp.send();
+
+        iterateLabels(labels[label])
+    }
+}
+
 function buildStatusTable(labels) {
     /** Builds the status table with the given data object. */
 
@@ -1670,26 +1730,7 @@ function buildStatusTable(labels) {
     table.appendChild(tbody)
 
     headings = ['clusters','images','detections','checked_detections','deleted_detections','added_detections','default_accuracy','tagged','complete']
-    for (ln=0;ln<labels.length;ln++) {
-        label = labels[ln]
-        tableRow = document.createElement('tr')
-        tbody.appendChild(tableRow)
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/getDetailedTaskStatus/'+selectedTask+'?label='+label);
-        xhttp.onreadystatechange =
-        function(wrapTableRow){
-            return function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if (modalStatus.is(':visible')) {
-                        buildStatusRow(reply,wrapTableRow,headings)
-                    }
-                }
-            }
-        }(tableRow);
-        xhttp.send();
-    }
+    iterateLabels(labels,headings,true)
 }
 
 modalStatus.on('shown.bs.modal', function(){
@@ -1703,9 +1744,9 @@ modalStatus.on('shown.bs.modal', function(){
         function(wrapSelectedTask){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
+                    hierarchicalLabels = JSON.parse(this.responseText);  
                     if (modalStatus.is(':visible')&&(selectedTask==wrapSelectedTask)) {
-                        buildStatusTable(reply)
+                        buildStatusTable(hierarchicalLabels)
                     }
                 }
             }

@@ -410,9 +410,9 @@ function updateTaskStatus() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
 
-                if ((document.getElementById('taskStatusElement'+reply.id).innerHTML!='Status: SUCCESS')&&(document.getElementById('taskStatusElement'+reply.id).innerHTML!='Status: Error')) {
+                if ((document.getElementById('taskStatusElement'+reply.id).innerHTML!='SUCCESS')&&(document.getElementById('taskStatusElement'+reply.id).innerHTML!='Error')) {
                     if (reply.state==null) {
-                        document.getElementById('taskStatusElement'+reply.id).innerHTML = 'Status: Unlaunched'
+                        document.getElementById('taskStatusElement'+reply.id).innerHTML = 'Unlaunched'
                     } else {
                         if (reply.state == 'PROGRESS') {
                             status = 'In Progress'
@@ -425,7 +425,7 @@ function updateTaskStatus() {
                         } else {
                             status = reply.state
                         }
-                        document.getElementById('taskStatusElement'+reply.id).innerHTML = 'Status: ' + status
+                        document.getElementById('taskStatusElement'+reply.id).innerHTML = status
                         if (status=='Ready') {
                             document.getElementById('launchTaskBtn'+reply.id).disabled = false
                             document.getElementById('deleteTaskBtn'+reply.id).disabled = false

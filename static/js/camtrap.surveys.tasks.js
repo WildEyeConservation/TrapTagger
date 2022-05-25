@@ -46,7 +46,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     newTaskDiv.appendChild(taskInfoCol)
 
     if (task.status==null) {
-        taskStatusElement.innerHTML = 'Status: Unlaunched'
+        taskStatusElement.innerHTML = 'Unlaunched'
     } else {
         if (task.status == 'PROGRESS') {
             status = 'In Progress'

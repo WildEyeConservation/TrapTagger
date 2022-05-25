@@ -1547,16 +1547,25 @@ def addKids(lst, label, task_id):
             lst = addKids(lst, lab, task_id)
     return lst
 
-def addChildToDict(childLabels,reply,task_id):
+def addChildToDict(childLabels,reply,task_id,useLabelIDs=False,addParent=True):
     '''Adds the child labels and their children for the specified task to the supplied dictionary.'''
     
-    if (len(childLabels) != 0) and (childLabels[0].parent_id!=None):
-        reply[childLabels[0].parent.description] = {}
-    for label in childLabels:
-        response = {}
-        childLabels2 = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
-        response = addChildToDict(childLabels2,response,task_id)
-        reply[label.description] = response
+    if useLabelIDs:
+        if (len(childLabels) != 0) and (childLabels[0].parent_id!=None) and addParent:
+            reply[childLabels[0].parent_id] = {}
+        for label in childLabels:
+            response = {}
+            childLabels2 = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).order_by(Label.description).all()
+            response = addChildToDict(childLabels2,response,task_id)
+            reply[label.id] = response
+    else:
+        if (len(childLabels) != 0) and (childLabels[0].parent_id!=None) and addParent:
+            reply[childLabels[0].parent.description] = {}
+        for label in childLabels:
+            response = {}
+            childLabels2 = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).order_by(Label.description).all()
+            response = addChildToDict(childLabels2,response,task_id)
+            reply[label.description] = response
     return reply
 
 def addChildLabels(names,ids,label,task_id):
