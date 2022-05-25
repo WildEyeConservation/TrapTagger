@@ -1666,6 +1666,9 @@ function iterateLabels(labels,headings,init=false) {
     for (label in labels) {
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
+        if (Object.keys(labels[label]).length!=0) {
+            tableRow.setAttribute('class','table-matrix')
+        }
         if (!init) {
             tableRow.setAttribute('style','display:none')
         }
@@ -1693,6 +1696,12 @@ function iterateLabels(labels,headings,init=false) {
         xhttp.send();
 
         iterateLabels(labels[label],headings)
+    }
+
+    if ((Object.keys(labels).length%2!=0)&&(!init)) {
+        tableRow = document.createElement('tr')
+        tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
+        tbody.appendChild(tableRow)
     }
 }
 
