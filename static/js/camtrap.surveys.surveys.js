@@ -1648,8 +1648,9 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
         }
         changeRowVisibility(labels[label])
     }
-    br = document.getElementById('statusTableBr-'+rootLabel.toString())
+    
     if (init && multi) {
+        br = document.getElementById('statusTableBr-'+rootLabel.toString())
         if (br!=null) {
             br.remove()
         } else {
