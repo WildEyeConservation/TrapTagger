@@ -1634,7 +1634,7 @@ function buildStatusRow(info,tableRow,headings) {
     }
 }
 
-function changeRowVisibility(labels,init=false) {
+function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
     /** Iterates through the selected row and its children, changing their visibility as needed. */
     for (label in labels) {
         tableRow = document.getElementById('detailedStatusRow-'+label.toString())
@@ -1649,13 +1649,28 @@ function changeRowVisibility(labels,init=false) {
         }
         changeRowVisibility(labels[label])
     }
+    br = document.getElementById('statusTableBr-'+rootLabel.toString())
+    if (init && multi) {
+        if (br!=null) {
+            br.remove()
+        } else {
+            br = document.createElement('br')
+            br.setAttribute('id','statusTableBr-'+rootLabel.toString())
+            tableRow.parentNode.appendChild(br)
+        }
+    }
 }
 
 function iterateRows(labels,targetRow) {
     /** Iterates through the detailed status rows and if it finds the target row, it changes that row's visibility */
     for (label in labels) {
         if (label==targetRow) {
-            changeRowVisibility(labels[label],true)
+            if (Object.keys(labels[label]).length!=0) {
+                multi = true
+            } else {
+                multi = false
+            }
+            changeRowVisibility(labels[label],true,multi,label)
             break
         }
         iterateRows(labels[label],targetRow)
