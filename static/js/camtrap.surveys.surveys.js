@@ -92,6 +92,7 @@ var surveyClassifications = null
 var tgCheckID = null
 var tgCheckTimer = null
 var hierarchicalLabels=null
+var addBreak
 
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
@@ -1663,14 +1664,7 @@ function iterateRows(labels,targetRow) {
 
 function iterateLabels(labels,headings,init=false) {
     /** Iterates through a nested object */
-    addBreak = false
     for (label in labels) {
-
-        if (addBreak) {
-            tbody.appendChild(document.createElement('br'))
-            addBreak = false
-        }
-
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         if (Object.keys(labels[label]).length!=0) {
@@ -1682,7 +1676,9 @@ function iterateLabels(labels,headings,init=false) {
         tbody.appendChild(tableRow)
 
         if (Object.keys(labels[label]).length!=0) {
-            addBreak=true
+            addBreak.push(true)
+        } else {
+            addBreak.push(false)
         }
 
         tableRow.addEventListener('click', function(wraplabel) {
@@ -1707,6 +1703,10 @@ function iterateLabels(labels,headings,init=false) {
         xhttp.send();
 
         iterateLabels(labels[label],headings)
+
+        if (addBreak.pop()) {
+            tbody.appendChild(document.createElement('br'))
+        }
     }
 
     if ((Object.keys(labels).length%2!=0)&&(!init)) {
@@ -1780,6 +1780,7 @@ modalStatus.on('shown.bs.modal', function(){
                 if (this.readyState == 4 && this.status == 200) {
                     hierarchicalLabels = JSON.parse(this.responseText);  
                     if (modalStatus.is(':visible')&&(selectedTask==wrapSelectedTask)) {
+                        addBreak = []
                         buildStatusTable(hierarchicalLabels)
                     }
                 }
