@@ -235,6 +235,10 @@ function buildSurveys(survey,disableSurvey) {
     headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
     newSurveyDiv.appendChild(headingElement)
 
+    taskHeadingElement = document.createElement('div')
+    taskHeadingElement.innerHTML = 'Tasks:'
+    taskDiv.appendChild(taskHeadingElement)
+
     newSurveyDiv.appendChild(entireRow)
 
     for (ii=0;ii<survey.tasks.length;ii++) {

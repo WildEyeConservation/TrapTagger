@@ -89,7 +89,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         if (task.status=='successInitial') {
             launchTaskBtn.addEventListener('click', function(wrapTaskId) {
                 return function() {
-                    document.getElementById('modalConfirmHeader').innerHTML = 'Confirm Selection'
+                    document.getElementById('modalConfirmHeader').innerHTML = 'Knocked-Down Analysis'
                     document.getElementById('modalConfirmBody').innerHTML = 'You have marked cameras as knocked down. You now need to check whether they were picked up before the end of the survey. \
                     This is performed in the knocked-down analysis where you are shown a number of images from each knocked-down camera. You must indicate whether they are knocked down or not \
                     to determine if/when the camera was picked up. Do you wish to continue?'
@@ -163,11 +163,13 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
             editTaskBtn.disabled = true
             resultsBtn.disabled = true
             deleteBtn.disabled = true
+            taskStatusBtn.disabled = true
         } else {
             launchTaskBtn.disabled = false
             editTaskBtn.disabled = false
             resultsBtn.disabled = false
             deleteBtn.disabled = false
+            taskStatusBtn.disabled = false
         }
 
         deleteBtn.addEventListener('click', function(wrapTaskId, wrapTaskName) {
