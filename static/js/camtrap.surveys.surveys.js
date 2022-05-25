@@ -1651,12 +1651,18 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
     }
     
     if (init && multi) {
-        br = document.getElementById('statusTableBr-'+rootLabel.toString())
-        if (br!=null) {
-            br.remove()
+        br1 = document.getElementById('statusTableBr1-'+rootLabel.toString())
+        br2 = document.getElementById('statusTableBr2-'+rootLabel.toString())
+        if (br1!=null) {
+            br1.remove()
+            br2.remove()
         } else {
             br = document.createElement('br')
-            br.setAttribute('id','statusTableBr-'+rootLabel.toString())
+            br.setAttribute('id','statusTableBr1-'+rootLabel.toString())
+            tableRow.parentElement.insertBefore(br,tableRow)
+
+            br = document.createElement('br')
+            br.setAttribute('id','statusTableBr2-'+rootLabel.toString())
             tableRow.parentElement.insertBefore(br,tableRow.nextElementSibling)
         }
     }
@@ -1679,7 +1685,8 @@ function iterateRows(labels,targetRow) {
 }
 
 function iterateLabels(labels,headings,init=false) {
-    /** Iterates through a nested object */
+    /** Iterates through a nested labels object and builds the detailled status table. */
+
     for (label in labels) {
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
@@ -1725,15 +1732,6 @@ function iterateLabels(labels,headings,init=false) {
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         tableRow.setAttribute('style','display:none')
         tbody.appendChild(tableRow)
-
-        // tableCol = document.createElement('th')
-        // tableCol.setAttribute('scope','row')
-        // tableRow.appendChild(tableCol)
-    
-        // for (qq=0;qq<headings.length;qq++) {
-        //     tableCol = document.createElement('td')
-        //     tableRow.appendChild(tableCol)
-        // }
     }
 }
 
