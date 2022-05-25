@@ -1707,8 +1707,8 @@ function iterateLabels(labels,headings,init=false) {
                     if (modalStatus.is(':visible')) {
                         buildStatusRow(reply,wrapTableRow,headings)
                         detailledStatusCount -= 1
-                        if (detailledStatusCount==0) {
-                            document.getElementById(detailledStatusPleaseWait).remove()
+                        if (detailledStatusCount<=0) {
+                            document.getElementById('detailledStatusPleaseWait').remove()
                         }
                     }
                 }
@@ -1741,7 +1741,6 @@ function buildStatusTable(labels) {
     /** Builds the status table with the given data object. */
 
     tableDiv = document.getElementById('StatusTableDiv')
-    tableDiv.innerHTML = ''
     table = document.createElement('table')
     table.setAttribute('style','width:100%; table-layout:fixed')
     table.classList.add('table')
