@@ -226,7 +226,7 @@ function buildSurveys(survey,disableSurvey) {
     surveyDivHeading.classList.add('col-lg-6');
     taskDivHeading = document.createElement('div')
     taskDivHeading.classList.add('col-lg-6');
-    taskDivHeading.setAttribute('style',"padding-left: 10px;")
+    taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:15px; font-size: 110%")
     taskDivHeading.innerHTML = 'Tasks:'
     entireRowHeading.appendChild(surveyDivHeading)
     entireRowHeading.appendChild(taskDivHeading)
