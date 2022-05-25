@@ -1663,7 +1663,14 @@ function iterateRows(labels,targetRow) {
 
 function iterateLabels(labels,headings,init=false) {
     /** Iterates through a nested object */
+    addBreak = false
     for (label in labels) {
+
+        if (addBreak) {
+            tbody.appendChild(document.createElement('br'))
+            addBreak = false
+        }
+
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         if (Object.keys(labels[label]).length!=0) {
@@ -1675,7 +1682,7 @@ function iterateLabels(labels,headings,init=false) {
         tbody.appendChild(tableRow)
 
         if (Object.keys(labels[label]).length!=0) {
-            tbody.appendChild(document.createElement('br'))
+            addBreak=true
         }
 
         tableRow.addEventListener('click', function(wraplabel) {
