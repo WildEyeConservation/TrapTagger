@@ -1656,7 +1656,7 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
         } else {
             br = document.createElement('br')
             br.setAttribute('id','statusTableBr-'+rootLabel.toString())
-            tableRow.parentNode.appendChild(br)
+            tableRow.parentElement.insertBefore(br,tableRow.nextElementSibling)
         }
     }
 }
