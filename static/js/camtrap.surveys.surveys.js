@@ -1658,12 +1658,13 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
             br2.remove()
         } else {
             br = document.createElement('br')
-            br.setAttribute('id','statusTableBr1-'+rootLabel.toString())
-            tableRow.parentElement.insertBefore(br,tableRow)
-
-            br = document.createElement('br')
             br.setAttribute('id','statusTableBr2-'+rootLabel.toString())
             tableRow.parentElement.insertBefore(br,tableRow.nextElementSibling)
+
+            tableRow = document.getElementById('detailedStatusRow-'+rootLabel.toString())
+            br = document.createElement('br')
+            br.setAttribute('id','statusTableBr1-'+rootLabel.toString())
+            tableRow.parentElement.insertBefore(br,tableRow)
         }
     }
 }
