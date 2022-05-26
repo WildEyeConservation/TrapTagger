@@ -70,6 +70,7 @@ function getKnock(KnockedStatus, mapID = 'map1') {
                     } else if (currentCluster=='-102') {
                         // wait
                         waiting = false
+                        waitModalID = currentCluster
                         if (!modalWait2.is(':visible')) {
                             modalWait2.modal({backdrop: 'static', keyboard: false});
                         }

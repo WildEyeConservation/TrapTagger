@@ -3980,9 +3980,6 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             T_index (int): The highest cluster index where it is known the image was knocked down
             F_index (int): The lowest cluster index where it is known the image was picked up
     '''
-
-    T_index = int(T_index)
-    F_index = int(F_index)
     
     task = db.session.query(Task).get(int(task_id))
     if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
@@ -3992,7 +3989,6 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     if not populateMutex(int(task_id)): return json.dumps('error')
 
     GLOBALS.mutex[int(task_id)]['global'].acquire()
-    app.logger.info('GetKnockCluster: Status:{} Index:{} ImageIndex:{}'.format(knockedstatus, index, imageIndex))
     cluster = None
     result = None
     sortedImages = None
@@ -4000,6 +3996,10 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     
     if task.survey.user==current_user:
         if int(clusterID) != -102:
+            T_index = int(T_index)
+            F_index = int(F_index)
+            app.logger.info('GetKnockCluster: Status:{} Index:{} ImageIndex:{}'.format(knockedstatus, index, imageIndex))
+
             if int(clusterID) != 0: #if it is not zero, then it isn't the first of a new cluster
                 cluster = db.session.query(Cluster).get(int(clusterID))
                 images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
