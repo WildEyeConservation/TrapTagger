@@ -62,11 +62,18 @@ function getKnock(KnockedStatus, mapID = 'map1') {
                     newcluster = info.info;
                     currentCluster = newcluster.id
     
-                    if (modalWait2.is(':visible')) {
-                        modalWait2.modal('hide');
-                    }
-                        
-                    if (currentCluster != '-101') {
+                    if (currentCluster=='-100') {
+                        // takejob + do task
+                        takeJob(selectedTask)
+                    } else if (currentCluster=='-101') {
+                        window.location.replace("surveys")
+                    } else if (currentCluster=='-102') {
+                        // wait
+                        setTimeout(function() { getKnock(KnockedStatus); }, 5000);
+                    } else {
+                        if (modalWait2.is(':visible')) {
+                            modalWait2.modal('hide');
+                        }    
                         imageIndex[mapID] = 0
                         if (KnockedStatus != 87) {
                             clusterIndex[mapID] += 1
@@ -76,10 +83,7 @@ function getKnock(KnockedStatus, mapID = 'map1') {
                         updateButtons()
                         preload()
                         waiting = false
-                    } else {
-                        window.location.replace("index")
                     }
-    
                 }
             };
         xhttp.open("GET", '/getKnockCluster/'+selectedTask+'/'+KnockedStatus+'/'+currentCluster+'/'+knockIndex+'/'+imageIndex[mapID]+'/'+T_index+'/'+F_index);

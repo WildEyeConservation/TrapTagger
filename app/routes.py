@@ -3985,7 +3985,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     F_index = int(F_index)
     
     task = db.session.query(Task).get(int(task_id))
-    if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status != 'Knockdown Analysis')):
+    if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
         task.status = 'Knockdown Analysis'
         db.session.commit()
 
@@ -3999,99 +3999,100 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     finished = False
     
     if task.survey.user==current_user:
-        if int(clusterID) != 0: #if it is not zero, then it isn't the first of a new cluster
-            cluster = db.session.query(Cluster).get(int(clusterID))
-            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-            if (int(index) == (len(images)-1)) and (knockedstatus == '1'):
-                #beginning and end were knocked - don't need to do anything
-                app.logger.info('Beginning and end were knocked - doing nothing.')
-                cluster.checked = True
-                db.session.commit()
-            elif (int(index) == 0) and (knockedstatus == '0'):
-                #first image was not knocked down - need to recluster the whole thing
-                app.logger.info('First image not knocked - reclustering the whole thing.')
-                # unknock_cluster(cluster)
-                cluster_id = cluster.id
-                cluster.checked = True
+        if int(clusterID) != -102:
+            if int(clusterID) != 0: #if it is not zero, then it isn't the first of a new cluster
+                cluster = db.session.query(Cluster).get(int(clusterID))
+                images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+                if (int(index) == (len(images)-1)) and (knockedstatus == '1'):
+                    #beginning and end were knocked - don't need to do anything
+                    app.logger.info('Beginning and end were knocked - doing nothing.')
+                    cluster.checked = True
+                    db.session.commit()
+                elif (int(index) == 0) and (knockedstatus == '0'):
+                    #first image was not knocked down - need to recluster the whole thing
+                    app.logger.info('First image not knocked - reclustering the whole thing.')
+                    # unknock_cluster(cluster)
+                    cluster_id = cluster.id
+                    cluster.checked = True
 
-                #deallocate the trapgroup from the user
-                trapgroup = images[0].camera.trapgroup
-                trapgroup.active = False
-                # trapgroup.queueing = True
-                trapgroup.user_id = None
-                db.session.commit() 
-
-                unknock_cluster.apply_async(kwargs={'image_id':images[0].id, 'label_id':None, 'user_id':None, 'task_id':int(task_id)})
-            else:
-                #send next middle image
-                if (int(imageIndex) == 0) and (int(index) != 0):
-                    app.logger.info('Single image marked, sending next one.')
-                    if knockedstatus == '1':
-                        if int(index) > T_index:
-                            T_index = int(index)
-                    else:
-                        if int(index) < F_index:
-                            F_index = int(index)
-                else:
-                    app.logger.info('Initial cluster marked, sending next middle image.')
-                    if len(images) > 6:
-                        if knockedstatus == '1':
-                            T_index = int(index)
-                            F_index = math.floor((int(imageIndex)+1)*0.2*len(images))
-                        else:
-                            F_index = int(index)
-                            T_index = math.floor((int(imageIndex)-1)*0.2*len(images))
-                    else:
-                        if knockedstatus == '1':
-                            T_index = int(index)
-                            F_index = int(index)+1
-                        else:
-                            F_index = int(index)
-                            T_index = int(index)-1
-
-                newIndex = math.floor((T_index + F_index)/2)
-
-                if (newIndex == T_index) or (newIndex == F_index):
-                    #finished with cluster - split up & recluster
-                    app.logger.info('Finished with cluster, splitting and reclustering.')
                     #deallocate the trapgroup from the user
                     trapgroup = images[0].camera.trapgroup
                     trapgroup.active = False
+                    # trapgroup.queueing = True
                     trapgroup.user_id = None
-                    cluster.checked = True
-                    db.session.commit()
-                    splitClusterAndUnknock.apply_async(kwargs={'oldClusterID':cluster.id, 'SplitPoint':F_index})
+                    db.session.commit() 
+
+                    unknock_cluster.apply_async(kwargs={'image_id':images[0].id, 'label_id':None, 'user_id':None, 'task_id':int(task_id)})
                 else:
-                    app.logger.info('Sending index: {}'.format(newIndex))
-                    sortedImages = [images[newIndex]]
-                    indices = [newIndex]
+                    #send next middle image
+                    if (int(imageIndex) == 0) and (int(index) != 0):
+                        app.logger.info('Single image marked, sending next one.')
+                        if knockedstatus == '1':
+                            if int(index) > T_index:
+                                T_index = int(index)
+                        else:
+                            if int(index) < F_index:
+                                F_index = int(index)
+                    else:
+                        app.logger.info('Initial cluster marked, sending next middle image.')
+                        if len(images) > 6:
+                            if knockedstatus == '1':
+                                T_index = int(index)
+                                F_index = math.floor((int(imageIndex)+1)*0.2*len(images))
+                            else:
+                                F_index = int(index)
+                                T_index = math.floor((int(imageIndex)-1)*0.2*len(images))
+                        else:
+                            if knockedstatus == '1':
+                                T_index = int(index)
+                                F_index = int(index)+1
+                            else:
+                                F_index = int(index)
+                                T_index = int(index)-1
 
-        if sortedImages == None:
-            #pop cluster if new cluster request, sending first and last
-            downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-            cluster = db.session.query(Cluster) \
-                                    .filter(Cluster.labels.contains(downLabel)) \
-                                    .filter(Cluster.task_id == int(task_id)) \
-                                    .filter(Cluster.checked == False) \
-                                    .distinct().first()
+                    newIndex = math.floor((T_index + F_index)/2)
 
-            if cluster != None:
-                images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+                    if (newIndex == T_index) or (newIndex == F_index):
+                        #finished with cluster - split up & recluster
+                        app.logger.info('Finished with cluster, splitting and reclustering.')
+                        #deallocate the trapgroup from the user
+                        trapgroup = images[0].camera.trapgroup
+                        trapgroup.active = False
+                        trapgroup.user_id = None
+                        cluster.checked = True
+                        db.session.commit()
+                        splitClusterAndUnknock.apply_async(kwargs={'oldClusterID':cluster.id, 'SplitPoint':F_index})
+                    else:
+                        app.logger.info('Sending index: {}'.format(newIndex))
+                        sortedImages = [images[newIndex]]
+                        indices = [newIndex]
 
-                if len(images) > 6:
-                    index20 = math.floor(0.2*len(images))
-                    index40 = math.floor(0.4*len(images))
-                    index60 = math.floor(0.6*len(images))
-                    index80 = math.floor(0.8*len(images))
-                    indices = [0,index20,index40,index60,index80,len(images)-1]
-                    sortedImages = [images[0], images[index20], images[index40], images[index60], images[index80], images[-1]]
-                else:
-                    indices = [n for n in range(len(images))]
-                    sortedImages = images
+            if sortedImages == None:
+                #pop cluster if new cluster request, sending first and last
+                downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+                cluster = db.session.query(Cluster) \
+                                        .filter(Cluster.labels.contains(downLabel)) \
+                                        .filter(Cluster.task_id == int(task_id)) \
+                                        .filter(Cluster.checked == False) \
+                                        .distinct().first()
 
-                app.logger.info('Sending new knocked-down cluster with image indices: {}'.format(indices))
-                T_index = 0
-                F_index = 0
+                if cluster != None:
+                    images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+
+                    if len(images) > 6:
+                        index20 = math.floor(0.2*len(images))
+                        index40 = math.floor(0.4*len(images))
+                        index60 = math.floor(0.6*len(images))
+                        index80 = math.floor(0.8*len(images))
+                        indices = [0,index20,index40,index60,index80,len(images)-1]
+                        sortedImages = [images[0], images[index20], images[index40], images[index60], images[index80], images[-1]]
+                    else:
+                        indices = [n for n in range(len(images))]
+                        sortedImages = images
+
+                    app.logger.info('Sending new knocked-down cluster with image indices: {}'.format(indices))
+                    T_index = 0
+                    F_index = 0
 
         if sortedImages != None:
             images = [{'id': image.id,
@@ -4134,86 +4135,75 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         else:
             # Finished
-            finished = True
             app.logger.info('Knocked down analysis complete.')
-            images = [{'id': '-101',
-                'url': '-101',
-                'rating': '-101',
-                'detections': [{'top': '-101',
-                                'bottom': '-101',
-                                'left': '-101',
-                                'right': '-101',
-                                'category': '-101',
-                                'individual': '-1',
-                                'static': '-101'}]
-                }]      
-
-            result = json.dumps({'T_index': T_index, 'F_index': F_index, 'info': {'id': '-101','classification': [],'required': [], 'images': images, 'label': '-101', 'tags': '-101', 'groundTruth': '-101', 'trapGroup': '-101'}})
 
             task = db.session.query(Task).get(int(task_id))
             queueing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Trapgroup.queueing==True).count()
             processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Trapgroup.processing==True).count()
 
-            if (queueing==0) and (processing==0):
-                # Check if there are clusters to tag. If so, auto-launch initial
-                taggingLevel = '-1'
-                isBounding = False
+            taggingLevel = '-1'
+            isBounding = False
 
-                sq = db.session.query(Cluster) \
-                    .join(Image, Cluster.images) \
-                    .join(Camera) \
-                    .join(Trapgroup) \
-                    .join(Detection)
+            sq = db.session.query(Cluster) \
+                .join(Image, Cluster.images) \
+                .join(Camera) \
+                .join(Trapgroup) \
+                .join(Detection)
 
-                sq = taggingLevelSQ(sq,taggingLevel,isBounding,int(task_id))
+            sq = taggingLevelSQ(sq,taggingLevel,isBounding,int(task_id))
 
-                cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
-                                        .filter(Detection.score > 0.8) \
-                                        .filter(Detection.static == False) \
-                                        .filter(Detection.status!='deleted') \
-                                        .distinct().count()
+            cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
+                                    .filter(Detection.score > 0.8) \
+                                    .filter(Detection.static == False) \
+                                    .filter(Detection.status!='deleted') \
+                                    .distinct().count()
 
-                launchInital = False
-                if cluster_count > 0:
-                    untranslated = []
-                    translations = db.session.query(Translation).filter(Translation.task_id==int(task_id)).all()
-                    translations = [translation.classification for translation in translations]
-
-                    untranslated_prior = db.session.query(Detection.classification)\
-                                            .join(Image)\
-                                            .join(Camera)\
-                                            .join(Trapgroup)\
-                                            .filter(Trapgroup.survey_id==task.survey_id)\
-                                            .filter(~Detection.classification.in_(translations))\
-                                            .distinct().all()
-
-                    untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
-                    
-                    if len(untranslated) == 0:
+            finished = False
+            if cluster_count>0:
+                # Launch & return task for dotask
+                if task.status=='PROGRESS':
+                    code = '-100'
+                else:
+                    code = '-102'
+                    if task.status != 'PENDING':
                         task.tagging_level = taggingLevel
                         task.is_bounding = isBounding
                         task.status = 'PENDING'
                         task.survey.status = 'Launched'
                         db.session.commit()
-                        launchInital = True
-                        
-                    else:
-                        task.status = 'SUCCESS'
-                        db.session.commit()
-                else:
-                    task.status = 'SUCCESS'
-                    db.session.commit()
+                        launchTask.apply_async(kwargs={'task_id':task_id})
 
+            elif (queueing==0) and (processing==0):
+                # Completely done
+                code = '-101'
+                task.status = 'SUCCESS'
+                db.session.commit()
+                finished = True
+            
             else:
-                checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
+                # Wait for processing
+                code = '-102'
+
+            images = [{'id': code,
+                'url': code,
+                'rating': code,
+                'detections': [{'top': code,
+                                'bottom': code,
+                                'left': code,
+                                'right': code,
+                                'category': code,
+                                'individual': '-1',
+                                'static': code}]
+                }]      
+
+            result = json.dumps({'T_index': T_index, 'F_index': F_index, 'info': {'id': code,'classification': [],'required': [], 'images': images, 'label': code, 'tags': code, 'groundTruth': code, 'trapGroup': code}})
+
+            # checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
 
         GLOBALS.mutex[int(task_id)]['global'].release()
 
         if finished:
             GLOBALS.mutex.pop(int(task_id), None)
-        
-            if launchInital:
-                launchTask.apply_async(kwargs={'task_id':task_id})
 
     else:
         result = json.dumps('error')

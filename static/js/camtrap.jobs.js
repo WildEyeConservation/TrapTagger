@@ -104,31 +104,6 @@ function buildJob(job) {
     newJobDiv.appendChild(document.createElement('br'))
 }
 
-function takeJob(jobID) {
-    /** Requests the selected job, and re-directs the user to that job if its still available. */
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            if (reply.status=='success') {
-                if (reply.code.includes('tutorial')) {
-                    localStorage.setItem("currentTask", reply.code.split('/tutorial/')[1])
-                    window.location.replace('/tutorial')
-                } else {
-                    window.location.replace(reply.code)
-                }
-            } else {
-                document.getElementById('modalAlertHeader').innerHTML = 'Alert'
-                document.getElementById('modalAlertBody').innerHTML = 'Sorry, it appears that somebody snatched the last job before you!'
-                modalAlert.modal({keyboard: true});
-            }
-        }
-    }
-    xhttp.open("GET", '/takeJob/'+jobID);
-    xhttp.send();
-}
-
 function onload(){
     /** Initialises the jobs page on load. */
     updatePage(current_page)
