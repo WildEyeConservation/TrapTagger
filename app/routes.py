@@ -3988,14 +3988,13 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
     if not populateMutex(int(task_id)): return json.dumps('error')
 
-    GLOBALS.mutex[int(task_id)]['global'].acquire()
     cluster = None
     result = None
     sortedImages = None
     finished = False
-    
     if task.survey.user==current_user:
         if int(clusterID) != -102:
+            GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
             F_index = int(F_index)
             app.logger.info('GetKnockCluster: Status:{} Index:{} ImageIndex:{}'.format(knockedstatus, index, imageIndex))
@@ -4200,7 +4199,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
             # checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
 
-        GLOBALS.mutex[int(task_id)]['global'].release()
+        if int(clusterID) != -102: GLOBALS.mutex[int(task_id)]['global'].release()
 
         if finished:
             GLOBALS.mutex.pop(int(task_id), None)
