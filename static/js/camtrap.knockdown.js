@@ -69,7 +69,8 @@ function getKnock(KnockedStatus, mapID = 'map1') {
                         window.location.replace("surveys")
                     } else if (currentCluster=='-102') {
                         // wait
-                        setTimeout(function() { getKnock(KnockedStatus); }, 5000);
+                        waiting = false
+                        setTimeout(function() { getKnock(0); }, 5000);
                     } else {
                         if (modalWait2.is(':visible')) {
                             modalWait2.modal('hide');
