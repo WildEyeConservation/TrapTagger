@@ -70,6 +70,9 @@ function getKnock(KnockedStatus, mapID = 'map1') {
                     } else if (currentCluster=='-102') {
                         // wait
                         waiting = false
+                        if (!modalWait2.is(':visible')) {
+                            modalWait2.modal({backdrop: 'static', keyboard: false});
+                        }
                         setTimeout(function() { getKnock(0); }, 5000);
                     } else {
                         if (modalWait2.is(':visible')) {
