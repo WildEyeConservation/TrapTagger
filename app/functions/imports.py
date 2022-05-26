@@ -2348,6 +2348,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         destBucket = db.session.query(User).get(user_id).bucket
         import_folder(s3Folder, tag, surveyName,sourceBucket,destBucket,user_id,False,None,[],processes)
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
+        survey_id = survey.id
         survey.correct_timestamps = correctTimestamps
         survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
         db.session.commit()
@@ -2355,13 +2356,13 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         if correctTimestamps:
             survey.status='Correcting Timestamps'
             db.session.commit()
-            correct_timestamps(survey.id)
+            correct_timestamps(survey_id)
             if addingImages:
                 from app.functions.admin import reclusterAfterTimestampChange
-                reclusterAfterTimestampChange(survey.id)
+                reclusterAfterTimestampChange(survey_id)
                 skip = True
         if not skip:
-            task=cluster_survey(survey.id)
+            task=cluster_survey(survey_id)
         survey.status='Removing Static Detections'
         db.session.commit()
         processStaticDetections(survey)
@@ -2373,10 +2374,10 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         importKML(survey.id)
         survey.status='Classifying'
         db.session.commit()
-        classifySurvey(survey_id=survey.id,sourceBucket=destBucket)
+        classifySurvey(survey_id=survey_id,sourceBucket=destBucket)
         survey.status='Calculating Scores'
         db.session.commit()
-        updateSurveyDetectionRatings(survey_id=survey.id)
+        updateSurveyDetectionRatings(survey_id=survey_id)
 
         if addingImages:
             for task in survey.tasks:

@@ -585,7 +585,7 @@ def populateMutex(task_id,user_id=None):
     try:
         task = db.session.query(Task).get(task_id)
         if task_id not in GLOBALS.mutex.keys():
-            if task and (task.status in ['PROGRESS','Processing']):
+            if task and (task.status in ['PROGRESS','Processing','Knockdown Analysis']):
                 GLOBALS.mutex[task_id] = {
                     'global': threading.Lock(),
                     'user': {},
@@ -599,7 +599,7 @@ def populateMutex(task_id,user_id=None):
             else:
                 return False
         else:
-            if task and (task.status not in ['PROGRESS','Processing']):
+            if task and (task.status not in ['PROGRESS','Processing','Knockdown Analysis']):
                 GLOBALS.mutex.pop(task_id, None)
 
         if user_id:

@@ -163,7 +163,7 @@ limitations under the License. -->
                     </div>
                     <br>
 
-                    <h5 style="margin-bottom: 2px">Auto-Correct Timestamps</h5>
+                    <!-- <h5 style="margin-bottom: 2px">Auto-Correct Timestamps</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select this option if you have timestamp errors in your dataset.</i></div>
                     <div class="row">
                         <div class="col-lg-4">
@@ -173,7 +173,7 @@ limitations under the License. -->
                             </div>
                         </div>
                     </div>
-                    <br>
+                    <br> -->
 
                     <h5 style="margin-bottom: 2px">Upload Type</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>The image-upload method you would like to use.</i></div>
@@ -1708,7 +1708,7 @@ limitations under the License. -->
         newSurveyDescription = document.getElementById('newSurveyDescription').value
         newSurveyTGCode = document.getElementById('newSurveyTGCode').value
         newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
-        correctTimestampsCheckbox = document.getElementById('correctTimestampsCheckbox')
+        // correctTimestampsCheckbox = document.getElementById('correctTimestampsCheckbox')
         kmlFileUpload = document.getElementById('kmlFileUpload')
 
         while(document.getElementById('newSurveyErrors').firstChild){
@@ -1809,7 +1809,7 @@ limitations under the License. -->
                     if ((newSurveyCheckbox||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                         var formData = new FormData()
                         formData.append("kml", kmlFileUpload.files[0])
-                        submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),correctTimestampsCheckbox.checked.toString())
+                        submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),'false')
                     } else {
                         document.getElementById('newSurveyErrors').innerHTML = 'There is an error in the format of your .kml file.'
                     }
@@ -1817,7 +1817,7 @@ limitations under the License. -->
                 reader.readAsText(kmlFileUpload.files[0])
             } else {
                 var formData = new FormData()
-                submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),correctTimestampsCheckbox.checked.toString())
+                submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),'false')
             }
         }
     });
