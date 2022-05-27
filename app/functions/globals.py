@@ -741,13 +741,13 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
         #Reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
         trapgroup.active = True
-        trapgroup.processing = False
-        db.session.commit()
 
         if trapgroup.queueing:
             trapgroup.queueing = False
-            db.session.commit()
             unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
+        else:
+            trapgroup.processing = False
+        db.session.commit()
 
         app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
 
@@ -921,13 +921,13 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         #reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
         trapgroup.active = True
-        trapgroup.processing = False
-        db.session.commit()
-
+        
         if trapgroup.queueing:
             trapgroup.queueing = False
-            db.session.commit()
             finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':user_id})
+        else:
+            trapgroup.processing = False
+        db.session.commit()
 
         app.logger.info('Completed unknock_cluster for cluster ' + str(image_id))
 

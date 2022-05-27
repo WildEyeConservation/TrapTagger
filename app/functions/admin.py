@@ -642,7 +642,7 @@ def reclusterAfterTimestampChange(survey_id):
                 if (trapgroup.queueing==False) and (trapgroup.processing==False):
                     trapgroup.active = False
                     trapgroup.user_id = None
-                    # trapgroup.queueing = True
+                    trapgroup.processing = True
                     db.session.commit()
                     pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id))
 

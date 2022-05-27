@@ -4017,9 +4017,9 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                     #deallocate the trapgroup from the user
                     trapgroup = images[0].camera.trapgroup
                     trapgroup.active = False
-                    # trapgroup.queueing = True
+                    trapgroup.processing = True
                     trapgroup.user_id = None
-                    db.session.commit() 
+                    db.session.commit()
 
                     unknock_cluster.apply_async(kwargs={'image_id':images[0].id, 'label_id':None, 'user_id':None, 'task_id':int(task_id)})
                 else:
@@ -4058,6 +4058,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                         trapgroup = images[0].camera.trapgroup
                         trapgroup.active = False
                         trapgroup.user_id = None
+                        trapgroup.processing = True
                         cluster.checked = True
                         db.session.commit()
                         splitClusterAndUnknock.apply_async(kwargs={'oldClusterID':cluster.id, 'SplitPoint':F_index})
@@ -5499,11 +5500,12 @@ def undoknockdown(imageId, clusterId, label):
 
         if image.camera.trapgroup.processing:
             image.camera.trapgroup.queueing = True
+            db.session.commit()
         else:
+            image.camera.trapgroup.processing = True
+            db.session.commit()
             app.logger.info('Unknocking cluster for image {}'.format(imageId))
             unknock_cluster.apply_async(kwargs={'image_id':int(imageId), 'label_id':label, 'user_id':current_user.id, 'task_id':db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id})
-
-        db.session.commit()
 
     return ""
 
@@ -5611,9 +5613,11 @@ def knockdown(imageId, clusterId):
 
                 if trapgroup.processing:
                     trapgroup.queueing = True
+                    db.session.commit()
                 else:
+                    trapgroup.processing = True
+                    db.session.commit()
                     finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':current_user.id})
-                db.session.commit()
 
     return ""
 
