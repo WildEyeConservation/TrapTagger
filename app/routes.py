@@ -2839,7 +2839,7 @@ def logout():
     logout_user()
     return redirect(url_for('login_page', _external=True))
 
-@app.route('/ping')
+@app.route('/ping', methods=['POST'])
 @login_required
 def ping():
     '''Keeps the current user's annotation session active.'''

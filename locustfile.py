@@ -96,7 +96,7 @@ class TagBatch(TaskSet):
 
     def ping(self):
         '''Pings the server to let it know the user is active.'''
-        self.client.get('/ping')
+        self.client.post('/ping')
 
     @task()
     def label_cluster(self):

@@ -725,9 +725,13 @@ function updateCanvas(mapID = 'map1') {
                     if ((imageIndex[mapID]+1) >= clusters[mapID][clusterIndex[mapID]].required.length) {
                         reachedEnd = true
                     }
-                } else if (imageIndex[mapID] == (clusters[mapID][clusterIndex[mapID]].images.length-1)) {
+                } else {
                     reachedEnd = true
                 }
+                
+                // else if (imageIndex[mapID] == (clusters[mapID][clusterIndex[mapID]].images.length-1)) {
+                //     reachedEnd = true
+                // }
 
                 imageHighlight(!reachedEnd)
                 
@@ -1680,7 +1684,7 @@ function pingServer() {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
             }
         }
-        xhttp.open("GET", '/ping');
+        xhttp.open("POST", '/ping');
         xhttp.send();
     }
     activity = false
