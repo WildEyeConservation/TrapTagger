@@ -149,12 +149,29 @@ function preload(mapID = 'map1') {
             for (i=1;i<=3;i++) {
                 if (clusters[mapID].length > clusterIndex[mapID] + i) {
                     if ((clusters[mapID][clusterIndex[mapID] + i].id != '-99')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-101')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-782')) {
-                        im = new Image();
-                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID] + i].images[0].url
-                    }
+                        if (clusters[mapID][clusterIndex[mapID] + i].required.length==0) {
+                            im = new Image();
+                            im.src = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID] + i].images[0].url
+                        } else {
+                            for (requiredIndex=0;requiredIndex<clusters[mapID][clusterIndex[mapID] + i].required.length;requiredIndex++) {
+                                im = new Image();
+                                req = clusters[mapID][clusterIndex[mapID] + i].required[requiredIndex]
+                                im.src = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID] + i].images[req].url
+                            }
+                        }   
+                    }                
                 }
             }
         }
+    }
+}
+
+function imageHighlight(switchOn,mapID = 'map1') {
+    imageDiv = document.getElementById(mapDivs[mapID])
+    if (switchOn) {
+        imageDiv.style.borderWidth = 'thick'
+    } else {
+        imageDiv.style.borderWidth = '0px'
     }
 }
 
@@ -711,6 +728,8 @@ function updateCanvas(mapID = 'map1') {
                 } else if (imageIndex[mapID] == (clusters[mapID][clusterIndex[mapID]].images.length-1)) {
                     reachedEnd = true
                 }
+
+                imageHighlight(!reachedEnd)
                 
                 if (doneWait == true) {
                     if (isIDing && (document.getElementById('btnSendToBack')==null)) {
@@ -1575,10 +1594,10 @@ function prepMap(mapID = 'map1') {
             
                     if (w>h) {
                         ratio = (h/w)*imWidth
-                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+ratio.toString()+'px;width:'+imWidth.toString()+'px')
+                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+ratio.toString()+'px;width:'+imWidth.toString()+'px; border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                     } else {
                         ratio = (w/h)*imWidth
-                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+imWidth.toString()+'px;width:'+ratio.toString()+'px')
+                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+imWidth.toString()+'px;width:'+ratio.toString()+'px; border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                     }
 
                     L.Browser.touch = true
