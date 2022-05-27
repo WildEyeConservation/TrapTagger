@@ -4499,6 +4499,12 @@ def assignLabel(clusterID):
                                 labels.remove(GLOBALS.nothing_id)
 
                             if GLOBALS.nothing_id in [r.id for r in cluster.labels]:
+                                trapgroup = cluster.images[0].camera.trapgroup
+                                trapgroup.processing = True
+                                trapgroup.active = False
+                                trapgroup.user_id = None
+                                current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+                                db.session.commit()
                                 removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
                                 
                             cluster.labels = []
@@ -4539,6 +4545,12 @@ def assignLabel(clusterID):
                                 
                                 else:
                                     if newLabel.id == GLOBALS.nothing_id:
+                                        trapgroup = cluster.images[0].camera.trapgroup
+                                        trapgroup.processing = True
+                                        trapgroup.active = False
+                                        trapgroup.user_id = None
+                                        current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+                                        db.session.commit()
                                         removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
 
                                     if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
@@ -5503,6 +5515,8 @@ def undoknockdown(imageId, clusterId, label):
             db.session.commit()
         else:
             image.camera.trapgroup.processing = True
+            image.camera.trapgroup.active = False
+            image.camera.trapgroup.user_id = None
             db.session.commit()
             app.logger.info('Unknocking cluster for image {}'.format(imageId))
             unknock_cluster.apply_async(kwargs={'image_id':int(imageId), 'label_id':label, 'user_id':current_user.id, 'task_id':db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id})
@@ -5616,6 +5630,8 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
                 else:
                     trapgroup.processing = True
+                    trapgroup.active = False
+                    trapgroup.user_id = None
                     db.session.commit()
                     finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':current_user.id})
 

@@ -564,7 +564,10 @@ def removeFalseDetections(self,cluster_id,undo):
 
             for image in set(images):
                 image.detection_rating = detection_rating(image)
-            
+            db.session.commit()
+
+            cluster.images[0].camera.trapgroup.processing = False
+            cluster.images[0].camera.trapgroup.active = True
             db.session.commit()
 
     except Exception as exc:

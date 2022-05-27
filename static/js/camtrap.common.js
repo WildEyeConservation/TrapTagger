@@ -1272,7 +1272,9 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+    if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
+        //ignore nothing and knocked down labels in multi
+    } else if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
         if (taggingLevel=='-3') {
             // classification check
 
@@ -1391,6 +1393,7 @@ function assignLabel(label,mapID = 'map1'){
             }
         
         } else {
+
             if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(downLabel)) && (label != downLabel)) { //If already marked as knocked down - undo that knockdown
                 UndoKnockDown(label, mapID)
             } else if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) && (label == downLabel)) {
@@ -1415,6 +1418,16 @@ function assignLabel(label,mapID = 'map1'){
                         idx = hotkeys.indexOf(label)
 
                         if (idx > -1) {
+
+                            if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel)) {
+                                // reallocate on undo nothing
+                                clusterRequests[mapID] = [];
+                                clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+                                clusters[mapID][clusterIndex[mapID]][ITEMS] = []
+                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
+                                clusterLabels[mapID] = []
+                            }
+
                             if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(names[idx])) {
         
                                 var btn = document.getElementById(label);
@@ -1898,6 +1911,11 @@ function submitLabels(mapID = 'map1') {
     formData.append("labels", JSON.stringify(clusterLabels[mapID]))
     if (taggingLevel.includes('-2') && isReviewing) {
         formData.append("taggingLevel", '-2')
+    }
+    if (clusterLabels[mapID].includes(nothingLabel)) {
+        // reallocate on nothing
+        clusterRequests[mapID] = [];
+        clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
     }
     clusterID = clusters[mapID][clusterIndex[mapID]].id
     var xhttp = new XMLHttpRequest();
