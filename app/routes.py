@@ -2242,7 +2242,7 @@ def workerStats():
 
 @app.route('/workers')
 @login_required
-def workerStats():
+def workers():
     '''Renders the worker page.'''
 
     if not current_user.is_authenticated:
