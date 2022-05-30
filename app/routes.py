@@ -2562,8 +2562,8 @@ def inviteWorker():
                     send_email('[TrapTagger] Invitation',
                             sender=app.config['ADMINS'][0],
                             recipients=[worker.email],
-                            text_body=render_template('email/workerInvitation.txt',workername=worker.username, username=current_user.usename, url=url),
-                            html_body=render_template('email/workerInvitation.html',workername=worker.username, username=current_user.usename, url=url))
+                            text_body=render_template('email/workerInvitation.txt',workername=worker.username, username=current_user.username, url=url),
+                            html_body=render_template('email/workerInvitation.html',workername=worker.username, username=current_user.username, url=url))
                     
                     status = 'Success'
                     message = 'Invitation sent.'
