@@ -35,15 +35,15 @@ limitations under the License. -->
             <div class="navbar-header">
                 {% if current_user.is_authenticated == false %}
                     <a class="navbar-brand" href="{{ url_for('login_page') }}">
-                        <img src="images/Logo.png" style="width:64px;height:64px;">TrapTagger
+                        <img src="images/Logo.png" style="width:32px;height:32px;">TrapTagger
                     </a>
                 {% elif current_user.admin == true %}
                     <a class="navbar-brand" href="{{ url_for('surveys') }}">
-                        <img src="images/Logo.png" style="width:64px;height:64px;">TrapTagger
+                        <img src="images/Logo.png" style="width:32px;height:32px;">TrapTagger
                     </a>
                 {% else %}
                     <a class="navbar-brand" href="{{ url_for('index') }}">
-                        <img src="images/Logo.png" style="width:64px;height:64px;">TrapTagger
+                        <img src="images/Logo.png" style="width:32px;height:32px;">TrapTagger
                     </a>
                 {% endif %}
             </div>
