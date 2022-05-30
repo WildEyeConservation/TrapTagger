@@ -2499,14 +2499,17 @@ def removeWorkerQualification():
     status = 'Error'
     message = 'Could not find worker.'
 
-    worker_id = request.args.get('worker_id', None)
-    if worker_id:
-        worker = db.session.query(User).get(worker_id)
-        if worker in current_user.workers:
-            current_user.workers.remove(worker)
-            db.session.commit()
-            status = 'Success'
-            message = 'Worker successfully removed.'
+    try:
+        worker_id = request.form['worker_id']
+        if worker_id:
+            worker = db.session.query(User).get(worker_id)
+            if worker in current_user.workers:
+                current_user.workers.remove(worker)
+                db.session.commit()
+                status = 'Success'
+                message = 'Worker successfully removed.'
+    except:
+        pass
 
     return json.dumps({'status': status, 'message':message})
 
@@ -2518,18 +2521,19 @@ def inviteWorker():
     status = 'Error'
     message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worker account.'
 
-    inviteEmail = request.args.get('inviteEmail', None)
-    app.logger.info(inviteEmail)
-    if inviteEmail and current_user.admin:
-        worker = db.session.query(User).filter(User.email==inviteEmail).first()
-        app.logger.info('worker: {}'.format(worker))
-        if worker:
-            if worker in current_user.workers:
-                message = 'That worker already works for you.'
-            else:
-                # invite_worker(worker.id)
-                status = 'Success'
-                message = 'Invitation sent.'
+    try:
+        inviteEmail = request.form['inviteEmail']
+        if inviteEmail and current_user.admin:
+            worker = db.session.query(User).filter(User.email==inviteEmail).first()
+            if worker:
+                if worker in current_user.workers:
+                    message = 'That worker already works for you.'
+                else:
+                    # invite_worker(worker.id)
+                    status = 'Success'
+                    message = 'Invitation sent.'
+    except:
+        pass
 
     return json.dumps({'status': status, 'message':message})
 
