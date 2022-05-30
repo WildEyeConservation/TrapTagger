@@ -63,7 +63,7 @@ function buildWorker(worker) {
     batchCount = document.createElement('div')
     batchCount.classList.add('row');
     batchCount.setAttribute('style','font-size: 80%')
-    batchCount = 'Batches annotated: ' + worker.batch_count.toString()
+    batchCount.innerHTML = 'Batches annotated: ' + worker.batch_count.toString()
     statsDiv.appendChild(batchCount)
 
     detailsDiv = document.createElement('div')
