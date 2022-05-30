@@ -57,7 +57,7 @@ function buildWorker(worker) {
     surveyCount = document.createElement('div')
     surveyCount.classList.add('row');
     surveyCount.setAttribute('style','font-size: 80%')
-    surveyCount = 'Surveys annotated: ' + worker.survey_count.toString()
+    surveyCount.innerHTML = 'Surveys annotated: ' + worker.survey_count.toString()
     statsDiv.appendChild(surveyCount)
 
     batchCount = document.createElement('div')
