@@ -13,6 +13,7 @@
 // limitations under the License.
 
 const modalAlert = $('#modalAlert');
+const modalInvite = $('#modalInvite');
 var prev_url = null
 var next_url = null
 var current_page = '/getWorkers'
@@ -46,12 +47,12 @@ function buildWorker(worker) {
     workerDiv.appendChild(headingElement)
 
     emailDiv = document.createElement('div')
-    emailDiv.classList.add('col-lg-2');
+    emailDiv.classList.add('col-lg-3');
     emailDiv.innerHTML = worker.email
     entireRow.appendChild(emailDiv)
 
     statsDiv = document.createElement('div')
-    statsDiv.classList.add('col-lg-3');
+    statsDiv.classList.add('col-lg-2');
     entireRow.appendChild(statsDiv)
 
     surveyCount = document.createElement('div')
@@ -83,6 +84,26 @@ function buildWorker(worker) {
     removeBtn.setAttribute('class','btn btn-danger btn-block')
     removeBtn.innerHTML = 'Remove'
     removeDiv.appendChild(removeBtn)
+
+    removeBtn.addEventListener('click', function(wrapWorkerId) {
+        return function() {
+            var formData = new FormData()
+            formData.append("worker_id", wrapWorkerId)
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    document.getElementById('modalAlertHeader') = reply.status
+                    document.getElementById('modalAlertBody') = reply.message
+                    modalAlert.modal({keyboard: true});
+                }
+            }
+            xhttp.open("POST", "/removeWorkerQualification");
+            xhttp.send(formData);
+        }
+    }(worker.id));
 
     newWorkerDiv.appendChild(document.createElement('br'))
 }
@@ -141,6 +162,29 @@ function updatePage(url){
     }
     xhttp.open("GET", url);
     xhttp.send();
+}
+
+function openInvite() {
+    document.getElementById('inviteStatus').innerHTML = ''
+    modalInvite.modal({keyboard: true});
+}
+
+function sendInvite() {
+    inviteEmail = document.getElementById('inviteEmail').value
+
+    var formData = new FormData()
+    formData.append("inviteEmail", inviteEmail)
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            document.getElementById('inviteStatus') = reply.message
+        }
+    }
+    xhttp.open("POST", "/inviteWorker");
+    xhttp.send(formData);
 }
 
 // function updateJobProgressBar() {

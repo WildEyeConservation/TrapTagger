@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
+from crypt import methods
 from email import message
 from app import app, db
 from app.models import *
@@ -2490,30 +2491,67 @@ def getWorkers():
 
     return json.dumps({'workers': worker_list, 'next_url':next_url, 'prev_url':prev_url})
 
-@app.route('/getQualUsers')
+@app.route('/removeWorkerQualification', methods=['POST'])
 @login_required
-def getQualUsers():
-    '''Returns a paginated list of admin users that the current user can request qualification from.'''
+def removeWorkerQualification():
+    '''Removes the specified user from the current user's qualified workers.'''
+
+    status = 'Error'
+    message = 'Could not find worker.'
+
+    worker_id = request.args.get('worker_id', None)
+    if worker_id:
+        worker = db.session.query(User).get(worker_id)
+        if worker in current_user.workers:
+            current_user.workers.remove(worker)
+            db.session.commit()
+            status = 'Success'
+            message = 'Worker successfully removed.'
+
+    return json.dumps({'status': status, 'message':message})
+
+@app.route('/inviteWorker', methods=['POST'])
+@login_required
+def inviteWorker():
+    '''Invites a user to work for the current user.'''
+
+    status = 'Error'
+    message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worke account.'
+
+    inviteEmail = request.args.get('inviteEmail', None)
+    if inviteEmail and current_user.admin:
+        worker = db.session.query(User).filter(User.email==inviteEmail).first()
+        if worker:
+            # invite_worker(worker.id)
+            status = 'Success'
+            message = 'Invitation sent.'
+
+    return json.dumps({'status': status, 'message':message})
+
+# @app.route('/getQualUsers')
+# @login_required
+# def getQualUsers():
+#     '''Returns a paginated list of admin users that the current user can request qualification from.'''
     
-    page = request.args.get('page', 1, type=int)
-    users = db.session.query(User)\
-                .filter(User.admin==True)\
-                .filter(User.id!=current_user.id)\
-                .filter(User.username!='Admin')\
-                .filter(~User.id.in_([r.id for r in current_user.qualifications]))\
-                .order_by(User.username).paginate(page, 5, False)
+#     page = request.args.get('page', 1, type=int)
+#     users = db.session.query(User)\
+#                 .filter(User.admin==True)\
+#                 .filter(User.id!=current_user.id)\
+#                 .filter(User.username!='Admin')\
+#                 .filter(~User.id.in_([r.id for r in current_user.qualifications]))\
+#                 .order_by(User.username).paginate(page, 5, False)
 
-    user_list = []
-    for user in users.items:
-        user_dict = {}
-        user_dict['id'] = user.id
-        user_dict['username'] = user.username
-        user_list.append(user_dict)
+#     user_list = []
+#     for user in users.items:
+#         user_dict = {}
+#         user_dict['id'] = user.id
+#         user_dict['username'] = user.username
+#         user_list.append(user_dict)
 
-    next_url = url_for('getQualUsers', page=users.next_num) if users.has_next else None
-    prev_url = url_for('getQualUsers', page=users.prev_num) if users.has_prev else None
+#     next_url = url_for('getQualUsers', page=users.next_num) if users.has_next else None
+#     prev_url = url_for('getQualUsers', page=users.prev_num) if users.has_prev else None
 
-    return json.dumps({'quals': user_list, 'next_url':next_url, 'prev_url':prev_url})
+#     return json.dumps({'quals': user_list, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/reClassify/<survey>')
 @login_required
