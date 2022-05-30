@@ -18,6 +18,7 @@ var hotkeys = []
 var nothingLabel = -900
 var unknownLabel = -900
 var downLabel = -900
+var wrongLabel = -900
 var unKnockLabel = -123
 var xl
 var isReviewing
@@ -1272,6 +1273,9 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
+    // if (label==wrongLabel) {
+    //     buildWrong()
+    // } else 
     if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
         //ignore nothing and knocked down labels in multi
     } else if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
@@ -1971,6 +1975,8 @@ function initKeys(res){
                 nothingLabel = labs[i]
             } else if (names[i]=='Knocked Down') {
                 downLabel = labs[i]
+            } else if (names[i]=='Wrong') {
+                wrongLabel = labs[i]
             }
 
             if (labs[i] != EMPTY_HOTKEY_ID) {

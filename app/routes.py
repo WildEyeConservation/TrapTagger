@@ -1466,9 +1466,9 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox):
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    '''Returns the form for worker registration, and handles its submission.'''
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    '''Returns the form for worker signup, and handles its submission.'''
 
     if current_user.is_authenticated:
         if current_user.admin:
@@ -1501,7 +1501,7 @@ def register():
 
             flash('A verification email has been sent to you.')
             return redirect(url_for('login_page', _external=True))
-        return render_template('html/register.html', title='Register', form=form, helpFile='worker_registration')
+        return render_template('html/signup.html', title='Sign Up', form=form, helpFile='worker_signup')
 
 @app.route('/newWorkerAccount/<token>')
 def newWorkerAccount(token):
@@ -1578,7 +1578,7 @@ def redir():
         else:
             return redirect(url_for('index'))
     else:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
 
 @app.route('/getPolarData/<task_id>/<trapgroup_id>/<species_id>/<baseUnit>/<reqID>')
 @login_required
@@ -1990,7 +1990,7 @@ def index():
     '''Renders the annotation/tagging template.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     elif current_user.admin:
         return redirect(url_for('surveys'))
     elif current_user.parent_id == None:
@@ -2042,9 +2042,9 @@ def qualifications():
     else:
         return render_template('html/qualifications.html', title='Qualifications', helpFile='qualifications_page')
 
-@app.route('/welcome', methods=['GET', 'POST'])
-def welcome():
-    '''Renders the website landing page.'''
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    '''Renders the admin account registration page.'''
     
     if current_user.is_authenticated:
         if current_user.admin:
@@ -2078,7 +2078,7 @@ def welcome():
                 if (check == None) and (len(bucket) <= 64) and not disallowed:
                     send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
                     flash('Enquiry submitted.')
-                    return redirect(url_for('welcome'))
+                    return redirect(url_for('register'))
                 elif disallowed:
                     flash('Your organisation name cannot contain special characters.')
                 elif len(bucket) <= 64:
@@ -2087,8 +2087,8 @@ def welcome():
                     flash('That organisation already has an account.')
             else:
                 flash('Enquiry (not) submitted.')
-                return redirect(url_for('welcome'))
-        return render_template("html/welcome.html", enquiryForm=enquiryForm, helpFile='welcome_page')
+                return redirect(url_for('register'))
+        return render_template("html/register.html", enquiryForm=enquiryForm, helpFile='registration_page')
 
 @app.route('/dataPipeline')
 @login_required
@@ -2096,7 +2096,7 @@ def dataPipeline():
     '''Renders the data pipeline page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
@@ -2110,7 +2110,7 @@ def trainingCSV():
     '''Renders the training CSV page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
@@ -2128,7 +2128,7 @@ def labelSpec():
     '''Renders the label spec generation page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
@@ -2142,7 +2142,7 @@ def surveys():
     '''Renders the surveys page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         if not current_user.admin:
             if current_user.parent_id == None:
@@ -2167,7 +2167,7 @@ def sightings():
     '''Renders the boundng-box editor page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     elif current_user.admin:
         return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
@@ -2187,7 +2187,7 @@ def individualID():
     '''Renders the cluster-level individual identification page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     elif current_user.admin:
         return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
@@ -2205,7 +2205,7 @@ def clusterID():
     '''Renders the inter-cluster individual identification page.'''
     
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     elif current_user.admin:
         return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
@@ -2223,7 +2223,7 @@ def workerStats():
     '''Renders the worker statistics page.'''
 
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         if not current_user.admin:
             if current_user.parent_id == None:
@@ -2688,7 +2688,7 @@ def explore():
     '''Renders the explore page for the specified task.'''
     
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         if current_user.admin:
             task_id = request.args.get('task', None)
@@ -2718,7 +2718,7 @@ def exploreKnockdowns():
     '''Renders the knockdown analysis page for the specified task.'''
     
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         if current_user.admin:
             task_id = request.args.get('task', None)
@@ -4830,7 +4830,7 @@ def comparison():
     '''Renders the task-comparison page. Also does all necessary calculations for recall, precision etc.'''
     
     if not current_user.is_authenticated:
-        return redirect(url_for('welcome'))
+        return redirect(url_for('login_page'))
     else:
         if not current_user.admin:
             if current_user.parent_id == None:
