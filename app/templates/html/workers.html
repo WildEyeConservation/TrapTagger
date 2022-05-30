@@ -1,0 +1,107 @@
+<!-- Copyright 2022
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<br>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-10'>
+      <div class="card" style='min-height:400px'>
+
+        <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+          <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='col-lg-10'>
+                <h3>Your Workers</h3>
+            </div>
+            <div class='col-lg-2'>
+                <select name='orderSelect' id='orderSelect' class='form-control'>
+                    <option value="5">Descending Add Date</option>
+                    <option value="2">Ascending Add Date</option>
+                    <option value="4">Descending Survey Date</option>
+                    <option value="1">Ascending Survey Date</option>
+                    <option value="3">Alphabetical</option>
+                </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" id="workerListDiv">
+        </div>
+
+        <div class="card-footer">
+          <div class="row">
+            <div class="col-lg-1">
+              <button type='button' class='btn btn-info btn-block' id='btnPrevWorkers' style="visibility: hidden;">
+                Previous
+              </button>  
+            </div>
+            <div class="col-lg-4"></div>
+            <div class="col-lg-2" align="center">
+              <button type='button' class='btn btn-primary' id='btnQualification' onclick=openInvite()>
+                Invite
+              </button>  
+            </div>
+            <div class="col-lg-4"></div>
+            <div class="col-lg-1">
+              <button type='button' class='btn btn-info btn-block' id='btnNextWorkers' style="visibility: hidden;">
+                Next 
+              </button>  
+            </div>
+          </div>   
+        </div>  
+
+      </div>
+    </div>
+    <div class='col-lg-1'></div>
+</div>
+<br>
+
+<!-- Alert Modal -->
+<div id="modalAlert" class="modal fade" role="dialog" tabindex="-1">
+  <div class="modal-dialog">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+          <div class="modal-header">
+              <h4 id='modalAlertHeader' class="modal-title"></h4>
+              <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+          </div>
+          <div class="modal-body">
+
+              <p id='modalAlertBody' align="justify"></p>
+        
+          </div>
+          <div class='modal-footer'>
+
+              <div class='col-lg-3'>
+                  <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                  data-dismiss='modal'>Close</button>
+              </div>
+
+          </div>
+      </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="../js/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+<script src="js/camtrap.global.js"></script>
+<script src="js/camtrap.workers.js"></script>
+{% endblock %}
+

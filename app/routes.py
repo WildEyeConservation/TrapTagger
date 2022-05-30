@@ -2240,6 +2240,29 @@ def workerStats():
 
         return render_template('html/workerStats.html', title='Worker Statistics', helpFile='worker_statistics')
 
+@app.route('/workers')
+@login_required
+def workerStats():
+    '''Renders the worker page.'''
+
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if not current_user.admin:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            else:
+                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
+
+        return render_template('html/workers.html', title='Workers', helpFile='workers')
+
 @app.route('/getTaskCompletionStatus/<task_id>')
 @login_required
 def getTaskCompletionStatus(task_id):
@@ -2428,6 +2451,37 @@ def getJobs():
     prev_url = url_for('getJobs', page=tasks.prev_num, order=order) if tasks.has_prev else None
 
     return json.dumps({'jobs': task_list, 'next_url':next_url, 'prev_url':prev_url})
+
+@app.route('/getWorkers')
+@login_required
+def getWorkers():
+    '''Returns a paginated list of workers for the current user.'''
+    
+    page = request.args.get('page', 1, type=int)
+    order = request.args.get('order', 1, type=int)
+
+    if order == 1:
+        #alphabetical
+        workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers])).order_by(User.username).paginate(page, 5, False)
+    elif order == 2:
+        #Reverse Alphabetical
+        workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers])).order_by(desc(User.username)).paginate(page, 5, False)
+    elif order == 3:
+        #join date
+        workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers])).order_by(User.id).paginate(page, 5, False)
+
+    worker_list = []
+    for worker in workers.items:
+        worker_dict = {}
+        worker_dict['id'] = worker.id
+        worker_dict['name'] = worker.username
+        worker_dict['email'] = worker.email
+        worker_list.append(worker_dict)
+
+    next_url = url_for('getWorkers', page=workers.next_num, order=order) if workers.has_next else None
+    prev_url = url_for('getWorkers', page=workers.prev_num, order=order) if workers.has_prev else None
+
+    return json.dumps({'workers': worker_list, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/getQualUsers')
 @login_required
