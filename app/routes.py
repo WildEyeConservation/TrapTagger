@@ -2289,45 +2289,60 @@ def getTaskCompletionStatus(task_id):
     
     return json.dumps('error')
 
-@app.route('/getWorkerStats/<task_id>')
+@app.route('/getWorkerStats')
 @login_required
-def getWorkerStats(task_id):
+def getWorkerStats():
     '''Returns the statistics of all workers involved in annotating the specified task.'''
 
-    task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user == current_user):
-        childWorker = alias(User)
-        workers = db.session.query(User)\
-                            .join(childWorker, childWorker.c.parent_id==User.id)\
-                            .join(Turkcode, childWorker.c.username==Turkcode.user_id)\
-                            .filter(Turkcode.task_id==task_id)\
-                            .distinct().all()
+    worker_id = request.args.get('worker_id',None)
+    task_id = request.args.get('task_id',None)
+    survey_id = request.args.get('survey_id',None)
 
-        reply = []
-        for worker in workers:
-            info = {}
-            info['batchCount'] = db.session.query(User)\
-                                        .join(Turkcode, Turkcode.user_id==User.username)\
-                                        .filter(User.parent_id==worker.id)\
-                                        .filter(or_(User.passed=='cTrue',User.passed=='cFalse'))\
-                                        .filter(Turkcode.task_id==task_id)\
-                                        .distinct().count()
+    if task_id:
+        tasks = [db.session.query(Task).get(task_id)]
+        survey = tasks[0].survey
+    else:
+        survey = db.session.query(Survey).get(survey_id)
+        tasks = db.session.query(Task).filter(Task.survey==survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all()
+    
+    if survey.user == current_user:
 
-            turkcodes = db.session.query(Turkcode)\
-                                .join(User, User.username==Turkcode.user_id)\
-                                .filter(User.parent_id==worker.id)\
-                                .filter(Turkcode.task_id==task_id)\
-                                .distinct().all()
+        for task in tasks:
+            if worker_id:
+                workers = [db.session.query(User).get(worker_id)]
+            else:
+                childWorker = alias(User)
+                workers = db.session.query(User)\
+                                    .join(childWorker, childWorker.c.parent_id==User.id)\
+                                    .join(Turkcode, childWorker.c.username==Turkcode.user_id)\
+                                    .filter(Turkcode.task_id==task.id)\
+                                    .distinct().all()
 
-            totalTime = 0
-            for turkcode in turkcodes:
-                if turkcode.tagging_time:
-                    totalTime += turkcode.tagging_time
-                                
-            info['taggingTime'] = round(totalTime/3600,2)
-            info['username'] = worker.username
+            reply = []
+            for worker in workers:
+                info = {}
+                info['batchCount'] = db.session.query(User)\
+                                            .join(Turkcode, Turkcode.user_id==User.username)\
+                                            .filter(User.parent_id==worker.id)\
+                                            .filter(or_(User.passed=='cTrue',User.passed=='cFalse'))\
+                                            .filter(Turkcode.task_id==task.id)\
+                                            .distinct().count()
 
-            reply.append(info)
+                turkcodes = db.session.query(Turkcode)\
+                                    .join(User, User.username==Turkcode.user_id)\
+                                    .filter(User.parent_id==worker.id)\
+                                    .filter(Turkcode.task_id==task.id)\
+                                    .distinct().all()
+
+                totalTime = 0
+                for turkcode in turkcodes:
+                    if turkcode.tagging_time:
+                        totalTime += turkcode.tagging_time
+                                    
+                info['taggingTime'] = round(totalTime/3600,2)
+                info['username'] = worker.username
+
+                reply.append(info)
 
         return json.dumps({'headings': {'username': 'User', 'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}, 'data': reply})
 
@@ -2460,16 +2475,25 @@ def getWorkers():
     
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
+    search = request.args.get('search', '', type=str)
+
+    workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers]))
+
+    searches = re.split('[ ,]',search)
+    for search in searches:
+        workers = workers.filter(or_(User.username.contains(search),User.email.contains(search)))
 
     if order == 1:
         #alphabetical
-        workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers])).order_by(User.username).paginate(page, 5, False)
+        workers = workers.order_by(User.username)
     elif order == 2:
         #Reverse Alphabetical
-        workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers])).order_by(desc(User.username)).paginate(page, 5, False)
+        workers = workers.order_by(desc(User.username))
     elif order == 3:
         #join date
-        workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers])).order_by(User.id).paginate(page, 5, False)
+        workers = workers.order_by(User.id)
+
+    workers = workers.paginate(page, 5, False)
 
     worker_list = []
     for worker in workers.items:
@@ -2529,13 +2553,45 @@ def inviteWorker():
                 if worker in current_user.workers:
                     message = 'That worker already works for you.'
                 else:
-                    # invite_worker(worker.id)
+                    token = jwt.encode(
+                            {'user_id': current_user.id, 'worker_id': worker.id},
+                            app.config['SECRET_KEY'], algorithm='HS256')
+
+                    url = 'https://'+Config.DNS+'/acceptInvitation/'+token
+
+                    send_email('[TrapTagger] Invitation',
+                            sender=app.config['ADMINS'][0],
+                            recipients=[worker.email],
+                            text_body=render_template('email/workerInvitation.txt',workername=worker.username, username=current_user.usename, url=url),
+                            html_body=render_template('email/workerInvitation.html',workername=worker.username, username=current_user.usename, url=url))
+                    
                     status = 'Success'
                     message = 'Invitation sent.'
     except:
         pass
 
     return json.dumps({'status': status, 'message':message})
+
+@app.route('/acceptInvitation/<token>')
+@login_required
+def acceptInvitation(token):
+    '''Accepts a worker's invitation to annotate for a user based on the supplied token.'''
+
+    try:
+        info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        user_id = info['user_id']
+        worker_id = info['worker_id']
+
+        user = db.session.query(User).get(user_id)
+        worker = db.session.query(User).get(worker_id)
+
+        user.workers.append(worker)
+        db.session.commit()
+
+    except:
+        return render_template("html/block.html",text="Error.", helpFile='block')
+
+    return render_template("html/block.html",text="Invitation accepted.", helpFile='block')
 
 # @app.route('/getQualUsers')
 # @login_required
@@ -4822,14 +4878,45 @@ def getSurvey():
     '''Returns a list of survey names and IDs owned by the current user.'''
     return json.dumps(db.session.query(Survey.id, Survey.name).filter(Survey.user_id == current_user.id).all())
 
+@app.route('/getWorkerSurveys')
+@login_required
+def getWorkerSurveys():
+    '''Returns a list of survey names and IDs, owned by the current user, worked on by the specified worker.'''
+    
+    worker_id = request.args.get('worker_id',None)
+    if worker_id:
+        surveys = db.session.query(Survey.id, Survey.name)\
+                            .join(Task)\
+                            .join(Turkcode)\
+                            .join(User,User.username==Turkcode.user_id)\
+                            .filter(User.parent_id==worker_id)\
+                            .filter(Survey.user_id == current_user.id)\
+                            .distinct().all()
+    
+    return json.dumps(surveys)
+
 @app.route('/getTasks/<survey_id>')
 @login_required
 def getTasks(survey_id):
     '''Returns the task names and IDs for the specified survey.'''
-    if int(survey_id) == -1:
-        return json.dumps([(-1, 'Southern African')])
+
+    worker_id = request.args.get('worker_id',None)
+
+    if worker_id:
+        tasks = db.session.query(Task.id, Task.name)\
+                            .join(Survey)\
+                            .join(Turkcode)\
+                            .join(User,User.username==Turkcode.user_id)\
+                            .filter(User.parent_id==worker_id)\
+                            .filter(Survey.user_id == current_user.id)\
+                            .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
+                            .distinct().all()
+        return json.dumps(tasks)
     else:
-        return json.dumps(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Survey.user==current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).all())
+        if int(survey_id) == -1:
+            return json.dumps([(-1, 'Southern African')])
+        else:
+            return json.dumps(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Survey.user==current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).all())
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required

@@ -1,0 +1,8 @@
+Hi {{ workername }},
+
+{{ username }} has requested you to assist in tagging their surveys. If you do not wish to do so, simply ignore this email.
+Alternatively, you can accept their request by clicking on this link:
+{{ url }}
+
+Regards,
+The TrapTagger team

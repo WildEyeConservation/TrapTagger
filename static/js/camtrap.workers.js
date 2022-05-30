@@ -14,12 +14,12 @@
 
 const modalAlert = $('#modalAlert');
 const modalInvite = $('#modalInvite');
+const confirmationModal = $('#confirmationModal');
+const modalDetails = $('#modalDetails');
 var prev_url = null
 var next_url = null
 var current_page = '/getWorkers'
-// var processingTimer
-// var timerWorkerStatus
-// var timerWorkerBar
+var currentUser = null
 const btnNextWorkers = document.querySelector('#btnNextWorkers');
 const btnPrevWorkers = document.querySelector('#btnPrevWorkers');
 
@@ -47,12 +47,12 @@ function buildWorker(worker) {
     workerDiv.appendChild(headingElement)
 
     emailDiv = document.createElement('div')
-    emailDiv.classList.add('col-lg-3');
+    emailDiv.classList.add('col-lg-4');
     emailDiv.innerHTML = worker.email
     entireRow.appendChild(emailDiv)
 
     statsDiv = document.createElement('div')
-    statsDiv.classList.add('col-lg-2');
+    statsDiv.classList.add('col-lg-3');
     entireRow.appendChild(statsDiv)
 
     surveyCount = document.createElement('div')
@@ -68,40 +68,34 @@ function buildWorker(worker) {
     statsDiv.appendChild(batchCount)
 
     detailsDiv = document.createElement('div')
-    detailsDiv.classList.add('col-lg-2');
+    detailsDiv.classList.add('col-lg-1');
     entireRow.appendChild(detailsDiv)
 
     detailsBtn = document.createElement('btn')
-    detailsBtn.setAttribute('class','btn btn-primary btn-block')
+    detailsBtn.setAttribute('class','btn btn-primary btn-block btn-sm')
     detailsBtn.innerHTML = 'Details'
     detailsDiv.appendChild(detailsBtn)
 
+    detailsDiv.addEventListener('click', function(wrapWorkerId) {
+        return function() {
+            currentUser = wrapWorkerId
+            modalDetails.modal({keyboard: true});
+        }
+    }(worker.id));
+
     removeDiv = document.createElement('div')
-    removeDiv.classList.add('col-lg-2');
+    removeDiv.classList.add('col-lg-1');
     entireRow.appendChild(removeDiv)
 
     removeBtn = document.createElement('btn')
-    removeBtn.setAttribute('class','btn btn-danger btn-block')
+    removeBtn.setAttribute('class','btn btn-danger btn-block  btn-sm')
     removeBtn.innerHTML = 'Remove'
     removeDiv.appendChild(removeBtn)
 
     removeBtn.addEventListener('click', function(wrapWorkerId) {
         return function() {
-            var formData = new FormData()
-            formData.append("worker_id", wrapWorkerId)
-
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    document.getElementById('modalAlertHeader').innerHTML = reply.status
-                    document.getElementById('modalAlertBody').innerHTML = reply.message
-                    modalAlert.modal({keyboard: true});
-                }
-            }
-            xhttp.open("POST", "/removeWorkerQualification");
-            xhttp.send(formData);
+            currentUser = wrapWorkerId
+            confirmationModal.modal({keyboard: true});
         }
     }(worker.id));
 
@@ -164,6 +158,26 @@ function updatePage(url){
     xhttp.send();
 }
 
+function removeWorkerQualification() {
+    var formData = new FormData()
+    formData.append("worker_id", currentUser)
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            document.getElementById('modalAlertHeader').innerHTML = reply.status
+            document.getElementById('modalAlertBody').innerHTML = reply.message
+            modalAlert.modal({keyboard: true});
+        }
+    }
+    xhttp.open("POST", "/removeWorkerQualification");
+    xhttp.send(formData);
+
+    confirmationModal.modal('hide')
+}
+
 function openInvite() {
     document.getElementById('inviteStatus').innerHTML = ''
     modalInvite.modal({keyboard: true});
@@ -187,48 +201,134 @@ function sendInvite() {
     xhttp.send(formData);
 }
 
-// function updateJobProgressBar() {
-//     /** Updates the progress bars of all visible jobs. */
-//     jobProgressBarDivs = document.querySelectorAll('[id^=jobProgressBarDiv]');
+function generate_url() {
+    /** Generates the url based on the current order selection and search query */
+    order = orderSelect.options[orderSelect.selectedIndex].value
+    search = document.getElementById('surveySearch').value
+    return '/getWorkers?page=1&order='+order+'&search='+search.toString()
+}
 
-//     tskds = []
-//     for (i = 0; i < jobProgressBarDivs.length; i++) {
-//         tskds.push(jobProgressBarDivs[i].id.split('jobProgressBarDiv')[1])
-//     }
+$('#workerSearch').change( function() {
+    /** Listens for changes in the worker search bar and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
 
-//     for (b=0;b<tskds.length;b++) {
-//         var xhttp = new XMLHttpRequest();
-//         xhttp.onreadystatechange =
-//         function(wrapTaskID) {
-//             return function() {
-//                 if (this.readyState == 4 && this.status == 200) {
-//                     reply = JSON.parse(this.responseText);  
+modalWait.on('shown.bs.modal', function(){
+    /** Initialises the details modal. */
+    while(statsTable.firstChild){
+        statsTable.removeChild(statsTable.firstChild);
+    }
 
-//                     document.getElementById('jobsCompleted'+reply.id).innerHTML = 'Jobs Completed: ' + reply.jobsCompleted
-//                     document.getElementById('jobsAvailable'+reply.id).innerHTML = 'Jobs Available: ' + reply.jobsAvailable
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            surveys = JSON.parse(this.responseText);  
+            optionTexts = ['None']
+            optionValues = ["-99999"]             
+            
+            for (i=0;i<surveys.length;i++) {
+                optionTexts.push(surveys[i][1])
+                optionValues.push(surveys[i][0])
+            }
+            clearSelect(surveySelect)
+            fillSelect(surveySelect, optionTexts, optionValues)
+        }
+    }
+    xhttp.open("GET", '/getWorkerSurveys?worker_id='+currentUser.toString());
+    xhttp.send();
+});
 
-//                     if (reply.jobsAvailable==0) {
-//                         document.getElementById("takeJobBtn"+reply.id).disabled = true
-//                     } else {
-//                         document.getElementById("takeJobBtn"+reply.id).disabled = false
-//                     }
+surveySelect.addEventListener('click', ()=>{
+    /** Populates the task options on survey selection */
+    survey = surveySelect.options[surveySelect.selectedIndex].value;
+    if (survey != '-99999') {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                tasks = JSON.parse(this.responseText);  
+                optionTexts = ['None']
+                optionValues = ["-99999"]             
+                for (i=0;i<tasks.length;i++) {
+                    optionTexts.push(tasks[i][1])
+                    optionValues.push(tasks[i][0])
+                }
+                clearSelect(taskSelect)
+                fillSelect(taskSelect, optionTexts, optionValues)
+            }
+        }
+        xhttp.open("GET", '/getTasks/'+survey+'?worker_id='+currentUser.toString());
+        xhttp.send();
+    } else {
+        optionTexts = ['None']
+        optionValues = ["-99999"] 
+        clearSelect(taskSelect)
+        fillSelect(taskSelect, optionTexts, optionValues)
+    }
+});
 
-//                     progBar = document.getElementById('progBar'+wrapTaskID)
-        
-//                     progBar.setAttribute('aria-valuenow',reply.completed)
-//                     progBar.setAttribute('aria-valuemax',reply.total)
-//                     perc=(reply.completed/reply.total)*100
-//                     progBar.setAttribute('style',"width:"+perc+"%")
-//                     progBar.innerHTML = reply.remaining
-//                 }
-//             }
-//         }(tskds[b]);
-//         xhttp.open("GET", '/updateTaskProgressBar/'+tskds[b]);
-//         xhttp.send();
-//     }
-// }
-
-// function goQual() {
-//     /** Redirects the user to the qualifications page. */
-//     window.location.href = '/qualifications'
-// }
+taskSelect.addEventListener('click', ()=>{
+    /** Builds and populates the information table on task selection. */
+    task = taskSelect.options[taskSelect.selectedIndex].value;
+    if (task != '-99999') {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                
+                if (reply != 'error') {
+                    tableDiv = document.getElementById('statsTable')
+                    table = document.createElement('table')
+                    table.setAttribute('style','width:100%; table-layout:fixed')
+                    table.classList.add('table')
+                    table.classList.add('table-bordered')
+                    table.classList.add('table-matrix')
+                    tableDiv.appendChild(table)
+                    
+                    thead = document.createElement('thead')
+                    table.appendChild(thead)
+                    
+                    tableRow = document.createElement('tr')
+                    for (key in reply.headings) {
+                        tableCol = document.createElement('th')
+                        tableCol.setAttribute('scope','col')
+                        tableCol.setAttribute('style','border-bottom: 1px solid white')
+                        tableRow.appendChild(tableCol)
+                    
+                        thdiv = document.createElement('div')
+                        thdiv.innerHTML = reply.headings[key]
+                        tableCol.appendChild(thdiv)
+                    }
+                    thead.appendChild(tableRow)
+                    
+                    tbody = document.createElement('tbody')
+                    table.appendChild(tbody)
+                    
+                    for (n=0;n<reply.data.length;n++) {
+                        for (key in reply.headings) {
+                            if (key=='username') {
+                                tableRow = document.createElement('tr')
+                                tableCol = document.createElement('th')
+                                tableCol.setAttribute('scope','row')
+                            } else {
+                                tableCol = document.createElement('td')
+                            }
+                            tableCol.innerHTML = reply.data[n][key]
+                            tableRow.appendChild(tableCol)
+                        }
+                        tbody.appendChild(tableRow)
+                    }
+                }
+            }
+        }
+        xhttp.open("GET", '/getWorkerStats?task_id='+task);
+        xhttp.send();
+    } else {
+        while(statsTable.firstChild){
+            statsTable.removeChild(statsTable.firstChild);
+        }
+    }
+});
