@@ -213,7 +213,7 @@ function sendInvite() {
 function generate_url() {
     /** Generates the url based on the current order selection and search query */
     order = orderSelect.options[orderSelect.selectedIndex].value
-    search = document.getElementById('surveySearch').value
+    search = document.getElementById('workerSearch').value
     return '/getWorkers?page=1&order='+order+'&search='+search.toString()
 }
 
