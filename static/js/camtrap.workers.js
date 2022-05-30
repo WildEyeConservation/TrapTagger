@@ -281,6 +281,9 @@ surveySelect.addEventListener('click', ()=>{
 taskSelect.addEventListener('click', ()=>{
     /** Builds and populates the information table on task selection. */
     task = taskSelect.options[taskSelect.selectedIndex].value;
+    while(statsTable.firstChild){
+        statsTable.removeChild(statsTable.firstChild);
+    }
     if (task != '-99999') {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -335,9 +338,5 @@ taskSelect.addEventListener('click', ()=>{
         }
         xhttp.open("GET", '/getWorkerStats?task_id='+task+'&worker_id='+currentUser.toString());
         xhttp.send();
-    } else {
-        while(statsTable.firstChild){
-            statsTable.removeChild(statsTable.firstChild);
-        }
     }
 });

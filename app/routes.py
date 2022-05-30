@@ -4930,6 +4930,7 @@ def getTasks(survey_id):
                             .join(User,User.username==Turkcode.user_id)\
                             .filter(User.parent_id==worker_id)\
                             .filter(Survey.user_id == current_user.id)\
+                            .filter(Survey.id == int(survey_id))\
                             .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
                             .distinct().all()
         return json.dumps(tasks)
