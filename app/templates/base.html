@@ -34,7 +34,7 @@ limitations under the License. -->
         <div class="container-fluid">
             <div class="navbar-header">
                 {% if current_user.is_authenticated == false %}
-                    <a class="navbar-brand" href="{{ url_for('welcome') }}">TrapTagger</a>
+                    <a class="navbar-brand" href="{{ url_for('login_page') }}">TrapTagger</a>
                 {% elif current_user.admin == true %}
                     <a class="navbar-brand" href="{{ url_for('surveys') }}">TrapTagger</a>
                 {% else %}
