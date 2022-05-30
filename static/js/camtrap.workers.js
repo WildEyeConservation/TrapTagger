@@ -46,9 +46,45 @@ function buildWorker(worker) {
     workerDiv.appendChild(headingElement)
 
     emailDiv = document.createElement('div')
-    emailDiv.classList.add('col-lg-3');
+    emailDiv.classList.add('col-lg-2');
     emailDiv.innerHTML = worker.email
     entireRow.appendChild(emailDiv)
+
+    statsDiv = document.createElement('div')
+    statsDiv.classList.add('col-lg-3');
+    entireRow.appendChild(statsDiv)
+
+    surveyCount = document.createElement('div')
+    surveyCount.classList.add('row');
+    surveyCount.setAttribute('style','font-size: 80%')
+    surveyCount = 'Surveys annotated: ' + worker.survey_count.toString()
+    statsDiv.appendChild(surveyCount)
+
+    batchCount = document.createElement('div')
+    batchCount.classList.add('row');
+    batchCount.setAttribute('style','font-size: 80%')
+    batchCount = 'Batches annotated: ' + worker.batch_count.toString()
+    statsDiv.appendChild(batchCount)
+
+    detailsDiv = document.createElement('div')
+    detailsDiv.classList.add('col-lg-2');
+    entireRow.appendChild(detailsDiv)
+
+    detailsBtn = document.createElement('btn')
+    detailsBtn.setAttribute('class','btn btn-primary btn-block')
+    detailsBtn.innerHTML = 'Details'
+    detailsDiv.appendChild(detailsBtn)
+
+    removeDiv = document.createElement('div')
+    removeDiv.classList.add('col-lg-2');
+    entireRow.appendChild(removeDiv)
+
+    removeBtn = document.createElement('btn')
+    removeBtn.setAttribute('class','btn btn-danger btn-block')
+    removeBtn.innerHTML = 'Remove'
+    removeDiv.appendChild(removeBtn)
+
+    newWorkerDiv.appendChild(document.createElement('br'))
 }
 
 function onload(){

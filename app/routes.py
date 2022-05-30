@@ -2476,6 +2476,13 @@ def getWorkers():
         worker_dict['id'] = worker.id
         worker_dict['name'] = worker.username
         worker_dict['email'] = worker.email
+        worker_dict['survey_count'] = db.session.query(Survey)\
+                                                .join(Task)\
+                                                .join(Turkcode)\
+                                                .join(User,User.username==Turkcode.user_id)\
+                                                .filter(User.parent_id==worker.id)\
+                                                .distinct().count()
+        worker_dict['batch_count'] = len(worker.children[:])
         worker_list.append(worker_dict)
 
     next_url = url_for('getWorkers', page=workers.next_num, order=order) if workers.has_next else None
