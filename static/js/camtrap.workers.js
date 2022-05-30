@@ -64,7 +64,13 @@ function buildWorker(worker) {
     batchCount = document.createElement('div')
     batchCount.classList.add('row');
     batchCount.setAttribute('style','font-size: 80%')
-    batchCount.innerHTML = 'Batches annotated: ' + worker.batch_count.toString()
+    batchCount.innerHTML = 'Batches annotated: ' + worker.batch_count.toString()taggingTime
+    statsDiv.appendChild(batchCount)
+
+    batchCount = document.createElement('div')
+    batchCount.classList.add('row');
+    batchCount.setAttribute('style','font-size: 80%')
+    batchCount.innerHTML = 'Annotation time: ' + worker.taggingTime.toString() + 'h'
     statsDiv.appendChild(batchCount)
 
     detailsDiv = document.createElement('div')
@@ -90,6 +96,9 @@ function buildWorker(worker) {
     removeBtn = document.createElement('btn')
     removeBtn.setAttribute('class','btn btn-danger btn-block  btn-sm')
     removeBtn.innerHTML = 'Remove'
+    if (worker.isOwner=='true') {
+        removeBtn.disabled = true
+    }
     removeDiv.appendChild(removeBtn)
 
     removeBtn.addEventListener('click', function(wrapWorkerId) {
@@ -151,7 +160,6 @@ function updatePage(url){
                 btnPrevWorkers.style.visibility = 'visible'
                 prev_url = reply.prev_url
             }
-            // updateJobProgressBar()
         }
     }
     xhttp.open("GET", url);
@@ -170,6 +178,7 @@ function removeWorkerQualification() {
             document.getElementById('modalAlertHeader').innerHTML = reply.status
             document.getElementById('modalAlertBody').innerHTML = reply.message
             modalAlert.modal({keyboard: true});
+            updatePage()
         }
     }
     xhttp.open("POST", "/removeWorkerQualification");

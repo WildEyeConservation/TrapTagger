@@ -2477,7 +2477,9 @@ def getWorkers():
     order = request.args.get('order', 1, type=int)
     search = request.args.get('search', '', type=str)
 
-    workers = db.session.query(User).filter(User.id.in_([r.id for r in current_user.workers]))
+    worker_ids = [r.id for r in current_user.workers]
+    worker_ids.append(current_user.id)
+    workers = db.session.query(User).filter(User.id.in_(worker_ids))
 
     searches = re.split('[ ,]',search)
     for search in searches:
@@ -2501,13 +2503,32 @@ def getWorkers():
         worker_dict['id'] = worker.id
         worker_dict['name'] = worker.username
         worker_dict['email'] = worker.email
+        worker_dict['batch_count'] = len(worker.children[:])
+
         worker_dict['survey_count'] = db.session.query(Survey)\
                                                 .join(Task)\
                                                 .join(Turkcode)\
                                                 .join(User,User.username==Turkcode.user_id)\
                                                 .filter(User.parent_id==worker.id)\
                                                 .distinct().count()
-        worker_dict['batch_count'] = len(worker.children[:])
+        
+        if worker.id==current_user.id:
+            worker_dict['isOwner'] = 'true'
+        else:
+            worker_dict['isOwner'] = 'false'
+
+        turkcodes = db.session.query(Turkcode)\
+                            .join(User, User.username==Turkcode.user_id)\
+                            .filter(User.parent_id==worker.id)\
+                            .distinct().all()
+
+        totalTime = 0
+        for turkcode in turkcodes:
+            if turkcode.tagging_time:
+                totalTime += turkcode.tagging_time
+                            
+        worker_dict['taggingTime'] = round(totalTime/3600,2)
+
         worker_list.append(worker_dict)
 
     next_url = url_for('getWorkers', page=workers.next_num, order=order) if workers.has_next else None
