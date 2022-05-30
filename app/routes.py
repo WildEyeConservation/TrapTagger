@@ -2516,15 +2516,18 @@ def inviteWorker():
     '''Invites a user to work for the current user.'''
 
     status = 'Error'
-    message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worke account.'
+    message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worker account.'
 
     inviteEmail = request.args.get('inviteEmail', None)
     if inviteEmail and current_user.admin:
         worker = db.session.query(User).filter(User.email==inviteEmail).first()
         if worker:
-            # invite_worker(worker.id)
-            status = 'Success'
-            message = 'Invitation sent.'
+            if worker in current_user.workers:
+                message = 'That worker already works for you.'
+            else:
+                # invite_worker(worker.id)
+                status = 'Success'
+                message = 'Invitation sent.'
 
     return json.dumps({'status': status, 'message':message})
 

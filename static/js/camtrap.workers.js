@@ -95,8 +95,8 @@ function buildWorker(worker) {
             function(){
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-                    document.getElementById('modalAlertHeader') = reply.status
-                    document.getElementById('modalAlertBody') = reply.message
+                    document.getElementById('modalAlertHeader').innerHTML = reply.status
+                    document.getElementById('modalAlertBody').innerHTML = reply.message
                     modalAlert.modal({keyboard: true});
                 }
             }
