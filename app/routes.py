@@ -2745,6 +2745,11 @@ def send_js(path):
     '''Serves all JavaScript files.'''
     return send_from_directory('../static/js', path)
 
+@app.route('/images/<path:path>')
+def send_im(path):
+    '''Serves all image files.'''
+    return send_from_directory('../static/images', path)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
     '''Renders the login page, and handles the form submission.'''

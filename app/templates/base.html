@@ -34,13 +34,28 @@ limitations under the License. -->
         <div class="container-fluid">
             <div class="navbar-header">
                 {% if current_user.is_authenticated == false %}
-                    <a class="navbar-brand" href="{{ url_for('login_page') }}">TrapTagger</a>
+                    <a class="navbar-brand" href="{{ url_for('login_page') }}">
+                        <img src="images/Logo.png" style="width:64px;height:64px;">TrapTagger
+                    </a>
                 {% elif current_user.admin == true %}
-                    <a class="navbar-brand" href="{{ url_for('surveys') }}">TrapTagger</a>
+                    <a class="navbar-brand" href="{{ url_for('surveys') }}">
+                        <img src="images/Logo.png" style="width:64px;height:64px;">TrapTagger
+                    </a>
                 {% else %}
-                    <a class="navbar-brand" href="{{ url_for('index') }}">TrapTagger</a>
+                    <a class="navbar-brand" href="{{ url_for('index') }}">
+                        <img src="images/Logo.png" style="width:64px;height:64px;">TrapTagger
+                    </a>
                 {% endif %}
             </div>
+
+            {% if current_user.admin == true %}
+                <ul class="nav navbar-nav">
+                    <!-- <li class="active"><a href="#">Home</a></li> -->
+                    <li><a href="{{ url_for('surveys') }}">Surveys</a></li>
+                    <li><a href="{{ url_for('jobs') }}">Jobs</a></li>
+                    <li><a href="{{ url_for('jobs') }}">Workers</a></li>
+                </ul>
+            {% endif %}
 
             <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
                 <ul class="navbar-nav mr-auto"></ul>
