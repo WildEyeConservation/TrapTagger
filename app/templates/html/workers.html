@@ -96,7 +96,7 @@ limitations under the License. -->
 
 <!-- invite Modal -->
 <div id="modalInvite" class="modal fade" role="dialog" tabindex="-1">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
 
       <!-- Modal content-->
       <div class="modal-content">
@@ -108,10 +108,10 @@ limitations under the License. -->
 
             <h5 style="margin-bottom: 2px">Email Address</h5>
             <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the email address of the worker you would like to invite.</i></div>
-            <input type="text" class="form-control" id="inviteEmail">
-            <br>
-
             <div class="row">
+                <div class='col-lg-4'>
+                    <input type="text" class="form-control" id="inviteEmail">
+                </div>
                 <div class='col-lg-2'>
                     <button id="btnsendInvite" type='button' class='btn btn-primary btn-block' onclick="sendInvite()">Send</button>
                 </div>

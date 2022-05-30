@@ -180,7 +180,7 @@ function sendInvite() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            document.getElementById('inviteStatus') = reply.message
+            document.getElementById('inviteStatus').innerHTML = reply.message
         }
     }
     xhttp.open("POST", "/inviteWorker");
