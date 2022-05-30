@@ -97,7 +97,7 @@ function buildWorker(worker) {
     removeBtn.setAttribute('class','btn btn-danger btn-block  btn-sm')
     removeBtn.innerHTML = 'Remove'
     if (worker.isOwner=='true') {
-        removeBtn.disabled = true
+        removeBtn.classList.add("disabled")
     }
     removeDiv.appendChild(removeBtn)
 
