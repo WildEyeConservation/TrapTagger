@@ -324,7 +324,7 @@ taskSelect.addEventListener('click', ()=>{
                 }
             }
         }
-        xhttp.open("GET", '/getWorkerStats?task_id='+task);
+        xhttp.open("GET", '/getWorkerStats?task_id='+task+'&worker_id='+currentUser.toString());
         xhttp.send();
     } else {
         while(statsTable.firstChild){
