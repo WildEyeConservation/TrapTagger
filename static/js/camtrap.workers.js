@@ -98,15 +98,15 @@ function buildWorker(worker) {
     removeBtn.innerHTML = 'Remove'
     if (worker.isOwner=='true') {
         removeBtn.classList.add("disabled")
+    } else {
+        removeBtn.addEventListener('click', function(wrapWorkerId) {
+            return function() {
+                currentUser = wrapWorkerId
+                confirmationModal.modal({keyboard: true});
+            }
+        }(worker.id));
     }
     removeDiv.appendChild(removeBtn)
-
-    removeBtn.addEventListener('click', function(wrapWorkerId) {
-        return function() {
-            currentUser = wrapWorkerId
-            confirmationModal.modal({keyboard: true});
-        }
-    }(worker.id));
 
     newWorkerDiv.appendChild(document.createElement('br'))
 }
