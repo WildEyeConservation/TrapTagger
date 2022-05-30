@@ -214,7 +214,7 @@ $('#workerSearch').change( function() {
     updatePage(url)
 });
 
-modalWait.on('shown.bs.modal', function(){
+modalDetails.on('shown.bs.modal', function(){
     /** Initialises the details modal. */
     while(statsTable.firstChild){
         statsTable.removeChild(statsTable.firstChild);
