@@ -223,6 +223,12 @@ $('#workerSearch').change( function() {
     updatePage(url)
 });
 
+$('#orderSelect').change( function() {
+    /** Listens for changes in the ordering and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
+
 modalDetails.on('shown.bs.modal', function(){
     /** Initialises the details modal. */
     while(statsTable.firstChild){

@@ -2218,28 +2218,28 @@ def clusterID():
     else:
         return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id')
 
-@app.route('/workerStats')
-@login_required
-def workerStats():
-    '''Renders the worker statistics page.'''
+# @app.route('/workerStats')
+# @login_required
+# def workerStats():
+#     '''Renders the worker statistics page.'''
 
-    if not current_user.is_authenticated:
-        return redirect(url_for('login_page'))
-    else:
-        if not current_user.admin:
-            if current_user.parent_id == None:
-                return redirect(url_for('jobs'))
-            else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
-                    return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
-                    return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
-                    return redirect(url_for('individualID'))
-                else:
-                    return redirect(url_for('index'))
+#     if not current_user.is_authenticated:
+#         return redirect(url_for('login_page'))
+#     else:
+#         if not current_user.admin:
+#             if current_user.parent_id == None:
+#                 return redirect(url_for('jobs'))
+#             else:
+#                 if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+#                     return redirect(url_for('sightings'))
+#                 elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+#                     return redirect(url_for('clusterID'))
+#                 elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+#                     return redirect(url_for('individualID'))
+#                 else:
+#                     return redirect(url_for('index'))
 
-        return render_template('html/workerStats.html', title='Worker Statistics', helpFile='worker_statistics')
+#         return render_template('html/workerStats.html', title='Worker Statistics', helpFile='worker_statistics')
 
 @app.route('/workers')
 @login_required
@@ -2344,7 +2344,12 @@ def getWorkerStats():
 
                 reply.append(info)
 
-        return json.dumps({'headings': {'username': 'User', 'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}, 'data': reply})
+        if worker_id:
+            headings = {'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}
+        else:
+            headings = {'username': 'User', 'batchCount': 'Batches Campleted', 'taggingTime': 'Tagging Time (h)'}
+
+        return json.dumps({'headings': headings, 'data': reply})
 
     return json.dumps("error")
 
