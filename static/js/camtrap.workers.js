@@ -258,6 +258,9 @@ modalDetails.on('shown.bs.modal', function(){
 surveySelect.addEventListener('change', ()=>{
     /** Populates the task options on survey selection */
     survey = surveySelect.options[surveySelect.selectedIndex].value;
+    while(statsTable.firstChild){
+        statsTable.removeChild(statsTable.firstChild);
+    }
     if (survey != '-99999') {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =

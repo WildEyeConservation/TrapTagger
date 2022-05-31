@@ -200,8 +200,3 @@ function updateJobProgressBar() {
         xhttp.send();
     }
 }
-
-function goQual() {
-    /** Redirects the user to the qualifications page. */
-    window.location.href = '/qualifications'
-}

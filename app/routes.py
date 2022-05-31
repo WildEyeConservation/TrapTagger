@@ -1528,29 +1528,6 @@ def newWorkerAccount(token):
     else:
         return render_template("html/block.html",text="Error.", helpFile='block')
 
-@app.route('/requestQualification/<user_id>')
-@login_required
-def requestQualification(user_id):
-    '''Requests qualification from the specified user for the current user. Returns a success/error status.'''
-
-    user = db.session.query(User).get(user_id)
-    if (user != None) and (current_user.parent_id == None) and (user not in current_user.qualifications):
-        token = jwt.encode(
-                {'requester': current_user.id, 'requestee': user_id, 'random': randomString()},
-                app.config['SECRET_KEY'], algorithm='HS256')
-
-        url = 'https://'+Config.DNS+'/grantQualification/'+token
-
-        send_email('[TrapTagger] Qualification Request',
-                sender=app.config['ADMINS'][0],
-                recipients=[user.email],
-                text_body=render_template('email/qualificationRequest.txt',username=user.username, url=url, email=current_user.email, requester=current_user.username),
-                html_body=render_template('email/qualificationRequest.html',username=user.username, url=url, email=current_user.email, requester=current_user.username))
-
-        return json.dumps('success')
-    else:
-        return json.dumps('error')
-
 @app.route('/grantQualification/<token>')
 def grantQualification(token):
     '''Grants a qualification based on the data encoded in the recieved token.'''
@@ -2024,24 +2001,6 @@ def jobs():
             return redirect(url_for('index'))
     else:
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page')
-
-@app.route('/qualifications')
-def qualifications():
-    '''Renders the qualifications page.'''
-    
-    if not current_user.is_authenticated:
-        return redirect(url_for('login_page'))
-    elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
-            return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
-            return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
-            return redirect(url_for('individualID'))
-        else:
-            return redirect(url_for('index'))
-    else:
-        return render_template('html/qualifications.html', title='Qualifications', helpFile='qualifications_page')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -2618,31 +2577,6 @@ def acceptInvitation(token):
         return render_template("html/block.html",text="Error.", helpFile='block')
 
     return render_template("html/block.html",text="Invitation accepted.", helpFile='block')
-
-# @app.route('/getQualUsers')
-# @login_required
-# def getQualUsers():
-#     '''Returns a paginated list of admin users that the current user can request qualification from.'''
-    
-#     page = request.args.get('page', 1, type=int)
-#     users = db.session.query(User)\
-#                 .filter(User.admin==True)\
-#                 .filter(User.id!=current_user.id)\
-#                 .filter(User.username!='Admin')\
-#                 .filter(~User.id.in_([r.id for r in current_user.qualifications]))\
-#                 .order_by(User.username).paginate(page, 5, False)
-
-#     user_list = []
-#     for user in users.items:
-#         user_dict = {}
-#         user_dict['id'] = user.id
-#         user_dict['username'] = user.username
-#         user_list.append(user_dict)
-
-#     next_url = url_for('getQualUsers', page=users.next_num) if users.has_next else None
-#     prev_url = url_for('getQualUsers', page=users.prev_num) if users.has_prev else None
-
-#     return json.dumps({'quals': user_list, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/reClassify/<survey>')
 @login_required
