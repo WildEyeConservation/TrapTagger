@@ -748,6 +748,35 @@ def reclusterAfterTimestampChange(survey_id):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
+def updateCoords(self,survey_id,coordData):
+    '''Updates the survey's trapgroup coordinates.'''
+
+    try:
+        for item in coordData:
+            trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==item['tag']).first()
+            if trapgroup:
+                try:
+                    trapgroup.latitude = float(item['latitude'])
+                    trapgroup.longitude = float(item['longitude'])
+                    trapgroup.altitude = float(item['altitude'])
+                    db.session.commit()
+                except:
+                    pass
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
 def changeTimestamps(self,survey_id,timestamps):
     '''
     Celery task for shifting the camera timestamps of a specified survey. Re-clusters all tasks afterword.

@@ -138,7 +138,7 @@ limitations under the License. -->
                     </div>
                     <br>
 
-                    <h5 style="margin-bottom: 2px">Description</h5>
+                    <h5 style="margin-bottom: 2px">Description (Optional)</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information to be associated with the survey.</i></div>
                     <div class="row">
                         <div class='col-lg-8'>
@@ -147,7 +147,7 @@ limitations under the License. -->
                     </div>
                     <br>
 
-                    <h5 style="margin-bottom: 2px">Trapgroup Coordinates</h5>
+                    <h5 style="margin-bottom: 2px">Trapgroup Coordinates (Optional)</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Upload a kml file containing your trapgroup coordinates. This can be exported from <a href="https://earth.google.com/web/">Google Earth</a></i>.</div>
                     <div class="row">
                         <div class="col-lg-6">
@@ -1384,7 +1384,7 @@ limitations under the License. -->
 
 <!-- Launch Task Modal -->
 <div id="modalLaunchTask" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 55%;">
+    <div class="modal-dialog" style="max-width: 50%;">
   
         <!-- Modal content-->
         <div class="modal-content">
@@ -1894,18 +1894,31 @@ limitations under the License. -->
 
         legalFile = true
         if (document.getElementById('addImagesAddCoordinates').checked) {
-            kmlFileUpload = document.getElementById('kmlFileUpload2')
-            if (kmlFileUpload.files.length > 1) {
-                document.getElementById('addImagesErrors').innerHTML = 'You can only upload a single coordinate file'
-                legalFile = false
-            } else if (kmlFileUpload.files.length == 1) {
-                if (kmlFileUpload.files[0].size>50000000) {
-                    document.getElementById('addImagesErrors').innerHTML = 'File cannot be larger than 50MB.'
+            if (document.getElementById('addCoordinatesManualMethod').checked) {
+                coordData = []
+                allTimestamps = document.querySelectorAll('[id^=latittude-]');
+                for (tg=0;tg<allTimestamps.length;tg++) {
+                    item = allTimestamps[tg]
+                    tag = item.id.split("latittude-")[item.id.split("latittude-").length-1]
+                    latitude = document.getElementById('latitude-'+tag).value
+                    longitude = document.getElementById('longitude-'+tag).value
+                    altitude = document.getElementById('altitude-'+tag).value
+                    coordData.push({'tag':tag,'latitude':latitude,'longitude':longitude,'altitude':altitude})
+                }
+            } else if (document.getElementById('addCoordinatesKMLMethod').checked) {
+                kmlFileUpload = document.getElementById('kmlFileUpload2')
+                if (kmlFileUpload.files.length > 1) {
+                    document.getElementById('addImagesErrors').innerHTML = 'You can only upload a single coordinate file'
                     legalFile = false
-                } else {
-                    if (!kmlFileUpload.files[0].name.includes('.kml')) {
-                        document.getElementById('addImagesErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
+                } else if (kmlFileUpload.files.length == 1) {
+                    if (kmlFileUpload.files[0].size>50000000) {
+                        document.getElementById('addImagesErrors').innerHTML = 'File cannot be larger than 50MB.'
                         legalFile = false
+                    } else {
+                        if (!kmlFileUpload.files[0].name.includes('.kml')) {
+                            document.getElementById('addImagesErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
+                            legalFile = false
+                        }
                     }
                 }
             }
@@ -1991,7 +2004,12 @@ limitations under the License. -->
 
         if (legalTGCode&&legalInput&&legalFile&&legalDate&&TGCheckReady) {
             if (document.getElementById('addImagesAddCoordinates').checked) {
-                var reader = new FileReader()
+                if (document.getElementById('addCoordinatesManualMethod').checked) {
+                    var formData = new FormData()
+                    formData.append("coordData", JSON.stringify(coordData))                
+                    addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                } else {
+                    var reader = new FileReader()
                 reader.addEventListener('load', (event) => {
                     kmldata = event.target.result
 
@@ -2039,6 +2057,7 @@ limitations under the License. -->
                     }
                 });
                 reader.readAsText(kmlFileUpload.files[0])
+                }
             } else {
                 var formData = new FormData()
 

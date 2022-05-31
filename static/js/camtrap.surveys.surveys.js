@@ -286,6 +286,10 @@ function buildSurveys(survey,disableSurvey) {
 
     infoElementFiller = document.createElement('div')
     infoElementFiller.classList.add('col-lg-10');
+    if (survey.description!='') {
+        infoElementDescription.setAttribute("style","font-size: 80%")
+        infoElementDescription.innerHTML = 'Description: ' + survey.description
+    }
     infoElementRow2.appendChild(infoElementFiller)
 
     addImagesCol = document.createElement('div')
@@ -1409,7 +1413,7 @@ function buildEditTimestamp() {
 function buildKml() {
     /** Builds the kml upload functionality in the edit survey modal. */
     
-    addImagesAddCoordinates = document.getElementById('addImagesAddCoordsDiv')
+    addImagesAddCoordinates = document.getElementById('addImsCoordsDiv')
     addImagesAddCoordinates.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
@@ -1489,6 +1493,170 @@ $("#addImagesAddImages").change( function() {
     }
 })
 
+function buildManualCoords() {
+    /** Build the manual coords editor */
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("GET", '/getTrapgroupCoords/'+selectedSurvey);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            
+            addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            
+            headingRow = document.createElement('div')
+            headingRow.setAttribute('class','row')
+            addImsCoordsDiv.appendChild(headingRow)
+
+            headingCol = document.createElement('div')
+            headingCol.setAttribute('class','col-lg-3')
+            headingCol.innerHTML = 'Trapgroup (Location)'
+            headingRow.appendChild(headingCol)
+
+            headingCol = document.createElement('div')
+            headingCol.setAttribute('class','col-lg-3')
+            headingCol.innerHTML = 'Latitude'
+            headingRow.appendChild(headingCol)
+
+            headingCol = document.createElement('div')
+            headingCol.setAttribute('class','col-lg-3')
+            headingCol.innerHTML = 'Longitude'
+            headingRow.appendChild(headingCol)
+            
+            headingCol = document.createElement('div')
+            headingCol.setAttribute('class','col-lg-3')
+            headingCol.innerHTML = 'Altitude'
+            headingRow.appendChild(headingCol)            
+
+            for (tg=0;tg<reply.length;tg++) {
+                trapgroup = reply[tg]
+
+                row = document.createElement('div')
+                row.setAttribute('class','row')
+                addImsCoordsDiv.appendChild(row)
+    
+                col1 = document.createElement('div')
+                col1.setAttribute('class','col-lg-3')
+                col1.innerHTML = trapgroup.tag
+                row.appendChild(col1)
+
+                col2 = document.createElement('div')
+                col2.setAttribute('class','col-lg-3')
+                row.appendChild(col2)
+
+                input1 = document.createElement('input')
+                input1.setAttribute('type','text')
+                input1.setAttribute('class','form-control')
+                input1.setAttribute('id','latitude-'+trapgroup.tag)
+                input1.value = trapgroup.latitude
+                col2.appendChild(input1)
+
+                col3 = document.createElement('div')
+                col3.setAttribute('class','col-lg-3')
+                row.appendChild(col3)
+
+                input2 = document.createElement('input')
+                input2.setAttribute('type','text')
+                input2.setAttribute('class','form-control')
+                input2.setAttribute('id','longitude-'+trapgroup.tag)
+                input2.value = trapgroup.longitude
+                col3.appendChild(input2)
+
+                col4 = document.createElement('div')
+                col4.setAttribute('class','col-lg-3')
+                row.appendChild(col4)
+
+                input3 = document.createElement('input')
+                input3.setAttribute('type','text')
+                input3.setAttribute('class','form-control')
+                input3.setAttribute('id','altitude-'+trapgroup.tag)
+                input3.value = trapgroup.altitude
+                col4.appendChild(input3)
+            }
+        }
+    }
+    xhttp.send();
+}
+
+function buildCoordsOptions() {
+    /** Builds the selector to selct between kml upload and manual. */
+
+    addImagesAddCoordinates = document.getElementById('addImagesAddCoordinates')
+    while(addImagesAddCoordinates.firstChild){
+        addImagesAddCoordinates.removeChild(addImagesAddCoordinates.firstChild);
+    }
+
+    h5 = document.createElement('h5')
+    h5.setAttribute('style','margin-bottom: 2px')
+    h5.innerHTML = 'Method'
+    addImagesAddCoordinates.appendChild(h5)
+
+    infoDiv = document.createElement('div')
+    infoDiv.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    infoDiv.innerHTML = '<i>Select how you would like to edit your trapgroup coordinates.</i>'
+    addImagesAddCoordinates.appendChild(infoDiv)
+
+    optionDiv = document.createElement('div')
+    optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    addImagesAddCoordinates.appendChild(optionDiv)
+    
+    input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','addCoordinatesKMLMethod')
+    input.setAttribute('name','coordsMethodSelection')
+    input.setAttribute('value','customEx')
+    optionDiv.appendChild(input)
+
+    label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','addCoordinatesKMLMethod')
+    label.innerHTML = 'kml file upload'
+    optionDiv.appendChild(label)
+
+    $("#addCoordinatesKMLMethod").change( function() {
+        if (document.getElementById('addCoordinatesKMLMethod').checked) {
+            addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            while(addImsCoordsDiv.firstChild){
+                addImsCoordsDiv.removeChild(addImsCoordsDiv.firstChild);
+            }
+            buildKml()
+        }
+    })
+
+    optionDiv = document.createElement('div')
+    optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
+    addImagesAddCoordinates.appendChild(optionDiv)
+
+    input = document.createElement('input')
+    input.setAttribute('type','radio')
+    input.setAttribute('class','custom-control-input')
+    input.setAttribute('id','addCoordinatesManualMethod')
+    input.setAttribute('name','coordsMethodSelection')
+    input.setAttribute('value','customEx')
+    optionDiv.appendChild(input)
+
+    label = document.createElement('label')
+    label.setAttribute('class','custom-control-label')
+    label.setAttribute('for','addCoordinatesManualMethod')
+    label.innerHTML = 'Manual'
+    optionDiv.appendChild(label)
+
+    $("#addCoordinatesManualMethod").change( function() {
+        if (document.getElementById('addCoordinatesManualMethod').checked) {
+            addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            while(addImsCoordsDiv.firstChild){
+                addImsCoordsDiv.removeChild(addImsCoordsDiv.firstChild);
+            }
+            buildManualCoords()
+        }
+    })
+
+    addImsCoordsDiv = document.createElement('div')
+    addImsCoordsDiv.setAttribute('id','addImsCoordsDiv')
+    addImagesAddCoordinates.appendChild(addImsCoordsDiv)
+}
+
 $("#addImagesAddCoordinates").change( function() {
     /** Listens for and initialises the add kml file form on the edit survey modal when the radio button is selected. */
 
@@ -1505,7 +1673,7 @@ $("#addImagesAddCoordinates").change( function() {
             addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
         }
 
-        buildKml()
+        buildCoordsOptions()
     }
 })
 

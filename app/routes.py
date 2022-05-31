@@ -1423,6 +1423,11 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox):
             db.session.commit()
             timestamps = ast.literal_eval(request.form['timestamps'])
             changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps)
+    elif 'coordData' in request.form:
+        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
+        if survey and (survey.user==current_user):
+            coordData = ast.literal_eval(request.form['coordData'])
+            updateCoords.delay(survey_id=survey.id,coordData=coordData)
     else:
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -4416,6 +4421,24 @@ def getTrapgroups(task_id):
             names.append(trapgroup.tag)
             ids.append(trapgroup.id)
     return json.dumps({'names':names,'values':ids})
+
+@app.route('/getTrapgroupCoords/<survey_id>')
+@login_required
+def getTrapgroupCoords(survey_id):
+    '''Returns the trapgoup coordinates for the specified survey.'''
+    
+    reply = []
+    survey = db.session.query(Survey).get(int(survey_id))
+    if (survey and survey.user==current_user):
+        for trapgroup in db.session.query(Trapgroup).filter(Trapgroup.survey==survey).order_by(Trapgroup.tag).distinct().all():
+            data = {}
+            data['tag'] = trapgroup.tag
+            data['latitude'] = trapgroup.latitude
+            data['longitude'] = trapgroup.longitude
+            data['altitude'] = trapgroup.altitude
+            reply.append(data)
+
+    return json.dumps(reply)
 
 @app.route('/getSurveyClassifications/<survey_id>')
 @login_required
