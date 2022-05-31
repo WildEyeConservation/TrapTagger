@@ -255,7 +255,7 @@ modalDetails.on('shown.bs.modal', function(){
     xhttp.send();
 });
 
-surveySelect.addEventListener('click', ()=>{
+surveySelect.addEventListener('change', ()=>{
     /** Populates the task options on survey selection */
     survey = surveySelect.options[surveySelect.selectedIndex].value;
     if (survey != '-99999') {
@@ -284,7 +284,7 @@ surveySelect.addEventListener('click', ()=>{
     }
 });
 
-taskSelect.addEventListener('click', ()=>{
+taskSelect.addEventListener('change', ()=>{
     /** Builds and populates the information table on task selection. */
     task = taskSelect.options[taskSelect.selectedIndex].value;
     while(statsTable.firstChild){
@@ -298,46 +298,22 @@ taskSelect.addEventListener('click', ()=>{
                 reply = JSON.parse(this.responseText);  
                 
                 if (reply != 'error') {
-                    tableDiv = document.getElementById('statsTable')
-                    table = document.createElement('table')
-                    table.setAttribute('style','width:100%; table-layout:fixed')
-                    table.classList.add('table')
-                    table.classList.add('table-bordered')
-                    table.classList.add('table-matrix')
-                    tableDiv.appendChild(table)
-                    
-                    thead = document.createElement('thead')
-                    table.appendChild(thead)
-                    
-                    tableRow = document.createElement('tr')
                     for (key in reply.headings) {
-                        tableCol = document.createElement('th')
-                        tableCol.setAttribute('scope','col')
-                        tableCol.setAttribute('style','border-bottom: 1px solid white')
-                        tableRow.appendChild(tableCol)
-                    
-                        thdiv = document.createElement('div')
-                        thdiv.innerHTML = reply.headings[key]
-                        tableCol.appendChild(thdiv)
-                    }
-                    thead.appendChild(tableRow)
-                    
-                    tbody = document.createElement('tbody')
-                    table.appendChild(tbody)
-                    
-                    for (n=0;n<reply.data.length;n++) {
-                        for (key in reply.headings) {
-                            if (key=='username') {
-                                tableRow = document.createElement('tr')
-                                tableCol = document.createElement('th')
-                                tableCol.setAttribute('scope','row')
-                            } else {
-                                tableCol = document.createElement('td')
-                            }
-                            tableCol.innerHTML = reply.data[n][key]
-                            tableRow.appendChild(tableCol)
-                        }
-                        tbody.appendChild(tableRow)
+                        row = document.createElement('div')
+                        row.classList.add('row')
+                        tableDiv.appendChild(row)
+
+                        col1 = document.createElement('div')
+                        col1.classList.add('col-lg-4')
+                        row.appendChild(col1)
+
+                        col1.innerHTML = reply.headings[key]
+
+                        col2 = document.createElement('div')
+                        col2.classList.add('col-lg-4')
+                        row.appendChild(col2)
+
+                        col2.innerHTML = reply.data[0][key]
                     }
                 }
             }
