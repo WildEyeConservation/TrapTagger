@@ -298,6 +298,7 @@ taskSelect.addEventListener('change', ()=>{
                 reply = JSON.parse(this.responseText);  
                 
                 if (reply != 'error') {
+                    tableDiv = document.getElementById('statsTable')
                     for (key in reply.headings) {
                         row = document.createElement('div')
                         row.classList.add('row')
