@@ -204,11 +204,18 @@ function updateJobProgressBar() {
 function generate_url() {
     /** Generates the url based on the current order selection and search query */
     order = orderSelect.options[orderSelect.selectedIndex].value
-    return '/getJobs?page=1&order='+order
+    search = document.getElementById('jobSearch').value
+    return '/getJobs?page=1&order='+order+'&search='+search.toString()
 }
 
 $('#orderSelect').change( function() {
     /** Listens for changes in the ordering and updates the page accordingly. */
+    url = generate_url()
+    updatePage(url)
+});
+
+$('#jobSearch').change( function() {
+    /** Listens for changes in the worker search bar and updates the page accordingly. */
     url = generate_url()
     updatePage(url)
 });

@@ -2400,25 +2400,35 @@ def getJobs():
     
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
+    search = request.args.get('search', '', type=str)
+
     quals = [r.id for r in current_user.qualifications]
     if current_user.admin:
         quals.append(current_user.id)
 
+    tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS')
+
+    searches = re.split('[ ,]',search)
+    for search in searches:
+        tasks = tasks.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+
     if order == 1:
         #Survey date
-        tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS').join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp).distinct(Survey.id).paginate(page, 5, False)
+        tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
     elif order == 2:
         #Survey add date
-        tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS').order_by(Survey.id).paginate(page, 5, False)
+        tasks = tasks.order_by(Survey.id)
     elif order == 3:
         #Alphabetical
-        tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS').order_by(Survey.name).paginate(page, 5, False)
+        tasks = tasks.order_by(Survey.name)
     elif order == 4:
         #Survey date descending
-        tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS').join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp)).distinct(Survey.id).paginate(page, 5, False)
+        tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
     elif order == 5:
         #Add date descending
-        tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS').order_by(desc(Survey.id)).paginate(page, 5, False)
+        tasks = tasks.order_by(desc(Survey.id))
+
+    tasks = tasks.paginate(page, 5, False)
 
     task_list = []
     for task in tasks.items:

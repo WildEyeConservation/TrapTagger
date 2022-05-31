@@ -543,7 +543,7 @@ function updateComparisonDisplay() {
             
                 divi = document.createElement('div')
                 divi.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                divi.innerHTML = '<i>Create a translation matrix for the two tasks that combines any number of labels into a number of comparable ones.</i>'
+                divi.innerHTML = '<i>Create a translation matrix for the two annotation sets that combines any number of labels into a number of comparable ones.</i>'
                 comparionDisplay.appendChild(divi)
             
                 comparionDisplay.appendChild(document.createElement('br'))

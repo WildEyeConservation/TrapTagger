@@ -313,7 +313,7 @@ limitations under the License. -->
             
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Add Task</h4>
+                    <h4 class="modal-title">Add Annotation Set</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_task')">Help</button>
@@ -324,8 +324,8 @@ limitations under the License. -->
             </div>
             <div class="modal-body">
 
-                <h5 style="margin-bottom: 2px">Task Name</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>A name for your task to help you identify it.</i></div>
+                <h5 style="margin-bottom: 2px">Annotation Set Name</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>A descriptive name for your annotation set to help you identify it.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
                         <input type="text" class="form-control" required id="newTaskName"></input>
@@ -335,15 +335,15 @@ limitations under the License. -->
                 <div id="nameErrors" style="font-size: 80%; color: #DF691A"></div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Task Type</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The type of task you would like to add.</i></div>
+                <h5 style="margin-bottom: 2px">Type</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The type of annotation set you would like to add.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="newTaskSelect" name="newTaskSelection" value="customEx">
-                    <label class="custom-control-label" for="newTaskSelect">New Task</label>
+                    <label class="custom-control-label" for="newTaskSelect">New Annotation Set</label>
                 </div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="csvUploadSelect" name="newTaskSelection" value="customEx">
-                    <label class="custom-control-label" for="csvUploadSelect">Import Task</label>
+                    <label class="custom-control-label" for="csvUploadSelect">Import Annotations</label>
                 </div>
                 <br>
                 <br>
@@ -426,7 +426,7 @@ limitations under the License. -->
             
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Auto-Classification</h4>
+                    <h4 class="modal-title">Species Auto-Classification</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('new_task3')">Help</button>
@@ -451,7 +451,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Auto-Classification Species</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the species you would like to have automatically classified for you.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the species you would like to have automatically identified for you.</i></div>
                 <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="custom-control-input" id="selectAllClassifications" name="selectAllClassifications">
                     <label class="custom-control-label" for="selectAllClassifications">Select All</label>
@@ -534,7 +534,7 @@ limitations under the License. -->
             <div class="modal-content">
                 <div class="modal-header">
                     <div class='col-lg-10' style="padding: 0px">
-                        <h4 class="modal-title">Edit Task</h4>
+                        <h4 class="modal-title">Edit Labels</h4>
                     </div>
                     <div class='col-lg-1' style="padding: 0px">
                         <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('edit_task')">Help</button>
@@ -626,35 +626,8 @@ limitations under the License. -->
                 </div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Excel File</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Download a formatted Excel file of the results of the selected task</i></div>
-                <div class="row">
-                    <div class='col-lg-2'>
-                        <button id="btnExcelDownload" type='button' class='btn btn-primary btn-block'>Download</button>
-                    </div>
-                </div>
-                <br>
-
-                <h5 style="margin-bottom: 2px">Comparison</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Compare two tasks for a survey.</i></div>
-                <div class="row">
-                    <div class='col-lg-2'>
-                        <button id="btnCompare" type='button' class='btn btn-primary btn-block'>Compare</button>
-                    </div>
-                </div>
-                <br>
-
-                <h5 style="margin-bottom: 2px">CSV File</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Generate and download a custom CSV file of the results of the selected task.</i></div>
-                <div class="row">
-                    <div class='col-lg-2'>
-                        <button id="btnCsvGenerate" type='button' class='btn btn-primary btn-block'>Generate</button>
-                    </div>
-                </div>
-                <br>
-
                 <h5 style="margin-bottom: 2px">Statistics</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>View the statistics for the task using a number of user-contolled maps and graphs.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>View the statistics for the task using a number of maps and graphs.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="btnOpenStatistics" type='button' class='btn btn-primary btn-block'>View</button>
@@ -671,11 +644,38 @@ limitations under the License. -->
                 </div>
                 <br>
 
+                <h5 style="margin-bottom: 2px">CSV File</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Generate and download a custom CSV file of the results of the selected annotation set.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnCsvGenerate" type='button' class='btn btn-primary btn-block'>Generate</button>
+                    </div>
+                </div>
+                <br>
+
                 <h5 style="margin-bottom: 2px">Download</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Download a metadata-annotated and sorted image set.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="btnOpenDownload" type='button' class='btn btn-primary btn-block' onclick=openDownloadModal()>Download</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Excel File</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Download a formatted Excel file of the results of the selected annotation set.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnExcelDownload" type='button' class='btn btn-primary btn-block'>Download</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Comparison</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Compare two sets of annotations for a survey.</i></div>
+                <div class="row">
+                    <div class='col-lg-2'>
+                        <button id="btnCompare" type='button' class='btn btn-primary btn-block'>Compare</button>
                     </div>
                 </div>
                 <br>
@@ -866,7 +866,7 @@ limitations under the License. -->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Task Status</h4>
+                    <h4 class="modal-title">Annotation Set Status</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('task_status')">Help</button>
@@ -914,7 +914,7 @@ limitations under the License. -->
             <div class="modal-body">
 
                 <h5 style="margin-bottom: 2px">Datasets</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select additional tasks to add to the csv.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select additional datasets to add to the csv.</i></div>
                 <div class="row">
                     <div class='col-lg-3'>Survey</div>
                     <div class='col-lg-3'>Task</div>
@@ -1157,7 +1157,7 @@ limitations under the License. -->
             <div class="modal-body">
                 <div id="comparisonErrors" style="font-size: 80%; color: #DF691A"></div>
                 <h5 style="margin-bottom: 2px">Compare with:</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select another task to compare this one to.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select another annotation set to compare this one to.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
                         <select id="ComparisonSelector" class='form-control'></select>
@@ -1384,13 +1384,13 @@ limitations under the License. -->
 
 <!-- Launch Task Modal -->
 <div id="modalLaunchTask" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 48%;">
+    <div class="modal-dialog" style="max-width: 55%;">
   
         <!-- Modal content-->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Launch Task</h4>
+                    <h4 class="modal-title">Launch for Manual Annotation</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('launch_task')">Help</button>
@@ -1403,15 +1403,15 @@ limitations under the License. -->
 
                 <div id="launchErrors" style="font-size: 80%; color: #DF691A"></div>
 
-                <h5 style="margin-bottom: 2px">Tagging Type</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The type of tagging you would like to do. Note that you must have all clusters tagged before you can begin tagging sightings.</i></div>
+                <h5 style="margin-bottom: 2px">Annotation Type</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The type of annotation you would like to do. Note that you must have all clusters annotatated to your top species level before being able to proceed.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="clusterTag" name="taggingSelection" value="customEx">
-                    <label class="custom-control-label" for="clusterTag">Cluster Labelling</label>
+                    <label class="custom-control-label" for="clusterTag">Species Labelling</label>
                 </div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="classTag" name="taggingSelection" value="customEx">
-                    <label class="custom-control-label" for="classTag">AI Check</label>
+                    <label class="custom-control-label" for="classTag">AI Species Check</label>
                 </div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="infoTag" name="taggingSelection" value="customEx">
@@ -1428,8 +1428,8 @@ limitations under the License. -->
                 <br>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Task Batch Size</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The number of images in each batch.</i></div>
+                <h5 style="margin-bottom: 2px">Batch Size</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The number of images in each unit of work collected by workers.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
                         <input type="text" class="form-control" required id="taskSize" value="200"></input>
@@ -1437,8 +1437,8 @@ limitations under the License. -->
                 </div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Tagging Level</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to tag. You first pass will automatically be parent categories only.</i></div>
+                <h5 style="margin-bottom: 2px">Annotation Level</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to annotate. You must begin with parent categories.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
                         <select class="form-control" id="taskTaggingLevel"></select>

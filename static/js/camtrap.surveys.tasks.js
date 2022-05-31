@@ -806,7 +806,7 @@ function buildNewTaskForm() {
 
     div1 = document.createElement('div')
     div1.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    div1.innerHTML = '<i>Set up the labels for your survey based on the species you expect to encounter.</i>'
+    div1.innerHTML = '<i>Set up the labels based on the species you expect to encounter.</i>'
     newTaskFormDiv.appendChild(div1)
 
     newTaskFormDiv.appendChild(document.createElement('br'))
@@ -817,7 +817,7 @@ function buildNewTaskForm() {
 
     div1 = document.createElement('div')
     div1.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    div1.innerHTML = '<i>Load labels from a previous task or a template.</i>'
+    div1.innerHTML = '<i>Load labels from a previous annotation set or a template.</i>'
     newTaskFormDiv.appendChild(div1)
 
     div2 = document.createElement('div')
@@ -926,7 +926,7 @@ function buildCSVUploadForm() {
 
     div1 = document.createElement('div')
     div1.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    div1.innerHTML = '<i>Import a task from a CSV file. All labels will be automatically generated.</i>'
+    div1.innerHTML = '<i>Import annotations from a CSV file. All labels will be automatically generated.</i>'
     newTaskFormDiv.appendChild(div1)
 
     row = document.createElement('div')

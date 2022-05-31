@@ -227,7 +227,7 @@ function buildSurveys(survey,disableSurvey) {
     taskDivHeading = document.createElement('div')
     taskDivHeading.classList.add('col-lg-6');
     taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:15px; font-size: 110%")
-    taskDivHeading.innerHTML = 'Tasks:'
+    taskDivHeading.innerHTML = 'Annotation Sets:'
     entireRowHeading.appendChild(surveyDivHeading)
     entireRowHeading.appendChild(taskDivHeading)
     newSurveyDiv.appendChild(entireRowHeading)
@@ -261,6 +261,11 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow.classList.add('center');
     infoElementRow.setAttribute('style',"margin-left: 10px")
 
+    infoElementRow2 = document.createElement('div')
+    infoElementRow2.classList.add('row');
+    infoElementRow2.classList.add('center');
+    infoElementRow2.setAttribute('style',"margin-left: 10px")
+
     infoElementNumTrapgroups = document.createElement('div')
     infoElementNumTrapgroups.classList.add('col-lg-2');
     infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
@@ -268,7 +273,7 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow.appendChild(infoElementNumTrapgroups)
 
     infoElementNumImages = document.createElement('div')
-    infoElementNumImages.classList.add('col-lg-2');
+    infoElementNumImages.classList.add('col-lg-3');
     infoElementNumImages.setAttribute("style","font-size: 80%")
     infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
     infoElementRow.appendChild(infoElementNumImages)
@@ -277,7 +282,11 @@ function buildSurveys(survey,disableSurvey) {
     infoElementDescription.classList.add('col-lg-2');
     infoElementDescription.setAttribute("style","font-size: 80%")
     infoElementDescription.innerHTML = 'Status: ' + survey.status
-    infoElementRow.appendChild(infoElementDescription)
+    infoElementRow2.appendChild(infoElementDescription)
+
+    infoElementFiller = document.createElement('div')
+    infoElementFiller.classList.add('col-lg-10');
+    infoElementRow2.appendChild(infoElementFiller)
 
     addImagesCol = document.createElement('div')
     addImagesCol.classList.add('col-lg-2');
@@ -298,11 +307,11 @@ function buildSurveys(survey,disableSurvey) {
     }(survey.name,survey.id));
 
     addTaskCol = document.createElement('div')
-    addTaskCol.classList.add('col-lg-2');
+    addTaskCol.classList.add('col-lg-3');
     addTaskBtn = document.createElement('button')
     addTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
     addTaskBtn.setAttribute("id","addTaskBtn"+survey.id)
-    addTaskBtn.innerHTML = 'Add Task'
+    addTaskBtn.innerHTML = 'Add Annotation Set'
     addTaskCol.appendChild(addTaskBtn)
     infoElementRow.appendChild(addTaskCol)
 
@@ -346,6 +355,7 @@ function buildSurveys(survey,disableSurvey) {
     }
 
     surveyDiv.appendChild(infoElementRow)
+    surveyDiv.appendChild(infoElementRow2)
 
     newSurveyDiv.appendChild(document.createElement('br'))
     surveyListDiv.appendChild(newSurveyDiv) 
@@ -1081,7 +1091,7 @@ function buildBucketUpload(divID) {
 
     div2 = document.createElement('div')
     div2.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div2.innerHTML = '<i>If you have already uploaded the survey to Amazon S3, please enter the name of the folder below.</i>'
+    div2.innerHTML = '<i>If you have already uploaded the survey to Amazon S3, please enter the name of the folder below (without trailing slash).</i>'
     div.appendChild(div2)
 
     row = document.createElement('div')
