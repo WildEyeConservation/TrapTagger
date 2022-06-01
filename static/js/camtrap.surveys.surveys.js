@@ -1710,7 +1710,7 @@ function buildAdvancedOptions() {
             input.classList.add('custom-control-input')
             input.setAttribute('id','smallDetectionsCheckbox')
             input.setAttribute('name','smallDetectionsCheckbox')
-            row.appendChild(input)
+            col.appendChild(input)
 
             if (reply.smallDetections=='True') {
                 input.checked = true
@@ -1720,7 +1720,7 @@ function buildAdvancedOptions() {
             label.classList.add('custom-control-label')
             label.setAttribute('for','smallDetectionsCheckbox')
             // label.innerHTML = 'Ignore Small Detections'
-            row.appendChild(label)
+            col.appendChild(label)
 
             addImagesAdvancedDiv.appendChild(document.createElement('br'))
 
@@ -1747,7 +1747,7 @@ function buildAdvancedOptions() {
             input.classList.add('custom-control-input')
             input.setAttribute('id','skyMaskCheckbox')
             input.setAttribute('name','skyMaskCheckbox')
-            row.appendChild(input)
+            col.appendChild(input)
 
             if (reply.skyMask=='True') {
                 input.checked = true
@@ -1757,7 +1757,7 @@ function buildAdvancedOptions() {
             label.classList.add('custom-control-label')
             label.setAttribute('for','skyMaskCheckbox')
             // label.innerHTML = 'Mask Sky Detections'
-            row.appendChild(label)
+            col.appendChild(label)
         }
     }
     xhttp.send();
