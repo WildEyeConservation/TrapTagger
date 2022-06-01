@@ -582,24 +582,13 @@ function resetEditSurveyModal() {
     document.getElementById('addImagesAddImages').checked = false
     document.getElementById('addImagesAddCoordinates').checked = false
     document.getElementById('addImagesEditTimestamps').checked = false
+    document.getElementById('addImagesAdvanced').checked = false
     document.getElementById('addImagesAddImages').disabled = false
     document.getElementById('addImagesAddCoordinates').disabled = false
     document.getElementById('addImagesEditTimestamps').disabled = false
+    document.getElementById('addImagesAdvanced').disabled = false
 
-    addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv')
-    while(addImagesAddImsDiv.firstChild){
-        addImagesAddImsDiv.removeChild(addImagesAddImsDiv.firstChild);
-    }
-
-    addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
-    while(addImagesAddCoordsDiv.firstChild){
-        addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
-    }
-
-    addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
-    while(addImagesEditTimestampsDiv.firstChild){
-        addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
-    }
+    clearEditSurveyModal()
 }
 
 function buildBrowserUpload(divID) {
@@ -1292,6 +1281,7 @@ function buildEditTimestamp() {
     document.getElementById('addImagesAddImages').disabled = true
     document.getElementById('addImagesAddCoordinates').disabled = true
     document.getElementById('addImagesEditTimestamps').disabled = true
+    document.getElementById('addImagesAdvanced').disabled = true
     document.getElementById('addImagesEditTimestampsDiv').innerHTML = 'Loading...'
     
     var xhttp = new XMLHttpRequest();
@@ -1313,6 +1303,7 @@ function buildEditTimestamp() {
                 document.getElementById('addImagesAddImages').disabled = false
                 document.getElementById('addImagesAddCoordinates').disabled = false
                 document.getElementById('addImagesEditTimestamps').disabled = false
+                document.getElementById('addImagesAdvanced').disabled = false
                 addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
             
                 h5 = document.createElement('h5')
@@ -1687,30 +1678,25 @@ function buildAdvancedOptions() {
             addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
             addImagesAdvancedDiv.appendChild(document.createElement('br'))
 
-            h5 = document.createElement('h5')
-            h5.setAttribute('style','margin-bottom: 2px')
-            h5.innerHTML = 'Ignore Small Detections'
-            addImagesAdvancedDiv.appendChild(h5)
-        
-            div = document.createElement('div')
-            div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            div.innerHTML = '<i>Filters out triggers from small animals like birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
-            addImagesAdvancedDiv.appendChild(div)
-
             row = document.createElement('div')
             row.setAttribute('class','row')
             addImagesAdvancedDiv.appendChild(row)
 
-            col = document.createElement('div')
-            col.setAttribute('class','col-lg-12')
-            row.appendChild(col)
+            h5 = document.createElement('h5')
+            h5.setAttribute('style','padding-top: 15px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
+            h5.innerHTML = 'Ignore Small Detections'
+            row.appendChild(h5)
+
+            div = document.createElement('div')
+            div.setAttribute('class','custom-control custom-checkbox')
+            row.appendChild(div)
 
             input = document.createElement('input')
             input.setAttribute('type','checkbox')
             input.classList.add('custom-control-input')
             input.setAttribute('id','smallDetectionsCheckbox')
             input.setAttribute('name','smallDetectionsCheckbox')
-            col.appendChild(input)
+            div.appendChild(input)
 
             if (reply.smallDetections=='True') {
                 input.checked = true
@@ -1720,34 +1706,34 @@ function buildAdvancedOptions() {
             label.classList.add('custom-control-label')
             label.setAttribute('for','smallDetectionsCheckbox')
             // label.innerHTML = 'Ignore Small Detections'
-            col.appendChild(label)
-
-            addImagesAdvancedDiv.appendChild(document.createElement('br'))
-
-            h5 = document.createElement('h5')
-            h5.setAttribute('style','margin-bottom: 2px')
-            h5.innerHTML = 'Mask Sky Detections'
-            addImagesAdvancedDiv.appendChild(h5)
+            div.appendChild(label)
         
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
+            div.innerHTML = '<i>Filters out triggers from small animals like birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
             addImagesAdvancedDiv.appendChild(div)
+
+            addImagesAdvancedDiv.appendChild(document.createElement('br'))
 
             row = document.createElement('div')
             row.setAttribute('class','row')
             addImagesAdvancedDiv.appendChild(row)
 
-            col = document.createElement('div')
-            col.setAttribute('class','col-lg-12')
-            row.appendChild(col)
+            h5 = document.createElement('h5')
+            h5.setAttribute('style','padding-top: 15px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
+            h5.innerHTML = 'Mask Sky Detections'
+            row.appendChild(h5)
+
+            div = document.createElement('div')
+            div.setAttribute('class','custom-control custom-checkbox')
+            row.appendChild(div)
 
             input = document.createElement('input')
             input.setAttribute('type','checkbox')
             input.classList.add('custom-control-input')
             input.setAttribute('id','skyMaskCheckbox')
             input.setAttribute('name','skyMaskCheckbox')
-            col.appendChild(input)
+            div.appendChild(input)
 
             if (reply.skyMask=='True') {
                 input.checked = true
@@ -1757,7 +1743,12 @@ function buildAdvancedOptions() {
             label.classList.add('custom-control-label')
             label.setAttribute('for','skyMaskCheckbox')
             // label.innerHTML = 'Mask Sky Detections'
-            col.appendChild(label)
+            div.appendChild(label)
+        
+            div = document.createElement('div')
+            div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
+            addImagesAdvancedDiv.appendChild(div)
         }
     }
     xhttp.send();
