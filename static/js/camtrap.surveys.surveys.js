@@ -1694,7 +1694,7 @@ function buildAdvancedOptions() {
         
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            div.innerHTML = '<i>Useful for filtering-out triggers from small animals like birds.</i>'
+            div.innerHTML = '<i>Filters out triggers from small animals like birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
             addImagesAdvancedDiv.appendChild(div)
 
             row = document.createElement('div')
@@ -1716,11 +1716,11 @@ function buildAdvancedOptions() {
                 input.checked = true
             }
         
-            // label = document.createElement('label')
-            // label.classList.add('custom-control-label')
-            // label.setAttribute('for','smallDetectionsCheckbox')
+            label = document.createElement('label')
+            label.classList.add('custom-control-label')
+            label.setAttribute('for','smallDetectionsCheckbox')
             // label.innerHTML = 'Ignore Small Detections'
-            // row.appendChild(label)
+            row.appendChild(label)
 
             addImagesAdvancedDiv.appendChild(document.createElement('br'))
 
@@ -1731,7 +1731,7 @@ function buildAdvancedOptions() {
         
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds.</i>'
+            div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds. Improves system performance for waterhole cameras in exchange for some reduced recall.</i>'
             addImagesAdvancedDiv.appendChild(div)
 
             row = document.createElement('div')
@@ -1753,11 +1753,11 @@ function buildAdvancedOptions() {
                 input.checked = true
             }
         
-            // label = document.createElement('label')
-            // label.classList.add('custom-control-label')
-            // label.setAttribute('for','skyMaskCheckbox')
+            label = document.createElement('label')
+            label.classList.add('custom-control-label')
+            label.setAttribute('for','skyMaskCheckbox')
             // label.innerHTML = 'Mask Sky Detections'
-            // row.appendChild(label)
+            row.appendChild(label)
         }
     }
     xhttp.send();
