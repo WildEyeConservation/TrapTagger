@@ -267,11 +267,11 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>What would you like to edit?</i></div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesAddImages" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesAddImages">Add Images</label>
+                        <label class="custom-control-label" for="addImagesAddImages">Images</label>
                     </div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesAddCoordinates" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesAddCoordinates">Add Coordinates</label>
+                        <label class="custom-control-label" for="addImagesAddCoordinates">Coordinates</label>
                     </div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesEditTimestamps" name="editSelection" value="customEx">
@@ -2010,53 +2010,53 @@ limitations under the License. -->
                     addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
                 } else {
                     var reader = new FileReader()
-                reader.addEventListener('load', (event) => {
-                    kmldata = event.target.result
+                    reader.addEventListener('load', (event) => {
+                        kmldata = event.target.result
 
-                    if (!document.getElementById('addImagesAddImages').checked) {
-                        var xhttp = new XMLHttpRequest();
-                        xhttp.open("GET", '/getSurveyTGcode/'+surveyName);
-                        xhttp.onreadystatechange =
-                        function(){
-                            if (this.readyState == 4 && this.status == 200) {
-                                regex = JSON.parse(this.responseText);                      
-                                if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
-                                    var formData = new FormData()
-                                    formData.append("kml", kmlFileUpload.files[0])
+                        if (!document.getElementById('addImagesAddImages').checked) {
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.open("GET", '/getSurveyTGcode/'+surveyName);
+                            xhttp.onreadystatechange =
+                            function(){
+                                if (this.readyState == 4 && this.status == 200) {
+                                    regex = JSON.parse(this.responseText);                      
+                                    if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
+                                        var formData = new FormData()
+                                        formData.append("kml", kmlFileUpload.files[0])
 
-                                    if (document.getElementById('addImagesEditTimestamps').checked) {
-                                        formData.append("timestamps", JSON.stringify(timestampData))
+                                        if (document.getElementById('addImagesEditTimestamps').checked) {
+                                            formData.append("timestamps", JSON.stringify(timestampData))
+                                        }
+
+                                        addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                                    } else {
+                                        document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
                                     }
 
-                                    addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
-                                } else {
-                                    document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                                }
+                            }
+                            xhttp.send();
+                        } else {
+                            if (addImagesCheckboxChecked==true) {
+                                regex = addImagesTGCode
+                            } else {
+                                regex = addImagesTGCode + '[0-9]+'
+                            }
+                            if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
+                                var formData = new FormData()
+                                formData.append("kml", kmlFileUpload.files[0])
+                                
+                                if (document.getElementById('addImagesEditTimestamps').checked) {
+                                    formData.append("timestamps", JSON.stringify(timestampData))
                                 }
 
+                                addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                            } else {
+                                document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
                             }
                         }
-                        xhttp.send();
-                    } else {
-                        if (addImagesCheckboxChecked==true) {
-                            regex = addImagesTGCode
-                        } else {
-                            regex = addImagesTGCode + '[0-9]+'
-                        }
-                        if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
-                            var formData = new FormData()
-                            formData.append("kml", kmlFileUpload.files[0])
-                            
-                            if (document.getElementById('addImagesEditTimestamps').checked) {
-                                formData.append("timestamps", JSON.stringify(timestampData))
-                            }
-
-                            addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
-                        } else {
-                            document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
-                        }
-                    }
-                });
-                reader.readAsText(kmlFileUpload.files[0])
+                    });
+                    reader.readAsText(kmlFileUpload.files[0])
                 }
             } else {
                 var formData = new FormData()
@@ -2122,6 +2122,8 @@ limitations under the License. -->
                             document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
                         } else if (document.getElementById('addImagesEditTimestamps').checked) {
                             document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
+                        } else if (document.getElementById('addCoordinatesManualMethod').checked) {
+                            document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
                         } else {
                             document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being imported.'
                         }

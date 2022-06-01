@@ -286,7 +286,7 @@ function buildSurveys(survey,disableSurvey) {
 
     infoElementFiller = document.createElement('div')
     infoElementFiller.classList.add('col-lg-10');
-    if (!['',' ','null','None'].includes(survey.description)) {
+    if (!['',' ','null','None',null].includes(survey.description)) {
         infoElementFiller.setAttribute("style","font-size: 80%")
         infoElementFiller.innerHTML = 'Description: ' + survey.description
     }
@@ -1503,6 +1503,7 @@ function buildManualCoords() {
             reply = JSON.parse(this.responseText);
             
             addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+            addImsCoordsDiv.appendChild(document.createElement('br'))
             
             headingRow = document.createElement('div')
             headingRow.setAttribute('class','row')
@@ -1585,6 +1586,8 @@ function buildCoordsOptions() {
     while(addImagesAddCoordsDiv.firstChild){
         addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
     }
+
+    addImagesAddCoordsDiv.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
