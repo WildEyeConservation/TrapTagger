@@ -1695,7 +1695,7 @@ function buildAdvancedOptions() {
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             div.innerHTML = '<i>Useful for filtering-out triggers from small animals like birds.</i>'
-            addImagesAdvancedDiv.appendChild(div2)
+            addImagesAdvancedDiv.appendChild(div)
 
             row = document.createElement('div')
             row.setAttribute('class','row')
@@ -1732,7 +1732,7 @@ function buildAdvancedOptions() {
             div = document.createElement('div')
             div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds.</i>'
-            addImagesAdvancedDiv.appendChild(div2)
+            addImagesAdvancedDiv.appendChild(div)
 
             row = document.createElement('div')
             row.setAttribute('class','row')
