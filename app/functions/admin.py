@@ -1072,10 +1072,6 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
     try:
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Processing'
-        if ignore_small_detections=='true':
-            survey.ignore_small_detections = True
-        else:
-            survey.ignore_small_detections = False
         db.session.commit()
 
         dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
@@ -1114,6 +1110,10 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
+        if ignore_small_detections=='true':
+            survey.ignore_small_detections = True
+        else:
+            survey.ignore_small_detections = False
         db.session.commit()
 
     except Exception as exc:
@@ -1136,10 +1136,6 @@ def maskSky(self,survey_id,sky_masked,edge):
     try:
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Processing'
-        if sky_masked=='true':
-            survey.sky_masked = True
-        else:
-            survey.sky_masked = False
         db.session.commit()
 
         # Don't edit the Detection.status != 'deleted' line
@@ -1178,6 +1174,10 @@ def maskSky(self,survey_id,sky_masked,edge):
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
+        if sky_masked=='true':
+            survey.sky_masked = True
+        else:
+            survey.sky_masked = False
         db.session.commit()
 
     except Exception as exc:
