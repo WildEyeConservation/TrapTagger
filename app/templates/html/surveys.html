@@ -1896,7 +1896,7 @@ limitations under the License. -->
         if (document.getElementById('addImagesAddCoordinates').checked) {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 coordData = []
-                allTimestamps = document.querySelectorAll('[id^=latittude-]');
+                allTimestamps = document.querySelectorAll('[id^=latitude-]');
                 for (tg=0;tg<allTimestamps.length;tg++) {
                     item = allTimestamps[tg]
                     tag = item.id.split("latittude-")[item.id.split("latittude-").length-1]
