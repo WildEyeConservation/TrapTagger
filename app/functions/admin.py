@@ -752,16 +752,17 @@ def updateCoords(self,survey_id,coordData):
     '''Updates the survey's trapgroup coordinates.'''
 
     try:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         for item in coordData:
-            app.logger.info(item['tag'])
+            print(item['tag'])
             trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==item['tag']).first()
             if trapgroup:
                 try:
-                    app.logger.info(item['latitude'])
+                    print(item['latitude'])
                     trapgroup.latitude = float(item['latitude'])
-                    app.logger.info(item['longitude'])
+                    print(item['longitude'])
                     trapgroup.longitude = float(item['longitude'])
-                    app.logger.info(item['altitude'])
+                    print(item['altitude'])
                     trapgroup.altitude = float(item['altitude'])
                     db.session.commit()
                 except:
