@@ -56,7 +56,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                             .filter(Labelgroup.labels.contains(label))\
                             .filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
 
         if len(queryDetections) != 0:
@@ -67,7 +67,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                             .filter(Labelgroup.labels.contains(label))\
                             .filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
 
             if algorithm == 'hotspotter':
@@ -124,7 +124,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                                     .filter(Labelgroup.labels.contains(label))\
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
 
                     # Annotations
@@ -197,7 +197,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                                                     .filter(Labelgroup.labels.contains(label))\
                                                     .filter(Detection.score > 0.8) \
                                                     .filter(Detection.static == False) \
-                                                    .filter(Detection.status!='deleted') \
+                                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                     .filter(~Detection.id.in_(covered_detections))\
                                                     .filter(Detection.id!=detection1_id)\
                                                     .distinct().all()
@@ -235,7 +235,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                                     .filter(Labelgroup.labels.contains(label))\
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
 
                 for queryDetection in queryDetections:
@@ -396,14 +396,14 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                                                 .filter(Detection.individuals.contains(individual1))\
                                                 .filter(Detection.score > 0.8) \
                                                 .filter(Detection.static == False) \
-                                                .filter(Detection.status!='deleted') \
+                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                 .all()
 
                         detections2 = db.session.query(Detection)\
                                                 .filter(Detection.individuals.contains(individual2))\
                                                 .filter(Detection.score > 0.8) \
                                                 .filter(Detection.static == False) \
-                                                .filter(Detection.status!='deleted') \
+                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                 .all()
 
                         max_similarity = 0

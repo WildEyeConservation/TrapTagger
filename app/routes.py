@@ -134,7 +134,7 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
                                     .filter(Individual.task_id==task_id)\
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
 
                 cluster_count = db.session.query(Cluster)\
@@ -148,7 +148,7 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
                                     .filter(~Detection.id.in_([r.id for r in identified]))\
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().count()
 
             elif tL[0] == '-5':
@@ -166,7 +166,7 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
             cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().count()
 
         if cluster_count == 0:
@@ -360,7 +360,7 @@ def updateTaskProgressBar(tskd):
             remaining = sq.filter(Cluster.task_id == task_id) \
                             .filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct(Cluster.id).count()
 
         completed = total-remaining
@@ -440,7 +440,7 @@ def getIndividuals(task_id,species_id):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .order_by(desc(Image.detection_rating)).first()
             reply.append({
                             'id': individual.id,
@@ -492,7 +492,7 @@ def removeImageFromIndividual(individual_id,image_id):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .first()
 
         if detection:
@@ -517,7 +517,7 @@ def getIndividual(individual_id):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .order_by(desc(Image.detection_rating)).all()
 
         for image in images:
@@ -526,7 +526,7 @@ def getIndividual(individual_id):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .first()
 
             reply.append({
@@ -658,7 +658,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                         .filter(Cluster.task_id==task_id) \
                         .filter(Detection.score > 0.8) \
                         .filter(Detection.static==False) \
-                        .filter(Detection.status!='deleted') \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .filter(subq.c.labelCount>1).first()
 
         if checked or (uncheckedMulti == None):
@@ -684,7 +684,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                             .filter(Labelgroup.checked==False) \
                             .filter(Detection.static==False) \
                             .filter(Detection.score > 0.8) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .first()
             if check==None:
                 colours.append('#0A7850')
@@ -703,7 +703,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
         
-        check = db.session.query(Cluster).join(Image, Cluster.images).join(Detection).filter(Cluster.task_id==int(task_id)).filter(~Cluster.labels.any()).filter(Detection.static==False).filter(Detection.score>0.8).filter(Detection.status!='deleted').first()
+        check = db.session.query(Cluster).join(Image, Cluster.images).join(Detection).filter(Cluster.task_id==int(task_id)).filter(~Cluster.labels.any()).filter(Detection.static==False).filter(Detection.score>0.8).filter(~Detection.status.in_(['deleted','hidden'])).first()
         if check != None:
             colours = ['#000000']
         else:
@@ -743,7 +743,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                         .filter(~Cluster.tags.any())\
                         .filter(Detection.static==False)\
                         .filter(Detection.score>0.8)\
-                        .filter(Detection.status!='deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .first()
         if check != None:
             colours = ['#000000']
@@ -954,7 +954,7 @@ def checkSightingEditStatus(task_id, species):
                         .filter(Labelgroup.checked==False) \
                         .filter(Detection.score > 0.8) \
                         .filter(Detection.static==False) \
-                        .filter(Detection.status!='deleted') \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .filter(subq.c.labelCount>1).first()
 
         if test1:
@@ -966,7 +966,7 @@ def checkSightingEditStatus(task_id, species):
                             .filter(Labelgroup.task_id==task_id) \
                             .filter(Labelgroup.checked==False) \
                             .filter(Detection.score > 0.8) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .filter(Detection.static==False)
 
             if species not in ['All','None','']:
@@ -1062,7 +1062,7 @@ def imageViewer():
                                         'individual': '-1',
                                         'static': detection.static}
                                         for detection in image.detections
-                                        if ((detection.score > 0.8) and (detection.status != 'deleted') and (detection.static == False) and (include_detections.lower()=='true')) ]}
+                                        if ((detection.score > 0.8) and (detection.status not in ['deleted','hidden']) and (detection.static == False) and (include_detections.lower()=='true')) ]}
                 for image in reqImages]
 
         result = json.dumps([{'id': '-444','classification': ['None'],'required': [], 'images': images, 'label': ['None'], 'tags': ['None'], 'groundTruth': [], 'trapGroup': 'None'}])
@@ -1387,6 +1387,16 @@ def generateTraingCSV():
 
     return json.dumps({'status': status, 'message': message})
 
+@app.route('/getAdvancedOptions/<survey_id>')
+@login_required
+def getAdvancedOptions(survey_id):
+    '''Returns the advanced options settings for the specified survey.'''
+    reply = 'error'
+    survey = db.session.query(Survey).get(int(survey_id))
+    if survey and survey.user==current_user:
+        reply = {'smallDetections': str(survey.ignore_small_detections),'skyMask': str(survey.sky_masked)}
+    return json.dumps(reply)
+
 @app.route('/getSurveyTGcode/<surveyName>')
 @login_required
 def getSurveyTGcode(surveyName):
@@ -1398,9 +1408,9 @@ def getSurveyTGcode(surveyName):
     else:
         return json.dumps('error')
 
-@app.route('/editSurvey/<surveyName>/<newSurveyTGCode>/<newSurveyS3Folder>/<checkbox>', methods=['POST'])
+@app.route('/editSurvey/<surveyName>/<newSurveyTGCode>/<newSurveyS3Folder>/<checkbox>/<ignore_small_detections>/<sky_masked>', methods=['POST'])
 @login_required
-def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox):
+def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox, ignore_small_detections, sky_masked):
     '''
     Edits the specified survey by doing one of the following: adds images, edit timestamps, or import kml. Returns success/error status and associated message.
     
@@ -1409,14 +1419,27 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox):
             newSurveyTGCode (str): Trapgroup code for adding images
             newSurveyS3Folder (str): Folder where additional images should be found
             checkbox (str): Whether or not the trapgroup code is an advanced code or not
+            ignore_small_detections (str): The desired status as to whether small detections should be ignored. Ignored if none
+            sky_masked (str): The desired status as to whether the sky should be masked. Ignored if none
             timestamps (dict): Optional formData dictionary with timestamop corrections
             kml (file): Optional kml file to be imported
+            coordData (list): Optional formData list of trapgrorups and their coordinates from the manual editor
     '''
     
     status = 'success'
     message = ''
 
-    if 'timestamps' in request.form:
+    if ignore_small_detections!='none':
+        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
+        
+        if survey and (survey.user==current_user):
+            if str(survey.ignore_small_detections).lower() != ignore_small_detections:
+                hideSmallDetections.delay(survey_id=survey.id,ignore_small_detections=ignore_small_detections)
+
+            if str(survey.sky_masked).lower() != sky_masked:
+                maskSky.delay(survey_id=survey.id,sky_masked=sky_masked)
+
+    elif 'timestamps' in request.form:
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
         if survey and (survey.user==current_user):
             survey.status = 'Processing'
@@ -1586,7 +1609,7 @@ def getPolarData(task_id, trapgroup_id, species_id, baseUnit, reqID):
             baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup)
         elif baseUnit == '3':
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
-        baseQuery = baseQuery.join(Camera).join(Trapgroup).filter(Labelgroup.task_id==task_id).filter(Detection.score > 0.8).filter(Detection.static==False).filter(Detection.status!='deleted')
+        baseQuery = baseQuery.join(Camera).join(Trapgroup).filter(Labelgroup.task_id==task_id).filter(Detection.score > 0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden']))
 
         if trapgroup_id == '0':
             baseQuery = baseQuery.filter(Trapgroup.survey_id==task.survey_id)
@@ -1632,7 +1655,7 @@ def getBarData(task_id, species_id, baseUnit, axis):
             baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup)
         elif baseUnit == '3':
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
-        baseQuery = baseQuery.join(Camera).join(Trapgroup).filter(Labelgroup.task_id==task_id).filter(Detection.score > 0.8).filter(Detection.static==False).filter(Detection.status!='deleted')
+        baseQuery = baseQuery.join(Camera).join(Trapgroup).filter(Labelgroup.task_id==task_id).filter(Detection.score > 0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden']))
 
         if species_id != '0':
             label = db.session.query(Label).get(int(species_id))
@@ -1704,8 +1727,8 @@ def getDetailedTaskStatus(task_id):
             reply['data'] = {}
             reply['data']['images'] = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct(Image.id).count()
             reply['data']['clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
-            reply['data']['detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status!='deleted').distinct(Labelgroup.id).count()
-            reply['data']['checked_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status!='deleted').filter(Labelgroup.checked==True).distinct(Labelgroup.id).count()
+            reply['data']['detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).distinct(Labelgroup.id).count()
+            reply['data']['checked_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).filter(Labelgroup.checked==True).distinct(Labelgroup.id).count()
             
             reply['data']['deleted_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='deleted').distinct(Labelgroup.id).count()
             reply['data']['added_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='added').distinct(Labelgroup.id).count()
@@ -1722,7 +1745,7 @@ def getDetailedTaskStatus(task_id):
                                         .filter(~Cluster.labels.any())\
                                         .filter(Detection.score>0.8)\
                                         .filter(Detection.static==False)\
-                                        .filter(Detection.status!='deleted')\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
                                         .first()
 
             initial_tagged = db.session.query(Cluster)\
@@ -1733,7 +1756,7 @@ def getDetailedTaskStatus(task_id):
                                         .filter(Cluster.user_id!=1)\
                                         .filter(Detection.score>0.8)\
                                         .filter(Detection.static==False)\
-                                        .filter(Detection.status!='deleted')\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
                                         .first()
 
             test1 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(label)).first()
@@ -2243,7 +2266,7 @@ def getTaskCompletionStatus(task_id):
                         .filter(~Cluster.labels.any())\
                         .filter(Detection.score>0.8)\
                         .filter(Detection.static==False)\
-                        .filter(Detection.status!='deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .first()
 
         if check:
@@ -3094,7 +3117,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
                                     .filter(Detection.image_id==image.id)\
                                     .filter(Detection.individuals.contains(individual1))\
                                     .filter(Detection.score>0.8)\
-                                    .filter(Detection.status!='deleted')\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Detection.static==False)\
                                     .first()
 
@@ -3499,7 +3522,7 @@ def getSuggestion(individual_id):
                                     'static': detection.static}
                                     for detection in image.detections if (
                                             (detection.score > 0.8) and 
-                                            (detection.status != 'deleted') and 
+                                            (detection.status not in ['deleted','hidden']) and 
                                             (detection.static == False) and 
                                             (individual in detection.individuals[:])
                                     )]}
@@ -3904,7 +3927,7 @@ def get_clusters():
                                     .filter(Detection.image_id==image.id)\
                                     .filter(Detection.individuals.contains(cluster))\
                                     .filter(Detection.score>0.8)\
-                                    .filter(Detection.status!='deleted')\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Detection.static==False)\
                                     .first()
 
@@ -3955,7 +3978,7 @@ def get_clusters():
                                         .join(Individual,Detection.individuals)\
                                         .filter(Detection.image_id==image.id)\
                                         .filter(Detection.score>0.8)\
-                                        .filter(Detection.status!='deleted')\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
                                         .filter(Detection.static==False)\
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(Labelgroup.labels.contains(label))\
@@ -3967,7 +3990,7 @@ def get_clusters():
                                         .join(Labelgroup)\
                                         .filter(Detection.image_id==image.id)\
                                         .filter(Detection.score>0.8)\
-                                        .filter(Detection.status!='deleted')\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
                                         .filter(Detection.static==False)\
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(Labelgroup.labels.contains(label))\
@@ -4003,7 +4026,7 @@ def get_clusters():
                                         'individual': '-1',
                                         'static': detection.static}
                                         for detection in image.detections
-                                        if ((detection.score > 0.8) and (detection.status != 'deleted') and (detection.static == False)) ]}
+                                        if ((detection.score > 0.8) and (detection.status not in ['deleted','hidden']) and (detection.static == False)) ]}
                         for image in sortedImages]
 
             if isBounding:
@@ -4079,7 +4102,7 @@ def getImage():
                                 'individual': '-1',
                                 'static': detection.static}
                                 for detection in image.detections
-                                if ((detection.score > 0.8) and (detection.status != 'deleted')) ]}] #and (detection.static == False)
+                                if ((detection.score > 0.8) and (detection.status not in ['deleted','hidden'])) ]}] #and (detection.static == False)
 
         GTtask = GLOBALS.ground_truths[str(current_user.id)]['ground']
         otherTask = GLOBALS.ground_truths[str(current_user.id)]['other']
@@ -4250,7 +4273,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                     'individual': '-1',
                                     'static': detection.static}
                                     for detection in image.detections
-                                    if ((detection.score > 0.8) and (detection.status != 'deleted')) ]}
+                                    if ((detection.score > 0.8) and (detection.status not in ['deleted','hidden'])) ]}
                     for image in sortedImages]
 
             for n in range(len(images)):
@@ -4299,7 +4322,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().count()
 
             finished = False
@@ -4497,7 +4520,7 @@ def getTrapgroupCounts(task_id,species,baseUnit):
             baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup)
         elif int(baseUnit) == 3:
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
-        baseQuery = baseQuery.join(Camera).filter(Labelgroup.task_id==task_id).filter(Detection.score > 0.8).filter(Detection.static==False).filter(Detection.status!='deleted')
+        baseQuery = baseQuery.join(Camera).filter(Labelgroup.task_id==task_id).filter(Detection.score > 0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden']))
 
         if species != '0':
             label = db.session.query(Label).get(int(species))
@@ -5363,7 +5386,7 @@ def editSightings(image_id,task_id):
                                             .filter(Labelgroup.checked==False) \
                                             .filter(Detection.static==False) \
                                             .filter(Detection.score>0.8) \
-                                            .filter(Detection.status!='deleted') \
+                                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                                             .first()
 
                 if clusterDetections == None:
@@ -5378,7 +5401,7 @@ def editSightings(image_id,task_id):
                                                 .filter(Labelgroup.checked==True) \
                                                 .filter(Detection.static==False) \
                                                 .filter(Detection.score>0.8) \
-                                                .filter(Detection.status!='deleted') \
+                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                 .distinct(Label.id).all()
                                             
                     cluster.labels = detectionLabels

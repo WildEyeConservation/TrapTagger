@@ -45,7 +45,7 @@ def required_images(cluster,relevent_classifications,transDict):
                         .filter(Image.clusters.contains(cluster))\
                         .filter(Detection.score>0.8)\
                         .filter(Detection.static==False)\
-                        .filter(Detection.status!='deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Detection.class_score>Config.CLASS_SCORE)\
                         .filter(Detection.classification!=None)\
                         .filter(Detection.classification.in_(relevent_classifications))\
@@ -60,7 +60,7 @@ def required_images(cluster,relevent_classifications,transDict):
                     .filter(Detection.image_id==image.id)\
                     .filter(Detection.score>0.8)\
                     .filter(Detection.static==False)\
-                    .filter(Detection.status!='deleted')\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
                     .filter(Detection.class_score>Config.CLASS_SCORE)\
                     .filter(Detection.classification!=None)\
                     .filter(Detection.classification.in_(relevent_classifications))\
@@ -96,7 +96,7 @@ def prep_required_images(task_id):
     clusters = sq.filter(Cluster.task_id == int(task_id)) \
                             .filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
 
     if len(clusters) != 0:
@@ -227,7 +227,7 @@ def launchTask(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(Detection.score > 0.8) \
                                         .filter(Detection.static == False) \
-                                        .filter(Detection.status!='deleted') \
+                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                                         .filter(Cluster.task_id==task_id)\
                                         .group_by(Cluster.id)\
                                         .subquery()
@@ -239,7 +239,7 @@ def launchTask(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(Detection.score > 0.8) \
                                         .filter(Detection.static == False) \
-                                        .filter(Detection.status!='deleted') \
+                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                                         .filter(Individual.label==label)\
                                         .filter(Individual.task_id==task_id)\
                                         .distinct().all()
@@ -251,7 +251,7 @@ def launchTask(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(Detection.score > 0.8) \
                                         .filter(Detection.static == False) \
-                                        .filter(Detection.status!='deleted') \
+                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                                         .filter(~Detection.id.in_([r.id for r in exclude]))\
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
@@ -281,7 +281,7 @@ def launchTask(self,task_id):
                                     .filter(Individual.task_id==task_id)\
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
 
                 unidentified = db.session.query(Cluster)\
@@ -295,7 +295,7 @@ def launchTask(self,task_id):
                                     .filter(~Detection.id.in_([r.id for r in identified]))\
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status!='deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
 
                 for cluster in unidentified:
@@ -409,7 +409,7 @@ def launchTask(self,task_id):
                                         .filter(Cluster.task_id == task_id) \
                                         .filter(Detection.score > 0.8) \
                                         .filter(Detection.static == False) \
-                                        .filter(Detection.status!='deleted') \
+                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                                         .distinct().count()
 
             if clusterCount == 0:
@@ -563,7 +563,7 @@ def manageTasks():
 
                 max_workers_possible = sq.filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status!='deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .group_by(Trapgroup.id) \
                                 .count()
 
@@ -618,7 +618,7 @@ def manageTasks():
                 num_clusters = sq.filter(Cluster.task_id == task_id) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status!='deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .distinct(Cluster.id).count()
 
             if max_workers_possible != 1:
@@ -787,7 +787,7 @@ def manageTasks():
 
                         trapgroups = sq.filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .group_by(Trapgroup.id) \
                             .order_by(func.count(distinct(Cluster.id)).desc()) \
                             .all()
@@ -956,7 +956,7 @@ def allocate_new_trapgroup(task_id,user_id):
 
         trapgroup = sq.filter(Detection.score > 0.8) \
                         .filter(Detection.static == False) \
-                        .filter(Detection.status!='deleted') \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .group_by(Trapgroup.id) \
                         .order_by(func.count(distinct(Cluster.id)).desc()) \
                         .first()
@@ -1028,7 +1028,7 @@ def allocate_new_trapgroup(task_id,user_id):
 
             trapgroups = sq.filter(Detection.score > 0.8) \
                 .filter(Detection.static == False) \
-                .filter(Detection.status!='deleted') \
+                .filter(~Detection.status.in_(['deleted','hidden'])) \
                 .group_by(Trapgroup.id) \
                 .order_by(func.count(distinct(Cluster.id)).desc()) \
                 .all()
@@ -1132,7 +1132,7 @@ def allocate_new_trapgroup(task_id,user_id):
 
                 trapgroup = sq.filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status!='deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .group_by(Trapgroup.id) \
                             .order_by(func.count(distinct(Cluster.id)).desc()) \
                             .first()
@@ -1228,7 +1228,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                                 .filter(Cluster.task_id == task_id) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status!='deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp)) \
                                 .distinct().limit(limit).all()
 

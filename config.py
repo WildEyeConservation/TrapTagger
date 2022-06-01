@@ -29,6 +29,7 @@ class Config(object):
     QUEUE = os.environ.get('QUEUE')
     BUCKET_ROOT = os.environ.get('BUCKET_ROOT')
     SKIP_ID = -117
+    SKY_CONST = 0.33
 
     # SQLAlchemy Config
     SECRET_KEY = os.environ.get('SECRET_KEY')

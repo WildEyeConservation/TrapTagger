@@ -277,10 +277,15 @@ limitations under the License. -->
                         <input type="radio" class="custom-control-input" id="addImagesEditTimestamps" name="editSelection" value="customEx">
                         <label class="custom-control-label" for="addImagesEditTimestamps">Camera Timestamps</label>
                     </div>
+                    <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="addImagesAdvanced" name="editSelection" value="customEx">
+                        <label class="custom-control-label" for="addImagesAdvanced">Advanced Options</label>
+                    </div>
     
                     <div id="addImagesAddImsDiv"></div>
                     <div id="addImagesAddCoordsDiv"></div>
                     <div id="addImagesEditTimestampsDiv"></div>
+                    <div id="addImagesAdvancedDiv"></div>
 
                 </div>
           
@@ -2072,8 +2077,16 @@ limitations under the License. -->
 
     function addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckbox) {
         /** Submits the add-images request to the server, and begins the browser upload if necessary. */
+
+        ignore_small_detections= 'none'
+        sky_masked = 'none'
+        if (document.getElementById('smallDetectionsCheckbox')!=null) {
+            ignore_small_detections = document.getElementById('smallDetectionsCheckbox').checked.toString()
+            sky_masked = document.getElementById('skyMaskCheckbox').checked.toString()
+        }
+
         var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/editSurvey/'+surveyName+'/'+addImagesTGCode+'/'+addImagesS3Folder+'/'+addImagesCheckbox);
+        xhttp.open("POST", '/editSurvey/'+surveyName+'/'+addImagesTGCode+'/'+addImagesS3Folder+'/'+addImagesCheckbox+'/'+ignore_small_detections+'/'+sky_masked);
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
@@ -2124,6 +2137,8 @@ limitations under the License. -->
                             document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
                         } else if (document.getElementById('addCoordinatesManualMethod').checked) {
                             document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
+                        } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
+                            document.getElementById('modalAlertBody').innerHTML = 'Your survey options are being updated.'
                         } else {
                             document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being imported.'
                         }

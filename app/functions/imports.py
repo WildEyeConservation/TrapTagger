@@ -285,7 +285,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                                 .filter(Detection.image_id==image.id)\
                                 .filter(Detection.score>0.8)\
                                 .filter(Detection.static==False)\
-                                .filter(Detection.status!='deleted')\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
                                 .filter(func.lower(Detection.classification)!='nothing')\
                                 .all()
 
@@ -749,7 +749,7 @@ def removeHumans(task):
                                   .join('image', 'clusters')\
                                   .filter(Detection.score>0.8)\
                                   .filter(Detection.static==False)\
-                                  .filter(Detection.status!='deleted')\
+                                  .filter(~Detection.status.in_(['deleted','hidden']))\
                                   .filter(~Cluster.labels.any())\
                                   .filter(Cluster.task_id==task.id)\
                                   .group_by(Cluster)
@@ -1051,7 +1051,7 @@ def classifier_batching(chunk,sourceBucket):
                                     .filter(Detection.image_id==int(image_id))\
                                     .filter(Detection.score>0.8)\
                                     .filter(Detection.static==False)\
-                                    .filter(Detection.status!='deleted')\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
                                     .all()
@@ -1121,7 +1121,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(Detection.score>0.8)\
                         .filter(Detection.static==False)\
-                        .filter(Detection.status!='deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .order_by(Image.id).distinct().all()]
 
         batch = images[lower_index:upper_index]
@@ -1531,7 +1531,7 @@ def classifyCluster(cluster,classifications,dimensionSQ):
                             .filter(Detection.class_score>Config.CLASS_SCORE) \
                             .filter(Detection.score > 0.8) \
                             .filter(Detection.static == False) \
-                            .filter(Detection.status != 'deleted') \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .filter(dimensionSQ.c.area > Config.DET_AREA) \
                             .filter(Detection.classification==classification) \
                             .distinct(Detection.id).count()
@@ -1571,7 +1571,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
                                             .filter(Detection.class_score>Config.CLASS_SCORE) \
                                             .filter(Detection.score > 0.8) \
                                             .filter(Detection.static == False) \
-                                            .filter(Detection.status != 'deleted') \
+                                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                                             .filter(Image.clusters.contains(cluster))\
                                             .distinct().all()
                 classifications = [r[0] for r in classifications if r[0]!=None]
@@ -1599,7 +1599,7 @@ def single_cluster_classification(cluster):
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status != 'deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(Image.clusters.contains(cluster))\
                                 .distinct().all()
     classifications = [r[0] for r in classifications if r[0]!=None]
@@ -1714,7 +1714,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(Detection.score>0.8)\
                         .filter(Detection.static==False)\
-                        .filter(Detection.status!='deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .distinct().count()
 
     chunk_size = round(Config.QUEUES['parallel']['bin_size']/2)
@@ -1751,7 +1751,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(or_(Detection.left==Detection.right,Detection.top==Detection.bottom))\
                             .all()
 

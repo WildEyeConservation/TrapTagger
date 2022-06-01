@@ -1478,17 +1478,7 @@ $("#addImagesAddImages").change( function() {
 
     addImagesAddImages = document.getElementById('addImagesAddImages')
     if (addImagesAddImages.checked) {
-
-        addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
-        while(addImagesAddCoordsDiv.firstChild){
-            addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
-        }
-
-        addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
-        while(addImagesEditTimestampsDiv.firstChild){
-            addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
-        }
-
+        clearEditSurveyModal()
         buildAddIms()
     }
 })
@@ -1660,23 +1650,100 @@ function buildCoordsOptions() {
     addImagesAddCoordsDiv.appendChild(addImsCoordsDiv)
 }
 
+function clearEditSurveyModal() {
+    /** Clears the edit survey modal */
+    
+    addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv') 
+    while(addImagesAddImsDiv.firstChild){
+        addImagesAddImsDiv.removeChild(addImagesAddImsDiv.firstChild);
+    }
+
+    addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
+    while(addImagesEditTimestampsDiv.firstChild){
+        addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
+    }
+
+    addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
+    while(addImagesAddCoordsDiv.firstChild){
+        addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
+    }
+
+    addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
+    while(addImagesAdvancedDiv.firstChild){
+        addImagesAdvancedDiv.removeChild(addImagesAdvancedDiv.firstChild);
+    }
+}
+
+function buildAdvancedOptions() {
+    /** Builds the advanced options for the edit survey modal. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("GET", '/getAdvancedOptions/'+selectedSurvey);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            
+            addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
+            addImagesAdvancedDiv.appendChild(document.createElement('br'))
+
+            input = document.createElement('input')
+            input.setAttribute('type','checkbox')
+            input.classList.add('custom-control-input')
+            input.setAttribute('id','smallDetectionsCheckbox')
+            input.setAttribute('name','smallDetectionsCheckbox')
+            addImagesAdvancedDiv.appendChild(input)
+
+            if (reply.smallDetections=='True') {
+                input.checked = true
+            }
+        
+            label = document.createElement('label')
+            label.classList.add('custom-control-label')
+            label.setAttribute('for','smallDetectionsCheckbox')
+            label.innerHTML = 'Ignore Small Detections'
+            addImagesAdvancedDiv.appendChild(label)
+
+            addImagesAdvancedDiv.appendChild(document.createElement('br'))
+
+            input = document.createElement('input')
+            input.setAttribute('type','checkbox')
+            input.classList.add('custom-control-input')
+            input.setAttribute('id','skyMaskCheckbox')
+            input.setAttribute('name','skyMaskCheckbox')
+            addImagesAdvancedDiv.appendChild(input)
+
+            if (reply.skyMask=='True') {
+                input.checked = true
+            }
+        
+            label = document.createElement('label')
+            label.classList.add('custom-control-label')
+            label.setAttribute('for','skyMaskCheckbox')
+            label.innerHTML = 'Mask Sky Detections'
+            addImagesAdvancedDiv.appendChild(label)
+        }
+    }
+    xhttp.send();
+}
+
 $("#addImagesAddCoordinates").change( function() {
     /** Listens for and initialises the add kml file form on the edit survey modal when the radio button is selected. */
 
     addImagesAddCoordinates = document.getElementById('addImagesAddCoordinates')
     if (addImagesAddCoordinates.checked) {
-
-        addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv') 
-        while(addImagesAddImsDiv.firstChild){
-            addImagesAddImsDiv.removeChild(addImagesAddImsDiv.firstChild);
-        }
-
-        addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
-        while(addImagesEditTimestampsDiv.firstChild){
-            addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
-        }
-
+        clearEditSurveyModal()
         buildCoordsOptions()
+    }
+})
+
+$("#addImagesAdvanced").change( function() {
+    /** Listens for and initialises the advanced options form on the edit survey modal when the radio button is selected. */
+
+    addImagesAdvanced = document.getElementById('addImagesAdvanced')
+    if (addImagesAdvanced.checked) {
+        clearEditSurveyModal()
+        buildAdvancedOptions()
     }
 })
 
@@ -1685,17 +1752,7 @@ $("#addImagesEditTimestamps").change( function() {
 
     addImagesEditTimestamps = document.getElementById('addImagesEditTimestamps')
     if (addImagesEditTimestamps.checked) {
-
-        addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv') 
-        while(addImagesAddImsDiv.firstChild){
-            addImagesAddImsDiv.removeChild(addImagesAddImsDiv.firstChild);
-        }
-
-        addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
-        while(addImagesAddCoordsDiv.firstChild){
-            addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
-        }
-
+        clearEditSurveyModal()
         buildEditTimestamp()
     }
 })

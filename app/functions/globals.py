@@ -414,7 +414,7 @@ def updateTaskCompletionStatus(task_id):
                     .join(Detection)\
                     .filter(Detection.score>0.8)\
                     .filter(Detection.static==False)\
-                    .filter(Detection.status!='deleted')\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
                     .filter(Cluster.task_id==task_id)\
                     .filter(~Cluster.labels.any())\
                     .first()
@@ -460,7 +460,7 @@ def clusterIdComplete(task_id,label_id):
                         .filter(Individual.task_id==task_id)\
                         .filter(Detection.score > 0.8) \
                         .filter(Detection.static == False) \
-                        .filter(Detection.status!='deleted') \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .distinct().all()
 
     count = db.session.query(Detection)\
@@ -470,7 +470,7 @@ def clusterIdComplete(task_id,label_id):
                         .filter(~Detection.id.in_([r.id for r in identified]))\
                         .filter(Detection.score > 0.8) \
                         .filter(Detection.static == False) \
-                        .filter(Detection.status!='deleted') \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .distinct().count()
 
     if count==0:
@@ -501,7 +501,7 @@ def removeFalseDetections(self,cluster_id,undo):
     try:
         cluster = db.session.query(Cluster).get(cluster_id)
         if cluster:
-            detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Detection.score > 0.8).filter(Detection.status!='deleted').distinct().all()
+            detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Detection.score > 0.8).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
 
             if undo:
                 app.logger.info('Undoing the removal of false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
@@ -968,7 +968,7 @@ def classifyTask(task_id,reClusters = None):
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status != 'deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .subquery()
 
         totalDetSQ = db.session.query(Cluster.id.label('clusID'), func.count(Detection.id).label('detCountTotal')) \
@@ -978,7 +978,7 @@ def classifyTask(task_id,reClusters = None):
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status != 'deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(dimensionSQ.c.area > Config.DET_AREA) \
                                 .filter(Cluster.task_id==task_id) \
                                 .group_by(Cluster.id).subquery()
@@ -1008,7 +1008,7 @@ def classifyTask(task_id,reClusters = None):
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status != 'deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(dimensionSQ.c.area > Config.DET_AREA) \
                                 .filter(Detection.classification.in_(parentGroupings[label_id])) \
                                 .filter(Cluster.task_id==task_id) \
@@ -1519,7 +1519,7 @@ def detection_rating(image):
     runningscore = 0
     species = []
     for detection in image.detections:
-        if (detection.score > 0.8) and (detection.static == False) and (detection.status!='deleted') and (detection.classification!=None) and (detection.classification.lower()!='nothing'):
+        if (detection.score > 0.8) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None) and (detection.classification.lower()!='nothing'):
             if detection.classification not in species:
                 species.append(detection.classification)
             minDimension = min(detection.bottom - detection.top, detection.right - detection.left)

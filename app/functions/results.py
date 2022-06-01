@@ -197,7 +197,7 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
                     .filter(Labelgroup.task_id==task_id1)\
                     .filter(Detection.score>0.8)\
                     .filter(Detection.static==False)\
-                    .filter(Detection.status!='deleted')\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
                     .subquery()
     sq2 = db.session.query(Image.id.label('image_id2'),Label.id.label('label_id2'))\
                     .join(Detection)\
@@ -206,7 +206,7 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
                     .filter(Labelgroup.task_id==task_id2)\
                     .filter(Detection.score>0.8)\
                     .filter(Detection.static==False)\
-                    .filter(Detection.status!='deleted')\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
                     .subquery()
 
     if ground_truth == 1:
@@ -350,7 +350,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Labelgroup.task_id==task_id) \
                 .filter(Detection.static==False) \
                 .filter(Detection.score>0.8) \
-                .filter(Detection.status!='deleted')
+                .filter(~Detection.status.in_(['deleted','hidden']))
 
     if len(include) != 0:
         query = query.filter(Label.id.in_(include))
@@ -802,7 +802,7 @@ def generate_wildbook_export(self,task_id, data):
                         .filter(Labelgroup.labels.contains(species)) \
                         .filter(Detection.score > 0.8) \
                         .filter(Detection.static == False) \
-                        .filter(Detection.status!='deleted') \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .statement,db.session.bind)
 
         df['Encounter.genus'] = data['genus'][:1].upper() + data['genus'][1:].lower()
@@ -1224,7 +1224,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
                             .filter(Detection.image==image)\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(Labelgroup.task_id==task_id)\
                             .distinct().order_by(Label.description).all()
 
@@ -1234,7 +1234,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
                             .filter(Detection.image==image)\
                             .filter(Detection.score>0.8)\
                             .filter(Detection.static==False)\
-                            .filter(Detection.status!='deleted')\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(Labelgroup.task_id==task_id)\
                             .distinct().order_by(Tag.description).all()
 
@@ -1383,7 +1383,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure):
                         .join(Label,Labelgroup.labels)\
                         .filter(Detection.score>0.8)\
                         .filter(Detection.static==False)\
-                        .filter(Detection.status!='deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Labelgroup.task_id==task.id)\
                         .filter(Label.id.in_([r.id for r in labels]))\
                         .distinct().all()
@@ -1454,7 +1454,7 @@ def generate_training_csv(self,tasks,destBucket,min_area):
                                     .filter(Trapgroup.survey_id==task.survey_id) \
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
-                                    .filter(Detection.status != 'deleted') \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .subquery()
 
             # we want to include all child-level labels
@@ -1481,7 +1481,7 @@ def generate_training_csv(self,tasks,destBucket,min_area):
                         .filter(dimensionSQ.c.area > min_area)\
                         .filter(Detection.score > 0.8)\
                         .filter(Detection.static == False)\
-                        .filter(Detection.status != 'deleted')\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
                         .statement,db.session.bind)
 
             # Drop detections
@@ -1559,7 +1559,7 @@ def crop_survey_images(self,task_id,min_area,destBucket):
                                 .filter(Trapgroup.survey_id==task.survey_id) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
-                                .filter(Detection.status != 'deleted') \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .subquery()
 
         # we want to include all child-level labels
@@ -1586,7 +1586,7 @@ def crop_survey_images(self,task_id,min_area,destBucket):
                     .filter(dimensionSQ.c.area > min_area)\
                     .filter(Detection.score > 0.8)\
                     .filter(Detection.static == False)\
-                    .filter(Detection.status != 'deleted')\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
                     .statement,db.session.bind)
 
         # Drop detections

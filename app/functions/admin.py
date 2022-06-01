@@ -26,6 +26,7 @@ import re
 import ast
 from multiprocessing.pool import ThreadPool as Pool
 import traceback
+from config import Config
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def delete_task(self,task_id):
@@ -650,7 +651,7 @@ def reclusterAfterTimestampChange(survey_id):
             pool.join()
 
             #copy labels & tags
-            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Detection.score>0.8).filter(Detection.status!='deleted').filter(Detection.static==False).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
+            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Detection.score>0.8).filter(~Detection.status.in_(['deleted','hidden'])).filter(Detection.static==False).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
             for labelgroup in labelgroups:
                 newGroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==newTask.id).filter(Labelgroup.detection_id==labelgroup.detection_id).first()
                 newGroup.checked = labelgroup.checked
@@ -1063,3 +1064,131 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
         db.session.remove()
 
     return reply
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def hideSmallDetections(self,survey_id,ignore_small_detections):
+    '''Celery task that sets all small detections to hidden.'''
+
+    try:
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Processing'
+        if ignore_small_detections=='true':
+            survey.ignore_small_detections = True
+        else:
+            survey.ignore_small_detections = False
+        db.session.commit()
+
+        dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
+                                .join(Image) \
+                                .join(Camera) \
+                                .join(Trapgroup) \
+                                .filter(Trapgroup.survey_id==survey_id) \
+                                .filter(Detection.score > 0.8) \
+                                .filter(Detection.static == False) \
+                                .subquery()
+
+        # Don't edit the Detection.status != 'deleted' line
+        detections = db.session.query(Detection)\
+                                .join(Image) \
+                                .join(Camera) \
+                                .join(Trapgroup) \
+                                .join(dimensionSQ, dimensionSQ.detID==Detection.id)\
+                                .filter(Trapgroup.survey_id==survey_id) \
+                                .filter(Detection.score > 0.8) \
+                                .filter(Detection.static == False) \
+                                .filter(Detection.status != 'deleted') \
+                                .filter(dimensionSQ.c.area<Config.DET_AREA)
+
+        if (ignore_small_detections=='false') and (survey.sky_masked==True):
+            detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
+        
+        detections = detections.distinct().all()
+                                
+        for chunk in chunker(detections,1000):
+            for detection in chunk:
+                if ignore_small_detections=='true':
+                    detection.status = 'hidden'
+                else:
+                    detection.status = 'active'
+            db.session.commit()
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def maskSky(self,survey_id,sky_masked):
+    '''Celery task that masks all detections in the sky.'''
+
+    try:
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Processing'
+        if sky_masked=='true':
+            survey.sky_masked = True
+        else:
+            survey.sky_masked = False
+        db.session.commit()
+
+        # Don't edit the Detection.status != 'deleted' line
+        detections = db.session.query(Detection)\
+                                .join(Image) \
+                                .join(Camera) \
+                                .join(Trapgroup) \
+                                .filter(Trapgroup.survey_id==survey_id) \
+                                .filter(Detection.score > 0.8) \
+                                .filter(Detection.static == False) \
+                                .filter(Detection.status != 'deleted') \
+                                .filter(Detection.bottom<Config.SKY_CONST)
+
+
+        if (sky_masked=='false') and (survey.ignore_small_detections==True):
+            dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
+                                .join(Image) \
+                                .join(Camera) \
+                                .join(Trapgroup) \
+                                .filter(Trapgroup.survey_id==survey_id) \
+                                .filter(Detection.score > 0.8) \
+                                .filter(Detection.static == False) \
+                                .subquery()
+
+            detections.join(dimensionSQ, dimensionSQ.detID==Detection.id).filter(dimensionSQ.c.area>=Config.DET_AREA)
+                                
+        detections = detections.distinct().all()
+                                
+        for chunk in chunker(detections,1000):
+            for detection in chunk:
+                if sky_masked=='true':
+                    detection.status = 'hidden'
+                else:
+                    detection.status = 'active'
+            db.session.commit()
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
