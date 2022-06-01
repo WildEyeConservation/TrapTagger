@@ -286,9 +286,9 @@ function buildSurveys(survey,disableSurvey) {
 
     infoElementFiller = document.createElement('div')
     infoElementFiller.classList.add('col-lg-10');
-    if (survey.description!='') {
-        infoElementDescription.setAttribute("style","font-size: 80%")
-        infoElementDescription.innerHTML = 'Description: ' + survey.description
+    if (!['',' ','null','None'].includes(survey.description)) {
+        infoElementFiller.setAttribute("style","font-size: 80%")
+        infoElementFiller.innerHTML = 'Description: ' + survey.description
     }
     infoElementRow2.appendChild(infoElementFiller)
 
@@ -1581,24 +1581,24 @@ function buildManualCoords() {
 function buildCoordsOptions() {
     /** Builds the selector to selct between kml upload and manual. */
 
-    addImagesAddCoordinates = document.getElementById('addImagesAddCoordinates')
-    while(addImagesAddCoordinates.firstChild){
-        addImagesAddCoordinates.removeChild(addImagesAddCoordinates.firstChild);
+    addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
+    while(addImagesAddCoordsDiv.firstChild){
+        addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
     }
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Method'
-    addImagesAddCoordinates.appendChild(h5)
+    addImagesAddCoordsDiv.appendChild(h5)
 
     infoDiv = document.createElement('div')
     infoDiv.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     infoDiv.innerHTML = '<i>Select how you would like to edit your trapgroup coordinates.</i>'
-    addImagesAddCoordinates.appendChild(infoDiv)
+    addImagesAddCoordsDiv.appendChild(infoDiv)
 
     optionDiv = document.createElement('div')
     optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesAddCoordinates.appendChild(optionDiv)
+    addImagesAddCoordsDiv.appendChild(optionDiv)
     
     input = document.createElement('input')
     input.setAttribute('type','radio')
@@ -1626,7 +1626,7 @@ function buildCoordsOptions() {
 
     optionDiv = document.createElement('div')
     optionDiv.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesAddCoordinates.appendChild(optionDiv)
+    addImagesAddCoordsDiv.appendChild(optionDiv)
 
     input = document.createElement('input')
     input.setAttribute('type','radio')
@@ -1654,7 +1654,7 @@ function buildCoordsOptions() {
 
     addImsCoordsDiv = document.createElement('div')
     addImsCoordsDiv.setAttribute('id','addImsCoordsDiv')
-    addImagesAddCoordinates.appendChild(addImsCoordsDiv)
+    addImagesAddCoordsDiv.appendChild(addImsCoordsDiv)
 }
 
 $("#addImagesAddCoordinates").change( function() {
