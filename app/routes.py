@@ -1427,7 +1427,6 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox):
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
         if survey and (survey.user==current_user):
             coordData = ast.literal_eval(request.form['coordData'])
-            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! {}: {}'.format(survey.id,coordData))
             updateCoords.delay(survey_id=survey.id,coordData=coordData)
     else:
         if 'kml' in request.files:
