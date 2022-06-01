@@ -1066,7 +1066,7 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
     return reply
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def hideSmallDetections(self,survey_id,ignore_small_detections):
+def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
     '''Celery task that sets all small detections to hidden.'''
 
     try:
@@ -1092,14 +1092,14 @@ def hideSmallDetections(self,survey_id,ignore_small_detections):
                                 .join(Image) \
                                 .join(Camera) \
                                 .join(Trapgroup) \
-                                .join(dimensionSQ, dimensionSQ.detID==Detection.id)\
+                                .join(dimensionSQ, dimensionSQ.c.detID==Detection.id)\
                                 .filter(Trapgroup.survey_id==survey_id) \
                                 .filter(Detection.score > 0.8) \
                                 .filter(Detection.static == False) \
                                 .filter(Detection.status != 'deleted') \
                                 .filter(dimensionSQ.c.area<Config.DET_AREA)
 
-        if (ignore_small_detections=='false') and (survey.sky_masked==True):
+        if (not edge) and (ignore_small_detections=='false') and (survey.sky_masked==True):
             detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
         
         detections = detections.distinct().all()
@@ -1130,7 +1130,7 @@ def hideSmallDetections(self,survey_id,ignore_small_detections):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def maskSky(self,survey_id,sky_masked):
+def maskSky(self,survey_id,sky_masked,edge):
     '''Celery task that masks all detections in the sky.'''
 
     try:
@@ -1154,7 +1154,7 @@ def maskSky(self,survey_id,sky_masked):
                                 .filter(Detection.bottom<Config.SKY_CONST)
 
 
-        if (sky_masked=='false') and (survey.ignore_small_detections==True):
+        if (not edge) and (sky_masked=='false') and (survey.ignore_small_detections==True):
             dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
                                 .join(Image) \
                                 .join(Camera) \
@@ -1164,7 +1164,7 @@ def maskSky(self,survey_id,sky_masked):
                                 .filter(Detection.static == False) \
                                 .subquery()
 
-            detections.join(dimensionSQ, dimensionSQ.detID==Detection.id).filter(dimensionSQ.c.area>=Config.DET_AREA)
+            detections.join(dimensionSQ, dimensionSQ.c.detID==Detection.id).filter(dimensionSQ.c.area>=Config.DET_AREA)
                                 
         detections = detections.distinct().all()
                                 

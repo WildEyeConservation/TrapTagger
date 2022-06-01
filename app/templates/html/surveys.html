@@ -2135,7 +2135,7 @@ limitations under the License. -->
                             document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
                         } else if (document.getElementById('addImagesEditTimestamps').checked) {
                             document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
-                        } else if (document.getElementById('addCoordinatesManualMethod').checked) {
+                        } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
                             document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
                         } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
                             document.getElementById('modalAlertBody').innerHTML = 'Your survey options are being updated.'

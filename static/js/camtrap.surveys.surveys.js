@@ -1683,7 +1683,7 @@ function buildAdvancedOptions() {
             addImagesAdvancedDiv.appendChild(row)
 
             h5 = document.createElement('h5')
-            h5.setAttribute('style','padding-top: 15px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
+            h5.setAttribute('style','padding-top: 16px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
             h5.innerHTML = 'Ignore Small Detections'
             row.appendChild(h5)
 
@@ -1720,7 +1720,7 @@ function buildAdvancedOptions() {
             addImagesAdvancedDiv.appendChild(row)
 
             h5 = document.createElement('h5')
-            h5.setAttribute('style','padding-top: 15px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
+            h5.setAttribute('style','padding-top: 16px; padding-left: 15px; padding-right: 10px; margin-bottom: 2px')
             h5.innerHTML = 'Mask Sky Detections'
             row.appendChild(h5)
 

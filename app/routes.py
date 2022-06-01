@@ -1433,11 +1433,18 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox, ignore_
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
         
         if survey and (survey.user==current_user):
+
+            # Checks for the case that you switch both off
+            edge='false'
+            if (ignore_small_detections=='false') and (sky_masked=='false'):
+                if (survey.ignore_small_detections==True) and (survey.sky_masked==True):
+                    edge = True
+
             if str(survey.ignore_small_detections).lower() != ignore_small_detections:
-                hideSmallDetections.delay(survey_id=survey.id,ignore_small_detections=ignore_small_detections)
+                hideSmallDetections.delay(survey_id=survey.id,ignore_small_detections=ignore_small_detections,edge=edge)
 
             if str(survey.sky_masked).lower() != sky_masked:
-                maskSky.delay(survey_id=survey.id,sky_masked=sky_masked)
+                maskSky.delay(survey_id=survey.id,sky_masked=sky_masked,edge=edge)
 
     elif 'timestamps' in request.form:
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
