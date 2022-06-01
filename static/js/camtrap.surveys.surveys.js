@@ -1687,41 +1687,77 @@ function buildAdvancedOptions() {
             addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
             addImagesAdvancedDiv.appendChild(document.createElement('br'))
 
+            h5 = document.createElement('h5')
+            h5.setAttribute('style','margin-bottom: 2px')
+            h5.innerHTML = 'Ignore Small Detections'
+            addImagesAdvancedDiv.appendChild(h5)
+        
+            div = document.createElement('div')
+            div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            div.innerHTML = '<i>Useful for filtering-out triggers from small animals like birds.</i>'
+            addImagesAdvancedDiv.appendChild(div2)
+
+            row = document.createElement('div')
+            row.setAttribute('class','row')
+            addImagesAdvancedDiv.appendChild(row)
+
+            col = document.createElement('div')
+            col.setAttribute('class','col-lg-12')
+            row.appendChild(col)
+
             input = document.createElement('input')
             input.setAttribute('type','checkbox')
             input.classList.add('custom-control-input')
             input.setAttribute('id','smallDetectionsCheckbox')
             input.setAttribute('name','smallDetectionsCheckbox')
-            addImagesAdvancedDiv.appendChild(input)
+            row.appendChild(input)
 
             if (reply.smallDetections=='True') {
                 input.checked = true
             }
         
-            label = document.createElement('label')
-            label.classList.add('custom-control-label')
-            label.setAttribute('for','smallDetectionsCheckbox')
-            label.innerHTML = 'Ignore Small Detections'
-            addImagesAdvancedDiv.appendChild(label)
+            // label = document.createElement('label')
+            // label.classList.add('custom-control-label')
+            // label.setAttribute('for','smallDetectionsCheckbox')
+            // label.innerHTML = 'Ignore Small Detections'
+            // row.appendChild(label)
 
             addImagesAdvancedDiv.appendChild(document.createElement('br'))
+
+            h5 = document.createElement('h5')
+            h5.setAttribute('style','margin-bottom: 2px')
+            h5.innerHTML = 'Mask Sky Detections'
+            addImagesAdvancedDiv.appendChild(h5)
+        
+            div = document.createElement('div')
+            div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            div.innerHTML = '<i>Ignores detections where the bottom occurs in the top third of the image - useful for ignoring triggers from birds.</i>'
+            addImagesAdvancedDiv.appendChild(div2)
+
+            row = document.createElement('div')
+            row.setAttribute('class','row')
+            addImagesAdvancedDiv.appendChild(row)
+
+            col = document.createElement('div')
+            col.setAttribute('class','col-lg-12')
+            row.appendChild(col)
 
             input = document.createElement('input')
             input.setAttribute('type','checkbox')
             input.classList.add('custom-control-input')
             input.setAttribute('id','skyMaskCheckbox')
             input.setAttribute('name','skyMaskCheckbox')
-            addImagesAdvancedDiv.appendChild(input)
+            row.appendChild(input)
 
             if (reply.skyMask=='True') {
                 input.checked = true
             }
         
-            label = document.createElement('label')
-            label.classList.add('custom-control-label')
-            label.setAttribute('for','skyMaskCheckbox')
-            label.innerHTML = 'Mask Sky Detections'
-            addImagesAdvancedDiv.appendChild(label)
+            // label = document.createElement('label')
+            // label.classList.add('custom-control-label')
+            // label.setAttribute('for','skyMaskCheckbox')
+            // label.innerHTML = 'Mask Sky Detections'
+            // row.appendChild(label)
         }
     }
     xhttp.send();
