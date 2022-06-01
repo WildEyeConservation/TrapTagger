@@ -267,25 +267,25 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow2.setAttribute('style',"margin-left: 10px")
 
     infoElementNumTrapgroups = document.createElement('div')
-    infoElementNumTrapgroups.classList.add('col-lg-2');
+    infoElementNumTrapgroups.classList.add('col-lg-3');
     infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
     infoElementNumTrapgroups.innerHTML = 'Trapgroups: ' + survey.numTrapgroups
     infoElementRow.appendChild(infoElementNumTrapgroups)
 
     infoElementNumImages = document.createElement('div')
-    infoElementNumImages.classList.add('col-lg-3');
+    infoElementNumImages.classList.add('col-lg-2');
     infoElementNumImages.setAttribute("style","font-size: 80%")
     infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
     infoElementRow.appendChild(infoElementNumImages)
 
     infoElementDescription = document.createElement('div')
-    infoElementDescription.classList.add('col-lg-2');
+    infoElementDescription.classList.add('col-lg-3');
     infoElementDescription.setAttribute("style","font-size: 80%")
     infoElementDescription.innerHTML = 'Status: ' + survey.status
     infoElementRow2.appendChild(infoElementDescription)
 
     infoElementFiller = document.createElement('div')
-    infoElementFiller.classList.add('col-lg-10');
+    infoElementFiller.classList.add('col-lg-9');
     if (!['',' ','null','None',null].includes(survey.description)) {
         infoElementFiller.setAttribute("style","font-size: 80%")
         infoElementFiller.innerHTML = 'Description: ' + survey.description

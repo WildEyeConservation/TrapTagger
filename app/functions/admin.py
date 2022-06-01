@@ -753,11 +753,15 @@ def updateCoords(self,survey_id,coordData):
 
     try:
         for item in coordData:
+            app.logger.info(item['tag'])
             trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==item['tag']).first()
             if trapgroup:
                 try:
+                    app.logger.info(item['latitude'])
                     trapgroup.latitude = float(item['latitude'])
+                    app.logger.info(item['longitude'])
                     trapgroup.longitude = float(item['longitude'])
+                    app.logger.info(item['altitude'])
                     trapgroup.altitude = float(item['altitude'])
                     db.session.commit()
                 except:
