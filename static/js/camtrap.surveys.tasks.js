@@ -67,7 +67,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     if ((task.status!='PROGRESS')) {
         taskStatusBtn = document.createElement('button')
         taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-        taskStatusBtn.innerHTML = 'Status'
+        taskStatusBtn.innerHTML = 'Details'
         taskInfoCol.appendChild(taskStatusBtn)
 
         taskStatusBtn.addEventListener('click', function(wrapTaskId) {

@@ -1763,7 +1763,8 @@ def getDetailedTaskStatus(task_id):
             reply['Informational Tagging'] = {}
             reply['Sighting Correction'] = {}
             reply['Individual ID'] = {}
-            reply['Summary']['Clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
+            
+            cluster_count = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
             
             #check if one of its child labels in the survey
             names = []
@@ -1772,7 +1773,8 @@ def getDetailedTaskStatus(task_id):
                 names, ids = addChildLabels(names,ids,label,task_id)
             test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
 
-            if test2 or reply['Summary']['Clusters'] != 0:
+            if test2 or (cluster_count != 0):
+                reply['Summary']['Clusters'] = cluster_count
                 reply['Summary']['Images'] = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct().count()
                 reply['Summary']['Sightings'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).distinct().count()
                 reply['Summary']['Individuals'] = db.session.query(Individual).filter(Individual.task==task).filter(Individual.label==label).distinct().count()
@@ -1857,10 +1859,12 @@ def getDetailedTaskStatus(task_id):
                 correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
                 correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(db.session.query(Label).get(GLOBALS.knocked_id))).all())
                 correct_clusters = [r.id for r in correct_clusters]
+                ids.append(label.id)
 
                 status = db.session.query(Cluster)\
+                                    .join(Label,Cluster.labels)\
                                     .filter(Cluster.task==task)\
-                                    .filter(Cluster.labels.contains(label))\
+                                    .filter(Label.id.in_(ids))\
                                     .filter(Cluster.classification_checked==True)\
                                     .filter(~Cluster.id.in_(correct_clusters))\
                                     .first()
@@ -1871,11 +1875,12 @@ def getDetailedTaskStatus(task_id):
                     reply['AI Check']['Status'] = 'Not Checked'
 
                 reply['AI Check']['Potential Clusters'] = db.session.query(Cluster)\
-                                                                    .filter(Cluster.task==task)\
-                                                                    .filter(Cluster.labels.contains(label))\
-                                                                    .filter(Cluster.classification_checked==False)\
-                                                                    .filter(~Cluster.id.in_(correct_clusters))\
-                                                                    .distinct().count()
+                                                                .join(Translation,Cluster.classification==Translation.classification)\
+                                                                .filter(Translation.label_id==label_id)\
+                                                                .filter(Cluster.task==task)\
+                                                                .filter(Cluster.classification_checked==False)\
+                                                                .filter(~Cluster.id.in_(correct_clusters))\
+                                                                .distinct().count() 
 
                 # Individual ID
                 identified = db.session.query(Detection)\
@@ -1921,6 +1926,7 @@ def getDetailedTaskStatus(task_id):
 
             else:
                 # No clusters of this species - just return canned reply for speed
+                reply['Summary']['Clusters'] = '-'
                 reply['Summary']['Images'] = '-'
                 reply['Summary']['Sightings'] = '-'
                 reply['Summary']['Individuals'] = '-'
