@@ -1949,6 +1949,7 @@ function iterateLabels(labels,headings,init=false) {
         }
         if (!init) {
             tableRow.setAttribute('style','display:none')
+            tableRow.setAttribute('class','table-highlight')
         }
         tbody.appendChild(tableRow)
 
