@@ -1878,10 +1878,6 @@ def getDetailedTaskStatus(task_id):
                                                                     .distinct().count()
 
                 # Individual ID
-                reply['Individual ID']['Cluster-Level']
-                reply['Individual ID']['Inter-Cluster']
-
-
                 identified = db.session.query(Detection)\
                                     .join(Labelgroup)\
                                     .join(Individual, Detection.individuals)\
