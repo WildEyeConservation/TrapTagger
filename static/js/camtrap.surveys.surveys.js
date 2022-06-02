@@ -1909,6 +1909,8 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
         if (br1!=null) {
             br1.remove()
             br2.remove()
+            tableRow = document.getElementById('detailedStatusRow-'+rootLabel.toString())
+            tableRow.setAttribute('style','')
         } else {
             br = document.createElement('br')
             br.setAttribute('id','statusTableBr2-'+rootLabel.toString())
@@ -1918,6 +1920,7 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
             br = document.createElement('br')
             br.setAttribute('id','statusTableBr1-'+rootLabel.toString())
             tableRow.parentElement.insertBefore(br,tableRow)
+            tableRow.setAttribute('style','background-color: rgba(255,255,255,0.4); color: rgba(0,0,0,0.8)')
         }
     }
 }
@@ -1949,7 +1952,6 @@ function iterateLabels(labels,headings,init=false) {
         }
         if (!init) {
             tableRow.setAttribute('style','display:none')
-            tableRow.setAttribute('class','table-highlight')
         }
         tbody.appendChild(tableRow)
 
