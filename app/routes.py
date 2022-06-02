@@ -1757,6 +1757,12 @@ def getDetailedTaskStatus(task_id):
         if label_id:
             label = db.session.query(Label).get(int(label_id))
             reply['label'] = label.description
+            reply['Summary'] = {}
+            reply['Species Annotation'] = {}
+            reply['AI Check'] = {}
+            reply['Informational Tagging'] = {}
+            reply['Sighting Correction'] = {}
+            reply['Individual ID'] = {}
             reply['Summary']['Clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
             
             #check if one of its child labels in the survey
