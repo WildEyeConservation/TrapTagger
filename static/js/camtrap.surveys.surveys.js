@@ -1996,8 +1996,7 @@ function buildStatusTable(labels,headings) {
     table = document.createElement('table')
     table.setAttribute('style','width:100%; table-layout:fixed')
     table.classList.add('table')
-    table.classList.add('table-bordered')
-    table.classList.add('table-matrix')
+    // table.classList.add('table-bordered')
     tableDiv.appendChild(table)
 
     thead = document.createElement('thead')
@@ -2025,6 +2024,7 @@ function buildStatusTable(labels,headings) {
 
     //bottom row headings
     tableRow = document.createElement('tr')
+    tableRow.setAttribute('class','stripe')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
     tableCol.setAttribute('style','border-bottom: 1px solid white;width: 20%')
@@ -2046,6 +2046,7 @@ function buildStatusTable(labels,headings) {
     thead.appendChild(tableRow)
 
     tbody = document.createElement('tbody')
+    tbody.setAttribute('class','table-matrix stripe')
     table.appendChild(tbody)
 
     iterateLabels(labels,headings,true)
