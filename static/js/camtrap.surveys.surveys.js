@@ -1878,8 +1878,9 @@ function buildStatusRow(info,tableRow,headings) {
 
     for (heading in headings) {
         for (qq=0;qq<headings[heading].length;qq++) {
+            heading2 = headings[heading][qq]
             tableCol = document.createElement('td')
-            tableCol.innerHTML = info[headings[heading][qq]]
+            tableCol.innerHTML = info[heading][heading2]
             tableCol.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
             tableRow.appendChild(tableCol)
         }
