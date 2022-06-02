@@ -1870,44 +1870,19 @@ function buildStatusRow(info,tableRow,headings) {
     /** Builds a row for the detailed task status table */
 
     label = info.label
-    data = info.data
 
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','row')
     tableCol.innerHTML = label
     tableRow.appendChild(tableCol)
 
-    for (qq=0;qq<headings.length;qq++) {
-        tableCol = document.createElement('td')
-        if (headings[qq]=='checked_detections') {
-            if (data['checked_perc']=='-') {
-                tableCol.innerHTML = '-'
-            } else {
-                tableCol.innerHTML = data[headings[qq]]+' ('+data['checked_perc']+'%)'
-            }
-        } else if (headings[qq]=='deleted_detections') {
-            if (data['deleted_perc']=='-') {
-                tableCol.innerHTML = '-'
-            } else {
-                tableCol.innerHTML = data[headings[qq]]+' ('+data['deleted_perc']+'%)'
-            }
-        } else if (headings[qq]=='added_detections') {
-            if (data['added_perc']=='-') {
-                tableCol.innerHTML = '-'
-            } else {
-                tableCol.innerHTML = data[headings[qq]]+' ('+data['added_perc']+'%)'
-            }
-        } else if (headings[qq]=='default_accuracy') {
-            if (data['default_accuracy']=='-') {
-                tableCol.innerHTML = '-'
-            } else {
-                tableCol.innerHTML = data['default_accuracy']+'%'
-            }
-        } else {
-            tableCol.innerHTML = data[headings[qq]]
+    for (heading in headings) {
+        for (qq=0;qq<headings[heading].length;qq++) {
+            tableCol = document.createElement('td')
+            tableCol.innerHTML = info[headings[heading][qq]]
+            tableCol.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+            tableRow.appendChild(tableCol)
         }
-        tableCol.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-        tableRow.appendChild(tableCol)
     }
 }
 
@@ -2013,7 +1988,7 @@ function iterateLabels(labels,headings,init=false) {
     }
 }
 
-function buildStatusTable(labels) {
+function buildStatusTable(labels,headings) {
     /** Builds the status table with the given data object. */
 
     tableDiv = document.getElementById('StatusTableDiv')
@@ -2027,29 +2002,51 @@ function buildStatusTable(labels) {
     thead = document.createElement('thead')
     table.appendChild(thead)
 
+    //Top row headings
     tableRow = document.createElement('tr')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
     tableCol.setAttribute('style','border-bottom: 1px solid white;width: 20%')
     tableRow.appendChild(tableCol)
 
-    headings = ['Clusters','Images','Sightings','Checked Sightings','Deleted Sightings','Added Sightings','Default Sighting Accuracy','Tagged','Complete']
-    for (qq=0;qq<headings.length;qq++) {
+    for (heading in headings) {
         tableCol = document.createElement('th')
         tableCol.setAttribute('scope','col')
         tableCol.setAttribute('style','border-bottom: 1px solid white')
+        tableCol.setAttribute('colspan',headings[heading].length)
         tableRow.appendChild(tableCol)
 
         thdiv = document.createElement('div')
-        thdiv.innerHTML = headings[qq]
+        thdiv.innerHTML = heading
         tableCol.appendChild(thdiv)
+    }
+    thead.appendChild(tableRow)
+
+    //bottom row headings
+    tableRow = document.createElement('tr')
+    tableCol = document.createElement('th')
+    tableCol.setAttribute('scope','col')
+    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 20%')
+    tableCol.innerHTML = 'Label'
+    tableRow.appendChild(tableCol)
+
+    for (heading in headings) {
+        for (hi=0;hi<headings[heading].length;hi++) {
+            tableCol = document.createElement('th')
+            tableCol.setAttribute('scope','col')
+            tableCol.setAttribute('style','border-bottom: 1px solid white')
+            tableRow.appendChild(tableCol)
+    
+            thdiv = document.createElement('div')
+            thdiv.innerHTML = headings[heading][hi]
+            tableCol.appendChild(thdiv)
+        }
     }
     thead.appendChild(tableRow)
 
     tbody = document.createElement('tbody')
     table.appendChild(tbody)
 
-    headings = ['clusters','images','detections','checked_detections','deleted_detections','added_detections','default_accuracy','tagged','complete']
     iterateLabels(labels,headings,true)
 }
 
@@ -2073,10 +2070,12 @@ modalStatus.on('shown.bs.modal', function(){
         function(wrapSelectedTask){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
-                    hierarchicalLabels = JSON.parse(this.responseText);  
+                    reply = JSON.parse(this.responseText);
+                    hierarchicalLabels = reply.labels
+                    headings = reply.headings
                     if (modalStatus.is(':visible')&&(selectedTask==wrapSelectedTask)) {
                         detailledStatusCount = 0
-                        buildStatusTable(hierarchicalLabels)
+                        buildStatusTable(hierarchicalLabels,headings)
                     }
                 }
             }

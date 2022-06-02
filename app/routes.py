@@ -1714,6 +1714,33 @@ def getDetailedTaskStatus(task_id):
     reply = {}
     if (task!=None) and (task.survey.user_id==current_user.id):
 
+        headings = {
+            'Summary': [
+                'Clusters',
+                'Images',
+                'Sightings',
+                'Individuals'
+            ],
+            'Species Annotation': [
+                'Tagged',
+                'Complete'
+            ],
+            'AI Check': [
+                'Status',
+                'Potential Clusters'
+            ],
+            'Informational Tagging': [
+                'Tagged'
+            ],
+            'Sighting Correction': [
+                'Checked Sightings'
+            ],
+            'Individual ID': [
+                'Cluster-Level',
+                'Inter-Cluster'
+            ]
+        }
+
         if init:
             labels = {}
             parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).order_by(Label.description).all()
@@ -1725,84 +1752,184 @@ def getDetailedTaskStatus(task_id):
                 childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
                 labels[label.id] = addChildToDict(childLabels,{},task_id,True,False)
 
-            reply = labels
+            reply = {'labels':labels,'headings':headings}
 
         if label_id:
             label = db.session.query(Label).get(int(label_id))
             reply['label'] = label.description
-
-            reply['data'] = {}
-            reply['data']['images'] = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct(Image.id).count()
-            reply['data']['clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
-            reply['data']['detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).distinct(Labelgroup.id).count()
-            reply['data']['checked_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).filter(Labelgroup.checked==True).distinct(Labelgroup.id).count()
+            reply['Summary']['Clusters'] = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).count()
             
-            reply['data']['deleted_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='deleted').distinct(Labelgroup.id).count()
-            reply['data']['added_detections'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(Detection.status=='added').distinct(Labelgroup.id).count()
-
+            #check if one of its child labels in the survey
             names = []
             ids = []
             if len(label.children[:])>0:
                 names, ids = addChildLabels(names,ids,label,task_id)
-
-            initial_not_complete = db.session.query(Cluster)\
-                                        .join(Image,Cluster.images)\
-                                        .join(Detection)\
-                                        .filter(Cluster.task_id==int(task_id))\
-                                        .filter(~Cluster.labels.any())\
-                                        .filter(Detection.score>0.8)\
-                                        .filter(Detection.static==False)\
-                                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                                        .first()
-
-            initial_tagged = db.session.query(Cluster)\
-                                        .join(Image,Cluster.images)\
-                                        .join(Detection)\
-                                        .filter(Cluster.task_id==int(task_id))\
-                                        .filter(Cluster.labels.any())\
-                                        .filter(Cluster.user_id!=1)\
-                                        .filter(Detection.score>0.8)\
-                                        .filter(Detection.static==False)\
-                                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                                        .first()
-
-            test1 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(label)).first()
             test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
-            test3 = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Labelgroup.checked==True).first()
 
-            if len(label.children[:])==0:
-                if initial_not_complete:
-                    reply['data']['complete'] = 'No'
+            if test2 or reply['Summary']['Clusters'] != 0:
+                reply['Summary']['Images'] = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct().count()
+                reply['Summary']['Sightings'] = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).distinct().count()
+                reply['Summary']['Individuals'] = db.session.query(Individual).filter(Individual.task==task).filter(Individual.label==label).distinct().count()
+
+                # Checked Sightings
+                if reply['Summary']['Sightings'] != 0:
+                    checked_detections = db.session.query(Labelgroup).join(Detection).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Detection.score>0.8).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden'])).filter(Labelgroup.checked==True).distinct().count()
+                    checked_perc = round((checked_detections/reply['Summary']['Sightings'])*100,2)
+                    reply['Sighting Correction']['Checked Sightings'] = str(checked_detections) + '/' + str(reply['Summary']['Sightings']) + ' (' + str(checked_perc) + '%)'
                 else:
-                    reply['data']['complete'] = 'Yes'
-                if initial_tagged:
-                    reply['data']['tagged'] = 'Yes'
+                    reply['Sighting Correction']['Checked Sightings'] = '-'
+
+                # Species Annotation Status
+                if len(label.children[:])==0:
+                    initial_not_complete = db.session.query(Cluster)\
+                                                .join(Image,Cluster.images)\
+                                                .join(Detection)\
+                                                .filter(Cluster.task_id==int(task_id))\
+                                                .filter(~Cluster.labels.any())\
+                                                .filter(Detection.score>0.8)\
+                                                .filter(Detection.static==False)\
+                                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                                .first()
+
+                    initial_tagged = db.session.query(Cluster)\
+                                                .join(Image,Cluster.images)\
+                                                .join(Detection)\
+                                                .filter(Cluster.task_id==int(task_id))\
+                                                .filter(Cluster.labels.any())\
+                                                .filter(Cluster.user_id!=1)\
+                                                .filter(Detection.score>0.8)\
+                                                .filter(Detection.static==False)\
+                                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                                .first()
+
+                    if initial_not_complete:
+                        reply['Species Annotation']['Complete'] = 'No'
+                    else:
+                        reply['Species Annotation']['Complete'] = 'Yes'
+                    if initial_tagged:
+                        reply['Species Annotation']['Tagged'] = 'Yes'
+                    else:
+                        reply['Species Annotation']['Tagged'] = 'No'
+
                 else:
-                    reply['data']['tagged'] = 'No'
+                    test1 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(label)).first()
+
+                    if test1:
+                        reply['Species Annotation']['Complete'] = 'No'
+                    else:
+                        reply['Species Annotation']['Complete'] = 'Yes'
+
+                    if test2:
+                        reply['Species Annotation']['Tagged'] = 'Yes'
+                    else:
+                        reply['Species Annotation']['Tagged'] = 'No'
+
+                # Informational Tagging
+                if db.session.query(Cluster).filter(Cluster.task==task).filter(Cluster.labels.contains(label)).filter(Cluster.tags.any()).first():
+                    reply['Informational Tagging']['Tagged'] = 'Yes'
+                else:
+                    reply['Informational Tagging']['Tagged'] = 'No'
+
+                # AI Check
+                correct_clusters = db.session.query(Cluster)\
+                                            .join(Label, Cluster.labels)\
+                                            .join(Translation)\
+                                            .filter(Cluster.task_id==task_id)\
+                                            .filter(Translation.task_id==task_id)\
+                                            .filter(Cluster.classification==Translation.classification)\
+                                            .distinct().all()
+
+                correct_clusters.extend(
+                    db.session.query(Cluster)\
+                                .join(Translation,Translation.classification==Cluster.classification)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Translation.task_id==task_id)\
+                                .filter(Translation.label_id==GLOBALS.nothing_id)\
+                                .distinct().all()
+                )
+
+                correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
+                correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(db.session.query(Label).get(GLOBALS.knocked_id))).all())
+                correct_clusters = [r.id for r in correct_clusters]
+
+                status = db.session.query(Cluster)\
+                                    .filter(Cluster.task==task)\
+                                    .filter(Cluster.labels.contains(label))\
+                                    .filter(Cluster.classification_checked==True)\
+                                    .filter(~Cluster.id.in_(correct_clusters))\
+                                    .first()
+
+                if status:
+                    reply['AI Check']['Status'] = 'Checked'
+                else:
+                    reply['AI Check']['Status'] = 'Not Checked'
+
+                reply['AI Check']['Potential Clusters'] = db.session.query(Cluster)\
+                                                                    .filter(Cluster.task==task)\
+                                                                    .filter(Cluster.labels.contains(label))\
+                                                                    .filter(Cluster.classification_checked==False)\
+                                                                    .filter(~Cluster.id.in_(correct_clusters))\
+                                                                    .distinct().count()
+
+                # Individual ID
+                reply['Individual ID']['Cluster-Level']
+                reply['Individual ID']['Inter-Cluster']
+
+
+                identified = db.session.query(Detection)\
+                                    .join(Labelgroup)\
+                                    .join(Individual, Detection.individuals)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(Individual.label_id==label.id)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Individual.task_id==task_id)\
+                                    .filter(Detection.score > 0.8) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .distinct().all()
+
+                unidentified = db.session.query(Cluster)\
+                                    .join(Image,Cluster.images)\
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .filter(Cluster.labels.contains(label))\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(~Detection.id.in_([r.id for r in identified]))\
+                                    .filter(Detection.score > 0.8) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .first()
+
+                count = checkForIdWork(task_id,label)
+
+                if len(identified) == 0:
+                    reply['Individual ID']['Cluster-Level'] = '-'
+                    reply['Individual ID']['Inter-Cluster'] = '-'
+                elif unidentified:
+                    reply['Individual ID']['Cluster-Level'] = 'Incomplete'
+                    reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
+                else:
+                    reply['Individual ID']['Cluster-Level'] = 'Complete'
+                    if count == 0:
+                        reply['Individual ID']['Inter-Cluster'] = 'Complete'
+                    else:
+                        reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
+
             else:
-                if test1:
-                    reply['data']['complete'] = 'No'
-                else:
-                    reply['data']['complete'] = 'Yes'
-
-                if test2:
-                    reply['data']['tagged'] = 'Yes'
-                else:
-                    reply['data']['tagged'] = 'No'
-
-            if reply['data']['detections'] == 0:
-                reply['data']['checked_perc'] = '-'
-                reply['data']['deleted_perc'] = '-'
-                reply['data']['added_perc'] = '-'
-                reply['data']['default_accuracy'] = '-'
-            else:
-                reply['data']['checked_perc'] = round((reply['data']['checked_detections']/reply['data']['detections'])*100,2)
-                reply['data']['deleted_perc'] = round((reply['data']['deleted_detections']/reply['data']['detections'])*100,2)
-                reply['data']['added_perc'] = round((reply['data']['added_detections']/reply['data']['detections'])*100,2)
-                if test3:
-                    reply['data']['default_accuracy'] = round(100-abs((reply['data']['added_detections']-reply['data']['deleted_detections'])/reply['data']['detections']*100),2)
-                else:
-                    reply['data']['default_accuracy'] = '-'
+                # No clusters of this species - just return canned reply for speed
+                reply['Summary']['Images'] = '-'
+                reply['Summary']['Sightings'] = '-'
+                reply['Summary']['Individuals'] = '-'
+                reply['Species Annotation']['Complete'] = '-'
+                reply['Species Annotation']['Tagged'] = '-'
+                reply['AI Check']['Status'] = '-'
+                reply['AI Check']['Potential Clusters'] = '-'
+                reply['Informational Tagging']['Tagged'] = '-'
+                reply['Sighting Correction']['Checked Sightings'] = '-'
+                reply['Individual ID']['Cluster-Level'] = '-'
+                reply['Individual ID']['Inter-Cluster'] = '-'
 
     return json.dumps(reply)
 
