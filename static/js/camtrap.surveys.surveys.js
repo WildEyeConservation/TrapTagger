@@ -1996,7 +1996,7 @@ function buildStatusTable(labels,headings) {
     table = document.createElement('table')
     table.setAttribute('style','width:100%; table-layout:fixed')
     table.classList.add('table')
-    // table.classList.add('table-bordered')
+    table.classList.add('table-bordered')
     tableDiv.appendChild(table)
 
     thead = document.createElement('thead')
