@@ -56,7 +56,7 @@ def cleanupWorkers(one, two):
     '''
     
     inspector = celery.control.inspect()
-    queues = {'default': 'traptagger_worker', 'priority': 'priority_worker'}
+    queues = {'default': 'traptagger_worker'}
     for queue in queues:
         celery.control.cancel_consumer(queue)
 

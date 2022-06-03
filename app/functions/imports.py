@@ -1378,6 +1378,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
 
     survey.processing_initialised = False
     localsession.commit()
+    localsession.close()
     
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
@@ -1395,8 +1396,6 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
-
-    localsession.close()
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     remove_duplicate_images(sid)

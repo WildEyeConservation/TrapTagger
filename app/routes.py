@@ -1315,7 +1315,7 @@ def checkTrapgroupCode():
         if task_id == 'none':
             tgCode = request.form['tgCode']
             folder = request.form['folder']
-            task = findTrapgroupTags.delay(tgCode=tgCode,folder=folder,user_id=current_user.id)
+            task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id}, queue='priority', priority=0)
             reply = task.id
             status = 'PENDING'
         else:

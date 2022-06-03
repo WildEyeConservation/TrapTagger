@@ -186,9 +186,10 @@ services:
         image : redis:latest       
         container_name: traptagger_redis
         volumes:
-            - ./redis.conf:/usr/local/etc/redis/redis.conf
+            - ./:/data/
         ports : 
             - "6379:6379"
+        command: redis-server redis.conf
         networks:
             - my-network
 
