@@ -195,7 +195,7 @@ function getKeys() {
         } else {
             if (globalKeys==null) {
                 var xhttp = new XMLHttpRequest();
-                xhttp.open("GET", '/initKeys/' + taggingLevel, true);
+                xhttp.open("GET", '/initKeys', true);
                 xhttp.onreadystatechange =
                     function () {
                         if (this.readyState == 4 && this.status == 278) {

@@ -56,7 +56,7 @@ function getKeys() {
     /** Initialises the keys for the current tagging level. */
     if (!isBounding) {
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/initKeys/' + taggingLevel, true);
+        xhttp.open("GET", '/initKeys', true);
         xhttp.onreadystatechange =
             function () {
                 if (this.readyState == 4 && this.status == 200) {
