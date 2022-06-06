@@ -1925,6 +1925,7 @@ function submitLabels(mapID = 'map1') {
     if (taggingLevel.includes('-2') && isReviewing) {
         formData.append("taggingLevel", '-2')
     }
+    console.log(clusterLabels[mapID])
     if (clusterLabels[mapID].includes(nothingLabel)) {
         // reallocate on nothing
         clusterRequests[mapID] = [];
