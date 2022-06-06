@@ -4981,7 +4981,7 @@ def initKeys():
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         for label in labels:
-            reply[label.id] = genInitKeys(label.id,task.id)
+            reply[str(label.id)] = genInitKeys(str(label.id),task.id)
         reply['-1'] = genInitKeys('-1',task.id)            
 
         return json.dumps(reply)
