@@ -1425,11 +1425,6 @@ function assignLabel(label,mapID = 'map1'){
                         console.log(label)
                         idx = hotkeys.indexOf(label)
 
-                        if (wrongStatus) {
-                            wrongStatus = false
-                            initKeys(globalKeys[taggingLevel])
-                        }
-
                         if (idx > -1) {
 
                             if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel)) {
@@ -1488,7 +1483,12 @@ function assignLabel(label,mapID = 'map1'){
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
                                     }
                                 }
-                                updateDebugInfo(mapID)                                
+                                updateDebugInfo(mapID)    
+                                
+                                if (wrongStatus) {
+                                    wrongStatus = false
+                                    initKeys(globalKeys[taggingLevel])
+                                }
                                 
                                 if ((!isTutorial)&&(!multipleStatus)) {
                                     submitLabels(mapID)
