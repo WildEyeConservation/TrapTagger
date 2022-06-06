@@ -4194,9 +4194,9 @@ def get_clusters():
                         cluster_label_ids.append(str(label.id))
                 else:
                     for label in cluster.labels:
-                        if label.parent_id == int(taggingLevel):
-                            cluster_labels.append(label.description)
-                            cluster_label_ids.append(str(label.id))
+                        # if label.parent_id == int(taggingLevel):
+                        cluster_labels.append(label.description)
+                        cluster_label_ids.append(str(label.id))
 
             tags = []
             tag_ids = []
@@ -4898,6 +4898,7 @@ def assignLabel(clusterID):
                         cluster.skipped = True
                     else:
                         cluster.labels.extend(newLabels)
+                        print('Cluster labels: {}'.format([r.description for r in cluster.labels]))
 
                     cluster.user_id = current_user.id
                     cluster.timestamp = datetime.utcnow()

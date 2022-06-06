@@ -210,7 +210,7 @@ function getKeys() {
                     }
                 xhttp.send();
             } else {
-                initKeys(globalKeys)
+                initKeys(globalKeys[taggingLevel])
             }
         }
     }
