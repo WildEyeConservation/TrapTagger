@@ -58,6 +58,7 @@ var modalWait2Hide = false
 var globalKeys = null
 var ITEMS='label'
 var ITEM_IDS='label_ids'
+var wrongStatus = false
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -1273,12 +1274,19 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    // if (label==wrongLabel) {
-    //     buildWrong()
-    // } else 
-    if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
+    if (label==wrongLabel) {
+        wrongStatus = true
+        initKeys(globalKeys[-1])
+    } else if (wrongStatus && (label in globalKeys)) {
+        initKeys(globalKeys[label])
+    } else if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
         //ignore nothing and knocked down labels in multi
     } else if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+        if (wrongStatus) {
+            wrongStatus = false
+            initKeys(globalKeys[taggingLevel])
+        }
+
         if (taggingLevel=='-3') {
             // classification check
 

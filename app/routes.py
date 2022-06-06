@@ -4962,70 +4962,29 @@ def getTaggingLevel():
 
     return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel})
 
-@app.route('/initKeys/<taggingLevel>')
+@app.route('/initKeys')
 @login_required
-def initKeys(taggingLevel):
-    '''Returns the labels and their associated hotkeys for the given task and tagging level.'''
+def initKeys():
+    '''Returns the labels and their associated hotkeys for the given task.'''
 
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
 
     task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
 
-    if taggingLevel == '-23':
-        taggingLevel = task.tagging_level
+    # if taggingLevel == '-23':
+    #     taggingLevel = task.tagging_level
 
     if task and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user == task.survey.user)):
-        addSkip = False
-        if taggingLevel == '-1':
-            categories = db.session.query(Label).filter(Label.task_id == task.id).filter(Label.parent_id == None).all()
-            special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
-            categories.extend(special_categories)
-        elif taggingLevel == '0':
-            temp_categories = db.session.query(Label).filter(Label.task_id == task.id).all()
-            categories = []
-            for category in temp_categories:
-                check = db.session.query(Label).filter(Label.parent_id == category.id).first()
-                if check == None:
-                    categories.append(category)
-            special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
-            categories.extend(special_categories)
-        elif '-2' in taggingLevel:
-            categories = db.session.query(Tag).filter(Tag.task_id == task.id).all()
-            # categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
-            # addSkip = True
-        else:
-            wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
-            categories = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.parent_id==int(taggingLevel)).all()
-            categories.append(wrong_category)
-            addSkip = True
 
-        hotkeys = [Config.EMPTY_HOTKEY_ID] * Config.NUMBER_OF_HOTKEYS
-        names = ['N'] * Config.NUMBER_OF_HOTKEYS
-        for category in categories:
-            if category.hotkey != None:
-                num = ord(category.hotkey)
-                if 48 <= num <= 57:
-                    #handle numbers
-                    indx = num-48
-                elif 65 <= num <= 90:
-                    #handle uppercase
-                    indx = num-55
-                elif num==32:
-                    #Spacebar
-                    indx = Config.NUMBER_OF_HOTKEYS-1
-                else:
-                    #Handle letters
-                    indx = num-87
-                if hotkeys[indx] == Config.EMPTY_HOTKEY_ID:
-                    hotkeys[indx] = category.id
-                    names[indx] = category.description
+        reply = {}
+        labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
+        labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+        for label in labels:
+            reply[label.id] = genInitKeys(label.id,task.id)
+        reply['-1'] = genInitKeys('-1',task.id)            
 
-        if addSkip:
-            hotkeys[0] = Config.SKIP_ID
-            names[0] = 'Skip'
-
-        return json.dumps((hotkeys, names))
+        return json.dumps(reply)
     else:
         return json.dumps('error')
 

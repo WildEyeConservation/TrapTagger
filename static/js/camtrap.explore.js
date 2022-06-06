@@ -60,7 +60,9 @@ function getKeys() {
         xhttp.onreadystatechange =
             function () {
                 if (this.readyState == 4 && this.status == 200) {
-                    res = JSON.parse(this.responseText);
+                    reply = JSON.parse(this.responseText);
+
+                    res = reply[taggingLevel]
 
                     // Remove undesirable names from the explore page
                     for (ln=0;ln<res[1].length;ln++) {

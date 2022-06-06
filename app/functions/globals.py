@@ -48,6 +48,7 @@ from PIL import Image as pilImage
 from PIL import ImageOps
 import pyexifinfo
 import hashlib
+from multiprocessing.pool import ThreadPool as Pool
 
 def cleanupWorkers(one, two):
     '''
@@ -1644,6 +1645,30 @@ def md5(fname):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
+@celery.task(bind=True,max_retries=29)
+def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_info):
+    '''Batch cropping job to parallelise the process on worker instances.'''
+
+    try:
+        pool = Pool(processes=4)
+        for image_id in image_ids:
+            pool.apply_async(save_crops,(image_id,source,min_area,destBucket,external,update_image_info))
+        pool.close()
+        pool.join()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    
+    finally:
+        db.session.remove()
+
+    return True
+
 def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
     '''
     Crops all the detections out of the supplied image and saves them to S3 for training purposes.
@@ -1747,8 +1772,9 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
                 print('Success')
             except:
                 print('Failed to delete image {}'.format(image_id))
-
-    db.session.remove()
+    
+    finally:
+        db.session.remove()
 
     return True
 

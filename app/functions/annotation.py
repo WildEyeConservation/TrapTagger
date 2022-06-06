@@ -1233,3 +1233,57 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                                 .distinct().limit(limit).all()
 
     return clusters
+
+def genInitKeys(taggingLevel,task_id):
+    '''Returns the labels and hotkeys for the given tagging level and task'''
+
+    addSkip = False
+    if taggingLevel == '-1':
+        categories = db.session.query(Label).filter(Label.task_id == task_id).filter(Label.parent_id == None).all()
+        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
+        categories.extend(special_categories)
+    elif taggingLevel == '0':
+        temp_categories = db.session.query(Label).filter(Label.task_id == task_id).all()
+        categories = []
+        for category in temp_categories:
+            check = db.session.query(Label).filter(Label.parent_id == category.id).first()
+            if check == None:
+                categories.append(category)
+        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
+        categories.extend(special_categories)
+    elif '-2' in taggingLevel:
+        categories = db.session.query(Tag).filter(Tag.task_id == task_id).all()
+        # categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
+        # addSkip = True
+    else:
+        wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
+        categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==int(taggingLevel)).all()
+        categories.append(wrong_category)
+        addSkip = True
+
+    hotkeys = [Config.EMPTY_HOTKEY_ID] * Config.NUMBER_OF_HOTKEYS
+    names = ['N'] * Config.NUMBER_OF_HOTKEYS
+    for category in categories:
+        if category.hotkey != None:
+            num = ord(category.hotkey)
+            if 48 <= num <= 57:
+                #handle numbers
+                indx = num-48
+            elif 65 <= num <= 90:
+                #handle uppercase
+                indx = num-55
+            elif num==32:
+                #Spacebar
+                indx = Config.NUMBER_OF_HOTKEYS-1
+            else:
+                #Handle letters
+                indx = num-87
+            if hotkeys[indx] == Config.EMPTY_HOTKEY_ID:
+                hotkeys[indx] = category.id
+                names[indx] = category.description
+
+    if addSkip:
+        hotkeys[0] = Config.SKIP_ID
+        names[0] = 'Skip'
+
+    return (hotkeys, names)

@@ -202,7 +202,7 @@ function getKeys() {
                             window.location.replace(JSON.parse(this.responseText)['redirect'])
                         } else if (this.readyState == 4 && this.status == 200) {
                             globalKeys = JSON.parse(this.responseText);
-                            initKeys(globalKeys);
+                            initKeys(globalKeys[taggingLevel]);
                             if (taggingLevel.includes('-2') && (multipleStatus==false)) {
                                 activateMultiple()
                             }
