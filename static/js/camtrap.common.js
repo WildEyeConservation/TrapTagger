@@ -1883,7 +1883,7 @@ function activateMultiple(mapID = 'map1') {
                             if (idx > -1) {
                                 var btn = document.getElementById(hotkeys[idx]);
                                 btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
-                            } else if (((!isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
+                            } else if (((isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
                                 // add selected buttons from other tagging levels
                                 var newbtn = document.createElement('button');
                                 newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]][ITEMS][i];
@@ -1950,6 +1950,12 @@ function submitLabels(mapID = 'map1') {
 function initKeys(res){
     /** Initialises the buttons for the current task, using the input data. */
     if ((!isBounding) && (divBtns != null)) {
+        if (multipleStatus) {
+            reActivate = true
+        } else {
+            reActivate = false
+        }
+
         while(divBtns.firstChild){
             divBtns.removeChild(divBtns.firstChild);
         }
@@ -2022,6 +2028,10 @@ function initKeys(res){
             }
         } else {
             multipleStatus = false
+        }
+
+        if (reActivate) {
+            activateMultiple()
         }
     }
 }

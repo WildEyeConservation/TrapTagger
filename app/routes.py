@@ -2569,7 +2569,7 @@ def getJobs():
     '''Returns a paginated list of available jobs available to the current user.'''
     
     page = request.args.get('page', 1, type=int)
-    order = request.args.get('order', 1, type=int)
+    order = request.args.get('order', 5, type=int)
     search = request.args.get('search', '', type=str)
 
     quals = [r.id for r in current_user.qualifications]
@@ -2584,7 +2584,8 @@ def getJobs():
 
     if order == 1:
         #Survey date
-        tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
+        # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
+        tasks = tasks.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
     elif order == 2:
         #Survey add date
         tasks = tasks.order_by(Survey.id)
@@ -2593,7 +2594,8 @@ def getJobs():
         tasks = tasks.order_by(Survey.name)
     elif order == 4:
         #Survey date descending
-        tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+        # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+        tasks = tasks.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
     elif order == 5:
         #Add date descending
         tasks = tasks.order_by(desc(Survey.id))
