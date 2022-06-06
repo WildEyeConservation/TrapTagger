@@ -1282,10 +1282,6 @@ function assignLabel(label,mapID = 'map1'){
     } else if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
         //ignore nothing and knocked down labels in multi
     } else if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-        if (wrongStatus) {
-            wrongStatus = false
-            initKeys(globalKeys[taggingLevel])
-        }
 
         if (taggingLevel=='-3') {
             // classification check
@@ -1428,6 +1424,11 @@ function assignLabel(label,mapID = 'map1'){
                     if ((label != EMPTY_HOTKEY_ID)&&(checkVar==0)) {
                         console.log(label)
                         idx = hotkeys.indexOf(label)
+
+                        if (wrongStatus) {
+                            wrongStatus = false
+                            initKeys(globalKeys[taggingLevel])
+                        }
 
                         if (idx > -1) {
 
