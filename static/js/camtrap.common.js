@@ -1274,6 +1274,10 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
+    if ((label==skip)&&(wrongStatus)) {
+        label=taggingLevel
+    }
+
     if (label==wrongLabel) {
         wrongStatus = true
         initKeys(globalKeys[-1])
@@ -1984,6 +1988,7 @@ function initKeys(res){
         // Add other buttons
         for (i=0;i<labs.length;i++) {
             hotkeys[i] = labs[i].toString()
+            labelName = names[i]
 
             if (names[i]=='Unknown') {
                 unknownLabel = labs[i]
@@ -1993,6 +1998,18 @@ function initKeys(res){
                 downLabel = labs[i]
             } else if (names[i]=='Wrong') {
                 wrongLabel = labs[i]
+                if (wrongStatus) {
+                    labelName = 'Back'
+                }
+            } else if ((names[i]=='Skip')&&(wrongStatus)) {
+                for (tl in globalKeys) {
+                    for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
+                        if (globalKeys[tl][0][tl2]==taggingLevel) {
+                            labelName = 'Unknown '+globalKeys[tl][1][tl2]
+                            break
+                        }
+                    }
+                }
             }
 
             if (labs[i] != EMPTY_HOTKEY_ID) {
@@ -2000,13 +2017,13 @@ function initKeys(res){
                 newbtn.classList.add('btn');
                 if (i < 10) {
                     newbtn.classList.add('btn-primary');
-                    newbtn.innerHTML = names[i] + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
+                    newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
                 } else if (i == labs.length-1) {
                     newbtn.classList.add('btn-info');
-                    newbtn.innerHTML = names[i] + ' (Space)';
+                    newbtn.innerHTML = labelName + ' (Space)';
                 } else {
                     newbtn.classList.add('btn-info');
-                    newbtn.innerHTML = names[i] + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
+                    newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
                 }
                 newbtn.setAttribute("id", hotkeys[i]);
                 newbtn.classList.add('btn-block');
