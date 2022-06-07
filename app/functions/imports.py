@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
-from app.functions.globals import detection_rating, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all
+from app.functions.globals import detection_rating, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask
 import GLOBALS
 from sqlalchemy.sql import func, or_
 from sqlalchemy import desc
@@ -2381,6 +2381,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         if addingImages:
             for task in survey.tasks:
                 if task.name != 'default':
+                    classifyTask(task.id)
                     updateTaskCompletionStatus(task.id)
                     updateLabelCompletionStatus(task.id)
                     updateIndividualIdStatus(task.id)

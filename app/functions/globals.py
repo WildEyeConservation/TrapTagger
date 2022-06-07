@@ -1030,19 +1030,21 @@ def classifyTask(task_id,reClusters = None):
 
             if reClusters != None:
                 clusters = clusters.filter(Cluster.id.in_(reClusters))
+            else:
+                clusters = clusters.filter(~Cluster.labels.any())
 
             clusters = clusters.distinct().all()
 
-            for cluster in clusters:
-                cluster.labels = [species]
-                cluster.user_id = admin.id
-                cluster.timestamp = datetime.utcnow()
+            for chunk in chunker(clusters,1000):
+                for cluster in chunk:
+                    cluster.labels = [species]
+                    cluster.user_id = admin.id
+                    cluster.timestamp = datetime.utcnow()
 
-                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
-                for labelgroup in labelgroups:
-                    labelgroup.labels = [species]
-
-            db.session.commit()
+                    labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
+                    for labelgroup in labelgroups:
+                        labelgroup.labels = [species]
+                db.session.commit()
         app.logger.info('Finished classifying task '+str(task_id))
 
     except Exception:
