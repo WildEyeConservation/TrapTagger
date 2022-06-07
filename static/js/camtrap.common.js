@@ -1988,44 +1988,38 @@ function initKeys(res){
         labs = res[0]
         names = res[1]
 
-        // Add other buttons
+        // Add other important buttons
         for (i=0;i<labs.length;i++) {
             hotkeys[i] = labs[i].toString()
             labelName = names[i]
 
-            if (names[i]=='Unknown') {
-                unknownLabel = labs[i]
-            } else if (names[i]=='Nothing') {
-                nothingLabel = labs[i]
-            } else if (names[i]=='Knocked Down') {
-                downLabel = labs[i]
-            } else if (names[i]=='Wrong') {
-                wrongLabel = labs[i]
-                if (wrongStatus) {
-                    labelName = 'Back'
-                }
-            } else if ((names[i]=='Skip')&&(wrongStatus)) {
-                for (tl in globalKeys) {
-                    for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
-                        if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
-                            labelName = globalKeys[tl][1][tl2]
-                            break
+            if (((names[i]=='Wrong')||(names[i]=='Skip'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
+                if (names[i]=='Wrong') {
+                    wrongLabel = labs[i]
+                    if (wrongStatus) {
+                        labelName = 'Back'
+                    }
+                } else if ((names[i]=='Skip')&&(wrongStatus)) {
+                    for (tl in globalKeys) {
+                        for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
+                            if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
+                                labelName = globalKeys[tl][1][tl2]
+                                break
+                            }
                         }
                     }
                 }
-            }
 
-            if (labs[i] != EMPTY_HOTKEY_ID) {
                 var newbtn = document.createElement('button');
                 newbtn.classList.add('btn');
                 if (i < 10) {
-                    newbtn.classList.add('btn-primary');
+                    newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
                 } else if (i == labs.length-1) {
-                    newbtn.classList.add('btn-info');
+                    newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (Space)';
                 } else {
-                    newbtn.classList.add('btn-info');
+                    newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
                 }
                 newbtn.setAttribute("id", hotkeys[i]);
@@ -2036,6 +2030,45 @@ function initKeys(res){
                     assignLabel(evt.target.id);
                 });
                 divBtns.appendChild(newbtn);
+            }
+        }
+
+        // Add other buttons
+        for (i=0;i<labs.length;i++) {
+            hotkeys[i] = labs[i].toString()
+            labelName = names[i]
+
+            if ((names[i]!='Wrong')&&(names[i]!='Skip')) {
+                if (names[i]=='Unknown') {
+                    unknownLabel = labs[i]
+                } else if (names[i]=='Nothing') {
+                    nothingLabel = labs[i]
+                } else if (names[i]=='Knocked Down') {
+                    downLabel = labs[i]
+                }
+    
+                if (labs[i] != EMPTY_HOTKEY_ID) {
+                    var newbtn = document.createElement('button');
+                    newbtn.classList.add('btn');
+                    if (i < 10) {
+                        newbtn.classList.add('btn-primary');
+                        newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
+                    } else if (i == labs.length-1) {
+                        newbtn.classList.add('btn-info');
+                        newbtn.innerHTML = labelName + ' (Space)';
+                    } else {
+                        newbtn.classList.add('btn-info');
+                        newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
+                    }
+                    newbtn.setAttribute("id", hotkeys[i]);
+                    newbtn.classList.add('btn-block');
+                    newbtn.classList.add('btn-sm');
+                    newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                    newbtn.addEventListener('click', (evt)=>{
+                        assignLabel(evt.target.id);
+                    });
+                    divBtns.appendChild(newbtn);
+                }
             }
         }
 
