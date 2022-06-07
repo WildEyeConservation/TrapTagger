@@ -1992,10 +1992,10 @@ function initKeys(res){
 
         // Add other important buttons
         for (i=0;i<labs.length;i++) {
-            hotkeys[i] = labs[i].toString()
-            labelName = names[i]
-
             if (((names[i]=='Wrong')||(names[i]=='Skip'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
+                hotkeys[i] = labs[i].toString()
+                labelName = names[i]
+
                 if (names[i]=='Wrong') {
                     wrongLabel = labs[i]
                     if (wrongStatus) {
@@ -2006,6 +2006,7 @@ function initKeys(res){
                         for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
                             if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
                                 labelName = globalKeys[tl][1][tl2]
+                                hotkeys[i] = tempTaggingLevel.toString()
                                 break
                             }
                         }
@@ -2037,10 +2038,10 @@ function initKeys(res){
 
         // Add other buttons
         for (i=0;i<labs.length;i++) {
-            hotkeys[i] = labs[i].toString()
-            labelName = names[i]
-
             if ((names[i]!='Wrong')&&(names[i]!='Skip')) {
+                hotkeys[i] = labs[i].toString()
+                labelName = names[i]
+
                 if (names[i]=='Unknown') {
                     unknownLabel = labs[i]
                 } else if (names[i]=='Nothing') {
