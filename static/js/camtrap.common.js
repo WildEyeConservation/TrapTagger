@@ -1275,17 +1275,11 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    skip = false
-    if ((label=='-117')&&(wrongStatus)) {
-        label=tempTaggingLevel
-        skip = true
-    }
-
     if (label==wrongLabel) {
         wrongStatus = true
         tempTaggingLevel = -1
         initKeys(globalKeys[tempTaggingLevel])
-    } else if (!skip && wrongStatus && (label in globalKeys)) {
+    } else if (wrongStatus && (label in globalKeys)) {
         tempTaggingLevel = label
         initKeys(globalKeys[tempTaggingLevel])
     } else if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
