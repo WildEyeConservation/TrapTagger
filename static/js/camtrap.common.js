@@ -59,6 +59,7 @@ var globalKeys = null
 var ITEMS='label'
 var ITEM_IDS='label_ids'
 var wrongStatus = false
+var tempTaggingLevel=null
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -1275,14 +1276,16 @@ function assignLabel(label,mapID = 'map1'){
     }
 
     if ((label==skip)&&(wrongStatus)) {
-        label=taggingLevel
+        label=tempTaggingLevel
     }
 
     if (label==wrongLabel) {
         wrongStatus = true
-        initKeys(globalKeys[-1])
+        tempTaggingLevel = -1
+        initKeys(globalKeys[tempTaggingLevel])
     } else if (wrongStatus && (label in globalKeys)) {
-        initKeys(globalKeys[label])
+        tempTaggingLevel = label
+        initKeys(globalKeys[tempTaggingLevel])
     } else if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
         //ignore nothing and knocked down labels in multi
     } else if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
@@ -2004,8 +2007,8 @@ function initKeys(res){
             } else if ((names[i]=='Skip')&&(wrongStatus)) {
                 for (tl in globalKeys) {
                     for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
-                        if (globalKeys[tl][0][tl2]==taggingLevel) {
-                            labelName = 'Unknown '+globalKeys[tl][1][tl2]
+                        if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
+                            labelName = globalKeys[tl][1][tl2]
                             break
                         }
                     }
