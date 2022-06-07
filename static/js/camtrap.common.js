@@ -1279,7 +1279,7 @@ function assignLabel(label,mapID = 'map1'){
         wrongStatus = true
         tempTaggingLevel = -1
         initKeys(globalKeys[tempTaggingLevel])
-    } else if (wrongStatus && (label in globalKeys)) {
+    } else if (wrongStatus && (label in globalKeys) && (label != tempTaggingLevel)) {
         tempTaggingLevel = label
         initKeys(globalKeys[tempTaggingLevel])
     } else if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
