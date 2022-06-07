@@ -1275,7 +1275,7 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    if ((label==skip)&&(wrongStatus)) {
+    if ((label=='-117')&&(wrongStatus)) {
         label=tempTaggingLevel
     }
 
