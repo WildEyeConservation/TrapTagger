@@ -4194,7 +4194,7 @@ def get_clusters():
                         cluster_label_ids.append(str(label.id))
                 else:
                     for label in cluster.labels:
-                        if label.id == int(taggingLevel):
+                        if label.id != int(taggingLevel):
                             cluster_labels.append(label.description)
                             cluster_label_ids.append(str(label.id))
 

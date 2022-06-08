@@ -350,6 +350,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Labelgroup.task_id==task_id) \
                 .filter(Detection.static==False) \
                 .filter(Detection.score>0.8) \
+                .filter(Individual.active==True) \
                 .filter(~Detection.status.in_(['deleted','hidden']))
 
     if len(include) != 0:
