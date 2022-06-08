@@ -1433,7 +1433,7 @@ function assignLabel(label,mapID = 'map1'){
                             if (wrongStatus) {
                                 for (tl in globalKeys) {
                                     for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
-                                        if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
+                                        if (globalKeys[tl][0][tl2]==label) {
                                             labelName = globalKeys[tl][1][tl2]
                                             break
                                         }
