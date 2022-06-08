@@ -1200,7 +1200,7 @@ def generate_excel(self,task_id):
 
     return None
 
-def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,surveyName,labels):
+def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,individual_sorted,surveyName,labels):
     '''
     Processes a single image for exif download by downloading the file locally, editing its metadata (without opening it) and saving it 
     to a Downloads folder in the user's bucket. Labels are saved in the user comment exif data, xpkeyword data and the IPTC keywords.
@@ -1211,6 +1211,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
             species_sorted (bool): Whether the dataset should be sorted into species folders
             bucket (str): The bucket where the image should be uploaded
             flat_structure (bool): Whether the folder structure should be flattened
+            individual_sorted (bool): Wether to sort the data by individuals
             surveyName (str): The name of the survey associated with the image
             labels (list): The requested label ids
     '''
@@ -1242,18 +1243,30 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
         destinationKeys = []
         baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
         for label in imageLabels:
-            if not (species_sorted and (label.id not in labels)):
-                destinationKey = 'Downloads/' + surveyName
-                if species_sorted:  destinationKey += '/' + label.description
-                if flat_structure:
-                    filename = baseName
-                    for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
-                    filename += '_' + str(image.id) + '.jpg'
-                    destinationKey += '/' + filename
-                else:
-                    for split in splitPath: destinationKey += '/' + split
-                    destinationKey += '/' +image.filename
-                destinationKeys.append(destinationKey)
+            individuals = [None]
+            if individual_sorted:
+                individuals = db.session.query(Individual)\
+                                    .join(Detection,Individual.detections)\
+                                    .filter(Detection.image_id==image_id)\
+                                    .filter(Individual.task_id==task_id)\
+                                    .filter(Individual.label_id==label.id)\
+                                    .filter(Individual.active==True)\
+                                    .distinct().all()
+                if len(individuals)==0: individuals = [None]
+            for individual in individuals:
+                if not (species_sorted and (label.id not in labels)):
+                    destinationKey = 'Downloads/' + surveyName
+                    if species_sorted:  destinationKey += '/' + label.description
+                    if individual and individual_sorted: destinationKey += '/' + individual.name
+                    if flat_structure:
+                        filename = baseName
+                        for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
+                        filename += '_' + str(image.id) + '.jpg'
+                        destinationKey += '/' + filename
+                    else:
+                        for split in splitPath: destinationKey += '/' + split
+                        destinationKey += '/' +image.filename
+                    destinationKeys.append(destinationKey)
 
         # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
         # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
@@ -1318,7 +1331,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,sur
     return True
 
 @celery.task(bind=True,max_retries=29)
-def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structure,surveyName,labels):
+def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structure,individual_sorted,surveyName,labels):
     ''' Prepares a batch of exif images, allowing for parallelisation across instances. 
     
         Parameters:
@@ -1327,13 +1340,14 @@ def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structu
             species_sorted (bool): Whether the dataset should be sorted into species folders
             bucket (str): The bucket where the image should be uploaded
             flat_structure (bool): Whether the folder structure should be flattened
+            individual_sorted (bool): Whether the images should be sorted by individuals
             surveyName (str): The name of the survey associated with the image
             labels (list): The requested label ids
     '''
 
     try:
         for image_id in image_ids:
-            prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,surveyName,labels)
+            prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,individual_sorted,surveyName,labels)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1349,7 +1363,7 @@ def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structu
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def prepare_exif(self,task_id,species,species_sorted,flat_structure):
+def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_sorted):
     '''
     Celery task for preparing an exif dataset download. Triggers the threaded processing of images.
 
@@ -1358,6 +1372,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure):
             species (list): The species for download
             species_sorted (bool): Whether the dataset should be sorted into species folders
             flat_structure (bool): Whether the folder structure should be flattened
+            individual_sorted (bool): Whether the data should be sorted by identified individuals (where possible)
     '''
     try:
         app.logger.info('prepare_exif started for task {}'.format(task_id))
@@ -1396,6 +1411,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure):
                                                                     'species_sorted':species_sorted,
                                                                     'bucket':bucket,
                                                                     'flat_structure':flat_structure,
+                                                                    'individual_sorted':individual_sorted,
                                                                     'surveyName': surveyName,
                                                                     'labels': [r.id for r in labels]}))
 

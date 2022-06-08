@@ -62,6 +62,8 @@ modalDownload.on('shown.bs.modal', function(){
         document.getElementById('flatStructure').checked = false
         document.getElementById('originalSorted').checked = true
         document.getElementById('speciesSorted').checked = false
+        document.getElementById('individualUnSorted').checked = true
+        document.getElementById('individualSorted').checked = false
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
@@ -85,6 +87,8 @@ modalDownload.on('hidden.bs.modal', function(){
         document.getElementById('flatStructure').checked = false
         document.getElementById('originalSorted').checked = true
         document.getElementById('speciesSorted').checked = false
+        document.getElementById('individualUnSorted').checked = true
+        document.getElementById('individualSorted').checked = false
 
         downloadSpeciesDiv = document.getElementById('downloadSpeciesDiv')
         while(downloadSpeciesDiv.firstChild){
@@ -109,6 +113,12 @@ function submitDownloadRequest() {
         species_sorted = 'False'
     }
 
+    if (document.getElementById('individualSorted').checked) {
+        individual_sorted = 'True'
+    } else {
+        individual_sorted = 'False'
+    }
+
     if (document.getElementById('flatStructure').checked) {
         flat_structure = 'True'
     } else {
@@ -126,6 +136,7 @@ function submitDownloadRequest() {
     formData.append("species", JSON.stringify(species))
     formData.append("columns", JSON.stringify(columns))
     formData.append("species_sorted", JSON.stringify(species_sorted))
+    formData.append("individual_sorted", JSON.stringify(individual_sorted))
     formData.append("flat_structure", JSON.stringify(flat_structure))
 
     var xhttp = new XMLHttpRequest();

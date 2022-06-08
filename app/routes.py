@@ -2829,11 +2829,12 @@ def RequestExif():
     species = ast.literal_eval(request.form['species'])
     species_sorted = ast.literal_eval(request.form['species_sorted'])
     flat_structure = ast.literal_eval(request.form['flat_structure'])
+    individual_sorted = ast.literal_eval(request.form['individual_sorted'])
 
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES):
         app.logger.info('exif request made: {}, {}, {}'.format(task_id,species,species_sorted))
-        prepare_exif.delay(task_id=task_id,species=species,species_sorted=species_sorted,flat_structure=flat_structure)
+        prepare_exif.delay(task_id=task_id,species=species,species_sorted=species_sorted,flat_structure=flat_structure,individual_sorted=individual_sorted)
         return json.dumps('Success')
 
     return json.dumps('Error')
