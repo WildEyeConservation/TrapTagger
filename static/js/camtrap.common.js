@@ -1430,7 +1430,7 @@ function assignLabel(label,mapID = 'map1'){
 
                         if (idx > -1) {
 
-                            if ((names[i]=='Skip')&&(wrongStatus)) {
+                            if (wrongStatus) {
                                 for (tl in globalKeys) {
                                     for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
                                         if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
