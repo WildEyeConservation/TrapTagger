@@ -2831,10 +2831,24 @@ def RequestExif():
     flat_structure = ast.literal_eval(request.form['flat_structure'])
     individual_sorted = ast.literal_eval(request.form['individual_sorted'])
 
+    if species_sorted.lower()=='true':
+        species_sorted = True
+    else:
+        species_sorted = False
+
+    if flat_structure.lower()=='true':
+        flat_structure = True
+    else:
+        flat_structure = False
+
+    if individual_sorted.lower()=='true':
+        individual_sorted = True
+    else:
+        individual_sorted = False
+
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES):
         app.logger.info('exif request made: {}, {}, {}, {}, {}'.format(task_id,species,species_sorted,flat_structure,individual_sorted))
-        app.logger.info('exif request made: {}, {}, {}, {}, {}'.format(type(task_id),type(species),type(species_sorted),type(flat_structure),type(individual_sorted)))
         prepare_exif.delay(task_id=task_id,species=species,species_sorted=species_sorted,flat_structure=flat_structure,individual_sorted=individual_sorted)
         return json.dumps('Success')
 
