@@ -2833,7 +2833,7 @@ def RequestExif():
 
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES):
-        app.logger.info('exif request made: {}, {}, {}'.format(task_id,species,species_sorted))
+        app.logger.info('exif request made: {}, {}, {}'.format(task_id,species,species_sorted,flat_structure,individual_sorted))
         prepare_exif.delay(task_id=task_id,species=species,species_sorted=species_sorted,flat_structure=flat_structure,individual_sorted=individual_sorted)
         return json.dumps('Success')
 
