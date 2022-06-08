@@ -2001,6 +2001,7 @@ function initKeys(res){
                             if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
                                 labelName = globalKeys[tl][1][tl2]
                                 hotkeys[i] = tempTaggingLevel.toString()
+                                names[i] = labelName
                                 break
                             }
                         }
