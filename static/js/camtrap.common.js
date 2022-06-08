@@ -1430,6 +1430,19 @@ function assignLabel(label,mapID = 'map1'){
 
                         if (idx > -1) {
 
+                            if ((names[i]=='Skip')&&(wrongStatus)) {
+                                for (tl in globalKeys) {
+                                    for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
+                                        if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
+                                            labelName = globalKeys[tl][1][tl2]
+                                            break
+                                        }
+                                    }
+                                }
+                            } else {
+                                labelName = names[idx]
+                            }
+
                             if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel)) {
                                 // reallocate on undo nothing
                                 clusterRequests[mapID] = [];
@@ -1439,7 +1452,7 @@ function assignLabel(label,mapID = 'map1'){
                                 clusterLabels[mapID] = []
                             }
 
-                            if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(names[idx])) {
+                            if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(labelName)) {
         
                                 var btn = document.getElementById(label);
                                 if (idx < 10) {
@@ -1448,7 +1461,7 @@ function assignLabel(label,mapID = 'map1'){
                                     btn.setAttribute("class", "btn btn-info btn-block btn-sm");
                                 }
             
-                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(names[idx]), 1);
+                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(labelName), 1);
                                 clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label), 1);
                                 if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
                                     clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
@@ -1473,12 +1486,12 @@ function assignLabel(label,mapID = 'map1'){
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(taggingLabel), 1);
                                         clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel), 1);
                                     }
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS].push(names[idx]);
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
                                     clusterLabels[mapID].push(label)
     
                                 } else {
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS] = [names[idx]]
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS] = [labelName]
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
                                     clusterLabels[mapID] = [label]
 
@@ -2001,7 +2014,6 @@ function initKeys(res){
                             if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
                                 labelName = globalKeys[tl][1][tl2]
                                 hotkeys[i] = tempTaggingLevel.toString()
-                                names[i] = labelName
                                 break
                             }
                         }
