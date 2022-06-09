@@ -4807,6 +4807,7 @@ def assignLabel(clusterID):
 
     try:
         labels = ast.literal_eval(request.form['labels'])
+        if labels: app.logger.info('type: {}'.format(type(labels[0])))
 
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
         turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
@@ -4834,37 +4835,37 @@ def assignLabel(clusterID):
                     newLabels = []
 
                     #pre-filter labels
-                    if (',' in taggingLevel) or (int(taggingLevel) < 1):                            
-                        if '-2' in taggingLevel:
-                            cluster.tags = []
-                        else:
-                            # Can't have nothing label alongside other labels
-                            if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
-                                app.logger.info('Blocked nothing multi label!')
-                                labels.remove(GLOBALS.nothing_id)
-
-                            if GLOBALS.nothing_id in [r.id for r in cluster.labels]:
-                                trapgroup = cluster.images[0].camera.trapgroup
-                                trapgroup.processing = True
-                                trapgroup.active = False
-                                trapgroup.user_id = None
-                                current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                                db.session.commit()
-                                removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
-                                
-                            cluster.labels = []
+                    # if (',' in taggingLevel) or (int(taggingLevel) < 1):                            
+                    if '-2' in taggingLevel:
+                        cluster.tags = []
                     else:
-                        parentLabel = db.session.query(Label).get(int(taggingLevel))
-                        if parentLabel in cluster.labels:
-                            cluster.labels.remove(parentLabel)
+                        # Can't have nothing label alongside other labels
+                        if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
+                            app.logger.info('Blocked nothing multi label!')
+                            labels.remove(GLOBALS.nothing_id)
 
-                        to_remove = []
-                        for lab in cluster.labels:
-                            if lab.parent==parentLabel:
-                                to_remove.append(lab)
+                        if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and (str(GLOBALS.nothing_id) not in labels):
+                            trapgroup = cluster.images[0].camera.trapgroup
+                            trapgroup.processing = True
+                            trapgroup.active = False
+                            trapgroup.user_id = None
+                            current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+                            db.session.commit()
+                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
+                            
+                        cluster.labels = []
+                    # else:
+                    #     parentLabel = db.session.query(Label).get(int(taggingLevel))
+                    #     if parentLabel in cluster.labels:
+                    #         cluster.labels.remove(parentLabel)
 
-                        for lab in to_remove:
-                            cluster.labels.remove(lab)
+                    #     to_remove = []
+                    #     for lab in cluster.labels:
+                    #         if lab.parent==parentLabel:
+                    #             to_remove.append(lab)
+
+                    #     for lab in to_remove:
+                    #         cluster.labels.remove(lab)
 
                     if cluster.skipped:
                         cluster.skipped = False

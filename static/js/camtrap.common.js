@@ -1491,9 +1491,25 @@ function assignLabel(label,mapID = 'map1'){
                                     clusterLabels[mapID].push(label)
     
                                 } else {
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS] = [labelName]
-                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
-                                    clusterLabels[mapID] = [label]
+
+                                    // Clear other current-level labels
+                                    for (tl=0;tl<globalKeys[taggingLevel][0].length;tl++) {
+                                        label_id = globalKeys[taggingLevel][0][tl]
+                                        if (label_id in clusters[mapID][clusterIndex[mapID]][ITEM_IDS]) {
+                                            label_name = globalKeys[taggingLevel][1][tl]
+                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
+                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
+                                            clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+                                        }
+                                    }
+
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
+                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
+                                    clusterLabels[mapID].push(label)
+
+                                    // clusters[mapID][clusterIndex[mapID]][ITEMS] = [labelName]
+                                    // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
+                                    // clusterLabels[mapID] = [label]
 
                                     if (unknocked) {
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
