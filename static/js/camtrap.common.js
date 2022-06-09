@@ -1496,26 +1496,32 @@ function assignLabel(label,mapID = 'map1'){
     
                                 } else {
 
-                                    // Clear other current-level labels
-                                    for (tl=0;tl<globalKeys[taggingLevel][0].length;tl++) {
-                                        label_id = globalKeys[taggingLevel][0][tl].toString()
-                                        if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
-                                            label_name = globalKeys[taggingLevel][1][tl]
-                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
-                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
-                                            clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
-                                        }
-                                    }
-
-                                    // Clear other same-level labels in wrong mode
-                                    if (wrongStatus) {
-                                        for (tl=0;tl<globalKeys[tempTaggingLevel][0].length;tl++) {
-                                            label_id = globalKeys[tempTaggingLevel][0][tl].toString()
+                                    if (isReviewing) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS] = []
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
+                                        clusterLabels[mapID] = []
+                                    } else {
+                                        // Clear other current-level labels
+                                        for (tl=0;tl<globalKeys[taggingLevel][0].length;tl++) {
+                                            label_id = globalKeys[taggingLevel][0][tl].toString()
                                             if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
-                                                label_name = globalKeys[tempTaggingLevel][1][tl]
+                                                label_name = globalKeys[taggingLevel][1][tl]
                                                 clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
                                                 clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
                                                 clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+                                            }
+                                        }
+
+                                        // Clear other same-level labels in wrong mode
+                                        if (wrongStatus) {
+                                            for (tl=0;tl<globalKeys[tempTaggingLevel][0].length;tl++) {
+                                                label_id = globalKeys[tempTaggingLevel][0][tl].toString()
+                                                if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                    label_name = globalKeys[tempTaggingLevel][1][tl]
+                                                    clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
+                                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
+                                                    clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+                                                }
                                             }
                                         }
                                     }

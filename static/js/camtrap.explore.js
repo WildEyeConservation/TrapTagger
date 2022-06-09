@@ -55,27 +55,6 @@ function loadNewCluster(mapID = 'map1') {
 function getKeys() {
     /** Initialises the keys for the current tagging level. */
     if (!isBounding) {
-
-            if (globalKeys==null) {
-                var xhttp = new XMLHttpRequest();
-                xhttp.open("GET", '/initKeys', true);
-                xhttp.onreadystatechange =
-                    function () {
-                        if (this.readyState == 4 && this.status == 278) {
-                            window.location.replace(JSON.parse(this.responseText)['redirect'])
-                        } else if (this.readyState == 4 && this.status == 200) {
-                            globalKeys = JSON.parse(this.responseText);
-                            initKeys(globalKeys[taggingLevel]);
-                            if (taggingLevel.includes('-2') && (multipleStatus==false)) {
-                                activateMultiple()
-                            }
-                        }
-                    }
-                xhttp.send();
-            } else {
-                initKeys(globalKeys[taggingLevel])
-            }
-
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/initKeys', true);
         xhttp.onreadystatechange =
@@ -92,9 +71,9 @@ function getKeys() {
                                 res[0][ln] = -967
                             }
                         }
-                    }
 
-                    initKeys(res);
+                        initKeys(res);
+                    }
                 }
             }
         xhttp.send();
