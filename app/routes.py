@@ -4832,9 +4832,7 @@ def assignLabel(clusterID):
             else:
                 if (num <= task.size) or (current_user.admin == True):
                     newLabels = []
-
-                    #pre-filter labels
-                    # if (',' in taggingLevel) or (int(taggingLevel) < 1):                            
+                         
                     if '-2' in taggingLevel:
                         cluster.tags = []
                     else:
@@ -4853,18 +4851,6 @@ def assignLabel(clusterID):
                             removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
                             
                         cluster.labels = []
-                    # else:
-                    #     parentLabel = db.session.query(Label).get(int(taggingLevel))
-                    #     if parentLabel in cluster.labels:
-                    #         cluster.labels.remove(parentLabel)
-
-                    #     to_remove = []
-                    #     for lab in cluster.labels:
-                    #         if lab.parent==parentLabel:
-                    #             to_remove.append(lab)
-
-                    #     for lab in to_remove:
-                    #         cluster.labels.remove(lab)
 
                     if cluster.skipped:
                         cluster.skipped = False

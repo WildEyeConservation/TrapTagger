@@ -55,20 +55,42 @@ function loadNewCluster(mapID = 'map1') {
 function getKeys() {
     /** Initialises the keys for the current tagging level. */
     if (!isBounding) {
+
+            if (globalKeys==null) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("GET", '/initKeys', true);
+                xhttp.onreadystatechange =
+                    function () {
+                        if (this.readyState == 4 && this.status == 278) {
+                            window.location.replace(JSON.parse(this.responseText)['redirect'])
+                        } else if (this.readyState == 4 && this.status == 200) {
+                            globalKeys = JSON.parse(this.responseText);
+                            initKeys(globalKeys[taggingLevel]);
+                            if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+                                activateMultiple()
+                            }
+                        }
+                    }
+                xhttp.send();
+            } else {
+                initKeys(globalKeys[taggingLevel])
+            }
+
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/initKeys', true);
         xhttp.onreadystatechange =
             function () {
                 if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-
-                    res = reply[taggingLevel]
+                    globalKeys = JSON.parse(this.responseText);
+                    res = globalKeys[taggingLevel]
 
                     // Remove undesirable names from the explore page
-                    for (ln=0;ln<res[1].length;ln++) {
-                        if (['Skip', 'Wrong', 'Knocked Down'].includes(res[1][ln])) {
-                            res[1][ln] = 'N'
-                            res[0][ln] = -967
+                    if (res.length!=0) {
+                        for (ln=0;ln<res[1].length;ln++) {
+                            if (['Skip', 'Wrong', 'Knocked Down'].includes(res[1][ln])) {
+                                res[1][ln] = 'N'
+                                res[0][ln] = -967
+                            }
                         }
                     }
 
