@@ -1503,6 +1503,19 @@ function assignLabel(label,mapID = 'map1'){
                                         }
                                     }
 
+                                    // Clear other same-level labels in wrong mode
+                                    if (tempTaggingLevel!=taggingLevel) {
+                                        for (tl=0;tl<globalKeys[tempTaggingLevel][0].length;tl++) {
+                                            label_id = globalKeys[tempTaggingLevel][0][tl].toString()
+                                            if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                label_name = globalKeys[tempTaggingLevel][1][tl]
+                                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
+                                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
+                                                clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+                                            }
+                                        }
+                                    }
+
                                     clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
                                     clusterLabels[mapID].push(label)
