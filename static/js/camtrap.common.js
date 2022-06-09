@@ -1494,8 +1494,8 @@ function assignLabel(label,mapID = 'map1'){
 
                                     // Clear other current-level labels
                                     for (tl=0;tl<globalKeys[taggingLevel][0].length;tl++) {
-                                        label_id = globalKeys[taggingLevel][0][tl]
-                                        if (label_id in clusters[mapID][clusterIndex[mapID]][ITEM_IDS]) {
+                                        label_id = globalKeys[taggingLevel][0][tl].toString()
+                                        if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
                                             label_name = globalKeys[taggingLevel][1][tl]
                                             clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
                                             clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);

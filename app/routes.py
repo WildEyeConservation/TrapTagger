@@ -4807,7 +4807,6 @@ def assignLabel(clusterID):
 
     try:
         labels = ast.literal_eval(request.form['labels'])
-        if labels: app.logger.info('type: {}'.format(type(labels[0])))
 
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
         turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
