@@ -1504,7 +1504,7 @@ function assignLabel(label,mapID = 'map1'){
                                     }
 
                                     // Clear other same-level labels in wrong mode
-                                    if (tempTaggingLevel!=taggingLevel) {
+                                    if (wrongStatus) {
                                         for (tl=0;tl<globalKeys[tempTaggingLevel][0].length;tl++) {
                                             label_id = globalKeys[tempTaggingLevel][0][tl].toString()
                                             if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
