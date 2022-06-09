@@ -1938,7 +1938,7 @@ function activateMultiple(mapID = 'map1') {
                             if (idx > -1) {
                                 var btn = document.getElementById(hotkeys[idx]);
                                 btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
-                            } else if (((isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
+                            } else if (((isReviewing||isTagging)||isClassCheck)&&(clusters[mapID][clusterIndex[mapID]][ITEMS][i].toLowerCase()!='none')) {
                                 // add selected buttons from other tagging levels
                                 var newbtn = document.createElement('button');
                                 newbtn.innerHTML = clusters[mapID][clusterIndex[mapID]][ITEMS][i];
@@ -2124,14 +2124,15 @@ function initKeys(res){
         // if (taggingLevel.includes('-2') && (multipleStatus==false)) {
         //     activateMultiple()
         // } else 
-        if ((!isTagging) || isClassCheck) {
-            if (multipleStatus==true) {
-                multipleStatus = false
-                activateMultiple()
-            }
-        } else {
-            multipleStatus = false
-        }
+        // if ((!isTagging) || isClassCheck) {
+        //     if (multipleStatus==true) {
+        //         multipleStatus = false
+        //         activateMultiple()
+        //     }
+        // } else {
+        //     multipleStatus = false
+        // }
+        multipleStatus = false
 
         if (reActivate) {
             activateMultiple()

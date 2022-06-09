@@ -4987,7 +4987,8 @@ def initKeys():
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         for label in labels:
             reply[str(label.id)] = genInitKeys(str(label.id),task.id)
-        reply['-1'] = genInitKeys('-1',task.id)            
+        reply['-1'] = genInitKeys('-1',task.id)
+        reply['-2'] = genInitKeys('-2',task.id)
 
         return json.dumps(reply)
     else:

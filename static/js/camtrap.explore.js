@@ -55,28 +55,32 @@ function loadNewCluster(mapID = 'map1') {
 function getKeys() {
     /** Initialises the keys for the current tagging level. */
     if (!isBounding) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/initKeys', true);
-        xhttp.onreadystatechange =
-            function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    globalKeys = JSON.parse(this.responseText);
-                    res = globalKeys[taggingLevel]
-
-                    // Remove undesirable names from the explore page
-                    if (res.length!=0) {
-                        for (ln=0;ln<res[1].length;ln++) {
-                            if (['Skip', 'Wrong', 'Knocked Down'].includes(res[1][ln])) {
-                                res[1][ln] = 'N'
-                                res[0][ln] = -967
+        if (globalKeys==null) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/initKeys', true);
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        globalKeys = JSON.parse(this.responseText);
+                        res = globalKeys[taggingLevel]
+    
+                        // Remove undesirable names from the explore page
+                        if (res.length!=0) {
+                            for (ln=0;ln<res[1].length;ln++) {
+                                if (['Skip', 'Wrong', 'Knocked Down'].includes(res[1][ln])) {
+                                    res[1][ln] = 'N'
+                                    res[0][ln] = -967
+                                }
                             }
+    
+                            initKeys(res);
                         }
-
-                        initKeys(res);
                     }
                 }
-            }
-        xhttp.send();
+            xhttp.send();
+        } else {
+            initKeys(globalKeys[taggingLevel])
+        }
     }
 }
 
