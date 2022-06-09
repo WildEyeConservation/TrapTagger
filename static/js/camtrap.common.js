@@ -872,6 +872,10 @@ function goToPrevCluster(mapID = 'map1') {
     clusterIndex[mapID] = clusterIndex[mapID] - 1
     updateClusterLabels(mapID)
 
+    if (wrongStatus) {
+        initKeys(globalKeys[taggingLevel])
+    }
+
     if (document.getElementById('btnSendToBack')!=null) {
         getSuggestions()
         individuals = [{}]
