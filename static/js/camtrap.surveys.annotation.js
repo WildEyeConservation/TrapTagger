@@ -19,9 +19,9 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     taskTaggingLevel = document.getElementById('taskTaggingLevel').value
 
     if (document.getElementById('sightingTag').checked || document.getElementById('sightingDifferentiation').checked) {
-        isBounding = false
-    } else {
         isBounding = true
+    } else {
+        isBounding = false
     }
 
     allow = true
