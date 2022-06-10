@@ -1266,6 +1266,7 @@ function switchTaggingLevel(level) {
         ITEMS = 'label'
         ITEM_IDS = 'label_ids'
     }
+    updateClusterLabels()
     getKeys()
 }
 
