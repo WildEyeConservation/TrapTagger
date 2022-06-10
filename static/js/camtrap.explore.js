@@ -41,6 +41,7 @@ function loadNewCluster(mapID = 'map1') {
                         clusters[mapID].push(newcluster)
                         if (clusters[mapID].length - 1 == clusterIndex[mapID]) {
                             updateCanvas()
+                            updateClusterLabels()
                         }
                         updateButtons()
                         preload()
@@ -127,7 +128,6 @@ function getClusterIDs(mapID = 'map1'){
                 for (i=0;i<3;i++){
                     loadNewCluster()
                 }
-                updateClusterLabels()
             }
         };
     xhttp.open("GET", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
