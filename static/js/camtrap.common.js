@@ -1586,6 +1586,11 @@ function fetchTaggingLevel() {
         } else if (this.readyState == 4 && this.status == 200) {
             taggingInfo = JSON.parse(this.responseText);
             taggingLevel = taggingInfo.taggingLevel
+
+            if (taggingLevel.includes('-2')) {
+                taggingLevel = '-2'
+            }
+
             if (taggingLevel.includes('-2')) {
                 ITEMS = 'tags'
                 ITEM_IDS = 'tag_ids'
