@@ -1258,7 +1258,12 @@ function switchToTask(task){
 
 function switchTaggingLevel(level) {
     /** Handles the switch to a new tagging level by updating the keys, and the global variable. */
-    taggingLevel = level.toString()
+    if (taggingLevel.includes('-2')) {
+        taggingLevel = '-2'
+    } else {
+        taggingLevel = level.toString()
+    }
+    
     if (taggingLevel.includes('-2')) {
         ITEMS = 'tags'
         ITEM_IDS = 'tag_ids'
