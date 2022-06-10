@@ -292,7 +292,13 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             if len(detections) == 0:
                 species = ['nothing']
             else:
-                species = [det.classification for det in detections]
+                species = []
+                for detection in detections:
+                    if detection.class_score > Config.CLASS_SCORE:
+                        species.append(detection.classification)
+                    else:
+                        species.append('unknown')
+                species = list(set(species))
 
             newClusterRequired = True
 
