@@ -369,8 +369,8 @@ btnCsvDownload.addEventListener('click', ()=>{
             }
 
             // Some translations to the naming conventions
-            if (levelSelection=='Site') {
-                levelSelection='Trapgroup'
+            if (levelSelection=='site') {
+                levelSelection='trapgroup'
             }
 
             if (['Name','ID'].includes(dataSelection)) {
@@ -381,7 +381,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                 dataSelection = 'Survey Description'
             }
 
-            if ((levelSelection=='Capture')&&(dataSelection=='Number')) {
+            if ((levelSelection=='capture')&&(dataSelection=='Number')) {
                 dataSelection = 'Capture'
             }
     
@@ -545,7 +545,7 @@ function downloadPreFormattedCSV() {
                 if (reply=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
                     document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. The download will commence shortly. Please note that this may take a while, especially for larger data sets.'
-                    modalCSVGenerate.modal('hide')
+                    modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)
                     if (waitForDownloadTimer != null) {
