@@ -753,12 +753,12 @@ function createPolarChart() {
                     selectorDiv.appendChild(document.createElement('br'))
 
                     h5 = document.createElement('h5')
-                    h5.innerHTML = 'Level'
+                    h5.innerHTML = 'Data Unit'
                     h5.setAttribute('style','margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
 
                     h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Choose a cluster-level comparison to use sighting counts rather than image counts to negate the effect of groups milling about in front of a camera.</i>'
+                    h5.innerHTML = '<i>Select which unit of data to count.</i>'
                     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
 
@@ -767,7 +767,7 @@ function createPolarChart() {
                     select.setAttribute('id','baseUnitSelector')
                     selectorDiv.appendChild(select)
                 
-                    fillSelect(select, ['Cluster-Level','Detection-level','Image-Level'], ['2','3','1'])
+                    fillSelect(select, ['Clusters','Sightings','Images'], ['2','3','1'])
                     $("#baseUnitSelector").change( function() {
                         updateBaseUnitPolar()
                     });
@@ -775,12 +775,12 @@ function createPolarChart() {
                     selectorDiv.appendChild(document.createElement('br'))
 
                     h5 = document.createElement('h5')
-                    h5.innerHTML = 'Species'
+                    h5.innerHTML = 'Data'
                     h5.setAttribute('style','margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
 
                     h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Select the trapgroup and species combinations you would like to see.</i>'
+                    h5.innerHTML = '<i>Select which site and species combinations you would like to see.</i>'
                     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
                 
@@ -903,7 +903,7 @@ function createBar() {
                     select.setAttribute('id','xAxisSelector')
                     selectorDiv.appendChild(select)
                 
-                    fillSelect(select, ['Survey Counts','Trap Counts'], ['1','2'])
+                    fillSelect(select, ['Survey Counts','Site Counts'], ['1','2'])
                     $("#xAxisSelector").change( function() {
                         xAxisSelector = document.getElementById('xAxisSelector')
                         xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
@@ -970,12 +970,12 @@ function createBar() {
                     selectorDiv.appendChild(document.createElement('br'))
 
                     h5 = document.createElement('h5')
-                    h5.innerHTML = 'Level'
+                    h5.innerHTML = 'Data Unit'
                     h5.setAttribute('style','margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
 
                     h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Choose a cluster-level comparison to use sighting counts rather than image counts to negate the effect of groups milling about in front of a camera.</i>'
+                    h5.innerHTML = '<i>Select which unit of data to count.</i>'
                     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
 
@@ -984,7 +984,7 @@ function createBar() {
                     select.setAttribute('id','baseUnitSelector')
                     selectorDiv.appendChild(select)
                 
-                    fillSelect(select, ['Cluster-Level','Detection-level','Image-Level'], ['2','3','1'])
+                    fillSelect(select, ['Clusters','Sightings','Images'], ['2','3','1'])
                     $("#baseUnitSelector").change( function() {
                         updateBaseUnitBar()
                     });
@@ -1491,12 +1491,12 @@ function createMap() {
                     selectorDiv.appendChild(document.createElement('br'))
 
                     h5 = document.createElement('h5')
-                    h5.innerHTML = 'Level'
+                    h5.innerHTML = 'Data Unit'
                     h5.setAttribute('style','margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
         
                     h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Choose a cluster-level comparison to use sighting counts rather than image counts.</i>'
+                    h5.innerHTML = '<i>Select which unit of data to count.</i>'
                     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
                     selectorDiv.appendChild(h5)
         
@@ -1505,7 +1505,7 @@ function createMap() {
                     select.setAttribute('id','baseUnitSelector')
                     selectorDiv.appendChild(select)
                 
-                    fillSelect(select, ['Cluster-Level','Detection-level','Image-Level'], ['2','3','1'])
+                    fillSelect(select, ['Clusters','Sightings','Images'], ['2','3','1'])
                     $("#baseUnitSelector").change( function() {
                         updateHeatMap()
                     });

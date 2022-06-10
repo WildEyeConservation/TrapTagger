@@ -130,7 +130,7 @@ limitations under the License. -->
                     <div id="newSurveyErrors" style="font-size: 80%; color: #DF691A"></div>
 
                     <h5 style="margin-bottom: 2px">Name</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>A unique identifying name for the survey. May not contain spaces, slashes, or any other special characters.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>A unique identifying name for the survey.</i></div>
                     <div class="row">
                         <div class='col-lg-4'>
                             <input type="text" class="form-control" required id="newSurveyName"></input>
@@ -179,7 +179,7 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>The image-upload method you would like to use.</i></div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="S3BucketUpload" name="newSurveySelection" value="customEx">
-                        <label class="custom-control-label" for="S3BucketUpload">S3 Bucket Upload</label>
+                        <label class="custom-control-label" for="S3BucketUpload">Bucket Upload (Recommended)</label>
                     </div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="BrowserUpload" name="newSurveySelection" value="customEx">
@@ -193,7 +193,7 @@ limitations under the License. -->
                     <h5 style="margin-bottom: 2px">Site Identifier</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>
                         The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes 
-                        a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced code option is selected.
+                        a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.
                     </i></div>
                     <div id="newSurveyTGInfo" style="font-size: 80%; color: #DF691A"></div>
                     <div class="row">
@@ -203,7 +203,7 @@ limitations under the License. -->
                         <div class="col-lg-4">
                             <div class="custom-control custom-checkbox">
                                 <input type="checkbox" class="custom-control-input" id="newSurveyCheckbox" name="newSurveyCheckbox">
-                                <label class="custom-control-label" for="newSurveyCheckbox">Advanced Code</label>
+                                <label class="custom-control-label" for="newSurveyCheckbox">Advanced</label>
                             </div>
                         </div>
                     </div>
@@ -329,7 +329,7 @@ limitations under the License. -->
             </div>
             <div class="modal-body">
 
-                <h5 style="margin-bottom: 2px">Annotation Set Name</h5>
+                <h5 style="margin-bottom: 2px">Name</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>A descriptive name for your annotation set to help you identify it.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
@@ -552,13 +552,23 @@ limitations under the License. -->
 
                     <div id="labelEditErrors" style="font-size: 80%; color: #DF691A"></div>
 
-                    <h5 style="margin-bottom: 2px">View</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the category of labels you would like to view and edit.</i></div>
+                    <h5 style="margin-bottom: 2px">Instructions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>
+                        Select "add changes" to add the changes you have made to the current session, then select "save" to save that 
+                        session. You can discard your changes at any time with the "discard changes" button. Note that if you delete a label
+                        all clusters annotated with that label will lose it.
+                    </i></div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Label Level</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the level of labels you would like to view and edit.</i></div>
                     <div class="row">
                         <div class='col-lg-4'>
                             <select id="LabelLevelSelector" class='form-control'></select>
                         </div>
                     </div>
+                    <br>
+
                     <div class='row'>
                         <div class='col-lg-4'>Label</div>
                         <div class='col-lg-1'>Hotkey</div>                               
@@ -623,7 +633,7 @@ limitations under the License. -->
             <div class="modal-body">
 
                 <h5 style="margin-bottom: 2px">Explore Survey</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Explore a tagged survey by searching for all sightings of a specific specific species. Can be used to find and correct errors, and retag unknown sightings.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Explore your survey by searching for all sightings of a specific specific species. Can be used to find and correct errors, and reannotate unknown sightings.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="exploreTaskBtn" type='button' class='btn btn-primary btn-block'>Explore</button>
@@ -631,8 +641,8 @@ limitations under the License. -->
                 </div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Statistics</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>View the statistics for the task using a number of maps and graphs.</i></div>
+                <h5 style="margin-bottom: 2px">Statistical Tools</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>View the statistics for the current annotation set using a number of maps and graphs.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="btnOpenStatistics" type='button' class='btn btn-primary btn-block'>View</button>
@@ -641,7 +651,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Individuals</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>View the identified individuals for this task.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>View the identified individuals for this annotation set.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="btnOpenIndividuals" type='button' class='btn btn-primary btn-block' onclick=openIndividualsModal()>View</button>
@@ -650,19 +660,22 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">CSV File</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Generate and download a custom CSV file of the results of the selected annotation set.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Generate and download a custom CSV file of the results of the selected annotation set, or download a pre-formatted one.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="btnCsvGenerate" type='button' class='btn btn-primary btn-block'>Generate</button>
                     </div>
+                    <div class='col-lg-2'>
+                        <button type='button' class='btn btn-primary btn-block' onclick=downloadPreFormattedCSV()>Download</button>
+                    </div>
                 </div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Download</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Download a metadata-annotated and sorted image set.</i></div>
+                <h5 style="margin-bottom: 2px">Image Download</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Request and download a metadata-annotated and sorted image set.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
-                        <button id="btnOpenDownload" type='button' class='btn btn-primary btn-block' onclick=openDownloadModal()>Download</button>
+                        <button id="btnOpenDownload" type='button' class='btn btn-primary btn-block' onclick=openDownloadModal()>Generate</button>
                     </div>
                 </div>
                 <br>
@@ -680,7 +693,7 @@ limitations under the License. -->
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Compare two sets of annotations for a survey.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
-                        <button id="btnCompare" type='button' class='btn btn-primary btn-block'>Compare</button>
+                        <button id="btnCompare" type='button' class='btn btn-primary btn-block'>Generate</button>
                     </div>
                 </div>
                 <br>
@@ -689,7 +702,7 @@ limitations under the License. -->
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Export your data in a format compatible with other software.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
-                        <button id="btnOpenExport" type='button' class='btn btn-primary btn-block'>Export</button>
+                        <button id="btnOpenExport" type='button' class='btn btn-primary btn-block'>Generate</button>
                     </div>
                 </div>
                 <br>
@@ -815,7 +828,7 @@ limitations under the License. -->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-11' style="padding: 0px">
-                    <h4 class="modal-title">Statistics</h4>
+                    <h4 class="modal-title">Statistial Tools</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <div class="row">
@@ -922,7 +935,7 @@ limitations under the License. -->
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Select additional datasets to add to the csv.</i></div>
                 <div class="row">
                     <div class='col-lg-3'>Survey</div>
-                    <div class='col-lg-3'>Task</div>
+                    <div class='col-lg-3'>Annotation Set</div>
                 </div>
                 <div id="addSurveyDiv"></div>
                 <div id="addSurveyBtnDiv"></div>
@@ -938,7 +951,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Label Format</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your labels formatted.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select how you would like your multiple labels formatted: listed in a single column, split over multiple columns, or split over multiple rows (with a single column).</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="listLabelFormat" name="labelFormatSelection" value="customEx">
                     <label class="custom-control-label" for="listLabelFormat">List</label>
@@ -976,14 +989,14 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Custom Columns</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Stipulate the format of custom csv columns.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Stipulate the format of custom csv columns - typically used to generate unique IDs for importing into existing databases.</i></div>
                 <div id="customColumnHeadingDiv"></div>
                 <div id="customColumnDiv"></div>
                 <div id="customColumnBtnDiv"></div>
                 <br>
 
                 <h5 style="margin-bottom: 2px">Columns</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the required information and its order for each row.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the required columns, in order, by selecting a data unit (level) and associated information.</i></div>
                 <div id="csvErrors" style="font-size: 80%; color: #DF691A"></div>
                 <div class="row">
                     <div class='col-lg-3'  style="font-size: 100%; margin-bottom: 2px">Level</div>
@@ -1075,7 +1088,7 @@ limitations under the License. -->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Download</h4>
+                    <h4 class="modal-title">Image Download</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('data_download')">Help</button>
@@ -1098,7 +1111,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Folder Structure</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to maintain your original folder structure, or use a flat one instead.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to maintain your original folder structure, or use a flat one with all information contained in the image names.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="originalStructure" name="folderStructureSelection" value="customEx">
                     <label class="custom-control-label" for="originalStructure">Original</label>
@@ -1402,7 +1415,7 @@ limitations under the License. -->
 
 <!-- Launch Task Modal -->
 <div id="modalLaunchTask" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 50%;">
+    <div class="modal-dialog" style="max-width: 60%;">
   
         <!-- Modal content-->
         <div class="modal-content">
@@ -1436,6 +1449,10 @@ limitations under the License. -->
                     <label class="custom-control-label" for="infoTag">Informational Tagging</label>
                 </div>
                 <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" class="custom-control-input" id="sightingDifferentiation" name="taggingSelection" value="customEx">
+                    <label class="custom-control-label" for="sightingDifferentiation">Multi-Species Differentiation</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="sightingTag" name="taggingSelection" value="customEx">
                     <label class="custom-control-label" for="sightingTag">Sighting (Box) Correction</label>
                 </div>
@@ -1446,8 +1463,12 @@ limitations under the License. -->
                 <br>
                 <br>
 
+                <h5 style="margin-bottom: 2px">Description</h5>
+                <div style="font-size: 80%; margin-bottom: 2px" id="annotationDescription"><i>Label the species contained in each unlabelled image cluster.</i></div>
+                <br>
+
                 <h5 style="margin-bottom: 2px">Batch Size</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The number of images in each unit of work collected by workers.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The number of clusters in each unit of work collected by workers.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
                         <input type="text" class="form-control" required id="taskSize" value="200"></input>
@@ -1456,7 +1477,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Annotation Level</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to annotate. You must begin with parent categories.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to annotate.</i></div>
                 <div class="row">
                     <div class='col-lg-4'>
                         <select class="form-control" id="taskTaggingLevel"></select>
@@ -1781,11 +1802,11 @@ limitations under the License. -->
         if (document.getElementById('S3BucketUpload').checked == true) {
             newSurveyS3Folder = document.getElementById('S3FolderInput').value
             if (newSurveyS3Folder=='') {
-                document.getElementById('newSurveyErrors').innerHTML = 'The S3 folder name field cannot be empty.'
+                document.getElementById('newSurveyErrors').innerHTML = 'The folder name field cannot be empty.'
             } else if (newSurveyS3Folder.toLowerCase()=='none') {
-                document.getElementById('newSurveyErrors').innerHTML = 'The S3 folder cannot be called "none".'
+                document.getElementById('newSurveyErrors').innerHTML = 'The folder cannot be called "none".'
             } else if ((newSurveyS3Folder.includes('/'))||(newSurveyS3Folder.includes('\\'))) {
-                document.getElementById('newSurveyErrors').innerHTML = 'The S3 folder name cannot contain slashes.'
+                document.getElementById('newSurveyErrors').innerHTML = 'The folder name cannot contain slashes.'
             } else {
                 legalInput = true
             }
@@ -1981,11 +2002,11 @@ limitations under the License. -->
             if (document.getElementById('S3BucketAdd').checked == true) {
                 addImagesS3Folder = document.getElementById('S3FolderInput').value
                 if (addImagesS3Folder=='') {
-                    document.getElementById('addImagesErrors').innerHTML = 'The S3 folder name field cannot be empty.'
+                    document.getElementById('addImagesErrors').innerHTML = 'The folder name field cannot be empty.'
                 } else if (addImagesS3Folder.toLowerCase()=='none') {
-                    document.getElementById('addImagesErrors').innerHTML = 'The S3 folder cannot be called "none".'
+                    document.getElementById('addImagesErrors').innerHTML = 'The folder cannot be called "none".'
                 } else if ((addImagesS3Folder.includes('/'))||(addImagesS3Folder.includes('\\'))) {
-                    document.getElementById('addImagesErrors').innerHTML = 'The S3 folder name cannot contain slashes.'
+                    document.getElementById('addImagesErrors').innerHTML = 'The folder name cannot contain slashes.'
                 } else {
                     legalInput = true
                 }

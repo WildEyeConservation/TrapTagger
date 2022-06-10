@@ -1373,7 +1373,7 @@ function assignLabel(label,mapID = 'map1'){
                         dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
                         dropbutton.setAttribute('type','button')
                         dropbutton.setAttribute('data-toggle','dropdown')
-                        dropbutton.innerHTML = 'Select Tagging Level'
+                        dropbutton.innerHTML = 'Annotation Level'
                         dropdown.appendChild(dropbutton)
                 
                         levelSelector = document.createElement('div')

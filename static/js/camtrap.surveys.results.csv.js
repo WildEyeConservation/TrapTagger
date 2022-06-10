@@ -367,6 +367,23 @@ btnCsvDownload.addEventListener('click', ()=>{
             if ((levelSelection=='')||(dataSelection=='')) {
                 noEmpties = false
             }
+
+            // Some translations to the naming conventions
+            if (levelSelection=='Site') {
+                levelSelection='Trapgroup'
+            }
+
+            if (['Name','ID'].includes(dataSelection)) {
+                dataSelection = levelSelection
+            }
+
+            if (dataSelection=='Description') {
+                dataSelection = 'Survey Description'
+            }
+
+            if ((levelSelection=='Capture')&&(dataSelection=='Number')) {
+                dataSelection = 'Capture'
+            }
     
             if (levelSelection == 'custom') {
                 selection = dataSelection
@@ -512,6 +529,41 @@ btnCsvDownload.addEventListener('click', ()=>{
         }
     }
 });
+
+function downloadPreFormattedCSV() {
+    /** requests a pre-formatted csv for the currently selected task. */
+    var formData = new FormData()
+    formData.append("preformatted", JSON.stringify(selectedTask))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/generateCSV');
+    xhttp.onreadystatechange =
+    function(selectedtask){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                if (reply=='success') {
+                    document.getElementById('modalPWH').innerHTML = 'Please Wait'
+                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. The download will commence shortly. Please note that this may take a while, especially for larger data sets.'
+                    modalCSVGenerate.modal('hide')
+                    modalPW.modal({keyboard: true});
+                    csv_task_ids.push(selectedtask)
+                    if (waitForDownloadTimer != null) {
+                        clearInterval(waitForDownloadTimer)
+                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
+                    } else {
+                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
+                    }
+                } else {
+                    document.getElementById('modalPWH').innerHTML = 'Error'
+                    document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    modalPW.modal({keyboard: true});
+                }
+            }
+        }
+    }(selectedTask)
+    xhttp.send(formData);
+}
 
 btnAddCSVCol.addEventListener('click', ()=>{
     /** Adds a csv column to the csv form. */

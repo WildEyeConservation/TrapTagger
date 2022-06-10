@@ -1392,7 +1392,7 @@ function updateTranslationMatrix() {
                 classTranslationHeading.appendChild(h5)
 
                 h5 = document.createElement('div')
-                h5.innerHTML = '<i>Translate the AI-generated classifications to your labels.</i>'
+                h5.innerHTML = '<i>Translate the AI-generated classifications to your labels. Select nothing (ignore) if you do not expect a species in your region.</i>'
                 h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
                 classTranslationHeading.appendChild(h5)
 

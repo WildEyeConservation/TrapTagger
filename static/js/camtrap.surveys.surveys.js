@@ -1079,12 +1079,12 @@ function buildBucketUpload(divID) {
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'S3 Folder Name'
+    h5.innerHTML = 'Folder Name'
     div.appendChild(h5)
 
     div2 = document.createElement('div')
     div2.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div2.innerHTML = '<i>If you have already uploaded the survey to Amazon S3, please enter the name of the folder below (without trailing slash).</i>'
+    div2.innerHTML = '<i>Once you have uploaded the survey to the cloud, please enter the name of the folder below (without trailing a slash).</i>'
     div.appendChild(div2)
 
     row = document.createElement('div')
@@ -1158,7 +1158,7 @@ function buildAddIms() {
     label = document.createElement('label')
     label.classList.add('custom-control-label')
     label.setAttribute('for','S3BucketAdd')
-    label.innerHTML = 'S3 Bucket Upload'
+    label.innerHTML = 'Bucket Upload (Recommended)'
     div.appendChild(label)
 
     div = document.createElement('div')
@@ -1203,12 +1203,12 @@ function buildAddIms() {
     // Trapgroup Code
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Trapgroup Code'
+    h5.innerHTML = 'Site Identifier'
     addImagesAddImsDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>The trapgroup designator in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a regular expression search query if the advanced code option is selected.</i>'
+    div.innerHTML = '<i>The identifier used to designate a site in your folder structure. Eg. "Site" if your sites are stored in folders named "Site1", "Site2" etc. Becomes a <a href="https://www.w3schools.com/python/python_regex.asp">regular expression</a> search query if the advanced option is selected.</i>'
     addImagesAddImsDiv.appendChild(div)
 
     info = document.createElement('div')
@@ -1249,7 +1249,7 @@ function buildAddIms() {
     label = document.createElement('label')
     label.classList.add('custom-control-label')
     label.setAttribute('for','addImagesCheckbox')
-    label.innerHTML = 'Advanced Code'
+    label.innerHTML = 'Advanced'
     checkDiv.appendChild(label)
 
     tgBuilder = document.createElement('div')
@@ -1261,7 +1261,7 @@ function buildAddIms() {
     $("#addImagesCheckbox").change( function() {
         addImagesCheckbox = document.getElementById('addImagesCheckbox')
         if (addImagesCheckbox.checked) {
-            document.getElementById('addImagesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your trapgroup code. It will be used to identify your unique camera-trap locations based on your folder structure.'
+            document.getElementById('addImagesErrors').innerHTML = 'Note that you are now required to enter a regular expression for your site identifier. It will be used to identify your sites based on your folder structure.'
             buildTgBuilderRow()
         } else {
             document.getElementById('addImagesErrors').innerHTML = ''
@@ -1409,12 +1409,12 @@ function buildKml() {
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Trapgroup Coordinates'
+    h5.innerHTML = 'Site Coordinates'
     addImagesAddCoordinates.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Upload a kml file containing your trapgroup coordinates. This can be exported from <a href="https://earth.google.com/web/">Google Earth</a></i>'
+    div.innerHTML = '<i>Upload a kml file containing your site coordinates. This can be exported from <a href="https://earth.google.com/web/">Google Earth</a>.</i>'
     addImagesAddCoordinates.appendChild(div)
 
     row = document.createElement('div')
@@ -1492,7 +1492,7 @@ function buildManualCoords() {
 
             headingCol = document.createElement('div')
             headingCol.setAttribute('class','col-lg-3')
-            headingCol.innerHTML = 'Trapgroup (Location)'
+            headingCol.innerHTML = 'Site'
             headingRow.appendChild(headingCol)
 
             headingCol = document.createElement('div')
@@ -1577,7 +1577,7 @@ function buildCoordsOptions() {
 
     infoDiv = document.createElement('div')
     infoDiv.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    infoDiv.innerHTML = '<i>Select how you would like to edit your trapgroup coordinates.</i>'
+    infoDiv.innerHTML = '<i>Select how you would like to edit your site coordinates.</i>'
     addImagesAddCoordsDiv.appendChild(infoDiv)
 
     optionDiv = document.createElement('div')
@@ -1595,7 +1595,7 @@ function buildCoordsOptions() {
     label = document.createElement('label')
     label.setAttribute('class','custom-control-label')
     label.setAttribute('for','addCoordinatesKMLMethod')
-    label.innerHTML = 'kml file upload'
+    label.innerHTML = 'File upload'
     optionDiv.appendChild(label)
 
     $("#addCoordinatesKMLMethod").change( function() {
@@ -1789,7 +1789,7 @@ $("#newSurveyCheckbox").change( function() {
 
     newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
     if (newSurveyCheckbox.checked) {
-        document.getElementById('newSurveyErrors').innerHTML = 'Note that you are now required to enter a regular expression for your trapgroup code. It will be used to identify your unique camera-trap locations based on your folder structure.'
+        document.getElementById('newSurveyErrors').innerHTML = 'Note that you are now required to enter a regular expression for your site identifier. It will be used to identify your sites based on your folder structure.'
         buildTgBuilderRow()
     } else {
         document.getElementById('newSurveyErrors').innerHTML = ''

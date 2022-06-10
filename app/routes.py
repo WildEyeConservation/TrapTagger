@@ -604,45 +604,45 @@ def getTaggingLevelsbyTask(task_id,task_type):
             values.append(label.id)
 
     elif task_type=='AIcheck':
-        texts = ['Comparison']
         values = ['-3']
         disabled = 'true'
-        colours = ['#000000']
 
-        # correct_clusters = db.session.query(Cluster)\
-        #                         .join(Label, Cluster.labels)\
-        #                         .join(Translation)\
-        #                         .filter(Cluster.task_id==task_id)\
-        #                         .filter(Translation.task_id==task_id)\
-        #                         .filter(Cluster.classification==Translation.classification)\
-        #                         .distinct(Cluster.id).all()
+        correct_clusters = db.session.query(Cluster)\
+                                .join(Label, Cluster.labels)\
+                                .join(Translation)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Translation.task_id==task_id)\
+                                .filter(Cluster.classification==Translation.classification)\
+                                .distinct(Cluster.id).all()
 
-        # correct_clusters.extend(
-        #     db.session.query(Cluster)\
-        #                 .join(Translation,Translation.classification==Cluster.classification)\
-        #                 .filter(Cluster.task_id==task_id)\
-        #                 .filter(Translation.task_id==task_id)\
-        #                 .filter(Translation.label_id==GLOBALS.nothing_id)\
-        #                 .distinct().all()
-        # )
+        correct_clusters.extend(
+            db.session.query(Cluster)\
+                        .join(Translation,Translation.classification==Cluster.classification)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Translation.task_id==task_id)\
+                        .filter(Translation.label_id==GLOBALS.nothing_id)\
+                        .distinct().all()
+        )
 
-        # correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
-        # downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-        # correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(downLabel)).all())
+        correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+        correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(downLabel)).all())
 
-        # check = db.session.query(Cluster)\
-        #                     .filter(Cluster.task_id==int(task_id))\
-        #                     .filter(~Cluster.id.in_([r.id for r in correct_clusters]))\
-        #                     .first()
+        check = db.session.query(Cluster)\
+                            .filter(Cluster.task_id==int(task_id))\
+                            .filter(~Cluster.id.in_([r.id for r in correct_clusters]))\
+                            .distinct().count()
 
-        # if check:
-        #     colours = ['#000000']
-        # else:
-        #     colours = ['#0A7850']
+        texts = ['Comparison ('+str(check)+')']
 
-    elif task_type=='bounding':
-        checked = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==True).first()
-        
+        if check>0:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
+
+    elif task_type=='differentiation':
+        disabled = 'true'
+
         subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(labelstable.c.label_id).label('labelCount')) \
                         .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
                         .filter(Cluster.task_id==task_id) \
@@ -659,19 +659,20 @@ def getTaggingLevelsbyTask(task_id,task_type):
                         .filter(Detection.score > 0.8) \
                         .filter(Detection.static==False) \
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                        .filter(subq.c.labelCount>1).first()
+                        .filter(subq.c.labelCount>1).distinct().count()
 
-        if checked or (uncheckedMulti == None):
-            disabled = 'false'
-        else:
-            disabled = 'true'
-
-        if uncheckedMulti:
+        if uncheckedMulti>0:
             colours = ['#000000']
         else:
             colours = ['#0A7850']
-        texts = ['Multiples']
+        texts = ['Multiples ('+str(uncheckedMulti)+')']
         values = ['-1']
+
+    elif task_type=='bounding':
+        disabled = 'false'
+        colours = []
+        texts = []
+        values = []
 
         labels = db.session.query(Label).filter(Label.task_id==task_id).all()
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))    
@@ -685,13 +686,13 @@ def getTaggingLevelsbyTask(task_id,task_type):
                             .filter(Detection.static==False) \
                             .filter(Detection.score > 0.8) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .first()
-            if check==None:
+                            .distinct().count()
+            if check==0:
                 colours.append('#0A7850')
             else:
                 colours.append('#000000')
             
-            texts.append(label.description)
+            texts.append(label.description+' ('+str(check)+')')
             values.append(label.id)
 
     elif task_type=='clusterTag':
@@ -701,39 +702,42 @@ def getTaggingLevelsbyTask(task_id,task_type):
         else:
             disabled = 'false'
 
-        labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-        
-        check = db.session.query(Cluster).join(Image, Cluster.images).join(Detection).filter(Cluster.task_id==int(task_id)).filter(~Cluster.labels.any()).filter(Detection.static==False).filter(Detection.score>0.8).filter(~Detection.status.in_(['deleted','hidden'])).first()
-        if check != None:
+        check = db.session.query(Cluster)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .filter(Cluster.task_id==int(task_id))\
+                        .filter(~Cluster.labels.any())\
+                        .filter(Detection.static==False)\
+                        .filter(Detection.score>0.8)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .distinct().count()
+
+        if check != 0:
             colours = ['#000000']
         else:
             colours = ['#0A7850']
-
-        texts = ['Initial']
+        texts = ['Top-level ('+str(check)+')']
         values = ['-1']
 
-        vhl = db.session.query(Label).get(GLOBALS.vhl_id)
-        check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(vhl)).first()
-        if check != None:
-            colours.append('#000000')
-        else:
-            colours.append('#0A7850')
-        texts.append(vhl.description)
-        values.append(vhl.id)
+        if disabled == 'false':
+            labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
+            labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
 
-        for label in labels:      
-            if label.complete==True:
-                colours.append('#0A7850')
-            else:
-                colours.append('#000000')
-            
-            texts.append(label.description)
-            values.append(label.id)
+            for label in labels:
+                check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).distinct().count()
+
+                if label.complete==True:
+                    colours.append('#0A7850')
+                else:
+                    colours.append('#000000')
+                
+                texts.append(label.description+' ('+str(check)+')')
+                values.append(label.id)
 
     elif task_type=='infoTag':
         disabled = 'false'
         labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
-        labels.insert(0,db.session.query(Label).get(GLOBALS.vhl_id))
+        labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         
         check = db.session.query(Cluster)\
                         .join(Image, Cluster.images)\
@@ -744,22 +748,22 @@ def getTaggingLevelsbyTask(task_id,task_type):
                         .filter(Detection.static==False)\
                         .filter(Detection.score>0.8)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .first()
-        if check != None:
+                        .distinct().count()
+        if check != 0:
             colours = ['#000000']
         else:
             colours = ['#0A7850']
 
-        texts = ['All']
+        texts = ['All ('+str(check)+')']
         values = ['-2']
         for label in labels:
-            check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).first() 
-            if check != None:
+            check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).distinct().count() 
+            if check != 0:
                 colours.append('#000000')
             else:
                 colours.append('#0A7850')
             
-            texts.append(label.description)
+            texts.append(label.description+' ('+str(check)+')')
             values.append('-2,'+str(label.id))
 
     return json.dumps({'texts': texts, 'values': values, 'disabled':disabled, 'colours':colours})
@@ -2314,7 +2318,7 @@ def sightings():
 @app.route('/individualID', methods=['GET', 'POST'])
 @login_required
 def individualID():
-    '''Renders the cluster-level individual identification page.'''
+    '''Renders the inter-cluster individual identification page.'''
 
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
@@ -2332,7 +2336,7 @@ def individualID():
 @app.route('/clusterID', methods=['GET', 'POST'])
 @login_required
 def clusterID():
-    '''Renders the inter-cluster individual identification page.'''
+    '''Renders the cluster-level individual identification page.'''
     
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
@@ -5696,13 +5700,23 @@ def generateCSV():
     '''Requests the generation of a csv file for later download with the specified columns and rows. Returns success/error status.'''
 
     try:
-        selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
-        level = ast.literal_eval(request.form['level'])
-        columns = ast.literal_eval(request.form['columns'])
-        custom_columns = ast.literal_eval(request.form['custom_columns'])
-        label_type = ast.literal_eval(request.form['label_type'])
-        includes = ast.literal_eval(request.form['includes'])
-        excludes = ast.literal_eval(request.form['excludes'])
+        if 'preformatted' in request.form:
+            # The pre formatted csv
+            selectedTasks = [int(ast.literal_eval(request.form['preformatted']))]
+            level = 'image'
+            columns = ['trapgroup', 'latitude', 'longitude', 'timestamp', 'image_labels', 'image_sighting_count', 'image_url']
+            custom_columns = {selectedTasks[0]:{}}
+            label_type = 'column'
+            includes = []
+            excludes = []
+        else:
+            selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
+            level = ast.literal_eval(request.form['level'])
+            columns = ast.literal_eval(request.form['columns'])
+            custom_columns = ast.literal_eval(request.form['custom_columns'])
+            label_type = ast.literal_eval(request.form['label_type'])
+            includes = ast.literal_eval(request.form['includes'])
+            excludes = ast.literal_eval(request.form['excludes'])
     except:
         return json.dumps('error')
 

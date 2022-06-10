@@ -18,25 +18,24 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     taskSize = parseInt(document.getElementById('taskSize').value)
     taskTaggingLevel = document.getElementById('taskTaggingLevel').value
 
-    if ((document.getElementById('infoTag').checked||document.getElementById('individualID').checked||document.getElementById('clusterTag').checked||document.getElementById('classTag').checked) && !document.getElementById('sightingTag').checked) {
+    if (document.getElementById('sightingTag').checked || document.getElementById('sightingDifferentiation').checked) {
         isBounding = false
-    } else if (!document.getElementById('infoTag').checked && !document.getElementById('individualID').checked && !document.getElementById('clusterTag').checked && !document.getElementById('classTag').checked && document.getElementById('sightingTag').checked) {
-        isBounding = true
     } else {
-        isBounding = null
+        isBounding = true
     }
 
     allow = true
     if (document.getElementById('individualID').checked) {
         taskTaggingLevel = document.getElementById('idStage').value+','+taskTaggingLevel
         if (document.getElementById('idStage').value=='-4') {
-            if (document.getElementById('wordName').checked) {
-                taskTaggingLevel += ',w'
-            } else if (document.getElementById('numberedName').checked) {
-                taskTaggingLevel += ',n'
-            } else {
-                allow = false
-            }
+            // if (document.getElementById('wordName').checked) {
+            //     taskTaggingLevel += ',w'
+            // } else if (document.getElementById('numberedName').checked) {
+            //     taskTaggingLevel += ',n'
+            // } else {
+            //     allow = false
+            // }
+            taskTaggingLevel += ',n'
             if (document.getElementById('autoGenSingles').checked) {
                 taskTaggingLevel += ',a'
             } else if (document.getElementById('manualSingles').checked) {
@@ -456,6 +455,7 @@ function resetLaunchTaskPage() {
 
     document.getElementById('clusterTag').checked = true
     document.getElementById('sightingTag').checked = false
+    document.getElementById('sightingDifferentiation').checked = false
     document.getElementById('classTag').checked = false
     document.getElementById('infoTag').checked = false
     document.getElementById('individualID').checked = false
@@ -463,6 +463,7 @@ function resetLaunchTaskPage() {
     document.getElementById('taskSize').value = 200
     document.getElementById('launchErrors').value = ''
     document.getElementById('sightingTag').disabled = true
+    document.getElementById('sightingDifferentiation').disabled = true
     document.getElementById('individualID').disabled = true
     document.getElementById('classTag').disabled = true
     clearSelect(document.getElementById('taskTaggingLevel'))
@@ -476,6 +477,8 @@ $("#clusterTag").change( function() {
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Label the species contained in each unlabelled image cluster.</i>"
 
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
@@ -506,6 +509,8 @@ $("#infoTag").change( function() {
         while(individualLevel.firstChild){
             individualLevel.removeChild(individualLevel.firstChild);
         }
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Add additional informational tags to each cluster containing a chosen species. You will be able to set up and edit these tags on launch.</i>"
 
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
@@ -554,7 +559,7 @@ function buildIndividualOptions() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select the algorithm you wish to use aid in individual identification.</i>'
+    div.innerHTML = '<i>Select the algorithm you wish to use as an aid in individual identification.</i>'
     individualOptionsDiv.appendChild(div)
 
     row = document.createElement('div')
@@ -599,56 +604,56 @@ function buildIndividualOptions() {
     individualOptionsDiv.appendChild(document.createElement('br'))
 
     // names
-    h5 = document.createElement('h5')
-    h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Name Generation'
-    individualOptionsDiv.appendChild(h5)
+    // h5 = document.createElement('h5')
+    // h5.setAttribute('style','margin-bottom: 2px')
+    // h5.innerHTML = 'Name Generation'
+    // individualOptionsDiv.appendChild(h5)
 
-    div = document.createElement('div')
-    div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select how you would like your individual names to generated.</i>'
-    individualOptionsDiv.appendChild(div)
+    // div = document.createElement('div')
+    // div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    // div.innerHTML = '<i>Select how you would like your individual names to generated.</i>'
+    // individualOptionsDiv.appendChild(div)
 
-    row = document.createElement('div')
-    individualOptionsDiv.appendChild(row)
+    // row = document.createElement('div')
+    // individualOptionsDiv.appendChild(row)
 
-    radio = document.createElement('div')
-    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
-    row.appendChild(radio)
+    // radio = document.createElement('div')
+    // radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    // row.appendChild(radio)
 
-    input = document.createElement('input')
-    input.setAttribute('type','radio')
-    input.setAttribute('class','custom-control-input')
-    input.setAttribute('id','wordName')
-    input.setAttribute('name','nameSelection')
-    input.setAttribute('value','customEx')
-    radio.appendChild(input)
+    // input = document.createElement('input')
+    // input.setAttribute('type','radio')
+    // input.setAttribute('class','custom-control-input')
+    // input.setAttribute('id','wordName')
+    // input.setAttribute('name','nameSelection')
+    // input.setAttribute('value','customEx')
+    // radio.appendChild(input)
 
-    label = document.createElement('label')
-    label.setAttribute('class','custom-control-label')
-    label.setAttribute('for','wordName')
-    label.innerHTML = 'Words'
-    radio.appendChild(label)
+    // label = document.createElement('label')
+    // label.setAttribute('class','custom-control-label')
+    // label.setAttribute('for','wordName')
+    // label.innerHTML = 'Words'
+    // radio.appendChild(label)
     
-    radio = document.createElement('div')
-    radio.setAttribute('class','custom-control custom-radio custom-control-inline')
-    row.appendChild(radio)
+    // radio = document.createElement('div')
+    // radio.setAttribute('class','custom-control custom-radio custom-control-inline')
+    // row.appendChild(radio)
 
-    input = document.createElement('input')
-    input.setAttribute('type','radio')
-    input.setAttribute('class','custom-control-input')
-    input.setAttribute('id','numberedName')
-    input.setAttribute('name','nameSelection')
-    input.setAttribute('value','customEx')
-    radio.appendChild(input)
+    // input = document.createElement('input')
+    // input.setAttribute('type','radio')
+    // input.setAttribute('class','custom-control-input')
+    // input.setAttribute('id','numberedName')
+    // input.setAttribute('name','nameSelection')
+    // input.setAttribute('value','customEx')
+    // radio.appendChild(input)
 
-    label = document.createElement('label')
-    label.setAttribute('class','custom-control-label')
-    label.setAttribute('for','numberedName')
-    label.innerHTML = 'Numbered'
-    radio.appendChild(label)
+    // label = document.createElement('label')
+    // label.setAttribute('class','custom-control-label')
+    // label.setAttribute('for','numberedName')
+    // label.innerHTML = 'Numbered'
+    // radio.appendChild(label)
 
-    individualOptionsDiv.appendChild(document.createElement('br'))
+    // individualOptionsDiv.appendChild(document.createElement('br'))
 
     // auto single individuals
     h5 = document.createElement('h5')
@@ -658,7 +663,7 @@ function buildIndividualOptions() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>Select how you would like clusters containing only one detection to be handled.</i>'
+    div.innerHTML = '<i>Select how you would like clusters containing only one detection to be handled. Select manual if you intend to rely on informational tags and prefer greater accuracy. Select auto-generate if you wish to reply more on the AI, and do things more quickly.</i>'
     individualOptionsDiv.appendChild(div)
 
     row = document.createElement('div')
@@ -705,6 +710,7 @@ $("#individualID").change( function() {
     /** Listens for individual ID being selected, and populates the form accordingly. */
     
     if (document.getElementById('individualID').checked) {
+        document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process/</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/individualID');
@@ -789,6 +795,8 @@ $("#classTag").change( function() {
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
+        document.getElementById('annotationDescription').innerHTML = "<i>Check your cluster-level species labels against the AI to find mistakes.</i>"
+
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/AIcheck');
@@ -819,9 +827,43 @@ $("#sightingTag").change( function() {
             individualLevel.removeChild(individualLevel.firstChild);
         }
 
+        document.getElementById('annotationDescription').innerHTML = "<i>Correct the AI-generated boxes for a particular species. Use this to obtain more accurate animal counts or to prepare for individual identification.</i>"
+
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/bounding');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                clearSelect(document.getElementById('taskTaggingLevel'))
+                fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
+    
+                if (reply.disabled == 'true') {
+                    document.getElementById('taskTaggingLevel').disabled = true
+                } else {
+                    document.getElementById('taskTaggingLevel').disabled = false
+                }
+            }
+        }
+        xhttp.send();
+    }
+})
+
+$("#sightingDifferentiation").change( function() {
+    /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
+
+    if (document.getElementById('sightingDifferentiation').checked) {
+        individualLevel = document.getElementById('individualLevel')
+        while(individualLevel.firstChild){
+            individualLevel.removeChild(individualLevel.firstChild);
+        }
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Differentiate which species each box/sighting contains in clusters that contain multiple species. Do this to obatin more accurate animal counts, and more accurate image-level labelling. Also necessary preparation for individual identification</i>"
+
+        clearSelect(document.getElementById('taskTaggingLevel'))
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/differentiation');
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
@@ -894,6 +936,7 @@ modalLaunchTask.on('shown.bs.modal', function(){
         }
 
         document.getElementById('sightingTag').disabled = true
+        document.getElementById('sightingDifferentiation').disabled = true
         document.getElementById('individualID').disabled = true
         document.getElementById('classTag').disabled = true
         document.getElementById('infoTag').disabled = true
@@ -907,6 +950,7 @@ modalLaunchTask.on('shown.bs.modal', function(){
                 taskCompletionStatus = JSON.parse(this.responseText);  
                 if (taskCompletionStatus == 'True') {
                     document.getElementById('sightingTag').disabled = false
+                    document.getElementById('sightingDifferentiation').disabled = false
                     document.getElementById('individualID').disabled = false
                     document.getElementById('classTag').disabled = false
                     document.getElementById('infoTag').disabled = false
