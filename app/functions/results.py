@@ -733,6 +733,14 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
         outputDF = outputDF[requestedColumns]
 
+        # Trapgroups now called sites:
+        changes = {}
+        for column in outputDF.columns:
+            if 'trapgroup' in column:
+                changes[column] = column.replace('trapgroup','site')
+        if len(changes) != 0:
+            outputDF.rename(columns=changes,inplace=True)
+
         if os.path.isfile(fileName+'_writing.csv'):
             try:
                 os.remove(fileName+'_writing.csv')
