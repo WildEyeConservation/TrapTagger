@@ -127,6 +127,7 @@ function getClusterIDs(mapID = 'map1'){
                 for (i=0;i<3;i++){
                     loadNewCluster()
                 }
+                updateClusterLabels()
             }
         };
     xhttp.open("GET", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
