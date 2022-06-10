@@ -62,17 +62,22 @@ function getKeys() {
                 function () {
                     if (this.readyState == 4 && this.status == 200) {
                         globalKeys = JSON.parse(this.responseText);
+
+                        for (tl in globalKeys) {
+                            if (globalKeys[tl].length!=0) {
+                                for (ln=0;ln<globalKeys[tl][1].length;ln++) {
+                                    if (['Skip', 'Wrong', 'Knocked Down'].includes(globalKeys[tl][1][ln])) {
+                                        globalKeys[tl][1][ln] = 'N'
+                                        globalKeys[tl][0][ln] = -967
+                                    }
+                                }
+                            }
+                        }
+
                         res = globalKeys[taggingLevel]
     
                         // Remove undesirable names from the explore page
-                        if (res.length!=0) {
-                            for (ln=0;ln<res[1].length;ln++) {
-                                if (['Skip', 'Wrong', 'Knocked Down'].includes(res[1][ln])) {
-                                    res[1][ln] = 'N'
-                                    res[0][ln] = -967
-                                }
-                            }
-    
+                        if (res.length!=0) {    
                             initKeys(res);
                         }
                     }
