@@ -1423,7 +1423,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
                                                                     'flat_structure':flat_structure,
                                                                     'individual_sorted':individual_sorted,
                                                                     'surveyName': surveyName,
-                                                                    'labels': [r.id for r in labels]}))
+                                                                    'labels': [r.id for r in labels]},queue='parallel'))
 
         #Wait for processing to complete
         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.

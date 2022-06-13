@@ -598,9 +598,38 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 else:
                     colours.append('#000000')
             else:
-                colours.append('#000000')
+                identified = db.session.query(Detection)\
+                                    .join(Labelgroup)\
+                                    .join(Individual, Detection.individuals)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(Individual.label_id==label.id)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Individual.task_id==task_id)\
+                                    .filter(Detection.score > 0.8) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .distinct().all()
+
+                count = db.session.query(Cluster)\
+                                    .join(Image,Cluster.images)\
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .filter(Cluster.labels.contains(label))\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(~Detection.id.in_([r.id for r in identified]))\
+                                    .filter(Detection.score > 0.8) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .distinct().count()
+
+                if count==0:
+                    colours.append('#0A7850')
+                else:
+                    colours.append('#000000')
             
-            texts.append(label.description)
+            texts.append(label.description+' ('+str(count)+')')
             values.append(label.id)
 
     elif task_type=='AIcheck':
@@ -1759,6 +1788,7 @@ def getDetailedTaskStatus(task_id):
             reply = {'labels':labels,'headings':headings}
 
         if label_id:
+            admin=db.session.query(User).filter(User.username=='Admin').first()
             label = db.session.query(Label).get(int(label_id))
             reply['label'] = label.description
             reply['Summary'] = {}
@@ -1792,7 +1822,8 @@ def getDetailedTaskStatus(task_id):
                     reply['Sighting Correction']['Checked Sightings'] = '-'
 
                 # Species Annotation Status
-                if len(label.children[:])==0:
+                childCount = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).distinct().count()
+                if childCount==0:
                     initial_not_complete = db.session.query(Cluster)\
                                                 .join(Image,Cluster.images)\
                                                 .join(Detection)\
@@ -1808,7 +1839,7 @@ def getDetailedTaskStatus(task_id):
                                                 .join(Detection)\
                                                 .filter(Cluster.task_id==int(task_id))\
                                                 .filter(Cluster.labels.any())\
-                                                .filter(Cluster.user_id!=1)\
+                                                .filter(Cluster.user_id!=admin.id)\
                                                 .filter(Detection.score>0.8)\
                                                 .filter(Detection.static==False)\
                                                 .filter(~Detection.status.in_(['deleted','hidden']))\
@@ -1825,13 +1856,14 @@ def getDetailedTaskStatus(task_id):
 
                 else:
                     test1 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(label)).first()
+                    test3 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.user_id!=admin.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
 
                     if test1:
                         reply['Species Annotation']['Complete'] = 'No'
                     else:
                         reply['Species Annotation']['Complete'] = 'Yes'
 
-                    if test2:
+                    if test3:
                         reply['Species Annotation']['Tagged'] = 'Yes'
                     else:
                         reply['Species Annotation']['Tagged'] = 'No'
@@ -1868,7 +1900,6 @@ def getDetailedTaskStatus(task_id):
                 status = db.session.query(Cluster)\
                                     .join(Label,Cluster.labels)\
                                     .filter(Cluster.task==task)\
-                                    .filter(Label.id.in_(ids))\
                                     .filter(Cluster.classification_checked==True)\
                                     .filter(~Cluster.id.in_(correct_clusters))\
                                     .first()
