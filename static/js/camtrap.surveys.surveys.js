@@ -1277,14 +1277,14 @@ function buildAddIms() {
     })
 }
 
-function buildCameras(url='/getCameraStamps') {
+function buildCameras(camera_url='/getCameraStamps') {
 
-    if (url=='/getCameraStamps') {
-        url += '?survey_id='+selectedSurvey
+    if (camera_url=='/getCameraStamps') {
+        camera_url += '?survey_id='+selectedSurvey
     }
 
     var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", url);
+    xhttp.open("GET", camera_url);
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
