@@ -1291,41 +1291,41 @@ function buildCameras(url='/getCameraStamps') {
             if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
                 reply = reply.data
 
-                addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
+                addImagesCamerasDiv = document.getElementById('addImagesCamerasDiv')
 
-                while(addImagesEditTimestampsDiv.firstChild){
-                    addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
+                while(addImagesCamerasDiv.firstChild){
+                    addImagesCamerasDiv.removeChild(addImagesCamerasDiv.firstChild);
                 }
     
                 document.getElementById('addImagesAddImages').disabled = false
                 document.getElementById('addImagesAddCoordinates').disabled = false
                 document.getElementById('addImagesEditTimestamps').disabled = false
                 document.getElementById('addImagesAdvanced').disabled = false
-                addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+                addImagesCamerasDiv.appendChild(document.createElement('br'))
             
                 h5 = document.createElement('h5')
                 h5.setAttribute('style','margin-bottom: 2px')
                 h5.innerHTML = 'Edit Timestamps'
-                addImagesEditTimestampsDiv.appendChild(h5)
+                addImagesCamerasDiv.appendChild(h5)
             
                 div = document.createElement('div')
                 div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
                 div.innerHTML = '<i>Edit the starting timestamps for each of the cameras in your survey.</i>'
-                addImagesEditTimestampsDiv.appendChild(div)
+                addImagesCamerasDiv.appendChild(div)
 
                 errors = document.createElement('div')
                 errors.setAttribute('id','timestampErrors')
                 errors.setAttribute('style','font-size: 80%; color: #DF691A')
-                addImagesEditTimestampsDiv.appendChild(errors)
+                addImagesCamerasDiv.appendChild(errors)
             
-                addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+                addImagesCamerasDiv.appendChild(document.createElement('br'))
             
                 row = document.createElement('div')
                 row.classList.add('row')
-                addImagesEditTimestampsDiv.appendChild(row)
+                addImagesCamerasDiv.appendChild(row)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-4')
+                col.classList.add('col-lg-6')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1334,7 +1334,7 @@ function buildCameras(url='/getCameraStamps') {
                 col.appendChild(h5)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-4')
+                col.classList.add('col-lg-3')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1343,7 +1343,7 @@ function buildCameras(url='/getCameraStamps') {
                 col.appendChild(h5)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-4')
+                col.classList.add('col-lg-3')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1355,12 +1355,12 @@ function buildCameras(url='/getCameraStamps') {
                     h5 = document.createElement('h5')
                     h5.setAttribute('style','margin-bottom: 2px')
                     h5.innerHTML = reply[trapgroup].tag
-                    addImagesEditTimestampsDiv.appendChild(h5)
+                    addImagesCamerasDiv.appendChild(h5)
     
                     for (camera=0;camera<reply[trapgroup].cameras.length;camera++) {
                         row = document.createElement('div')
                         row.classList.add('row')
-                        addImagesEditTimestampsDiv.appendChild(row)
+                        addImagesCamerasDiv.appendChild(row)
                     
                         col = document.createElement('div')
                         col.classList.add('col-lg-4')
@@ -1390,7 +1390,7 @@ function buildCameras(url='/getCameraStamps') {
                         col.appendChild(input)
                     }
     
-                    addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
+                    addImagesCamerasDiv.appendChild(document.createElement('br'))
                 }
 
                 if (reply.next_url==null) {
@@ -1419,9 +1419,12 @@ function buildEditTimestamp() {
     document.getElementById('addImagesAddCoordinates').disabled = true
     document.getElementById('addImagesEditTimestamps').disabled = true
     document.getElementById('addImagesAdvanced').disabled = true
-    document.getElementById('addImagesEditTimestampsDiv').innerHTML = 'Loading...'
 
     addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
+
+    div = document.createElement('div')
+    div.setAttribute('id','addImagesCamerasDiv')
+    addImagesEditTimestampsDiv.appendChild(div)
 
     row = document.createElement('div')
     row.classList.add('row')
