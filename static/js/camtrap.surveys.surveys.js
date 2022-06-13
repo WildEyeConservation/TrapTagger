@@ -1275,17 +1275,14 @@ function buildAddIms() {
     })
 }
 
-function buildEditTimestamp() {
-    /** Builds the form for editing timestamps on the edit survey modal. */
-    
-    document.getElementById('addImagesAddImages').disabled = true
-    document.getElementById('addImagesAddCoordinates').disabled = true
-    document.getElementById('addImagesEditTimestamps').disabled = true
-    document.getElementById('addImagesAdvanced').disabled = true
-    document.getElementById('addImagesEditTimestampsDiv').innerHTML = 'Loading...'
-    
+function buildCameras(url='/getCameraStamps') {
+
+    if (url=='/getCameraStamps') {
+        url += '?survey_id='+selectedSurvey
+    }
+
     var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/getCameraStamps/'+selectedSurvey);
+    xhttp.open("GET", url);
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
@@ -1395,10 +1392,92 @@ function buildEditTimestamp() {
     
                     addImagesEditTimestampsDiv.appendChild(document.createElement('br'))
                 }
+
+                if (reply.next_url==null) {
+                    btnNextCameras.style.visibility = 'hidden'
+                } else {
+                    btnNextCameras.style.visibility = 'visible'
+                    next_camera_url = reply.next_url
+                }
+    
+                if (reply.prev_url==null) {
+                    btnPrevCameras.style.visibility = 'hidden'
+                } else {
+                    btnPrevCameras.style.visibility = 'visible'
+                    prev_camera_url = reply.prev_url
+                }
             }
         }
     }
     xhttp.send();
+}
+
+function buildEditTimestamp() {
+    /** Builds the form for editing timestamps on the edit survey modal. */
+    
+    document.getElementById('addImagesAddImages').disabled = true
+    document.getElementById('addImagesAddCoordinates').disabled = true
+    document.getElementById('addImagesEditTimestamps').disabled = true
+    document.getElementById('addImagesAdvanced').disabled = true
+    document.getElementById('addImagesEditTimestampsDiv').innerHTML = 'Loading...'
+
+    addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    addImagesEditTimestampsDiv.appendChild(row)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    btnPrevCameras = document.createElement('button')
+    btnPrevCameras.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnPrevCameras.setAttribute("id","btnPrevCameras")
+    btnPrevCameras.innerHTML = 'Previous'
+    col1.appendChild(btnPrevCameras)
+
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-3')
+    row.appendChild(col2)
+
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    btnSaveCameras = document.createElement('button')
+    btnSaveCameras.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnSaveCameras.setAttribute("id","btnSaveCameras")
+    btnSaveCameras.innerHTML = 'Save'
+    col3.appendChild(btnSaveCameras)
+
+    col4 = document.createElement('div')
+    col4.classList.add('col-lg-3')
+    row.appendChild(col4)
+
+    col5 = document.createElement('div')
+    col5.classList.add('col-lg-2')
+    row.appendChild(col5)
+
+    btnNextCameras = document.createElement('button')
+    btnNextCameras.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnNextCameras.setAttribute("id","btnNextCameras")
+    btnNextCameras.innerHTML = 'Next'
+    col5.appendChild(btnNextCameras)
+
+    btnNextCameras.addEventListener('click', ()=>{
+        buildCameras(next_url)
+    });
+    
+    btnPrevCameras.addEventListener('click', ()=>{
+        buildCameras(prev_url)
+    });
+
+    btnSaveCameras.addEventListener('click', ()=>{
+        saveCameras()
+    });
+    
+    buildCameras()
 }
 
 function buildKml() {

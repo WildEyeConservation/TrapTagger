@@ -547,16 +547,26 @@ def getIndividual(individual_id):
 
     return json.dumps(reply)
 
-@app.route('/getCameraStamps/<survey_id>')
+@app.route('/getCameraStamps')
 @login_required
-def getCameraStamps(survey_id):
+def getCameraStamps():
     '''Returns a list of all cameras in a survey along with the timestamp of their first image, and it's corrected timestamp.'''
     
     reply = []
+    next_url = None
+    prev_url = None
+    page = request.args.get('page', 1, type=int)
+    survey_id = request.args.get('survey_id', None, type=int)
+    # order = request.args.get('order', 5, type=int)
+    # search = request.args.get('search', '', type=str)
+
     survey = db.session.query(Survey).get(survey_id)
 
     if survey and (survey.user==current_user):
-        for trapgroup in survey.trapgroups:
+
+        trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).order_by(Trapgroup.tag).distinct().paginate(page, 5, False)
+
+        for trapgroup in trapgroups.items:
             data = {'tag': trapgroup.tag, 'cameras': []}
             # groups = get_groups(trapgroup)
             # for group in groups:
@@ -567,7 +577,10 @@ def getCameraStamps(survey_id):
                                             'corrected_timestamp': first.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S")})
             reply.append(data)
 
-    return json.dumps({'survey': survey_id, 'data': reply})
+        next_url = url_for('getCameraStamps', page=trapgroups.next_num, survey_id=survey_id) if trapgroups.has_next else None
+        prev_url = url_for('getCameraStamps', page=trapgroups.prev_num, survey_id=survey_id) if trapgroups.has_prev else None
+
+    return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/getTaggingLevelsbyTask/<task_id>/<task_type>')
 @login_required
