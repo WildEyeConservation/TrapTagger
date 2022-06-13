@@ -1325,7 +1325,7 @@ function buildCameras(url='/getCameraStamps') {
                 addImagesCamerasDiv.appendChild(row)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-6')
+                col.classList.add('col-lg-8')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1334,7 +1334,7 @@ function buildCameras(url='/getCameraStamps') {
                 col.appendChild(h5)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-3')
+                col.classList.add('col-lg-2')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1343,7 +1343,7 @@ function buildCameras(url='/getCameraStamps') {
                 col.appendChild(h5)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-3')
+                col.classList.add('col-lg-2')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
