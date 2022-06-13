@@ -1375,7 +1375,7 @@ function buildCameras(camera_url='/getCameraStamps') {
     
                     for (camera=0;camera<reply[trapgroup].cameras.length;camera++) {
                         row = document.createElement('div')
-                        row.classList.add('row')
+                        row.setAttribute('class','row center')
                         addImagesCamerasDiv.appendChild(row)
                     
                         col = document.createElement('div')
@@ -1437,7 +1437,7 @@ function buildEditTimestamp() {
     row.appendChild(col1)
 
     btnPrevCameras = document.createElement('button')
-    btnPrevCameras.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnPrevCameras.setAttribute("class","btn btn-primary btn-block")
     btnPrevCameras.setAttribute("id","btnPrevCameras")
     btnPrevCameras.innerHTML = 'Previous'
     col1.appendChild(btnPrevCameras)
@@ -1451,7 +1451,7 @@ function buildEditTimestamp() {
     row.appendChild(col3)
 
     btnSaveCameras = document.createElement('button')
-    btnSaveCameras.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnSaveCameras.setAttribute("class","btn btn-primary btn-block")
     btnSaveCameras.setAttribute("id","btnSaveCameras")
     btnSaveCameras.innerHTML = 'Save'
     col3.appendChild(btnSaveCameras)
@@ -1465,7 +1465,7 @@ function buildEditTimestamp() {
     row.appendChild(col5)
 
     btnNextCameras = document.createElement('button')
-    btnNextCameras.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnNextCameras.setAttribute("class","btn btn-primary btn-block")
     btnNextCameras.setAttribute("id","btnNextCameras")
     btnNextCameras.innerHTML = 'Next'
     col5.appendChild(btnNextCameras)
