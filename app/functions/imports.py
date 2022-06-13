@@ -2524,7 +2524,8 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
 
             #extract the dirpaths & filenames
             df['filename'] = df.apply(lambda x: re.split('/',x.filepath)[-1], axis=1)
-            df['dirpath'] = df.apply(lambda x: re.split(x.filename,x.filepath)[0][:-1], axis=1)
+            df['dirpath'] = df.apply(lambda x: os.path.join(*re.split('/',x.filepath)[:-1]), axis=1)
+            # df['dirpath'] = df.apply(lambda x: re.split(x.filename,x.filepath)[0][:-1], axis=1)
             del df['filepath']
 
             # Start importing these

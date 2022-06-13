@@ -321,6 +321,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Image.id.label('image_id'),\
                 Image.filename.label('image_name'), \
                 Image.corrected_timestamp.label('timestamp'), \
+                Image.timestamp.label('original_timestamp'), \
                 Detection.id.label('detection'), \
                 Individual.name.label('individual'), \
                 Cluster.notes.label('notes'), \
@@ -377,6 +378,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                             Image.id.label('image_id'),\
                             Image.filename.label('image_name'), \
                             Image.corrected_timestamp.label('timestamp'), \
+                            Image.timestamp.label('original_timestamp'), \
                             Detection.id.label('detection'), \
                             Cluster.notes.label('notes'), \
                             Cluster.id.label('cluster'), \

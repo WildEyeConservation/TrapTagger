@@ -243,7 +243,7 @@ class Config(object):
 
     # csv options
     CSV_INFO = {
-        '0':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals']},
+        '0':{'name': 'Image', 'columns': ['Name', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'URL', 'Individuals', 'Original Timestamp']},
         '1':{'name': 'Capture', 'columns': ['Number', 'ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Timestamp', 'Image Count', 'URL', 'Individuals']},
         '2':{'name': 'Cluster', 'columns': ['ID', 'Species Count', 'Labels', 'Sighting Count', 'Tags', 'Notes', 'Image Count', 'URL', 'Individuals']},
         '3':{'name': 'Camera', 'columns': ['ID', 'Species Count', 'Labels', 'Tags', 'Animal Count', 'Image Count', 'URL', 'Individuals']},
