@@ -93,6 +93,8 @@ var tgCheckID = null
 var tgCheckTimer = null
 var hierarchicalLabels=null
 var detailledStatusCount = 0
+var next_camera_url = null
+var prev_camera_url = null
 
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
@@ -1289,6 +1291,20 @@ function buildCameras(url='/getCameraStamps') {
             reply = JSON.parse(this.responseText);
 
             if ((reply.survey==selectedSurvey)&&(modalAddImages.is(':visible'))) {
+                if (reply.next_url==null) {
+                    btnNextCameras.style.visibility = 'hidden'
+                } else {
+                    btnNextCameras.style.visibility = 'visible'
+                    next_camera_url = reply.next_url
+                }
+    
+                if (reply.prev_url==null) {
+                    btnPrevCameras.style.visibility = 'hidden'
+                } else {
+                    btnPrevCameras.style.visibility = 'visible'
+                    prev_camera_url = reply.prev_url
+                }
+
                 reply = reply.data
 
                 addImagesCamerasDiv = document.getElementById('addImagesCamerasDiv')
@@ -1325,7 +1341,7 @@ function buildCameras(url='/getCameraStamps') {
                 addImagesCamerasDiv.appendChild(row)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-8')
+                col.classList.add('col-lg-6')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1334,7 +1350,7 @@ function buildCameras(url='/getCameraStamps') {
                 col.appendChild(h5)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-2')
+                col.classList.add('col-lg-3')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1343,7 +1359,7 @@ function buildCameras(url='/getCameraStamps') {
                 col.appendChild(h5)
             
                 col = document.createElement('div')
-                col.classList.add('col-lg-2')
+                col.classList.add('col-lg-3')
                 row.appendChild(col)
             
                 h5 = document.createElement('h5')
@@ -1363,12 +1379,12 @@ function buildCameras(url='/getCameraStamps') {
                         addImagesCamerasDiv.appendChild(row)
                     
                         col = document.createElement('div')
-                        col.classList.add('col-lg-4')
+                        col.classList.add('col-lg-6')
                         col.innerHTML = reply[trapgroup].cameras[camera].folder
                         row.appendChild(col)
     
                         col = document.createElement('div')
-                        col.classList.add('col-lg-4')
+                        col.classList.add('col-lg-3')
                         row.appendChild(col)
     
                         input = document.createElement('input')
@@ -1379,7 +1395,7 @@ function buildCameras(url='/getCameraStamps') {
                         col.appendChild(input)
     
                         col = document.createElement('div')
-                        col.classList.add('col-lg-4')
+                        col.classList.add('col-lg-3')
                         row.appendChild(col)
     
                         input = document.createElement('input')
@@ -1391,20 +1407,6 @@ function buildCameras(url='/getCameraStamps') {
                     }
     
                     addImagesCamerasDiv.appendChild(document.createElement('br'))
-                }
-
-                if (reply.next_url==null) {
-                    btnNextCameras.style.visibility = 'hidden'
-                } else {
-                    btnNextCameras.style.visibility = 'visible'
-                    next_camera_url = reply.next_url
-                }
-    
-                if (reply.prev_url==null) {
-                    btnPrevCameras.style.visibility = 'hidden'
-                } else {
-                    btnPrevCameras.style.visibility = 'visible'
-                    prev_camera_url = reply.prev_url
                 }
             }
         }
