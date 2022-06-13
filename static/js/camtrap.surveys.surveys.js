@@ -1471,11 +1471,11 @@ function buildEditTimestamp() {
     col5.appendChild(btnNextCameras)
 
     btnNextCameras.addEventListener('click', ()=>{
-        buildCameras(next_url)
+        buildCameras(next_camera_url)
     });
     
     btnPrevCameras.addEventListener('click', ()=>{
-        buildCameras(prev_url)
+        buildCameras(prev_camera_url)
     });
 
     btnSaveCameras.addEventListener('click', ()=>{
