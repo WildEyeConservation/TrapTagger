@@ -95,6 +95,7 @@ var hierarchicalLabels=null
 var detailledStatusCount = 0
 var next_camera_url = null
 var prev_camera_url = null
+var global_corrected_timestamps = {}
 
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
@@ -1278,6 +1279,7 @@ function buildAddIms() {
 }
 
 function buildCameras(camera_url='/getCameraStamps') {
+    /** Updates the timestamp editor based on the current page */
 
     if (camera_url=='/getCameraStamps') {
         camera_url += '?survey_id='+selectedSurvey
@@ -1385,6 +1387,7 @@ function buildCameras(camera_url='/getCameraStamps') {
     
                         col = document.createElement('div')
                         col.classList.add('col-lg-3')
+                        // col.setAttribute('id','original_timestamp-'+reply[trapgroup].cameras[camera].id)
                         col.innerHTML = reply[trapgroup].cameras[camera].timestamp
                         row.appendChild(col)
     
@@ -1403,8 +1406,21 @@ function buildCameras(camera_url='/getCameraStamps') {
                         input.setAttribute('type','text')
                         input.classList.add('form-control')
                         input.value = reply[trapgroup].cameras[camera].corrected_timestamp
-                        input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].folder)
+                        input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString())
                         col.appendChild(input)
+
+                        $('#corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString()).change( function(wrapID) {
+                            return function() {
+                                corrected_timestamp = document.getElementById('corrected_timestamp-'+wrapID.toString())
+                                if (isValidDate(new Date(corrected_timestamp.value))) {
+                                    document.getElementById('timestampErrors').innerHTML = ''
+                                    global_corrected_timestamps[wrapID] = corrected_timestamp.value
+                                } else {
+                                    document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
+                                    delete global_corrected_timestamps[wrapID]
+                                }
+                            }
+                        }(reply[trapgroup].cameras[camera].id));
                     }
     
                     addImagesCamerasDiv.appendChild(document.createElement('br'))
@@ -1422,6 +1438,8 @@ function buildEditTimestamp() {
     document.getElementById('addImagesAddCoordinates').disabled = true
     document.getElementById('addImagesEditTimestamps').disabled = true
     document.getElementById('addImagesAdvanced').disabled = true
+
+    global_corrected_timestamps = {}
 
     addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
 
@@ -1444,22 +1462,8 @@ function buildEditTimestamp() {
     col1.appendChild(btnPrevCameras)
 
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-3')
+    col2.classList.add('col-lg-8')
     row.appendChild(col2)
-
-    col3 = document.createElement('div')
-    col3.classList.add('col-lg-2')
-    row.appendChild(col3)
-
-    btnSaveCameras = document.createElement('button')
-    btnSaveCameras.setAttribute("class","btn btn-primary btn-block")
-    btnSaveCameras.setAttribute("id","btnSaveCameras")
-    btnSaveCameras.innerHTML = 'Save'
-    col3.appendChild(btnSaveCameras)
-
-    col4 = document.createElement('div')
-    col4.classList.add('col-lg-3')
-    row.appendChild(col4)
 
     col5 = document.createElement('div')
     col5.classList.add('col-lg-2')
@@ -1477,10 +1481,6 @@ function buildEditTimestamp() {
     
     btnPrevCameras.addEventListener('click', ()=>{
         buildCameras(prev_camera_url)
-    });
-
-    btnSaveCameras.addEventListener('click', ()=>{
-        saveCameras()
     });
     
     buildCameras()

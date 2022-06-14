@@ -1935,9 +1935,9 @@ limitations under the License. -->
         if (document.getElementById('addImagesAddCoordinates').checked) {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 coordData = []
-                allTimestamps = document.querySelectorAll('[id^=latitude-]');
-                for (tg=0;tg<allTimestamps.length;tg++) {
-                    item = allTimestamps[tg]
+                allLatitudes = document.querySelectorAll('[id^=latitude-]');
+                for (tg=0;tg<allLatitudes.length;tg++) {
+                    item = allLatitudes[tg]
                     tag = item.id.split("latitude-")[item.id.split("latitude-").length-1]
                     latitude = document.getElementById('latitude-'+tag).value
                     longitude = document.getElementById('longitude-'+tag).value
@@ -1964,26 +1964,26 @@ limitations under the License. -->
         }
 
         legalDate = true
-        if (document.getElementById('addImagesEditTimestamps').checked) {
-            allTimestamps = document.querySelectorAll('[id^=corrected_timestamp-]');
-            timestampData = []
-            for (timestamp=0;timestamp<allTimestamps.length;timestamp++) {
-                info = allTimestamps[timestamp].id
+        // if (document.getElementById('addImagesEditTimestamps').checked) {
+        //     allTimestamps = document.querySelectorAll('[id^=corrected_timestamp-]');
+        //     timestampData = []
+        //     for (timestamp=0;timestamp<allTimestamps.length;timestamp++) {
+        //         info = allTimestamps[timestamp].id
 
-                if (isValidDate(new Date(allTimestamps[timestamp].value))) {
-                    camera = info.split("corrected_timestamp-")[info.split("corrected_timestamp-").length-1]
-                    timestampData.push({'camera': camera, 'timestamp': allTimestamps[timestamp].value})
-                } else {
-                    legalDate = false
-                }
-            }
+        //         if (isValidDate(new Date(allTimestamps[timestamp].value))) {
+        //             camera = info.split("corrected_timestamp-")[info.split("corrected_timestamp-").length-1]
+        //             timestampData.push({'camera': camera, 'timestamp': allTimestamps[timestamp].value})
+        //         } else {
+        //             legalDate = false
+        //         }
+        //     }
 
-            if (legalDate) {
-                document.getElementById('timestampErrors').innerHTML = ''
-            } else {
-                document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
-            }
-        }
+        //     if (legalDate) {
+        //         document.getElementById('timestampErrors').innerHTML = ''
+        //     } else {
+        //         document.getElementById('timestampErrors').innerHTML = 'There are one or more invalid dates.'
+        //     }
+        // }
 
         legalTGCode = true
         if (document.getElementById('addImagesAddImages').checked) {
@@ -2064,7 +2064,7 @@ limitations under the License. -->
                                         formData.append("kml", kmlFileUpload.files[0])
 
                                         if (document.getElementById('addImagesEditTimestamps').checked) {
-                                            formData.append("timestamps", JSON.stringify(timestampData))
+                                            formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
                                         }
 
                                         addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
@@ -2086,7 +2086,7 @@ limitations under the License. -->
                                 formData.append("kml", kmlFileUpload.files[0])
                                 
                                 if (document.getElementById('addImagesEditTimestamps').checked) {
-                                    formData.append("timestamps", JSON.stringify(timestampData))
+                                    formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
                                 }
 
                                 addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
@@ -2101,7 +2101,7 @@ limitations under the License. -->
                 var formData = new FormData()
 
                 if (document.getElementById('addImagesEditTimestamps').checked) {
-                    formData.append("timestamps", JSON.stringify(timestampData))
+                    formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
                 }                
 
                 addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())

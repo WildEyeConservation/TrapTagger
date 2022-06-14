@@ -572,7 +572,8 @@ def getCameraStamps():
             # for group in groups:
             for camera in trapgroup.cameras:
                 first = db.session.query(Image).filter(Image.camera==camera).order_by(Image.corrected_timestamp).first()
-                data['cameras'].append({    'folder': camera.path,
+                data['cameras'].append({    'id': camera.id,
+                                            'folder': camera.path,
                                             'timestamp': first.timestamp.strftime("%Y/%m/%d %H:%M:%S"),
                                             'corrected_timestamp': first.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S")})
             reply.append(data)
