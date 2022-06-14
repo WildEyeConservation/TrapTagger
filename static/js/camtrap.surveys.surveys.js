@@ -1326,7 +1326,7 @@ function buildCameras(camera_url='/getCameraStamps') {
             
                 div = document.createElement('div')
                 div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                div.innerHTML = '<i>Edit the starting timestamps for each of the cameras in your survey.</i>'
+                div.innerHTML = '<i>Here you can view and edit the timestamps of the fist image taken by each camera in the selected survey. All images taken by an edited camera will be shifted by the same amount.</i>'
                 addImagesCamerasDiv.appendChild(div)
 
                 errors = document.createElement('div')
@@ -1385,14 +1385,15 @@ function buildCameras(camera_url='/getCameraStamps') {
     
                         col = document.createElement('div')
                         col.classList.add('col-lg-3')
+                        col.innerHTML = reply[trapgroup].cameras[camera].timestamp
                         row.appendChild(col)
     
-                        input = document.createElement('input')
-                        input.setAttribute('type','text')
-                        input.classList.add('form-control')
-                        input.value = reply[trapgroup].cameras[camera].timestamp
-                        input.disabled = true
-                        col.appendChild(input)
+                        // input = document.createElement('input')
+                        // input.setAttribute('type','text')
+                        // input.classList.add('form-control')
+                        // input.value = reply[trapgroup].cameras[camera].timestamp
+                        // input.disabled = true
+                        // col.appendChild(input)
     
                         col = document.createElement('div')
                         col.classList.add('col-lg-3')

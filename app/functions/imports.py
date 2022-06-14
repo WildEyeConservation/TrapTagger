@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
-from app.functions.globals import detection_rating, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask
+from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask
 import GLOBALS
 from sqlalchemy.sql import func, or_
 from sqlalchemy import desc
@@ -983,6 +983,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                             app.logger.info(traceback.format_exc())
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                             app.logger.info(' ')
+                            db.session.rollback()
                     
                     # Commit every 1000 images (250 batches) to prevent long locks on the database
                     # if counter%250==0: db.session.commit()
@@ -994,6 +995,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                     app.logger.info(traceback.format_exc())
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
+                    db.session.rollback()
                 
                 result.forget()
         GLOBALS.lock.release()
@@ -1458,7 +1460,8 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 upper_index = ((n+1)*chunk_size)-1
                 chunked_df = current_df.loc[lower_index:upper_index]
 
-                key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
+                # key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
+                key = 'pipelineCSVs/' + surveyName + '_' + randomString(20) + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
                     chunked_df.to_csv(temp_file.name,index=False)
                     GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
