@@ -1405,7 +1405,11 @@ function buildCameras(camera_url='/getCameraStamps') {
                         input = document.createElement('input')
                         input.setAttribute('type','text')
                         input.classList.add('form-control')
-                        input.value = reply[trapgroup].cameras[camera].corrected_timestamp
+                        if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
+                            input.value = global_corrected_timestamps[reply[trapgroup].cameras[camera].id]
+                        } else {
+                            input.value = reply[trapgroup].cameras[camera].corrected_timestamp
+                        }
                         input.setAttribute('id','corrected_timestamp-'+reply[trapgroup].cameras[camera].id.toString())
                         col.appendChild(input)
 
