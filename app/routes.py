@@ -636,14 +636,14 @@ def getTaggingLevelsbyTask(task_id,task_type):
                                     .filter(Detection.score > 0.8) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().count()
+                                    .distinct().first()
 
                 if count==0:
                     colours.append('#0A7850')
                 else:
                     colours.append('#000000')
             
-            texts.append(label.description+' ('+str(count)+')')
+            texts.append(label.description)
             values.append(label.id)
 
     elif task_type=='AIcheck':
@@ -721,21 +721,14 @@ def getTaggingLevelsbyTask(task_id,task_type):
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))    
 
         for label in labels:
-            check = db.session.query(Labelgroup) \
-                            .join(Detection) \
-                            .filter(Labelgroup.task_id==task_id) \
-                            .filter(Labelgroup.labels.contains(label)) \
-                            .filter(Labelgroup.checked==False) \
-                            .filter(Detection.static==False) \
-                            .filter(Detection.score > 0.8) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().count()
-            if check==0:
+            if label.bounding_count == None: updateLabelCompletionStatus(task_id)
+
+            if label.bounding_count==0:
                 colours.append('#0A7850')
             else:
                 colours.append('#000000')
             
-            texts.append(label.description+' ('+str(check)+')')
+            texts.append(label.description+' ('+str(label.bounding_count)+')')
             values.append(label.id)
 
     elif task_type=='clusterTag':
@@ -764,22 +757,26 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         if disabled == 'false':
             labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-            labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
-
             for label in labels:
-                check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).distinct().count()
-
                 if label.complete==True:
                     colours.append('#0A7850')
                 else:
                     colours.append('#000000')
+
+                if label.cluster_count == None: updateLabelCompletionStatus(task_id)
                 
-                texts.append(label.description+' ('+str(check)+')')
+                texts.append(label.description+' ('+str(label.cluster_count)+')')
                 values.append(label.id)
+
+            #VHL
+            label = db.session.query(Label).get(GLOBALS.vhl_id)
+            count = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct().count()
+            texts.append(label.description+' ('+str(count)+')')
+            values.append(label.id)
 
     elif task_type=='infoTag':
         disabled = 'false'
-        labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
+        
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         
         check = db.session.query(Cluster)\
@@ -799,15 +796,23 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         texts = ['All ('+str(check)+')']
         values = ['-2']
+        labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
         for label in labels:
-            check = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).distinct().count() 
-            if check != 0:
+            if label.info_tag_count == None: updateLabelCompletionStatus(task_id)
+            
+            if label.info_tag_count != 0:
                 colours.append('#000000')
             else:
                 colours.append('#0A7850')
             
-            texts.append(label.description+' ('+str(check)+')')
+            texts.append(label.description+' ('+str(label.info_tag_count)+')')
             values.append('-2,'+str(label.id))
+
+        # VHL
+        label = db.session.query(Label).get(GLOBALS.vhl_id)
+        count = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).filter(~Cluster.tags.any()).distinct().count()
+        texts.append(label.description+' ('+str(count)+')')
+        values.append('-2,'+str(label.id))
 
     return json.dumps({'texts': texts, 'values': values, 'disabled':disabled, 'colours':colours})
 

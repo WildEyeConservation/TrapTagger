@@ -1165,14 +1165,72 @@ def deleteTurkcodes(number_of_jobs, jobs, task_id):
 def updateLabelCompletionStatus(task_id):
     '''Updates the completion status of all parent labels of a specified task.'''
 
+    # Complete + Species annotation
     parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
     for label in parentLabels:
-        check = db.session.query(Cluster).filter(Cluster.labels.contains(label)).first()
-        if check == None:
+        count = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).distinct().count()
+        if count == 0:
             label.complete = True
         else:
             label.complete = False
+        label.cluster_count = count        
     db.session.commit()
+
+    labels = db.session.query(Label).filter(Label.task_id==task_id).all()
+    for label in labels:
+        
+        # # Individual ID (cluster-level)
+        # identified = db.session.query(Detection)\
+        #                     .join(Labelgroup)\
+        #                     .join(Individual, Detection.individuals)\
+        #                     .filter(Labelgroup.labels.contains(label))\
+        #                     .filter(Individual.label_id==label.id)\
+        #                     .filter(Labelgroup.task_id==task_id)\
+        #                     .filter(Individual.task_id==task_id)\
+        #                     .filter(Detection.score > 0.8) \
+        #                     .filter(Detection.static == False) \
+        #                     .filter(~Detection.status.in_(['deleted','hidden'])) \
+        #                     .distinct().all()
+
+        # count = db.session.query(Cluster)\
+        #                     .join(Image,Cluster.images)\
+        #                     .join(Detection)\
+        #                     .join(Labelgroup)\
+        #                     .filter(Cluster.task_id==task_id)\
+        #                     .filter(Cluster.labels.contains(label))\
+        #                     .filter(Labelgroup.task_id==task_id)\
+        #                     .filter(Labelgroup.labels.contains(label))\
+        #                     .filter(~Detection.id.in_([r.id for r in identified]))\
+        #                     .filter(Detection.score > 0.8) \
+        #                     .filter(Detection.static == False) \
+        #                     .filter(~Detection.status.in_(['deleted','hidden'])) \
+        #                     .distinct().count()
+        
+        # label.individualless_count = count
+
+        # Bounding
+        count = db.session.query(Labelgroup) \
+                            .join(Detection) \
+                            .filter(Labelgroup.task_id==task_id) \
+                            .filter(Labelgroup.labels.contains(label)) \
+                            .filter(Labelgroup.checked==False) \
+                            .filter(Detection.static==False) \
+                            .filter(Detection.score > 0.8) \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                            .distinct().count()
+
+        label.bounding_count = count
+
+        # Info tagging
+        count = db.session.query(Cluster)\
+                            .filter(Cluster.task_id==int(task_id))\
+                            .filter(Cluster.labels.contains(label))\
+                            .filter(~Cluster.tags.any())\
+                            .distinct().count() 
+
+        label.info_tag_count = count
+    db.session.commit()
+
     return True
 
 def resolve_abandoned_jobs(abandoned_jobs):
