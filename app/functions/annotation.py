@@ -314,6 +314,13 @@ def launchTask(self,task_id):
 
             elif tL[0] == '-5':
 
+                #extact threshold
+                threshold = tL[2]
+                if threshold=='-1':
+                    tL[2] = Config.SIMILARITY_SCORE
+                    task.tagging_level = ','.join(tL)
+                    taggingLevel = task.tagging_level
+
                 skips = db.session.query(IndSimilarity)\
                                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
                                 .filter(Individual.task_id==task_id)\
@@ -360,7 +367,7 @@ def launchTask(self,task_id):
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -374,7 +381,7 @@ def launchTask(self,task_id):
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -516,7 +523,7 @@ def manageTasks():
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -530,7 +537,7 @@ def manageTasks():
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -576,7 +583,7 @@ def manageTasks():
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -590,7 +597,7 @@ def manageTasks():
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -728,7 +735,7 @@ def manageTasks():
                                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                         .filter(OtherIndividual.c.active==True)\
                                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                                        .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                        .filter(IndSimilarity.score>tL[2])\
                                         .filter(IndSimilarity.skipped==False)\
                                         .filter(Individual.task_id==task_id)\
                                         .filter(Individual.label_id==label.id)\
@@ -742,7 +749,7 @@ def manageTasks():
                                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                         .filter(OtherIndividual.c.active==True)\
                                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                                        .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                        .filter(IndSimilarity.score>tL[2])\
                                         .filter(IndSimilarity.skipped==False)\
                                         .filter(Individual.task_id==task_id)\
                                         .filter(Individual.label_id==label.id)\
@@ -870,7 +877,7 @@ def allocate_new_trapgroup(task_id,user_id):
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                        .filter(IndSimilarity.score>tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Individual.task_id==task_id)\
                         .filter(Individual.label_id==label.id)\
@@ -884,7 +891,7 @@ def allocate_new_trapgroup(task_id,user_id):
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                        .filter(IndSimilarity.score>tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Individual.task_id==task_id)\
                         .filter(Individual.label_id==label.id)\
@@ -970,7 +977,7 @@ def allocate_new_trapgroup(task_id,user_id):
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                            .filter(IndSimilarity.score>tL[2])\
                             .filter(IndSimilarity.skipped==False)\
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
@@ -984,7 +991,7 @@ def allocate_new_trapgroup(task_id,user_id):
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                            .filter(IndSimilarity.score>tL[2])\
                             .filter(IndSimilarity.skipped==False)\
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
@@ -1047,7 +1054,7 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -1061,7 +1068,7 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                .filter(IndSimilarity.score>tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -1156,7 +1163,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
     '''
     
     if '-5' in taggingLevel:
-        label_id = int(re.split(',',taggingLevel)[1])
+        tL = re.split(',',taggingLevel)
+        label_id = int(tL[1])
         OtherIndividual = alias(Individual)
 
         sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
@@ -1164,7 +1172,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                        .filter(IndSimilarity.score>tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Individual.task_id==task_id)\
                         .filter(Individual.label_id==label_id)\
@@ -1178,7 +1186,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                        .filter(IndSimilarity.score>tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Individual.task_id==task_id)\
                         .filter(Individual.label_id==label_id)\

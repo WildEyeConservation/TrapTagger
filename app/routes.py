@@ -152,7 +152,7 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
                                     .distinct().count()
 
             elif tL[0] == '-5':
-                cluster_count = checkForIdWork(task_id,label)
+                cluster_count = checkForIdWork(task_id,label,tL[2])
 
         else:
             sq = db.session.query(Cluster) \
@@ -298,7 +298,7 @@ def updateTaskProgressBar(tskd):
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                            .filter(IndSimilarity.score>tL[2])\
                             .filter(IndSimilarity.skipped==False)\
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
@@ -312,7 +312,7 @@ def updateTaskProgressBar(tskd):
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                            .filter(IndSimilarity.score>tL[2])\
                             .filter(IndSimilarity.skipped==False)\
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
@@ -606,7 +606,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 disabled[label.description] = 'true'
 
             if label.icID_allowed:
-                count = checkForIdWork(task_id,label)
+                count = checkForIdWork(task_id,label,0)
                 if count==0:
                     colours.append('#0A7850')
                 else:
@@ -777,8 +777,6 @@ def getTaggingLevelsbyTask(task_id,task_type):
     elif task_type=='infoTag':
         disabled = 'false'
         
-        labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
-        
         check = db.session.query(Cluster)\
                         .join(Image, Cluster.images)\
                         .join(Detection)\
@@ -799,7 +797,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
         labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
         for label in labels:
             if label.info_tag_count == None: updateLabelCompletionStatus(task_id)
-            
+
             if label.info_tag_count != 0:
                 colours.append('#000000')
             else:
@@ -1963,7 +1961,7 @@ def getDetailedTaskStatus(task_id):
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .first()
 
-                count = checkForIdWork(task_id,label)
+                count = checkForIdWork(task_id,label,0)
 
                 if len(identified) == 0:
                     reply['Individual ID']['Cluster-Level'] = '-'
@@ -3659,6 +3657,7 @@ def getSuggestion(individual_id):
                                         )).first()
         else:
             if individual1 and individual1.active:
+                tL = re.split(',',individual1.task.tagging_level)
 
                 inactiveIndividuals = db.session.query(Individual)\
                                                 .filter(Individual.task_id==task_id)\
@@ -3680,7 +3679,7 @@ def getSuggestion(individual_id):
 
                 suggestion = db.session.query(IndSimilarity)\
                                     .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
-                                    .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                                    .filter(IndSimilarity.score>tL[2])\
                                     .filter(IndSimilarity.skipped==False)\
                                     .filter(~IndSimilarity.individual_1.in_(inactiveIndividuals))\
                                     .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\

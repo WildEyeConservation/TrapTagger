@@ -1280,17 +1280,18 @@ def coordinateDistance(lat1,lon1,lat2,lon2):
     
     return distance
 
-def checkForIdWork(task_id,label):
+def checkForIdWork(task_id,label,theshold):
     '''Returns the number of individuals that need to be examined during inter-cluster indentification for the specified task and label.'''
 
     OtherIndividual = alias(Individual)
+    if theshold=='-1': theshold=Config.SIMILARITY_SCORE
 
     sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
                     .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                     .filter(OtherIndividual.c.active==True)\
                     .filter(OtherIndividual.c.name!='unidentifiable')\
-                    .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                    .filter(IndSimilarity.score>theshold)\
                     .filter(Individual.task_id==task_id)\
                     .filter(Individual.label_id==label.id)\
                     .filter(Individual.active==True)\
@@ -1303,7 +1304,7 @@ def checkForIdWork(task_id,label):
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                     .filter(OtherIndividual.c.active==True)\
                     .filter(OtherIndividual.c.name!='unidentifiable')\
-                    .filter(IndSimilarity.score>Config.SIMILARITY_SCORE)\
+                    .filter(IndSimilarity.score>theshold)\
                     .filter(Individual.task_id==task_id)\
                     .filter(Individual.label_id==label.id)\
                     .filter(Individual.active==True)\

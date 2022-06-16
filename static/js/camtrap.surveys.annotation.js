@@ -50,6 +50,12 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
             } else {
                 allow = false
             }
+        } else if (document.getElementById('idStage').value=='-5') {
+            if (document.getElementById('idStage').text == 'Exhaustive') {
+                taskTaggingLevel += ',0'
+            } else {
+                taskTaggingLevel += ',-1'
+            }
         }
     }
 
@@ -770,7 +776,7 @@ $("#individualID").change( function() {
             }
         })
 
-        fillSelect(input, ['Cluster Identification', 'Inter-cluster Identification'], ['-4','-5'])
+        fillSelect(input, ['Cluster Identification', 'Inter-cluster Identification', 'Exhaustive'], ['-4','-5','-5'])
 
         individualOptionsDiv = document.createElement('div')
         individualOptionsDiv.setAttribute('id','individualOptionsDiv')
