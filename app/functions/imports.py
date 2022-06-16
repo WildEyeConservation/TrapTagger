@@ -88,7 +88,8 @@ def findImID(survey_id,fullPath):
     '''
     
     filename = re.split('/',fullPath)[-1]
-    path = re.split(filename,fullPath)[0][:-1]
+    # path = re.split(filename,fullPath)[0][:-1]
+    path = os.path.join(*re.split('/',fullPath)[:-1])
     image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
     if image == None:
         return np.nan
@@ -2665,10 +2666,10 @@ def validate_csv(stream,survey_id):
 
         fullPath = re.split(',',first)[index]
         filename = re.split('/',fullPath)[-1]
-        path = re.split(filename,fullPath)[0][:-1]
+        # path = re.split(filename,fullPath)[0][:-1]
+        path = os.path.join(*re.split('/',fullPath)[:-1])
         image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
 
-        if image != None:
-            return True
+        if image: return True
 
     return False
