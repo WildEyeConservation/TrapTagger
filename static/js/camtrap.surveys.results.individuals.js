@@ -227,12 +227,13 @@ function removeImage() {
     modalAlertIndividuals.modal('hide')
     modalIndividual.modal({keyboard: true});
     image = individualImages[individualSplide.index]
+    detection = image.detections[0]
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            if (reply=='success') {
+            if (reply.status=='success') {
                 index = individualImages.indexOf(image);
                 if (index > -1) {
                     individualImages.splice(index, 1);
@@ -242,7 +243,7 @@ function removeImage() {
             }
         }
     }
-    xhttp.open("GET", '/removeImageFromIndividual/'+selectedIndividual.toString()+'/'+image.id.toString());
+    xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
     xhttp.send();
 }
 function next_individuals() {

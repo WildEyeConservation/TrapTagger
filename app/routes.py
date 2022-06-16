@@ -464,41 +464,42 @@ def deleteIndividual(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     if individual and (individual.task.survey.user==current_user):
+        task_id = individual.task_id
+        label_id = individual.label_id
+
+        for detection in individual.detections:
+            newIndividual = Individual( name=generateUniqueName(task_id,label_id,'n'),
+                                        task_id=task_id,
+                                        label_id=label_id,
+                                        user_id=current_user.id,
+                                        timestamp=datetime.utcnow())
+
+            db.session.add(newIndividual)
+            newIndividual.detections.append(detection)
+            db.session.commit()
+
+            individuals = [r.id for r in db.session.query(Individual)\
+                                                    .filter(Individual.task_id==task_id)\
+                                                    .filter(Individual.label_id==label_id)\
+                                                    .filter(Individual.name!='unidentifiable')\
+                                                    .filter(Individual.id != individual.id)\
+                                                    .filter(Individual.id != newIndividual.id)\
+                                                    .all()]
+
+            calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals)
+
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
         for similarity in allSimilarities:
             db.session.delete(similarity)
+
         individual.detections = []
         individual.tags = []
         individual.children = []
         individual.parents = []
         db.session.delete(individual)
         db.session.commit()
+
         return json.dumps('success')
-
-    return json.dumps('error')
-
-@app.route('/removeImageFromIndividual/<individual_id>/<image_id>')
-@login_required
-def removeImageFromIndividual(individual_id,image_id):
-    '''Removes the stipulated image from the specified individual and returns a success or error status.'''
-    
-    individual_id = int(individual_id)
-    image_id = int(image_id)
-    individual = db.session.query(Individual).get(individual_id)
-
-    if individual and (individual.task.survey.user==current_user):
-        detection = db.session.query(Detection)\
-                            .filter(Detection.image_id==image_id)\
-                            .filter(Detection.individuals.contains(individual))\
-                            .filter(Detection.score>0.8)\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .first()
-
-        if detection:
-            individual.detections.remove(detection)
-            db.session.commit()
-            return json.dumps('success')
 
     return json.dumps('error')
 
@@ -536,6 +537,7 @@ def getIndividual(individual_id):
                             'trapgroup': image.camera.trapgroup.tag,
                             'detections': [
                                 {
+                                    'id': detection.id,
                                     'static': detection.static,
                                     'top': detection.top,
                                     'left': detection.left,
@@ -3351,30 +3353,39 @@ def undoPreviousSuggestion(individual_1,individual_2):
 @app.route('/dissociateDetection/<detection_id>')
 @login_required
 def dissociateDetection(detection_id):
-    '''Dissociates the specified detection from its current individual for the task associated with the current user. The detection will be allocated to a new individual, 
+    '''Dissociates the specified detection from either its current individual or the specified one. The detection will be allocated to a new individual, 
     and all necessary individual similarities recalculated. Returns a success/error status.'''
 
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
 
+    individual_id = request.args.get('individual_id', None)
+    if individual_id:
+        task = individual.task
+    else:
+        task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+
     detection = db.session.query(Detection).get(detection_id)
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
 
-    if detection and (detection.image.camera.trapgroup.survey==task.survey) and ((current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
-        tL = re.split(',',task.tagging_level)
+    if task and detection and (detection.image.camera.trapgroup.survey==task.survey) and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
 
-        individual = db.session.query(Individual)\
-                                .filter(Individual.task_id==task.id)\
-                                .filter(Individual.detections.contains(detection))\
-                                .filter(Individual.active==True)\
-                                .first()
+        if individual_id:
+            individual = db.session.query(Individual).get(individual_id)
+        else:
+            individual = db.session.query(Individual)\
+                                    .filter(Individual.task_id==task.id)\
+                                    .filter(Individual.detections.contains(detection))\
+                                    .filter(Individual.active==True)\
+                                    .first()
+        
+        label_id = individual.label_id
 
         if individual and (detection in individual.detections[:]):
             individual.detections.remove(detection)
 
-        newIndividual = Individual( name=generateUniqueName(task.id,int(tL[1]),'n'),
+        newIndividual = Individual( name=generateUniqueName(task.id,label_id,'n'),
                                     task_id=task.id,
-                                    label_id=int(tL[1]),
+                                    label_id=label_id,
                                     user_id=current_user.id,
                                     timestamp=datetime.utcnow())
 
@@ -3390,16 +3401,17 @@ def dissociateDetection(detection_id):
         individuals1 = [r.id for r in db.session.query(Individual)\
                                                     .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
                                                     .filter(Individual.task_id==task.id)\
-                                                    .filter(Individual.label_id==int(tL[1]))\
+                                                    .filter(Individual.label_id==label_id)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
+                                                    .filter(Individual.id != newIndividual.id)\
                                                     .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
                                                     .filter(or_(IndSimilarity.detection_1==int(detection_id),IndSimilarity.detection_2==int(detection_id)))\
                                                     .all()]
 
         individuals2 = [r.id for r in db.session.query(Individual)\
                                                     .filter(Individual.task_id==task.id)\
-                                                    .filter(Individual.label_id==int(tL[1]))\
+                                                    .filter(Individual.label_id==label_id)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
                                                     .all()]

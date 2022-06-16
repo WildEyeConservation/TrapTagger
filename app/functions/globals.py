@@ -1260,7 +1260,7 @@ def resolve_abandoned_jobs(abandoned_jobs):
             for trapgroup in user.trapgroup:
                 trapgroup.user_id = None
 
-            user.passed = 'cTrue'
+            user.passed = 'cFalse'
 
             if int(task_id) in GLOBALS.mutex.keys():
                 GLOBALS.mutex[int(task_id)]['user'].pop(user.id, None)

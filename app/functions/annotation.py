@@ -486,10 +486,32 @@ def manageTasks():
             for user in inactiveUsers:
                 turkcode = db.session.query(Turkcode).filter(Turkcode.user_id==user.username).first()
                 abandoned_jobs.append(turkcode)
-                user.passed = 'cFalse'
-                db.session.commit()
+                # user.passed = 'cFalse'
+                # db.session.commit()
             if abandoned_jobs!=[]:
                 resolve_abandoned_jobs(abandoned_jobs)
+
+            # Ensure there are no locked-out individuals
+            if '-5' in taggingLevel:
+                allocateds = db.session.query(IndSimilarity)\
+                                    .join(User)\
+                                    .filter(User.passed.in_(['cTrue','cFalse']))\
+                                    .distinct().all()
+                
+                for allocated in allocateds:
+                    allocated.allocated = None
+                    allocated.allocation_timestamp = None
+
+                allocateds = db.session.query(Individual)\
+                                    .join(User, User.id==Individual.allocated)\
+                                    .filter(User.passed.in_(['cTrue','cFalse']))\
+                                    .distinct().all()
+                
+                for allocated in allocateds:
+                    allocated.allocated = None
+                    allocated.allocation_timestamp = None
+
+                db.session.commit()
 
             #Catch trapgroups that are still allocated to users that are finished
             trapgroups = db.session.query(Trapgroup)\
