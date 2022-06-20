@@ -1581,12 +1581,14 @@ def detection_rating(image):
     runningscore = 0
     species = []
     for detection in image.detections:
-        if (detection.score > 0.8) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None) and (detection.classification.lower()!='nothing'):
-            if detection.classification not in species:
+        if (detection.score > 0.8) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None):
+            if (detection.classification.lower()!='nothing') and (detection.classification not in species):
                 species.append(detection.classification)
             minDimension = min(detection.bottom - detection.top, detection.right - detection.left)
             clipcount = 1-0.225*((detection.top < 0.01) + (detection.bottom > 0.99) + (detection.left < 0.01) + (detection.right > 0.99))
-            runningscore += clipcount*minDimension
+            detScore = clipcount*minDimension
+            if detection.classification.lower()=='nothing': detScore*0.5
+            runningscore += detScore
     runningscore += 100*(len(species)-1)
     if runningscore == 0:
         runningscore = -1000
