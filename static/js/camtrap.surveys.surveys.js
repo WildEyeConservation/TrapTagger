@@ -759,7 +759,7 @@ function checkTrapgroupCode() {
         S3FolderInput = document.getElementById('S3FolderInput')
         folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
     
-        if ((tgCode!='')&&(folder!='')) {
+        if (((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
     
             var formData = new FormData()
@@ -1092,7 +1092,7 @@ function buildBucketUpload(divID,folders) {
 
     div2 = document.createElement('div')
     div2.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div2.innerHTML = '<i>Once you have uploaded the survey to the cloud, please enter the name of the folder below (without trailing a slash).</i>'
+    div2.innerHTML = '<i>Select the name of the folder of images you wish to import (after having uploaded it to the cloud using <a href="https://cyberduck.io/">CyberDuck</a> - see the help file for instructions).</i>'
     div.appendChild(div2)
 
     row = document.createElement('div')
