@@ -1379,6 +1379,18 @@ def checkTrapgroupCode():
 
     return json.dumps({'status':status,'data':reply})
 
+@app.route('/getFolders')
+@login_required
+def getFolders():
+    '''Fetches the list of folders in the user's S3 bucket.'''
+    
+    folders = []
+    if current_user.is_authenticated and current_user.admin:
+        folders = list_all(current_user.bucket+'-raw','')[0]
+        if 'Downloads' in folders: folders.remove('Downloads')
+
+    return json.dumps(folders)
+
 @app.route('/getSurveysAndTasksByUser/<user_id>')
 @login_required
 def getSurveysAndTasksByUser(user_id):

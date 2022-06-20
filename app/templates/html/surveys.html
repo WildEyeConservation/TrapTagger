@@ -147,7 +147,7 @@ limitations under the License. -->
                     </div>
                     <br>
 
-                    <h5 style="margin-bottom: 2px">Coordinates (Optional)</h5>
+                    <!-- <h5 style="margin-bottom: 2px">Coordinates (Optional)</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Upload a kml file containing your site coordinates. This can be exported from <a href="https://earth.google.com/web/">Google Earth</a>. Alternatively, set these manually in the survey editor later.</i></div>
                     <div class="row">
                         <div class="col-lg-6">
@@ -161,7 +161,7 @@ limitations under the License. -->
                             </div>
                         </div>
                     </div>
-                    <br>
+                    <br> -->
 
                     <!-- <h5 style="margin-bottom: 2px">Auto-Correct Timestamps</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select this option if you have timestamp errors in your dataset.</i></div>
@@ -1748,7 +1748,7 @@ limitations under the License. -->
         newSurveyTGCode = document.getElementById('newSurveyTGCode').value
         newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
         // correctTimestampsCheckbox = document.getElementById('correctTimestampsCheckbox')
-        kmlFileUpload = document.getElementById('kmlFileUpload')
+        // kmlFileUpload = document.getElementById('kmlFileUpload')
 
         while(document.getElementById('newSurveyErrors').firstChild){
             document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
@@ -1759,20 +1759,20 @@ limitations under the License. -->
         }
 
         legalFile = true
-        if (kmlFileUpload.files.length > 1) {
-            document.getElementById('newSurveyErrors').innerHTML = 'You can only upload a single coordinate file'
-            legalFile = false
-        } else if (kmlFileUpload.files.length == 1) {
-            if (kmlFileUpload.files[0].size>50000000) {
-                document.getElementById('newSurveyErrors').innerHTML = 'File cannot be larger than 50MB.'
-                legalFile = false
-            } else {
-                if (!kmlFileUpload.files[0].name.includes('.kml')) {
-                    document.getElementById('newSurveyErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
-                    legalFile = false
-                }
-            }
-        }
+        // if (kmlFileUpload.files.length > 1) {
+        //     document.getElementById('newSurveyErrors').innerHTML = 'You can only upload a single coordinate file'
+        //     legalFile = false
+        // } else if (kmlFileUpload.files.length == 1) {
+        //     if (kmlFileUpload.files[0].size>50000000) {
+        //         document.getElementById('newSurveyErrors').innerHTML = 'File cannot be larger than 50MB.'
+        //         legalFile = false
+        //     } else {
+        //         if (!kmlFileUpload.files[0].name.includes('.kml')) {
+        //             document.getElementById('newSurveyErrors').innerHTML = 'The trap coordinate file must be a .kml file.'
+        //             legalFile = false
+        //         }
+        //     }
+        // }
 
         legalName = true
         if (surveyName == '') {
@@ -1800,7 +1800,8 @@ limitations under the License. -->
         
         legalInput = false
         if (document.getElementById('S3BucketUpload').checked == true) {
-            newSurveyS3Folder = document.getElementById('S3FolderInput').value
+            S3FolderInput = document.getElementById('S3FolderInput')
+            newSurveyS3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
             if (newSurveyS3Folder=='') {
                 document.getElementById('newSurveyErrors').innerHTML = 'The folder name field cannot be empty.'
             } else if (newSurveyS3Folder.toLowerCase()=='none') {
@@ -1836,7 +1837,8 @@ limitations under the License. -->
         }
 
         if (legalName&&legalDescription&&legalTGCode&&legalInput&&legalFile&&TGCheckReady) {
-            if (kmlFileUpload.files.length == 1) {
+            // if (kmlFileUpload.files.length == 1) {
+            if (false) {
                 var reader = new FileReader()
                 reader.addEventListener('load', (event) => {
                     kmldata = event.target.result
@@ -2000,7 +2002,8 @@ limitations under the License. -->
             
             legalInput = false
             if (document.getElementById('S3BucketAdd').checked == true) {
-                addImagesS3Folder = document.getElementById('S3FolderInput').value
+                S3FolderInput = document.getElementById('S3FolderInput')
+                addImagesS3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
                 if (addImagesS3Folder=='') {
                     document.getElementById('addImagesErrors').innerHTML = 'The folder name field cannot be empty.'
                 } else if (addImagesS3Folder.toLowerCase()=='none') {

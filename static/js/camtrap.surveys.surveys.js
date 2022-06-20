@@ -272,7 +272,7 @@ function buildSurveys(survey,disableSurvey) {
     infoElementNumTrapgroups = document.createElement('div')
     infoElementNumTrapgroups.classList.add('col-lg-3');
     infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
-    infoElementNumTrapgroups.innerHTML = 'Trapgroups: ' + survey.numTrapgroups
+    infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
     infoElementRow.appendChild(infoElementNumTrapgroups)
 
     infoElementNumImages = document.createElement('div')
@@ -561,8 +561,8 @@ function resetNewSurveyPage() {
     document.getElementById('BrowserUpload').checked = false
     document.getElementById('newSurveyCheckbox').checked = false
 
-    document.getElementById('kmlFileUploadText').value = ''
-    document.getElementById('kmlFileUpload').value = ''
+    // document.getElementById('kmlFileUploadText').value = ''
+    // document.getElementById('kmlFileUpload').value = ''
 
     document.getElementById('newSurveyTGInfo').innerHTML = ''
 
@@ -694,7 +694,9 @@ function pingTgCheck() {
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            if (document.getElementById('S3FolderInput').value!='') {
+            S3FolderInput = document.getElementById('S3FolderInput')
+            s3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+            if (s3Folder!='') {
                 response = JSON.parse(this.responseText)
                 if (response.status=='SUCCESS') {
                     infoDiv.innerHTML = response.data
@@ -754,7 +756,8 @@ function checkTrapgroupCode() {
             infoDiv.innerHTML = tgs.length.toString() + ' trapgroups found: ' + tgs.toString()
         }
     } else if (folderChecked) {
-        folder = document.getElementById('S3FolderInput').value
+        S3FolderInput = document.getElementById('S3FolderInput')
+        folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
     
         if ((tgCode!='')&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
@@ -768,7 +771,9 @@ function checkTrapgroupCode() {
             xhttp.onreadystatechange =
             function(){
                 if (this.readyState == 4 && this.status == 200) {
-                    if (document.getElementById('S3FolderInput').value!='') {
+                    S3FolderInput = document.getElementById('S3FolderInput')
+                    folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+                    if (folder!='') {
                         response = JSON.parse(this.responseText)
                         if (response.status == 'PENDING') {
                             tgCheckID = response.data
@@ -1071,7 +1076,7 @@ function buildTgBuilderRow() {
     }
 }
 
-function buildBucketUpload(divID) {
+function buildBucketUpload(divID,folders) {
     /** Builds the bucket image upload form into the specified div. */
 
     div = document.getElementById(divID)
@@ -1098,12 +1103,12 @@ function buildBucketUpload(divID) {
     col.classList.add('col-lg-4')
     row.appendChild(col)
 
-    input = document.createElement('input')
-    input.setAttribute('type','text')
-    input.classList.add('form-control')
-    input.required = true
-    input.setAttribute('id','S3FolderInput')
-    col.appendChild(input)
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','S3FolderInput')
+    col.appendChild(select)
+
+    fillSelect(select, folders, [...Array(folders.length).keys()])
 
     div.append(document.createElement('br'))
 
@@ -1192,7 +1197,16 @@ function buildAddIms() {
     $("#S3BucketAdd").change( function() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
         if (S3BucketAdd.checked) {
-            buildBucketUpload('addImagesFormDiv')
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/getFolders');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    buildBucketUpload('addImagesFormDiv',reply)
+                }
+            }
+            xhttp.send();
         }
     })
     
@@ -1896,7 +1910,16 @@ $("#S3BucketUpload").change( function() {
 
     S3BucketUpload = document.getElementById('S3BucketUpload')
     if (S3BucketUpload.checked) {
-        buildBucketUpload('newSurveyFormDiv')
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getFolders');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                buildBucketUpload('newSurveyFormDiv',reply)
+            }
+        }
+        xhttp.send();
     }
 })
 
@@ -1909,14 +1932,14 @@ $("#BrowserUpload").change( function() {
     }
 })
 
-$("#kmlFileUpload").change( function() {
-    /** Updates the file upload text area when a file is selected. */
-    if (document.getElementById("kmlFileUpload").files.length > 0) {
-        document.getElementById('kmlFileUploadText').value = document.getElementById("kmlFileUpload").files[0].name
-    } else {
-        document.getElementById('kmlFileUploadText').value = ''
-    }
-})
+// $("#kmlFileUpload").change( function() {
+//     /** Updates the file upload text area when a file is selected. */
+//     if (document.getElementById("kmlFileUpload").files.length > 0) {
+//         document.getElementById('kmlFileUploadText').value = document.getElementById("kmlFileUpload").files[0].name
+//     } else {
+//         document.getElementById('kmlFileUploadText').value = ''
+//     }
+// })
 
 $("#kmlFileUpload2").change( function() {
     /** Updates the file upload text area when a file is selected. */
