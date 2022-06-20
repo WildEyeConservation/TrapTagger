@@ -38,25 +38,35 @@ limitations under the License. -->
     </li>
 </ul>
     
+<h4>Survey Name and Description</h4>
+
 <p align="justify">
-    Begin by giving your new survey a unique name, and an optional description. Thereafter you need to specify which images should be pocessed and associated with this survey. 
+    Begin by giving your new survey a unique name, and an optional description.
+</p>
+
+<h4>Image Upload</h4>
+
+<p align="justify">
+    Thereafter you need to specify which images should be pocessed and associated with this survey. 
     Your images for the survey can be uploaded in two ways:
 </p>
 
 <div align="justify">
     1. Bucket Upload (Recommended)
 </div>
-<div align="justify">
+<div align="justify" style="padding-left:20px">
     <i>This is the recommended option due to it's robust nature and its ability to allow for the pausing/resumption 
-    of uploads and the ability to sync folders etc. It is required for larger sets of images.</i> 
+    of uploads and the ability to sync folders etc. All images are guaranteed to be uploaded. It is required for larger sets of images.</i> 
     In this appoach you first upload the images directly to our cloud storage using a third-party application such as 
     <a href='https://cyberduck.io/'>CyberDuck</a> before creating a survey here. Once the upload is complete, you simply need to select the name of the folder containing the images in 
     the folder name drop-down menu to indicate which images must be imported.
 </div>
 <br>
-<div align="justify">
+<div align="justify" style="padding-left:20px">
     Detailed instructions for using CyberDuck are as follows:
     <ul>
+        <li>Download and install the software</li>
+        <li>Open the software</li>
         <li>Click Bookmark -> New Bookmark</li>
         <li>Select Amazon S3 in the drop down menu at the top of the form</li>
         <li>Choose a bookmark nickname if you like</li>
@@ -69,17 +79,18 @@ limitations under the License. -->
         <li>Upload a folder by dragging it into the application</li>
     </ul>
 </div>
-<br>
 
 <div align="justify">
     2. Browser Upload
 </div>
-<div align="justify">
-    <i>This approach is only suitable for small numbers of images, and good internet connections.</i>
+<div align="justify" style="padding-left:20px">
+    <i>This approach is only suitable for small numbers of images, and good internet connections. Some images may be dropped.</i>
     Upload the images directly through your internet browser by selecting a folder of images to upload using the 'add images' button. 
     The upload will commence when you press the create button, thereafter the images will be automatically imported upon upload completion.
 </div>
 <br>
+
+<h4>Site Identifier</h4>
 
 <p align="justify">
     Thereafter, you must specify a site identifier. This is used to determine which folders within your folder structure relate to your camera sites.
@@ -87,18 +98,18 @@ limitations under the License. -->
     The simplest example of this would be:
 </p>
 
-<p align="justify">
+<div align="justify">
     SurveyName/Site01/camera1/
-</p>
-<p align="justify">
+</div>
+<div align="justify">
     SurveyName/Site01/camera2/
-</p>
-<p align="justify">
+</div>
+<div align="justify">
     SurveyName/Site02/camera1/
-</p>
-<p align="justify">
+</div>
+<div align="justify">
     SurveyName/Site02/camera2/
-</p>
+</div>
     
 <p align="justify">    
     where a site identifier of the word "Site" would identify the folders "Site01", and "Site02" as containing 
