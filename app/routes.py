@@ -4935,6 +4935,7 @@ def assignLabel(clusterID):
                     for label_id in labels:
                         if int(label_id)==Config.SKIP_ID:
                             cluster.skipped = True
+                            parentLabel = db.session.query(Label).get(taggingLevel)
 
                             if ('-2' not in taggingLevel) and (parentLabel not in newLabels):
                                 newLabels.append(parentLabel)

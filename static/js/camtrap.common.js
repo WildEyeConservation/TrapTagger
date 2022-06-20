@@ -1453,7 +1453,7 @@ function assignLabel(label,mapID = 'map1'){
                                 labelName = names[idx]
                             }
 
-                            if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel)) {
+                            if (label==nothingLabel) {
                                 // reallocate on undo nothing
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
