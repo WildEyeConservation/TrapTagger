@@ -13,120 +13,108 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    Welcome to your home page. Here you are able to manage your surveys: add new surveys, edit them, edit and launch tasks, and view results. The entire process of processing a set of images can be divided into three main steps and a few associated sub-steps:
+    Welcome to your home page. Here you are able to manage your image sets (known as surveys) and their associated annotation sets: add new ones, edit them, launch them for manual annotation sets, 
+    and view the results. The entire process of analysing a set of images can be divided into three main steps and a few associated sub-steps:
 </p>
 
-<div align="justify">
+<h4 align="justify">
     1. Survey Setup
-</div>
+</h4>
 <div align="justify">
-    Start by creating a new survey and uploading images to it. This can either be done in your browser through this site, or through a third party program.
+    Start by creating a new survey and uploading images to it. A survey is simply a set of images, so you can break up your data into any subsets you wish. You can also always add more 
+    images to an existing survey at any time.
 </div>
 <br>
 
 <div align="justify">
-    1A. Task Setup
+    <i>1a. Annotation-Set Setup</i>
 </div>
-<div class='row'>
-    <div class='col-lg-1'></div>
-    <div class='col-lg-11'>
-        <div align="justify">
-            Next, you must create a set of labels for your images, known as a task. This allows you have an entirely separate set of annotations for eash survey, that you can then 
-            compare to each other, where each set can be generated from manual tagging, AI auto-tagging, imported from a csv file, or from a new version of the AI when it is released.
-            Each task has its own set of species labels that can be created in a hierarchical structure, allowing you to initialially categorise 
-            your survey into broad categories, before tagging it down to increasing levels of detail on subsquent passes. You are also able to select your own hotkeys for each label, 
-            allowing you to tag them faster and more easily.
-        </div>
-    </div>
+<div style="padding-left:20px" align="justify">
+    Next, you must create a new set of annotations for your survey. Typically, only one annotation set is required, but each survey can have multiple annotation sets associated with it, 
+    that can then be compared with each other. This allows you to annotate you data in multiple diffent ways and compare the results, or compare different workers, or benchmark the system 
+    against pre-existing annotations. As part of setting up your annotation set, you will be able to define your own custom species labels, as well as select which species you would like 
+    automatically identified for you.
 </div>
 <br>
 
 <div align="justify">
-    1B. Edit
+    <i>1b. Edit</i>
 </div>
-<div class='row'>
-    <div class='col-lg-1'></div>
-    <div class='col-lg-11'>
-        <div align="justify">
-            At any stage along the process you can add additional images to your survey, update the version or the AI used on it, or add coordinates for your camera traps 
-            by uploading a Google Earth generated kml file. You can also edit the labels assocated with a task at any time.
-        </div>
-    </div>
+<div style="padding-left:20px" align="justify">
+    At any stage you can add additional images to a survey, update the version of the AI used on it, or edit the camera timestamps and site coordinates using the associated edit button. Additionally, 
+    you can edit the species labels by clicking on the associated edit annotation set button.
+</div>
+<br>
+
+<h4 align="justify">
+    2. Annotation
+</h4>
+<div align="justify">
+    Once you have created an annotation set for your survey, you can begin annotating it. Note that even if you select for all your species to be automatically identified for you, 
+    there will always be some percentage of the images that must be annotated manually due to the AI being insufficiently confident of the species therein. Annotation of a 
+    dataset can be broken down into a number of smaller tasks, with each providing more and more granular information. Additionally, each of these tasks can typically be performed 
+    on a species-by-species basis, allowing you to only annotate the information you need, for the species for which you need it. Your progress through these steps is outlined under 
+    an annotation set's details.
+</div>
+<ul align="justify">
+    <li>
+        Species Labelling: annotate the species contained in each cluster of images.
+    </li>
+    <li>
+        AI Species Check: check your manual annotations against the AI to find mistakes.
+    </li>
+    <li>
+        Informational Tagging: add additional informational tags to image clusters to indicate animal behaviour or anything else.
+    </li>
+    <li>
+        Multi-Species Differentiation: differentiate which box contains which species in a multi-species cluster.
+    </li>
+    <li>
+        Sighting (box) Correction: Correct the AI-generated boxes for each animal to get accurate animal counts. Also necessary before individual identification.
+    </li>
+    <li>
+        Individual Identification: Identify specific individuals of a species across your survey.
+    </li>
+</ul>
+<br>
+
+<div align="justify">
+    <i>2a. Knockdown Analysis</i>
+</div>
+<div style="padding-left:20px" align="justify">
+    As part of the initial level of species annotation, you will have the option to mark a camera as knocked down. This marks all the images from that camera from that point in time 
+    onward as knocked down, putting them aside, and thus preventing you from having to look at a bunch of empty images. 
+    However, these cameras can sometimes be picked up by passers-by.
+    As such, after completing an initial-level species annotation, you will be required to analyse the knocked-down cameras to determine if and when this has occured.
+    If a camera was in fact picked up, all those images will then be added back to their respective clusters (in a multi-camera setup) and hence automatically identified as 
+    farr as possible. The remaining images must then be annotatated in an top-level species-labelling session, which will automatically be launched upon completion of the 
+    knockdown analysis.
 </div>
 <br>
 
 <div align="justify">
-    2. Tagging
+    <i>2b. Unknown Animals</i>
 </div>
-<div align="justify">
-    Once you have created a task, you are able to begin tagging your survey. This is divided into two phases. Cluster tagging allows you label the species contained within a cluster 
-    of images, whilst sighting tagging allows you correct the AI-automated animal detections in order to get a more accurate species count on every image. 
-    Both require you to work your way down through your hierarchical label structure, but you are able to stop at any point. For example, you can categorise eveything into 
-    carnivores and herbivores, only tag the carnivore speces, and then only perform a sighting analysis on the lions, if that is the species that is of interest to you.
-    Lastly, you can check you manually annotated results against the AI to help you identify mistakes.
-</div>
-<br>
-
-<div align="justify">
-    2A. Knockdown Analysis
-</div>
-<div class='row'>
-    <div class='col-lg-1'></div>
-    <div class='col-lg-11'>
-        <div align="justify">
-            As part of the initial level of tagging, you will have the option to mark a camera as knocked down. This marks all the rest of the image from the camera as knockdown, 
-            thus preventing you from having to look at a bunch of empty images. However, these cameras can sometimes be picked up by passers-by.
-            As such, after completing an initial-level tag, you will be required to analyse the knocked-down cameras to determine if and when this has occured, releasing the clusters to be tagged 
-            in another initial-level tagging session.
-        </div>
-    </div>
+<div style="padding-left:20px" align="justify">
+    Many times a sighting of an animal simply consists of a one or two poor images - a glimpse of a tail, a single leg, or some whiskers - which are near impossible to identify 
+    by the average person, but can be ID'd by the expert in your team. These can simply be labelled as unknown in the initial pass through of the survey, and then easily found under 
+    the unknown label in the explore function, for your expert to annotate. Alternatively, if you know the animal falls under a broad category such as antelope, but you don't know which 
+    species it is, you can tag it as an antelope in your initial pass, and then skip the image during the annotation of that category. Your antelope expert can then simply call up all the 
+    unknown antelope by selecting the antelope label under the explore function, or you can simply relaunch the antelope category tagging as normal. In the event that you cannot identify 
+    the animal, it will still be tagged as an antelope, and hence can be counted accordingly in your results.
 </div>
 <br>
 
-<div align="justify">
-    2B. Error Correction
-</div>
-<div class='row'>
-    <div class='col-lg-1'></div>
-    <div class='col-lg-11'>
-        <div align="justify">
-            Along the way there are bound to be mistakes in the tagging process. If you are aware of your mistake at the time of tagging, you can simply go back to that cluster, 
-            and change your tag. However, sometimes mistakes slip through the cracks, and if you come across a mislabeled cluster in a lower level of your hierarchical structure 
-            (like a lion in your antelope category), you are able to mark it as 'wrong'. This will remove its tags, and allow you to retag it at the initial level. Alternatively, 
-            if you know the mistake that you made (eg. marked a particular sub-species as another), you can look for the incorrect species in the explore function (under results), 
-            and retag it as any species, at any time.
-        </div>
-    </div>
-</div>
-<br>
-
-<div align="justify">
-    2C. Unknown Animals
-</div>
-<div class='row'>
-    <div class='col-lg-1'></div>
-    <div class='col-lg-11'>
-        <div align="justify">
-            Many times a sighting of an animal simply consists of a one or two poor images - a glimpse of a tail, a single leg, or some whiskers - which are near impossible to identify 
-            by the average person, but can be ID'd by the expert in your team. These can simply be labelled as unknown in the initial pass through the survey, and then easily found under 
-            the unknown label in the explore function, for your expert to tag. Alternatively, if you know the animal falls under a broad category such as antelope, but you don't know which 
-            species it is, you can tag it as an antelope in your initial pass, and then skip the image during the tagging of that category. Your antelope expert can then simply call up all the 
-            unknown antelope by selecting the antelope label under the explore function, or you can simply relaunch the antelope category tagging as normal. In the event that you cannot identify 
-            the animal, it will still be tagged as an antelope, and hence can be counted accordingly in your results.
-        </div>
-    </div>
-</div>
-<br>
-
-<div align="justify">
+<h4 align="justify">
     3. Results
-</div>
+</h4>
 <div align="justify">
-    Once you have finished tagging your survey to the desired level, you can examine the results in a number of ways. You can look through all the clusters with a desired label 
-    in the explore function, or you can download a nicely-formated summary Excel file, or even download a custom csv file of the results for your own statictical analysis.
+    Once you have finished annotating your survey to the desired level, you can examine the results in a number of ways by clicking on the results button for that paticular annotation set. 
+    There you will be able to look through all the clusters with a desired label in the explore function, or play with a number of interactive analysis tool under the statistical tools. 
+    Alternatively, you can download your data in a number of different ways: as a csv file, a formatted excel file, or even as a sorted set of images with the labels in the metadata.
 </div>
 <br>
 
 <p align="justify">
-    More detailed information on each step is provided in their respective help sections.
+    More detailed information on each step is provided in their individual help sections which can be found using the help button in the top right-hand corner of their respective windows.
 </p>
