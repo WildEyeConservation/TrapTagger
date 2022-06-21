@@ -988,6 +988,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                     
                     # Commit every 1000 images (250 batches) to prevent long locks on the database
                     # if counter%250==0: db.session.commit()
+                    db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
                     db.session.commit()
                 
                 except Exception:
