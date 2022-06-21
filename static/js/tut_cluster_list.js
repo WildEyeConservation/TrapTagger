@@ -93,6 +93,9 @@ var tut_cluster_list = [
             label: [
                 "None"
             ],
+            label_ids: [
+                '0'
+            ],
             tags: [
                 "None"
             ],
@@ -195,6 +198,9 @@ var tut_cluster_list = [
             ],
             label: [
                 "None"
+            ],
+            label_ids: [
+                '0'
             ],
             tags: [
                 "None"
@@ -379,6 +385,9 @@ var tut_cluster_list = [
             label: [
                 "None"
             ],
+            label_ids: [
+                '0'
+            ],
             tags: [
                 "None"
             ],
@@ -453,6 +462,9 @@ var tut_cluster_list = [
             ],
             label: [
                 "None"
+            ],
+            label_ids: [
+                '0'
             ],
             tags: [
                 "None"
@@ -539,6 +551,9 @@ var tut_cluster_list = [
             label: [
                 "None"
             ],
+            label_ids: [
+                '0'
+            ],
             tags: [
                 "None"
             ],
@@ -614,6 +629,9 @@ var tut_cluster_list = [
             label: [
                 "None"
             ],
+            label_ids: [
+                '0'
+            ],
             tags: [
                 "None"
             ],
@@ -648,6 +666,9 @@ var tut_cluster_list = [
             ],
             label: [
                 "None"
+            ],
+            label_ids: [
+                '0'
             ],
             tags: [
                 "None"
@@ -694,6 +715,9 @@ var tut_cluster_list = [
             label: [
                 "None"
             ],
+            label_ids: [
+                '0'
+            ],
             tags: [
                 "None"
             ],
@@ -728,6 +752,9 @@ var tut_cluster_list = [
             ],
             label: [
                 "None"
+            ],
+            label_ids: [
+                '0'
             ],
             tags: [
                 "None"
@@ -907,6 +934,9 @@ var tut_cluster_list = [
             label: [
                 "None"
             ],
+            label_ids: [
+                '0'
+            ],
             tags: [
                 "None"
             ],
@@ -920,3 +950,5 @@ var cluster_keys = [
     [-967, 1329, 1330, 1332, 1334, 1336, 1338, 1344, 1359, 1384, 1362, -967, 1331, -967, 1333, -967, 1335, -967, -967, 1348, -967, -967, 1351, 101, -967, 1375, 104, 1403, -967, -967, 102, 155, -967, -967, -967, 1337, 1393],
     ["N", "Lion", "Leopard", "Wild Dog", "Hippo", "Buffalo", "Small & Medium Cats", "Hyeana", "Pig", "Bird", "Antelope", "N", "Cheetah", "N", "Elephant", "N", "Giraffe", "N", "N", "Jackal", "N", "N", "Mongoose", "Nothing", "N", "Primate", "Knocked Down", "Rhinoceros", "N", "N", "Unknown", "Vehicles/Humans/Livestock", "N", "N", "N", "Zebra", "Sundry"]
 ];
+
+var globalKeys = {'-1': [1329, 1330, 1332, 1334, 1336, 1338, 1344, 1359, 1384, 1362, 1331, 1333, 1335, 1348, 1351, 101, 1375, 104, 1403, 102, 155, 1337, 1393]}
