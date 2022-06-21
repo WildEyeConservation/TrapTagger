@@ -13,54 +13,68 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    In order to tag a survey, you must add a task. A task represents a set of anotated results for a survey and consists of its own set of labels, and image clustering. This means 
-    that you can tag a survey multiple times, with different sets of tags, by creating multiple tasks. This allows you to to, for example, have a single survey tagged by 
-    multiple people to compare their performance. Or alternatively, you can upload a set of labels from another source as another task, that can then be compared to a TrapTagger-tagged 
-    task for performance-comparison purposes. Additionally, you could also have an auto-anotated task to compare against a manually tagged one. 
-    In order to create a new task, all you need to do is choose a name for it, and choose to either create a new task and set its labels, or import a csv file of existing labels.
+    In order to annotate a survey, you need to add an annotation set. An annotation set is exactly that - a set of annotations for your survey. It consists 
+    of its own image clustering information, and labels for those clusters etc. This means that you can have multiple annotation sets for a single survey, in turn allowing you to 
+    annotate a survey in many different ways (using different levels of AI species classification, for example), as well as import pre-existing annotations, and compare the 
+    results to determine both system performance, and what approach gives you the best speed-accuracy compromise for your particular application. It also allows you to 
+    do other things like have have new workers annotate old surveys to check their performance before letting them loose on your new data.
 </p>
 
 <p align="justify">
-    In the case that you are importing task, all you need to do is to upload a csv file. The labels will be detected automatically and created in a flat hierarchical structure. 
-    The format for the csv is as follows:
+    Additionally, each annotation set has its own set of labels, again allowing you to try different approaches to annotating the same data. Importantly, these labels 
+    can be created in a hierarchical structure with as many layers as you need. The intention of this approach is to allow you to have your species of interest at the 
+    top level of this hierarchy, with everything else dumped into group categories for annotation at a later stage when that infomation is required for, perhaps, another study. 
+    This in theory allows you to get all the infomation you need in as little time as possible.
+</p>
+
+<p align="justify">
+    So for example, if you are interested in large African predators (lion, leopard, cheetah, wild dog and hyena), then you want those labels at the top of your hierarchy.
+    While you are at it, you may as well annotate the easily identifiable, "higher value" species like elephant, giraffe, and zebra, and them dump eveything else into categories like 
+    antelope and birds.
+</p>
+
+<p align="justify">
+    However, this approach has some other advantages in that is actually quicker to annotate in this layered way as you need to remember far fewer labels and 
+    associated hotkeys at a time, and you don't need to think about the more challenging categories. Additionally, this approach allows you to leave the 
+    challenging categories to experts to differentiate, rather than students or interns who may struggle.
+</p>
+
+<p align="justify">
+    When it comes to creating a new annotation set, there are two options: creating a new one, or importing pre-existing annotations from a csv file.
+</p>
+
+<h4>New Annotation Set</h4>
+<p align="justify">
+    When you create a new annotation set, you can either create a new set of labels from scratch, or simply copy them from a previous annotation set (from any survey) by using the 
+    dropdown menus provided. There are also a number of templates provided for you, depending on your particular region/biome. You can also these templates or a copied label set 
+    as a good starting point for creating a new set of labels for a new biome.    
+</p>
+
+<p align="justify">
+    When creating a new set of labels, keep the following in mind:
+</p>
+<ul>
+    <li>Begin with your top-level labels in your hierarchy by setting their parent to none, and then build downward.</li>
+    <li>You can also choose your own hotkeys that make sense for you, but the recommended approach is to use the label's first letter where there is no duplication (so that it can 
+        be remembered easily), and then to switch to numbers when there are two or more labels with the same first letter to avoid mistakes (eg. labelling a leopard as a lion).</li>
+    <li>You can easily add or remove labels by clicking the plus or cross buttons at any time.</li>
+    <li>You cannot have duplicate hotkeys within a particular category.</li>
+    <li>You cannot have duplicate label names anywhere in the hierachy.</li>
+    <li><i>Note that there will automatically be a 'Vehicles/Humans/Livestock' (v) category in the top level, along with a 'nothing' (n), a 'knocked down' (q), and an 'unknown' label (u). Also, there will 
+        be a 'skip' (0), and a 'wrong' (9) label included for all levels below that. As such, you will not be able to create labels with those names, or hotkeys.</i></li>
+</ul>
+
+<h4>CSV Import</h4>
+<p align="justify">
+    In the case that you are importing annotations, all you need to do is to upload a csv file. The labels will be detected automatically and created in a flat hierarchical structure. 
+    The format for the csv columns is as follows: <i>filename, label1, label2, ...</i>. Note the following:
 </p>
 
 <ul align="justify">
-    <li><i>filename, label1, label2, ...</i></li>
-    <li>The file name is the full file path for the image within your folder structure, starting from your survey's top-level folder, as you uploaded it. Eg. Delta E Quenie/06-12/18-02/DEQ72-t17-1410/1875/IMAG01254.jpg.</li>
+    <li>Each row in the file should represent an image.</li>
+    <li>The filename is the full file path for the image within your folder structure, starting from your survey's top-level folder, as you uploaded it.</li>
     <li>There may be any number of label columns, as long as they contain the word 'label'.</li>
     <li>The labels themselves must be listed after the filename using commas, where no labels can be allocated using an empty space. Eg. lion,,,,</li>
     <li>If there are no labels for an image, or an image is not contained within the csv file, it is assumed to be empty.</li>
     <li>The first line of the file must consist of column names.</li>
 </ul>
-
-<p align="justify">
-    Please note that the identification of images is performed using a file-name approach, and as such you must ensure that there are no typographical errors in your file names in your csv file.
-</p>
-
-<p align="justify">
-    Should you be creating a new task, you can copy the labels from a previous task (from any survey) by using the 
-    dropdown menus provided, and subsequently modify the labels, their structure, or add new labels freely. Alternatively, you can create a new set of labels from scratch. Begin by 
-    creating your top-level labels in your hierarchy by setting their parent to none), and then build downward. You can also choose your own hotkeys that make sense for you. The recommended approach is to use the 
-    label's first letter where there is no duplication (so that it can be remembered easily), and then to switch to numbers when there are two or more labels with the same first letter 
-    to avoid accidental tagging (eg. labelling a leopard as a lion).
-</p>
-
-<p align="justify">
-    You can easily add or remove labels by clicking the plus or cross buttons at any time.
-</p>
-
-<p align="justify">
-    Note that you cannot have duplicate hotkeys within a particular category.
-</p>
-
-<p align="justify">
-    If you wish to only label a few species of interest, then it is most efficient to have labels for those on the top level, and then group everything else into one or more 
-    easy categories such as antelope, other, herbivore, carnivore etc. In general, the deeper your hierarchy, the longer your tagging task will take due to it requiring more passes 
-    through the survey, but too many subtly different labels can make tagging a much slower process. So, try to find a balance.
-</p>
-
-<p align="justify">
-    Note that there will automatically be a 'Vehicles/Humans/Livestock' (v) category in the top level, along with a 'nothing' (n), a 'knocked down' (q), and an 'unknown' label (u). Also, there will 
-    be a 'skip' (0), and a 'wrong' (9) label included for all levels below that. As such, you will not be able to create labels with those names, or hotkeys.
-</p>
