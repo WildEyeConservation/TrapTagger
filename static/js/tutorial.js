@@ -108,16 +108,16 @@ function displayStateInstructions() {
 
     switch (state) {
         case "selectLion":
-            instruction.innerHTML = "Tag the cluster as lion by clicking on the 'Lion (1)' button or pressing the keyboard shortcut key '1'";
+            instruction.innerHTML = "Annotate the cluster as containing lion by clicking on the 'Lion (1)' button or by pressing the keyboard shortcut key '1'";
             break;
         case "selectWildDog":
-            instruction.innerHTML = "This cluster consists of 5 images captured within a short timeframe. Save time by tagging the first image in the cluster if the animal is identifiable. There is therefore no need to view the next image in this case. Tag the cluster as wild dog by clicking on the 'Wild Dog (3)' button or pressing the keyboard shortcut key '3'";
+            instruction.innerHTML = "This cluster consists of 5 images captured within a short timeframe. Save time by only looking at the first image in the cluster where possible, such as in this case. Annotate the cluster as wild dog by pressing the keyboard shortcut key '3'";
             break;
         case "selectNWildDog":
-            instruction.innerHTML = "Tag the cluster as wild dog by clicking on the 'Wild Dog (3)' button or pressing the keyboard shortcut key '3'";
+            instruction.innerHTML = "Annotate the cluster as wild dog by pressing the keyboard shortcut key '3'";
             break;
         case "selectPrimate":
-            instruction.innerHTML = "Tag the cluster as primate by clicking on the 'Primate (P)' button or pressing the keyboard shortcut key 'P'";
+            instruction.innerHTML = "Annotate the cluster as primate by pressing the keyboard shortcut key 'P'";
             break;
         case "nextImage":
         case "nothing1":
@@ -125,42 +125,42 @@ function displayStateInstructions() {
         case "nothing3":
         case "unknown1":
         case "unknown2":
-            instruction.innerHTML = "Click on the 'Next Image' button or pressing the keyboard right arrow key to view the next image in a cluster when the image is unclear or empty";
+            instruction.innerHTML = "Click on the 'Next Image' button or press the right arrow key to view the next image in a cluster when an image is unclear or empty";
             break;
         case "prevCluster":
-            instruction.innerHTML = "Click on the 'Previous Cluster / Undo' button or pressing the keyboard tilde '~' key to review a previous cluster";
+            instruction.innerHTML = "Click on the 'Previous Cluster / Undo' button or press the tilde '~' key to go back to a previous cluster";
             break;
         case "selectMultiple":
-            instruction.innerHTML = "Click on the 'Multiple Species (Ctrl)' button or pressing the keyboard control 'Ctrl' key to select multiple species";
+            instruction.innerHTML = "Click on the 'Multiple Species (Ctrl)' button or press the control 'Ctrl' key to enter multiple species mode";
             break;
         case "selectMultipleA":
-            instruction.innerHTML = "Add antelope to the cluster by clicking on the 'Antelope (A)' button or pressing the keyboard shortcut key 'A'";
+            instruction.innerHTML = "Add the antelope label to the cluster by pressing the keyboard shortcut key 'A'";
             break;
         case "selectMultipleDone":
-            instruction.innerHTML = "Click on the 'Done (Ctrl)' button or pressing the keyboard control 'Ctrl' key to end multiple species";
+            instruction.innerHTML = "Click on the 'Done (Ctrl)' button or press the control 'Ctrl' key to exit multiple species mode";
             break;
         case "selectNothing":
-            instruction.innerHTML = "Tag the cluster as nothing if none of the images has an animal by clicking on the 'Nothing (N)' button or pressing the keyboard shortcut key 'N'";
+            instruction.innerHTML = "Annotate the cluster as containing nothing if none of the images contains an animal by pressing the keyboard shortcut key 'N'";
             break;
         case "selectHyeana":
         case "selectHyeanaNote":
-            instruction.innerHTML = "Tag the cluster as hyeana by clicking on the 'Hyeana (7)' button or pressing the keyboard shortcut key '7'";
+            instruction.innerHTML = "Annotate the cluster as hyeana by pressing the keyboard shortcut key '7'";
             break;
         case "selectUnknown":
-            instruction.innerHTML = "Tag the cluster as unknown by clicking on the 'Unknown (U)' button or pressing the keyboard shortcut key 'U'";
+            instruction.innerHTML = "Annotate the cluster as unknown by pressing the keyboard shortcut key 'U'";
             break;
         case "addNote":
-            instruction.innerHTML = "Add a note by pressing the keyboard 'enter' key";
+            instruction.innerHTML = "Add a note to the cluster by pressing the 'enter' key";
             break;
         case "submitNote":
             instruction.innerHTML = "Submit your note";
             break;
         case "selectZebra":
-            instruction.innerHTML = "Use the following keyboard shortcut keys to play with the image brightness, contrast, saturation and zoom to identify and tag the animal";
+            instruction.innerHTML = "Use the following shortcut keys to play with the image brightness, contrast, and saturation to identify and annotate the animal";
             help.innerHTML = "Increase brightness: ( ] ), decrease brightness: ( [ ), increase contrast: ( ; ), decrease contrast: ( ' ),<br />increase saturation: ( < ), decrease saturation: ( > ) and reset the image settings: ( / )<br />Zoom in or out with your computer mouse wheel";
             break;
         case "knockedDown":
-            instruction.innerHTML = "If the camera is taking images of the ground, please tag the cluster as knocked down by clicking on the 'Knocked Down (Q)' button or pressing the keyboard shortcut key 'Q'";
+            instruction.innerHTML = "If a camera has been knocked over, mark it as knocked down by pressing the keyboard shortcut key 'Q'";
             break;
         case "done":
             instruction.innerHTML = "Tutorial complete";
