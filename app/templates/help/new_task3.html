@@ -13,31 +13,34 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    Here you able to determine the extent to which the tagging of your survey will rely on AI. As with most things in life, you are offered a trade-off between speed and accuracy. 
-    Relying on solely AI tagging will result in an immediatedly tagged dataset*, with around 99% precision. For most applications, this is sufficient. However, some applications - 
-    such as academic studies - require greater levels of accuracy. In such cases, you can tag all your images manually, theoretically allowing you to obtain 100% precision, but you 
-    must remember that humans make mistakes too. So we do also offer the ability to check your work against the AI predictions, and re-look at the images where there are discrepancies, 
-    theoretically offering you the greatest possible accuracy.
+    Here you can select which species are automatically identified in this annotation set. As with most things in life, you are offered a trade-off between speed and accuracy.
 </p>
 
 <p align="justify">
-    Alternatively, you can choose an option that sits somewhere between these two extremes by selecting to only have some species automatically tagged. In particular, 
-    you could select to have very numerous, different-looking species that are not of interest to be automatically tagged in order to reduce your workload. For example, if you are interested in 
-    predator species, you could have elephant, antelope, zebra, and giraffe automatically tagged with minimal fear that a predator of interest would be confused with one of these. 
-    This would drastically reduce the number of images requiring manual tagging, whilst resulting in minimal erros. 
+    One approach is to rely on the AI to identify all of the species for you - leaving you with only around 5% of the dataset to manually annotate. These tend to be the more 
+    challenging images where the AI is insufficiently certain as to what species they contain, which is why they are rather left fo human annotation. This approach is by the 
+    fastest, but does result in the lowest accuacy due to mistakes by the AI. It tends to be favoured by ecologists who do not have enough man power to manually annotate their 
+    data, and where a percentage point or two reduction in accuracy is acceptable.
 </p>
 
 <p align="justify">
-    In this interface you must select which AI classifications you would like to make use of by checking the appropriate checkbox. The translations you stipulated in the previous page will 
-    be used for classifications that cannot be automatically matched to your labels.
+    On the opposite end of the spectrum, the highest accuracy appoach would be to have no species automatically identified for you. In this case, all the empty images would still be 
+    removed, but you would be required to manually annotate the remaining images, where the AI is used as an aid. You can then check you manual annotations against the AI to identify 
+    and correct mistakes. This approarch is favoured by universities with a lot of man power at their disposal, where accuracy is of utmost importance.
 </p>
 
 <p align="justify">
-    You also have the option to have the identified species labelled as the their associated label, or as their parent label. For example, the first option would result in an identified impala 
-    being labelled as impala, whereas the second would result in it being labelled as antelope (assuming that you have impala under an antelope label in your hierarchical label structure). 
-    This allows you to manually differentiate between different sub-species, which would be useful in cases where there are very similar looking sub-species, where you expect to see a 
-    sub-species for which there is no classification label, or a combination of the two. Alternatively, in such cases, you could also choose to not have the unexpected species auto-classified 
-    in order to prevent it from being confused with something else. However, that approach would probably be a bit slower.
+    However, you can find a compromise between these two extremes by selecting only subset of the species to be automatically identified. In particular, the idea is to select 
+    very numerous, very different-looking species from your species of interest. So for example, if you are interested in large African predators (lion, lepard, cheetah, wild dog 
+    and hyena), then you can fairly safely select species like zebra, giraffe and elephant to be automatically identified for you, with little risk that they will be confused with 
+    your species of interest. As such, you can still get a very high accuracy dataset, but with far fewer images to manually annotate.
+</p>
+
+<p align="justify">
+    You also have the option as to whether an identified species should be labelled with it's own label, or it's parent label. For example, should impala be labelled as impala, or as 
+    antelope. The latter option is useful where you have some, for example, antelope species that the classifier was not trained for, and you are concerned about those species being 
+    confused as other antelope species. In that case, the antelope will be idenified to the antelope level, and you can still manually differentiate the antelope species yourself, 
+    ensuring there is no confusion. This is only worthwhile though when there is one or more antelope that are of interest to you.
 </p>
 
 <p align="justify">
@@ -46,5 +49,5 @@ limitations under the License. -->
 </p>
 
 <p align="justify">
-    <i>*Please note that even if you rely on full AI tagging, there will still be some images that the AI is unsure of, which would still need to be tagged manually.</i>
+    <i>Please note that even if you rely on full AI tagging, there will still be some images that the AI is unsure of, which would still need to be tagged manually.</i>
 </p>

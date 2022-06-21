@@ -13,15 +13,30 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    Here you must indicate which label each AI classification must be allocated to. If you have a label with the same name as one of the classifications, that 
-    classification will automatically be allocated to it. However, the remaining classifications must be allocated manually. Please note that this is necessary 
-    even if you do not wish to use AI auto-classification as it forms a part of the image ordering, and is used to help you identify clusters with multiple species.
+    Here you must translate between your labels and the AI's labels. In other words, you must indicate which label each AI classification must 
+    be allocated to. Where your labels match those of the AI, they will automatically be associated, so you only need to handle those that remain. 
+    Typically, you are simply working around different spellings and scientific names.
 </p>
 
 <p align="justify">
-    It is suggested that you either go back and add labels specifically for the classifications that you do not have labels for as there is a good chance that those 
-    species exist within the survey. Alternatively, you can create a group label in the correct hierarchical level such as an 'other antelope' label under an antelope label. 
-    In the case that your survey is not situated in a Southern African biome, it is suggested that you still try and alocate the classifications to group labels in the correct 
-    hierarchical level as the AI is likely to confuse the unknown species of antelope with another species of antelope. This will not affect perforance of manual tagging, 
-    and will still help identify clusters that potentially contain multiple species.
+    Where this process becomes a bit more involved is when you are in a different biome to where the AI was trained. In the simplest case, where 
+    you data is from a completely unrelated biome, you can simply leave all the labels to their default tanslation: nothing (ignore). All those 
+    species classifications from the AI will then be assumed to be wrong and simply ignored. You could also perhaps still make use of some of the 
+    common labels like vehicles and humans if you wish though.
+</p>
+
+<p align="justify">
+    When your data is from a related biome - for example you have east African data and the classifier was trained in southern Afica - you have a 
+    number of options at you disposal. The simplest and most accurate appoach is to simply ignore the non-endemic species as above. However, this approach will 
+    result in reduced auto-classification and reduced AI-aids like cluster or image ordering. One alternative is to translate a non-endemic species 
+    classification to a similar-looking endemic species. Another is to translate that non-endemic species to its parent category - like antelope for 
+    example - to still make use of the classification.
+</p>
+
+<p align="justify">
+    There is no way to know what approach will work best for your particular biome as it depends on your mix of species, and particular needs - whether 
+    speed or accuracy should be prioritised. As such, it is recommended that you play around with the different options to create multiple annotation 
+    sets for you first survey to see how the approaches compare. In paticular, if you just create a separate label for each non-endemic species, 
+    you could quite easily see if there is a pattern in the species being classified as it, and make a call as to whether there is enough consistency 
+    to make a translation. However, if you are unsure or in a hurry, simply ignore all non-endemic species classifications.
 </p>

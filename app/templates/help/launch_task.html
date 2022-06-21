@@ -17,13 +17,6 @@ limitations under the License. -->
 </div>
 <ul>
     <li>
-        Even if you selected for all species to be auto-classified, there will still be a number of images where the AI is not sufficiently confident to make an accurate classification. 
-        These images, along with any other non-classified images must be manually annotated.
-    </li>
-    <li>
-        The first stage of annotation where you perform species annotation fo the top-level labels is the only compulsory step. Eveything theeafter is optional.
-    </li>
-    <li>
         Launched annotation sets appear on the jobs page for your workers to annotate.
     </li>
     <li>
@@ -39,7 +32,7 @@ limitations under the License. -->
     </li>
     <li>
         As such, the idea is that you should only annotate the information useful to you, working from left to right, for your particular species of interest. 
-        Anything more would be a waste of time.
+        Anything more would be unnecessary.
     </li>
     <li>
         Each annotation task is broken down into smaller jobs for your workers to annotate. The batch size determines the number of clusters in each of these jobs.
@@ -51,10 +44,10 @@ limitations under the License. -->
         You can have as many workers working simultaneously as sites in a survey. Please just ensure that they all have their own accounts.
     </li>
     <li>
-        You can manage which workers can annotate for you on workers page (navigate the on the menu on the top left-hand corner of the page).
+        You can manage which workers can annotate for you on the workers page.
     </li>
     <li>
-        If there are animals in a sub-category that you have not created label for, skip them, and then on task completion, add the neccessary label and relaunch the category.
+        If there are animals in a sub-category that you have not created a label for, skip them, and then on task completion, add the neccessary label and relaunch the category.
     </li>
 </ul>
 
@@ -66,20 +59,21 @@ limitations under the License. -->
 <div align="justify">
     Here you can label the species contained in each cluster. This is done in layers, accoding to your hierarchical label structure. You begin by labelling the unlabelled clusters with 
     your top-level labels. Thereafter, you can individually launch and annotate the group categories for sub-species annotation. The idea is that this approach is simpler and faster 
-    as you have fewer labels to work with (and remember) in each pass. You can also leave more challenging categoies to more knowledgeable people, or leave them for later if you do not 
-    need those particular species annotated in too much detail.
+    as you have fewer labels to work with (and remember) in each pass. You can also leave more challenging categories to more knowledgeable people, or leave them for later if you do not 
+    need those particular species annotated at present.
 </div>
 <br>
 
 <h4>AI Species Check</h4>
 <div align="justify">
-    Here you can check yourself against the AI to find mistakes. There are no annotation levels.
+    Here you can check yourself against the AI to find mistakes. There are no annotation levels - you will always be shown the clusters where your species labels differ from those 
+    of the AI.
 </div>
 <br>
 
 <h4>Informational Tagging</h4>
 <div align="justify">
-    Here you can add your own custom informational tags such as eating, alert, has young etc. to clusters containing you species of interest. You will be able to set up and edit 
+    Here you can add your own custom informational tags such as 'eating', 'alert', 'has young' etc. to clusters containing you species of interest. You will be able to set up and edit 
     your tags after you launch the annotation task.
 </div>
 <br>
@@ -87,7 +81,7 @@ limitations under the License. -->
 <h4>Multi-Species Differentiation</h4>
 <div align="justify">
     Here you can differentiate which sighting (box) contains which species in multi-species clusters. This gives you more accuate information on an image level (should only some 
-    of the images contain one of the species), and results in more accurate animal counts as all boxes in these clusters would otherwise be counted as all annotatated species. 
+    of the images in a cluster contain one of the species), and results in more accurate animal counts as all boxes in these clusters would otherwise be counted as all annotatated species. 
     There are no annotation levels - you will simply be served all multi-species clusters for annotation.
 </div>
 <br>
@@ -95,7 +89,7 @@ limitations under the License. -->
 <h4>Sighting (Box) Correction</h4>
 <div align="justify">
     Here you can correct the AI-generated boxes for your species of interest. This is a necessary prerequisite for individual identification, as well as if you wish to extract 
-    precise animal counts. Note that the default boxes can still be used as a good estimate of the animal counts. They are just less accurate fo heard species, but even then 
+    precise animal counts. Note that the default boxes can still be used as a good estimate of the animal counts. They are just less accurate for heard species, but even then 
     are still aound 90% accurate.
 </div>
 <br>
@@ -104,19 +98,20 @@ limitations under the License. -->
 <div align="justify">
     Here you can identify specific individuals of a particlar species. There are three levels to this task: cluster identification, inter-cluster identification, and exhaustive.
 </div>
+<br>
 <p align="justify">
     In the first level, you identify individuals within a cluster, using the contextual information at hand to find multiple view angles of each individual. This is particularly 
     useful for combining both sides of an individual, especially when you have multiple cameras per site.
     Here you also have some additional options. Firstly, you can select which individual ID algorithm to use. At present you can either use Hotspotter in conjunction with a 
     heuristic algorithm, or the heuristic algorithm on its own. Hotspotter is a pattern-recognition algorithm that performs well on species like leopards and zebra, but 
-    struggles on non-patterned species. As such, it is recommended that you rather use the heurstic on its own on such non-patterned species as it will be detrimental to the identification process.
+    struggles on non-patterned species. As such, it is recommended that you rather use the heurstic on its own for such non-patterned species as it will be detrimental to the identification process.
     Additionally, you can select how single-detection clusters are handled. Since the whole point of this ID stage is to identify individuals within a cluster, there is little 
     point to seeing clusters that contain a single detection, unless you would like to add additional informational tags to those individuals. Therefore, you can chose for 
     those clusters to be automatically handled for you, or for you to handle them manually.
 </p>
 <p align="justify">
     In the second level, you can then identify individuals across clusters based on their calculated similarity down to a pre-defined threshold. You will be allocated an individual 
-    and then be offered potential matches that you can either accept, reject, or skip. Skipped pairings individuals will be removed from the pool until you relaunch this annotation 
+    and then be offered potential matches that you can either accept, reject, or skip. Skipped pairings of individuals will be removed from the pool until you relaunch this annotation 
     task, with idea that you can then revisit those pairings when they have more images associated with them.
 </p>
 <p align="justify">

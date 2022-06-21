@@ -13,14 +13,14 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    Welcome to the comparison page. Here you are able to compare two tasks from the same survey, using one as the ground truth. The comparison is divided into three 
-    sections: summary statistics, species statistics, and a comparison matrix.
+    Welcome to the comparison page. Here you are able to compare two sets of annotations from the same survey one an image-by-image basis, using one as the ground truth (reference). 
+    The comparison is divided into three sections: summary statistics, species statistics, and a comparison matrix.
 </p>
 
 <p align="justify">
     The summary statistics give you the overall picture including the number of matched and unmatched sightings between the surveys, and final recall and precision rates
-    for your non-ground-truth task. You are also shown the number of sightings marked as unknown in this task, affecting the accuracy of the comparison in the case that 
-    a different person was used to tag your two tasks. The errors are then broken down into two categories: sightings missed by the AI animal detector (applicable when 
+    for your non-ground-truth annotation set. You are also shown the number of sightings marked as unknown in this annotation set, affecting the accuracy of the comparison in the case that 
+    a different person was used to annotate your two annotation sets. The errors are then broken down into two categories: sightings missed by the AI animal detector (applicable when 
     you have imported your results from an external source), and empty images 
     incorrectly clustered into clusters containing animals. These are the two primary sources of error in the approach used by TrapTagger, meaning that 
     the remaining errors are most likely due to human error.
@@ -33,11 +33,11 @@ limitations under the License. -->
 
 <p align="justify">
     Lastly, the comparison matrix allows you to see exactly where the errors lie by showing you the number of sightings with each possible combination of labels from the two 
-    tasks. The highlighted diagonal shows the number of sightings where there is agreement between the two tasks, whilst the other cells show the unmatched sightings. Further, there 
+    annotation sets. The highlighted diagonal shows the number of sightings where there is agreement between the two sets, whilst the other cells show the unmatched sightings. Further, there 
     is a separate cell below the table containing the multiple mismatches, where there is more than one disagreement in an image, and its not possible to categorise
-    the errors into a single cell in the main table. Overall, this display allows you to do a more in-depth comparison of the two tasks, in turn allowing you, for example,  
+    the errors into a single cell in the main table. Overall, this display allows you to do a more in-depth comparison of the two annotation sets, in turn allowing you, for example,  
     to determine if there has been a confusion between two species by one of the taggers. Moreover, you are able to click on the cells to view the associated images and their 
-    labels. This allows you to see where the two tasks differ, and more importantly, allows you to determine which task is incorrect in each case. It is this final step that 
-    is a vital part of the comparison process, because inevitably your ground-truth task will contain human errors as well. These errors essentially cause a double effect as they 
-    reduce the performance statistics of your TrapTagger task, and mean that you are not comparing these statistics to 100% recall and precision rates, affecting the perceived performance.
+    labels. This allows you to see where the two sets differ, and more importantly, allows you to determine which set is incorrect in each case. It is this final step that 
+    is a vital part of the comparison process, because inevitably your ground-truth will contain human errors as well. These errors essentially cause a double effect as they 
+    reduce the performance statistics of your TrapTagger-annotated data, and mean that you are not comparing these statistics to 100% recall and precision rates, affecting the perceived performance.
 </p>

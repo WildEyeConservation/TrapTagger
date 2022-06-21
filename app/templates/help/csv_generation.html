@@ -13,47 +13,72 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    Here you can generate your own custom CSV file for analysis in third-party applications. You can choose what level of results is contained in each row of the resulting 
-    CSV file, along with what columns of information are added to each row.
+    Here you can generate your own custom CSV file for analysis in third-party applications. You can envisage a csv file as a large table with each row containing a data point, and each 
+    column containing a different piece of information about that data point. In fact, a csv file can be opened in Excel and viewed as a table. If you are uncertain about how any 
+    of this works, rather use the default csv format available in the results window.
 </p>
 
 <p align="justify">
-    Begin by selecting the level of information represented by each row of the file: image, cluster, camera, trap group, or survey. Thereafter, you can specify the columns 
-    of information presented on each row, in order. This columnar information is further divided into the level it pertains to, where you can add columns pertaining to the 
-    currently-selected row level, or higher. In other words, you can have survey-level information such as the survey name, added to your image-level rows, but you 
-    can't have image-level information such as the image name, added to survey-level rows.
+    Begin by adding any additional surveys to your currently selected survey. Next, you can select what each row in the csv file represents: image, capture (a multi image burst taken at 
+    a single timestamp by a single camera), cluster, camera, site, or survey. Thereafter, you can select how multiple label images/clusters etc. are handled.
 </p>
 
-<div align="justify">
-    The level-by-level information that you can request is as follows:
-</div>
-
 <ul>
-    <li>Image: image name, species count, labels, and image timestamp.</li>
-    <li>Cluster: cluster id, species count, cluster labels, cluster notes, and image count.</li>
-    <li>Camera: camera id, species count, labels, animal count, and image count.</li>
-    <li>Trap group: trapgroup id, species count, labels, latitude, longitude, altitude, animal count, and image count.</li>
-    <li>Survey: survey name, species count, labels, survey description, animal count and image count.</li>
+    <li>list: The multiple labels are included as a list of labels in a single column</li>
+    <li>Columns: The multiple labels are included as a number of separate columns. This is the default.</li>
+    <li>Rows: The unit of data (eg. image) is listed multiple times. Once with each label.</li>
+</ul>
+
+<p align="justify">
+    You can then choose to include or exclude specific species. This is useful to only extract information for your species of interest, or to exclude vulnerable species such as rhinos 
+    from data you need to share with other people.
+</p>
+
+<p align="justify">
+    Next, you can generate some custom columns if you wish. These are typically used to generate unique image/capture/cluster identifiers into a pre-existing database. Begin by 
+    selecting "add column" and give that column a name. You can then add a number of pieces of information (using the blue plus button) that will be combined to make your column. Each piece of information 
+    consists of a data unit (level) and associated information (data). In the custom column field you can additionally just add a text field for adding your own text information. 
+    These text fields will then become available (on a per-annotation set basis) when you add your custom column to the columns section.
+</p>
+
+<p align="justify">
+    Finally, you can then select your columns of information for each row (image/cluster etc.). As above, this is done by first selecting a data unit (level), and information relating to 
+    that unit (data). For example, if you wish to add site coordinates, you select site (level) and latitude (data) for the first column, and then site (level) and longitude (data) for the second 
+    column.
+</p>
+
+<p align="justify">
+    Note that you can add columns pertaining to the currently-selected row level, or higher. In other words, you can have survey-level information such as the survey name, 
+    added to your image-level rows, but you can't have image-level information such as the image name, added to survey-level rows. Also Note that the column in your csv file 
+    will match the order in which you stipulate your columns here.
+</p>
+
+<div>The information columns you can add are as follows:</div>
+<ul>
+    <li>Image: Name, ID, Species Count, Labels, Sighting Count, Tags, Timestamp, URL, Individuals, Original Timestamp</li>
+    <li>Capture: Number, ID, Species Count, Labels, Sighting Count, Tags, Timestamp, Image Count, URL, Individuals</li>
+    <li>Cluster: ID, Species Count, Labels, Sighting Count, Tags, Notes, Image Count, URL, Individuals</li>
+    <li>Camera: ID, Species Count, Labels, Tags, Animal Count, Image Count, URL, Individuals</li>
+    <li>Site: Name, Species Count, Labels, Tags, Latitude, Longitude, Altitude, Animal Count, Image Count, URL, Individuals</li>
+    <li>Survey: Name, Species Count, Labels, Tags, Description, Animal Count, Image Count, URL, Individuals</li>
 </ul>
 <br>
 
 <div align="justify">
-    Besides the self-explanatory columns, these are defined as follows:
+    Besides the (hopefully) self-explanatory columns, the columns are defined as follows:
 </div>
 <ul>
-    <li>Labels: A list of the different labels in the survey/trapgroup/camera/cluster/image.</li>
-    <li>Image count: The total number of images in the survey/trapgroup/camera/cluster.</li>
-    <li>Animal count: The number of images containing animals in the survey/trapgroup/camera. This excludes Vehicles/Humans/Livestock.</li>
-    <li>Species count: The total number of detections of the selected species in the survey/trapgroup/camera/cluster/image, where if you select all, a count for every label will 
-    be returned, in a hierarchical order. Note that any count for a parent category will be the number of skipped images in that category, rather than the total number of 
-    images in that category.</li>
+    <li>Species Count: The count of the sightings (boxes) of the selected species in each data unit. These will appear as separate species-specific headings such as "lion_count". You 
+        can also select to have columns for all species. Note that any count for a parent category will be the number of skipped images (unknown) in that category, rather than the total number of 
+        images in that category.</li>
+    <li>Sighting Count: The count of the sightings (boxes) in the data unit regardless of species.</li>
+    <li>URL: A link you can follow to view the particular image/cluster etc. behind the login page of the website.</li>
+    <li>Image Count: The total number of images in the survey/site/camera/cluster/capture.</li>
+    <li>Animal Count: The number of images containing animals in the survey/trapgroup/camera. This excludes Vehicles/Humans/Livestock.</li>
 </ul>
 
 <p align="justify">
-    Note that you cannot select a species count for a particular species if you have already selected an species count for all species at the same level.
-</p>
-
-<p align="justify">
-    Also, please note that the CSV file might take a while to generate, especially for larger surveys, and that any requests for a different CSV format for the same task 
-    will overwrite any previous CSVs. So you must wait until your CSV is downloaded before requesting another one for the same task.
+    Please note that the CSV file might take a while to generate, especially for larger surveys. You cannot navigate away from this page until the download has completed.
+    Also note that any requests for a different CSV format for the same annotation set 
+    will overwrite any previous CSVs. So you must wait until your CSV is downloaded before requesting another one for the same annotation set.
 </p>

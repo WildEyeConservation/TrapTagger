@@ -13,32 +13,33 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    In order to perform a comparison, you must build a translation matrix between the labels of the two different tasks. Keep in mind that the comparison is presented 
+    In order to perform a comparison, you must build a translation matrix between the labels of the two different annotation sets. Keep in mind that the comparison is presented 
     in the form of a confusion matrix, and selecting a 50 label comparison gets very messy, very quickly. As such it is suggested that you focus either on a number of 
     key species, or stick to group categories such as antelope.
 </p>
 
 <p align="justify">
-    First, you must select the task you would like to compare the currently-selected task to. Next, you must select which task is the ground truth. but keep in mind that human error 
-    creeps in everywhere, and as a consequence, your ground-truth task is rarely ever an actual ground truth, and the associated comparison is against a flawed answer. 
+    First, you must select the annotation set you would like to compare the currently-selected set to. Next, you must select which annotation set is the ground truth (reference).
+    However, keep in mind that human error 
+    creeps in everywhere, and as a consequence, your ground-truth set is rarely ever an actual ground truth, and the associated comparison is against a flawed answer. 
     As such, your performance statistics in the comparison are not a true reflection of the state of affairs, and must be looked into a little more deeply using the tools in the comparison 
     page.
 </p>
 
 <p align="justify">
-    Thereafter, you can build your translation matrix by creating label groups using the add label button, and by adding individual labels from either task to each group using the blue plus 
-    button, and the associated drop-down menus under each task column. You can name each label group in the space provided. Note that you must allocate every label from both tasks to a label 
+    Thereafter, you can build your translation matrix by creating label groups using the add label button, and by adding individual labels from either annotation set to each group using the blue plus 
+    button, and the associated drop-down menus under each column. You can name each label group in the space provided. Note that you must allocate every label from both annotation sets to a label 
     group before proceeding, and that all labels inlcuded in the group containing the default 'nothing' labels will be considered as non-valuable images in the summary statistics section.
 </p>
 
 <p align="justify">
     Note that you can create any comparison you want using the translation matrix. For example, you can determine performance on your species of interest by creating individual 
     label groups for each, and a single large group for everything else. Or, if you are concerned about operator performance on sub-species identification, you can compare the 
-    tasks using higher level labels by combining all sub-species under a single label group. For example, you could include all antelope sub-species labels under a single antelope 
+    sets using higher-level labels by combining all sub-species under a single label group. For example, you could include all antelope sub-species labels under a single antelope 
     group.
 </p>
 
 <p align="justify">
     When you are ready, click the compare button to proceed and you will be redirected to the comparison page once the comparison has been generated. Note that that process may take 
-    a while for larger surveys. 
+    a while for larger surveys.
 </p>
