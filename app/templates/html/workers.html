@@ -137,8 +137,15 @@ limitations under the License. -->
       <!-- Modal content-->
       <div class="modal-content">
           <div class="modal-header">
-              <h4 class="modal-title">Invite Worker</h4>
-              <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            <div class='col-lg-10' style="padding: 0px">
+                <h4 class="modal-title">Invite Worker</h4>
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('invite_worker')">Help</button>
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
           </div>
           <div class="modal-body">
 
@@ -177,8 +184,15 @@ limitations under the License. -->
       <!-- Modal content-->
       <div class="modal-content">
           <div class="modal-header">
-              <h4 class="modal-title">Details</h4>
-              <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            <div class='col-lg-10' style="padding: 0px">
+                <h4 class="modal-title">Worker Details</h4>
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('worker_details')">Help</button>
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
           </div>
           <div class="modal-body">
 
@@ -191,8 +205,8 @@ limitations under the License. -->
             </div>
             <br>
 
-            <h5 style="margin-bottom: 2px">Task</h5>
-            <div style="font-size: 80%; margin-bottom: 2px"><i>The associated task for which you would like statistics.</i></div>
+            <h5 style="margin-bottom: 2px">Annotation Set</h5>
+            <div style="font-size: 80%; margin-bottom: 2px"><i>The associated annotation set for which you would like statistics.</i></div>
             <div class="row">
                 <div class='col-lg-4'>
                     <select class="form-control" id="taskSelect"></select>
