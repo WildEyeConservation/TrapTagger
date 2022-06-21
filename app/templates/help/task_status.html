@@ -13,19 +13,37 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <p align="justify">
-    Here you can get a clearer picture of the status of your task - you can see the number of clusters, images, and detections associated with each of your labels. A cluster 
-    is a cluster of images constituting a single sighting of a group of animals, whilst the image count is the count of images contained within those clusters. On the other hand,
-    the detection count is the number of animals detected across those images and clusters. Note that empty images can be clustered with images containing sightings, so it is possible 
-    there to be more images than detections for species that tend to be more solitary.
+    Here you can get a clearer picture of the status of your annotation set to determine what has been annotated, and what hasn't. This information is broken down and presented for 
+    each label in the annotation set, where labels are hidden under their parent categories for ease of reading (click on a category to open it). The information is broken down 
+    as follows:
 </p>
 
-<p align="justify">
-    Next, the count and percentage of those detections that has been manually checked is presented. Every single species does not need to be checked but it is necessary for precise results. 
-    Note that you cannot begin checking detections until you have finished tagging all the labels in your hierarchy.
-</p>
+<ul>
+    <li>
+        Summary: Here the counts of the clusters, images, sightings and individuals are presented for each label.
+    </li>
 
-<p align="justify">
-    Lastly, the tagged and completion status are presented for the parent labels. These are fairly self-explantory. The tagged status indicates whether that category has been 
-    tagged at some point, whereas the completion status indicates whether that categorey has been tagged to completion. If images were skipped in that category, or it was 
-    stopped prematurely, then it will tagged, but incomplete.
-</p>
+    <li>
+        Species Annotation: Here the progress of your species annotation is indicated. The tagged column indicates whether a category has been annotated, whilst the complete 
+        column indicates whether that particular category has been annotated to completion. If, for example, you annotate the antelope category and skip some antelope clusters 
+        (essentially leaving them as unknown antelope), that label will be indicated as tagged, but not complete. You would need to annotate those unknown antelope for the 
+        status of the category to change to complete.
+    </li>
+
+    <li>
+        AI Check: Here you can see whether the AI check has been performed for this annotation set along with the number of clusters of a particlar label maybe be mislabeled as another 
+        label.
+    </li>
+
+    <li>
+        Informational Tagging: Indicates whether information tagging has been performed for the particular label.
+    </li>
+    
+    <li>
+        Sighting Correction: Indicates the number of sightings that have been checked and the associated percentage for a particular label.
+    </li>
+
+    <li>
+        Individual ID: Indicates whether each level of individual ID has been performed for a particular label.
+    </li>
+</ul>

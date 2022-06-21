@@ -13,30 +13,34 @@ See the License for the specific language governing permissions and
 limitations under the License. -->
 
 <div align="justify">
-    Here you are able to edit your survey in four ways:
+    Here you are able to edit your survey in five ways:
 </div>
 
 <ul align="justify">
     <li>
         Classifier version: The current AI version used to classify the species contained in your survey is displayed here. If there is a newer version available, the update 
-        option becomes available. This will then re-classify the images in your survey using the latest classifier version. Thereafter you can either run a classifier check on your old 
-        tasks, where you can manually check the descrepancies between your labels and the new classifier's labels, or create a new task using the new classifications. In the case of the 
-        latter, you can also use the comparison functionality in the results section to compare the new task to any old tasks you might have had.
+        option becomes available. This will then re-classify the images in your survey using the latest classifier version. Thereafter you can either run an AI check check on your old 
+        annotation sets, where you can manually check the descrepancies between your labels and the new classifier's labels, or create a new annotation set using the new classifications. In the case of the 
+        latter, you can also use the comparison functionality in the results section to compare the new annotations to any old annotations you might have had.
     </li>
 
     <li>
-        Add images: Add images to your already-existing survey. This can be in the form of a new camera, new trapgroup, or even missing images from the intitial upload. Any duplicate 
-        images will be ignored, and the new images seemlessly imported to your survey. As before, you must enter a trapgroup code before selecting an upload method and uploading/importing accordingly.
+        Images: Add images to your already-existing survey. This can be in the form of a new camera, new trapgroup, or even missing images from the intitial upload. Any duplicate 
+        images will be ignored, and the new images seemlessly imported to your survey. As before, you can either upload the new images through your browser, or directly into our cloud storage with CyberDuck.
     </li>
 
     <li>
-        Add coordinates: Upload a new kml file for your survey. The file can contain modifications to old coordinates, coordinates for the entire survey, or even coordinates for only a subset of the entire 
-        survey. Either way, only matched trapgroups will have their coordinates changed according to what is contained in the file.
+        Coordinates: Edit the coordinates of your sites. This can either be done manually, or using a kml file. The latter is simply the Google Earth format. Just ensure that your 
+        placemark names match your site names in order for the system to know which one is which. Note that having coodinates fo your sites is entirely optional, 
+        and is only necessary for map based results or if you wish to include coordinates in you csv files.
     </li>
 
     <li>
-        Edit camera timestamps: Adjust each camera's clock by setting the timestamp of its first image to the correct time. This can be used to correct for incorrectly set up cameras. Please 
-        note that this can be done at any time, but it is recommended that you should do it right away before creating your first task. Failing that, you should rather wait until you have resolved the 
-        clusters containing multiple species.
+        Camera timestamps: Adjust each camera's clock by setting the timestamp of its first image to the correct time. This can be used to correct for incorrectly set up cameras. Please 
+        note that this can be done at any time, but it is recommended that you should do it right away before creating your first annotation set.
+    </li>
+
+    <li>
+        Advanced options: Select whether the system should ignore small detections or those in the sky. This reduces the number of false detections due to birds in exchange for some reduced accuracy.
     </li>
 </ul>
