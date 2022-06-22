@@ -81,6 +81,7 @@ const prevClusterBtn = document.querySelector('#prevCluster');
 const nextImageBtn = document.querySelector('#nextImage');
 const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
+const modalNothingKnock = $('#modalNothingKnock');
 
 var clusters = {"map1": []}
 var clusterIndex = {"map1": 0}
@@ -1285,16 +1286,24 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    if (label==wrongLabel) {
+    if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
+        //ignore nothing and knocked down labels in multi
+    } else if ([nothingLabel,downLabel].includes(label) && !modalNothingKnock.is(':visible')) {
+        // confirmation modal for nothing and knockdowns
+        if (label==nothingLabel) {
+            document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any false detections from all other images from this camera. If you are sure and wish to continue, press the "N" hotkey again. Otherwise do anything else.'
+        } else {
+            document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward. If you are sure and wish to continue, press the "Q" hotkey again. Otherwise do anything else.'
+        }
+        modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
+    } else if (label==wrongLabel) {
         wrongStatus = true
         tempTaggingLevel = -1
         initKeys(globalKeys[tempTaggingLevel])
     } else if (wrongStatus && (label in globalKeys) && (label != tempTaggingLevel)) {
         tempTaggingLevel = label
         initKeys(globalKeys[tempTaggingLevel])
-    } else if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
-        //ignore nothing and knocked down labels in multi
-    } else if ((finishedDisplaying[mapID] == true) && (modalActive == false) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
+    } else if ((finishedDisplaying[mapID] == true) && (!modalActive || modalNothingKnock.is(':visible')) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
 
         if (taggingLevel=='-3') {
             // classification check
@@ -1414,6 +1423,10 @@ function assignLabel(label,mapID = 'map1'){
             }
         
         } else {
+
+            if (modalNothingKnock.is(':visible')) {
+                modalNothingKnock.modal('hide')
+            }
 
             if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(downLabel)) && (label != downLabel)) { //If already marked as knocked down - undo that knockdown
                 UndoKnockDown(label, mapID)
@@ -2411,6 +2424,12 @@ document.addEventListener('click', function(e) { if(document.activeElement.toStr
 // window.addEventListener("resize", sizeCanvas);
 
 //Maintain modalActive status
+modalNothingKnock.on('shown.bs.modal', function(){
+    modalActive = true;
+});
+modalNothingKnock.on('hidden.bs.modal', function(){
+    modalActive = false;
+});
 modalWelcome.on('shown.bs.modal', function(){
     modalActive = true;
 });

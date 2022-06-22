@@ -4565,17 +4565,24 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             finished = False
             if cluster_count>0:
                 # Launch & return task for dotask
-                if task.status=='PROGRESS':
-                    code = '-100'
-                else:
-                    code = '-102'
-                    if task.status != 'PENDING':
-                        task.tagging_level = taggingLevel
-                        task.is_bounding = isBounding
-                        task.status = 'PENDING'
-                        task.survey.status = 'Launched'
-                        db.session.commit()
-                        launchTask.apply_async(kwargs={'task_id':task_id})
+                code = '-101'
+                task.tagging_level = taggingLevel
+                task.is_bounding = isBounding
+                task.status = 'PENDING'
+                task.survey.status = 'Launched'
+                db.session.commit()
+                launchTask.apply_async(kwargs={'task_id':task_id})
+                # if task.status=='PROGRESS':
+                #     code = '-100'
+                # else:
+                #     code = '-102'
+                #     if task.status != 'PENDING':
+                #         task.tagging_level = taggingLevel
+                #         task.is_bounding = isBounding
+                #         task.status = 'PENDING'
+                #         task.survey.status = 'Launched'
+                #         db.session.commit()
+                #         launchTask.apply_async(kwargs={'task_id':task_id})
 
             elif (queueing==0) and (processing==0):
                 # Completely done

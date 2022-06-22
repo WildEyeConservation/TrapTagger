@@ -513,55 +513,56 @@ def removeFalseDetections(self,cluster_id,undo):
 
             images = []
             for detection in detections:
-                # Find and mark as static all high IOU detections
-                query = """
-                    SELECT
-                        id2
-                    FROM
-                        (SELECT 
-                            det1.id as id1,
-                            det2.id as id2,
-                            image1.camera_id as cam_id,
-                            GREATEST(LEAST(det1.right,det2.right)-GREATEST(det1.left,det2.left),0)*
-                            GREATEST(LEAST(det1.bottom,det2.bottom)-GREATEST(det1.top,det2.top),0) as intersection,
-                            (det1.right-det1.left)*(det1.bottom-det1.top) AS area1,
-                            (det2.right-det2.left)*(det2.bottom-det2.top) AS area2
+                # Find and mark as static all high IOU detections if detection is large enough
+                if ((detection.right-detection.left)*(detection.bottom-detection.top)) < 0.1:
+                    query = """
+                        SELECT
+                            id2
                         FROM
-                            detection as det1 
-                            JOIN detection as det2 
-                            JOIN image as image1 
-                            JOIN image as image2 
-                        ON
-                            image1.camera_id = image2.camera_id
-                            AND image1.id = det1.image_id
-                            AND image2.id = det2.image_id
-                            AND det1.id != det2.id
+                            (SELECT 
+                                det1.id as id1,
+                                det2.id as id2,
+                                image1.camera_id as cam_id,
+                                GREATEST(LEAST(det1.right,det2.right)-GREATEST(det1.left,det2.left),0)*
+                                GREATEST(LEAST(det1.bottom,det2.bottom)-GREATEST(det1.top,det2.top),0) as intersection,
+                                (det1.right-det1.left)*(det1.bottom-det1.top) AS area1,
+                                (det2.right-det2.left)*(det2.bottom-det2.top) AS area2
+                            FROM
+                                detection as det1 
+                                JOIN detection as det2 
+                                JOIN image as image1 
+                                JOIN image as image2 
+                            ON
+                                image1.camera_id = image2.camera_id
+                                AND image1.id = det1.image_id
+                                AND image2.id = det2.image_id
+                                AND det1.id != det2.id
+                            WHERE
+                                det1.id = {}
+                                AND det2.score > 0.8
+                            ) as sq1
                         WHERE
-                            det1.id = {}
-                            AND det2.score > 0.8
-                        ) as sq1
-                    WHERE
-                        area1 < 0.1
-                        AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.9
-                """
+                            area2 < 0.1
+                            AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.8
+                    """
 
-                resultproxy = db.session.execute(query.format(str(detection.id)))
+                    resultproxy = db.session.execute(query.format(str(detection.id)))
 
-                d, result = {}, []
-                for rowproxy in resultproxy:
-                    for column, value in rowproxy.items():
-                        d = {**d, **{column: value}}
-                    result.append(d)
+                    d, result = {}, []
+                    for rowproxy in resultproxy:
+                        for column, value in rowproxy.items():
+                            d = {**d, **{column: value}}
+                        result.append(d)
 
-                detection.static = staticState
-                images.append(detection.image)
+                    detection.static = staticState
+                    images.append(detection.image)
 
-                for row in result:
-                    newDetection = db.session.query(Detection).get(row['id2'])
-                    newDetection.static = staticState
-                    images.append(newDetection.image)
+                    for row in result:
+                        newDetection = db.session.query(Detection).get(row['id2'])
+                        newDetection.static = staticState
+                        images.append(newDetection.image)
 
-                db.session.commit()
+                    db.session.commit()
 
             for image in set(images):
                 image.detection_rating = detection_rating(image)
