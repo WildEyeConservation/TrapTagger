@@ -211,13 +211,13 @@ def delete_survey(self,survey_id):
         status = 'success'
         message = ''
 
-        tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
+        tasks = [r.id for r in db.session.query(Task).filter(Task.survey_id==survey_id).all()]
 
         app.logger.info('Deleting survey {}'.format(survey_id))
 
         if status != 'error':
-            for task in tasks:
-                tempStatus, tempMessage = delete_task(task.id)
+            for task_id in tasks:
+                tempStatus, tempMessage = delete_task(task_id)
                 if tempStatus != None:
                     status = tempStatus
                     message = tempMessage

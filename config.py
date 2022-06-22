@@ -112,7 +112,7 @@ class Config(object):
     # Celery Worker concurrency
     CONCURRENCY = {
         'parallel': 1,
-        'default': 4
+        'default': 1
     }
 
     # Queue config

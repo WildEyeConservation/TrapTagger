@@ -55,19 +55,20 @@ def make_celery(flask_app):
         'TrapTagger',
         backend=REDIS_ADDRESS,
         broker=REDIS_ADDRESS,
-        # task_reject_on_worker_lost=True,
-        # task_acks_late=True,
-        # task_acks_on_failure_or_timeout=False,
-        worker_prefetch_multiplier=1,
         broker_transport_options={
             'visibility_timeout': 86400,
             'queue_order_strategy': 'priority'
         },
         result_expires=86400
     )
+    # worker_prefetch_multiplier=1,
+    # task_reject_on_worker_lost=True,
+    # task_acks_late=True,
+    # task_acks_on_failure_or_timeout=False,
     celery.conf.update(flask_app.config)
 
     ####
+    celery.conf.worker_prefetch_multiplier = 1
     celery.conf.task_default_queue = 'default'
     celery.conf.task_queues = (
         Queue('default',    routing_key='task.#'),

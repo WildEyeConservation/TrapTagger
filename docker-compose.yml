@@ -136,18 +136,18 @@ services:
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
-        command: celery -A app.celery worker -B -E -n priority_worker -Q priority --loglevel=info
+        command: celery -A app.celery worker -B -E -n priority_worker -Q priority --concurrency=1 --loglevel=info
         networks:
             - my-network
 
-    traptagger_worker:
+    traptagger_worker1:
         # Celery worker
         restart: always
         build:
             context: ./
             dockerfile: Dockerfile.flask
         image: traptagger:1.0.1
-        container_name: traptagger_worker
+        container_name: traptagger_worker1
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
@@ -176,7 +176,87 @@ services:
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker -Q default --loglevel=info
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default --concurrency=1 --loglevel=info
+        networks:
+            - my-network
+
+    traptagger_worker2:
+        # Celery worker
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: traptagger_worker2
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - PYTHONPATH=/code
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - SUBNET_ID=${SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET_ROOT=${BUCKET_ROOT}
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default --concurrency=1 --loglevel=info
+        networks:
+            - my-network
+
+    traptagger_worker3:
+        # Celery worker
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: traptagger_worker3
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - PYTHONPATH=/code
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - SUBNET_ID=${SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET_ROOT=${BUCKET_ROOT}
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default --concurrency=1 --loglevel=info
         networks:
             - my-network
 
