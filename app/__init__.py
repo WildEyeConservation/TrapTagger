@@ -68,6 +68,7 @@ def make_celery(flask_app):
     celery.conf.update(flask_app.config)
 
     ####
+    celery.conf.task_acks_late = True
     celery.conf.worker_prefetch_multiplier = 1
     celery.conf.task_default_queue = 'default'
     celery.conf.task_queues = (
