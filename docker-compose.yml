@@ -63,7 +63,6 @@ services:
         container_name: flask
         depends_on:
             - traptagger_redis
-            - traptagger_worker
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
@@ -136,7 +135,7 @@ services:
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
-        command: celery -A app.celery worker -B -E -n priority_worker -Q priority --concurrency=1 --loglevel=info
+        command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 
@@ -176,7 +175,7 @@ services:
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default --concurrency=1 --loglevel=info
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 
@@ -216,7 +215,7 @@ services:
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default --concurrency=1 --loglevel=info
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 
@@ -256,7 +255,7 @@ services:
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default --concurrency=1 --loglevel=info
+        command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 
@@ -286,7 +285,7 @@ services:
         environment:
             - CUDA_VISIBLE_DEVICES=0
             - REDIS_IP=traptagger_redis
-        command: celery -A megadetectorworker.megaDetector worker -n traptagger_endpoint -Q local --concurrency=1 -l info
+        command: celery -A megadetectorworker.megaDetector worker -n traptagger_endpoint -Q local -Ofair --concurrency=1 -l info
         networks:
             - my-network
 
