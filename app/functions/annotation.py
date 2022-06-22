@@ -317,7 +317,7 @@ def launchTask(self,task_id):
                 #extact threshold
                 threshold = tL[2]
                 if threshold=='-1':
-                    tL[2] = Config.SIMILARITY_SCORE
+                    tL[2] = str(Config.SIMILARITY_SCORE)
                     task.tagging_level = ','.join(tL)
                     taggingLevel = task.tagging_level
 
