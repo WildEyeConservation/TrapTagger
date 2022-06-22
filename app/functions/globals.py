@@ -1663,7 +1663,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         else:
             sq = sq.filter(~Cluster.labels.any())
     elif (taggingLevel == '-2'):
-        # info tagging (depricated)
+        # info tagging
         sq = sq.filter(Cluster.labels.any()) \
                 .join(Label,Cluster.labels) \
                 .filter(~Label.id.in_([GLOBALS.nothing_id,GLOBALS.knocked_id])) \
