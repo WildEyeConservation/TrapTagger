@@ -261,7 +261,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
     clusters = db.session.query(Cluster)\
                 .join(subq,subq.c.clusterID==Cluster.id)\
                 .filter(Cluster.task_id==task_id)\
-                .filter(subq.c.imCount>=50)\
+                .filter(subq.c.imCount>50)\
                 .filter(~Cluster.labels.contains(downLabel))
 
     if reClusters != None:
@@ -287,7 +287,6 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                                 .filter(Detection.score>0.8)\
                                 .filter(Detection.static==False)\
                                 .filter(~Detection.status.in_(['deleted','hidden']))\
-                                .filter(func.lower(Detection.classification)!='nothing')\
                                 .all()
 
             if len(detections) == 0:
@@ -295,7 +294,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             else:
                 species = []
                 for detection in detections:
-                    if detection.class_score > Config.CLASS_SCORE:
+                    if (detection.class_score > Config.CLASS_SCORE) and (detection.classification != 'nothing'):
                         species.append(detection.classification)
                     else:
                         species.append('unknown')
@@ -519,6 +518,7 @@ def cluster_survey(survey_id,queue='parallel'):
             result.forget()
     GLOBALS.lock.release()
 
+    db.session.commit()
     recluster_large_clusters(task.id,False)
 
     return task
