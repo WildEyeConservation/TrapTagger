@@ -296,8 +296,6 @@ def importMonitor():
                     max_allowed = Config.QUEUES[queue]['max_instances']-instances[queue]
                     if instances_required[queue] > max_allowed: instances_required[queue]=max_allowed
 
-                    
-
                     if instances_required[queue] > 0:
                         kwargs = {
                             'ImageId':Config.QUEUES[queue]['ami'],
