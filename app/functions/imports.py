@@ -672,58 +672,6 @@ def processStaticDetections(survey):
         detection.static = False
     db.session.commit()
 
-    # # Find most detections
-    # max_val = 0
-    # cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().all()
-    # for camera in cameras:
-    #     detections = db.session.query(Detection).join(Image).filter(Image.camera==camera).filter(Detection.score>0.5).distinct().count()
-    #     if detections > max_val: max_val=detections
-
-    # # Estimate capacity requirement
-    # required_capacity = 4*(max_val/55000)*Config.MAX_PARALLEL
-    # if required_capacity>=1:
-    #     required_capacity = 2**math.ceil(math.log(required_capacity,2))
-    # else:
-    #     required_capacity=1
-    # if required_capacity>Config.MAX_AURORA: required_capacity=Config.MAX_AURORA
-
-    # # Find current capacity
-    # client = boto3.client('rds',region_name=Config.AWS_REGION)
-    # response = client.describe_db_clusters(
-    #     DBClusterIdentifier=Config.DB_CLUSTER_NAME
-    # )
-    # if ('DBClusters' in response) and (len(response['DBClusters']) > 0):
-    #     current_capacity = response['DBClusters'][0]['Capacity']
-
-    #     # Scale DB capacity if needed
-    #     if current_capacity < required_capacity:
-    #         client.modify_current_db_cluster_capacity(
-    #             DBClusterIdentifier=Config.DB_CLUSTER_NAME,
-    #             Capacity=required_capacity,
-    #             SecondsBeforeTimeout=600,
-    #             TimeoutAction='RollbackCapacityChange'
-    #         )
-            
-    #         # wait for the capacioty
-    #         starttime = datetime.utcnow()
-    #         while current_capacity<required_capacity:
-    #             time.sleep(10)
-
-    #             response = client.describe_db_clusters(
-    #                 DBClusterIdentifier=Config.DB_CLUSTER_NAME
-    #             )
-    #             current_capacity = response['DBClusters'][0]['Capacity']
-
-    #             # if scaling timed out, try again
-    #             if (datetime.utcnow()-starttime).total_seconds() > 660:
-    #                 client.modify_current_db_cluster_capacity(
-    #                     DBClusterIdentifier=Config.DB_CLUSTER_NAME,
-    #                     Capacity=required_capacity,
-    #                     SecondsBeforeTimeout=600,
-    #                     TimeoutAction='RollbackCapacityChange'
-    #                 )
-    #                 starttime = datetime.utcnow()
-
     results = []
     for camera_id, imcount in db.session.query(Image.camera_id, func.count(Image.id)).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey.id).group_by(Image.camera_id):
         results.append(processCameraStaticDetections.apply_async(kwargs={'camera_id':camera_id,'imcount':imcount},queue='parallel'))

@@ -282,106 +282,118 @@ def importMonitor():
 
             print('Instances required: {}'.format(instances_required))
 
-            for queue in queues:
-                max_allowed = Config.QUEUES[queue]['max_instances']-instances[queue]
-                if instances_required[queue] > max_allowed: instances_required[queue]=max_allowed
+            # Check database capacity requirement (parallel & default)
+            parallel_req = total_images['total']/Config.QUEUES['parallel']['bin_size']
+            if parallel_req > Config.QUEUES['parallel']['max_instances']: parallel_req = Config.QUEUES['parallel']['max_instances']
+            default_req = math.ceil(queues['default']/Config.QUEUES['default']['bin_size']) - 1 + instances['default']
+            if default_req > Config.QUEUES['default']['max_instances']: default_req = Config.QUEUES['default']['max_instances']
+            required_capacity = 1.5*(default_req + parallel_req)
+            current_capacity = scaleDbCapacity(required_capacity)
 
-                if instances_required[queue] > 0:                   
-                    kwargs = {
-                        'ImageId':Config.QUEUES[queue]['ami'],
-                        'KeyName':Config.KEY_NAME,
-                        'MaxCount':1,
-                        'MinCount':1,
-                        'Monitoring':{'Enabled': True},
-                        'SecurityGroupIds':[Config.SG_ID],
-                        'SubnetId':Config.SUBNET_ID,
-                        'DisableApiTermination':False,
-                        'DryRun':False,
-                        'EbsOptimized':False,
-                        'InstanceInitiatedShutdownBehavior':'terminate',
-                        'TagSpecifications':[
-                            {
-                                'ResourceType': 'instance',
-                                'Tags': [
-                                    {
-                                        'Key': 'queue',
-                                        'Value': queue
-                                    },
-                                    {
-                                        'Key': 'host',
-                                        'Value': str(Config.HOST_IP)
-                                    }
-                                ]
-                            },
-                        ]
-                    }
+            # Launch Instances
+            if current_capacity >= required_capacity:
+                for queue in queues:
+                    max_allowed = Config.QUEUES[queue]['max_instances']-instances[queue]
+                    if instances_required[queue] > max_allowed: instances_required[queue]=max_allowed
 
-                    # Command to be sent to the image
-                    userData = '#!/bin/bash\n cd /home/ubuntu/TrapTagger;'
-                    userData += ' git fetch;'
-                    userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
-                    userData += ' git pull;'
-                    userData += ' git lfs fetch --all;'
-                    userData += ' git lfs pull;'
-                    userData += ' cd /home/ubuntu; '
-                    userData += Config.QUEUES[queue]['user_data']
+                    
 
-                    #Determine the cheapest option by calculating th cost per image of all instance types
-                    # Add spot instance pricing
-                    costPerImage = {}
-                    # for instance in Config.QUEUES[queue]['instances']:
-                    #     prices = client.describe_spot_price_history(
-                    #         InstanceTypes=[instance],
-                    #         MaxResults=1,
-                    #         ProductDescriptions=['Linux/UNIX']
-                    #     )
+                    if instances_required[queue] > 0:
+                        kwargs = {
+                            'ImageId':Config.QUEUES[queue]['ami'],
+                            'KeyName':Config.KEY_NAME,
+                            'MaxCount':1,
+                            'MinCount':1,
+                            'Monitoring':{'Enabled': True},
+                            'SecurityGroupIds':[Config.SG_ID],
+                            'SubnetId':Config.SUBNET_ID,
+                            'DisableApiTermination':False,
+                            'DryRun':False,
+                            'EbsOptimized':False,
+                            'InstanceInitiatedShutdownBehavior':'terminate',
+                            'TagSpecifications':[
+                                {
+                                    'ResourceType': 'instance',
+                                    'Tags': [
+                                        {
+                                            'Key': 'queue',
+                                            'Value': queue
+                                        },
+                                        {
+                                            'Key': 'host',
+                                            'Value': str(Config.HOST_IP)
+                                        }
+                                    ]
+                                },
+                            ]
+                        }
 
-                    #     if len(prices['SpotPriceHistory']) > 0:
-                    #         costPerImage[instance+',spot'] = float(prices['SpotPriceHistory'][0]['SpotPrice'])/Config.INSTANCE_RATES[queue][instance]
+                        # Command to be sent to the image
+                        userData = '#!/bin/bash\n cd /home/ubuntu/TrapTagger;'
+                        userData += ' git fetch;'
+                        userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
+                        userData += ' git pull;'
+                        userData += ' git lfs fetch --all;'
+                        userData += ' git lfs pull;'
+                        userData += ' cd /home/ubuntu; '
+                        userData += Config.QUEUES[queue]['user_data']
 
-                    # Add on-demand prices to list
-                    for instance in Config.QUEUES[queue]['instances']:
-                        price = get_price(pricing_region, instance, 'Linux')
-                        if price: costPerImage[instance+',demand'] = float(price)/Config.INSTANCE_RATES[queue][instance]
+                        #Determine the cheapest option by calculating th cost per image of all instance types
+                        # Add spot instance pricing
+                        costPerImage = {}
+                        # for instance in Config.QUEUES[queue]['instances']:
+                        #     prices = client.describe_spot_price_history(
+                        #         InstanceTypes=[instance],
+                        #         MaxResults=1,
+                        #         ProductDescriptions=['Linux/UNIX']
+                        #     )
 
-                    # cheapestInstance = min(costPerImage, key=costPerImage.get)
-                    orderedInstances = {k: v for k, v in sorted(costPerImage.items(), key=lambda item: item[1])}
-                        
-                    #Launch instances - try launch cheapest, if no capacity, launch the next cheapest
-                    for n in range(instances_required[queue]):
-                        #jitter idle check so that a whole bunch of instances down shutdown together
-                        idle_multiplier = round(Config.IDLE_MULTIPLIER[queue]*random.uniform(0.5, 1.5))
-                        kwargs['UserData'] = userData.format(randomString()).replace('IDLE_MULTIPLIER',str(idle_multiplier))
-                        for item in orderedInstances:
-                            pieces = re.split(',',item)
-                            kwargs['InstanceType'] = pieces[0]
-                            if pieces[1] == 'spot':
-                                kwargs['InstanceMarketOptions'] = {
-                                    'MarketType': 'spot',
-                                    'SpotOptions': {
-                                        # 'MaxPrice': 'string',
-                                        'SpotInstanceType': 'one-time',
-                                        # 'BlockDurationMinutes': 123,
-                                        # 'ValidUntil': datetime(2015, 1, 1),
-                                        'InstanceInterruptionBehavior': 'terminate'
-                                    }
-                                }
+                        #     if len(prices['SpotPriceHistory']) > 0:
+                        #         costPerImage[instance+',spot'] = float(prices['SpotPriceHistory'][0]['SpotPrice'])/Config.INSTANCE_RATES[queue][instance]
+
+                        # Add on-demand prices to list
+                        for instance in Config.QUEUES[queue]['instances']:
+                            price = get_price(pricing_region, instance, 'Linux')
+                            if price: costPerImage[instance+',demand'] = float(price)/Config.INSTANCE_RATES[queue][instance]
+
+                        # cheapestInstance = min(costPerImage, key=costPerImage.get)
+                        orderedInstances = {k: v for k, v in sorted(costPerImage.items(), key=lambda item: item[1])}
                             
-                            else:
+                        #Launch instances - try launch cheapest, if no capacity, launch the next cheapest
+                        for n in range(instances_required[queue]):
+                            #jitter idle check so that a whole bunch of instances down shutdown together
+                            idle_multiplier = round(Config.IDLE_MULTIPLIER[queue]*random.uniform(0.5, 1.5))
+                            kwargs['UserData'] = userData.format(randomString()).replace('IDLE_MULTIPLIER',str(idle_multiplier))
+                            for item in orderedInstances:
+                                pieces = re.split(',',item)
+                                kwargs['InstanceType'] = pieces[0]
+                                if pieces[1] == 'spot':
+                                    kwargs['InstanceMarketOptions'] = {
+                                        'MarketType': 'spot',
+                                        'SpotOptions': {
+                                            # 'MaxPrice': 'string',
+                                            'SpotInstanceType': 'one-time',
+                                            # 'BlockDurationMinutes': 123,
+                                            # 'ValidUntil': datetime(2015, 1, 1),
+                                            'InstanceInterruptionBehavior': 'terminate'
+                                        }
+                                    }
+                                
+                                else:
+                                    try:
+                                        del kwargs['InstanceMarketOptions']
+                                    except:
+                                        pass
+
                                 try:
-                                    del kwargs['InstanceMarketOptions']
-                                except:
+                                    ec2.create_instances(**kwargs)
+                                    app.logger.info('Launched {} {} instance for {} queue.'.format(pieces[1],kwargs['InstanceType'],queue))
+                                    redisClient.set(queue+'_last_launch',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+                                    break
+
+                                except ClientError:
+                                    # Handle insufficient capacity
                                     pass
-
-                            try:
-                                ec2.create_instances(**kwargs)
-                                app.logger.info('Launched {} {} instance for {} queue.'.format(pieces[1],kwargs['InstanceType'],queue))
-                                redisClient.set(queue+'_last_launch',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
-                                break
-
-                            except ClientError:
-                                # Handle insufficient capacity
-                                pass
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1910,3 +1922,47 @@ def list_all(bucket,prefix):
             resp = GLOBALS.s3client.list_objects_v2(Bucket=bucket, Delimiter='/',Prefix=prefix, ContinuationToken=resp['NextContinuationToken'])
         else:
             return prefixes,contents
+
+def scaleDbCapacity(required_capacity):
+    '''Scales the Aurora db capacity to the specified level. Returns the current capacity.'''
+
+    if required_capacity>=1:
+        required_capacity = 2**math.ceil(math.log(required_capacity,2))
+    else:
+        required_capacity=1
+    if required_capacity>Config.MAX_AURORA: required_capacity=Config.MAX_AURORA
+    if required_capacity<Config.MIN_AURORA: required_capacity=Config.MIN_AURORA
+
+    # Find current capacity
+    client = boto3.client('rds',region_name=Config.AWS_REGION)
+    response = client.describe_db_clusters(
+        DBClusterIdentifier=Config.DB_CLUSTER_NAME
+    )
+    if ('DBClusters' in response) and (len(response['DBClusters']) > 0):
+        current_capacity = response['DBClusters'][0]['Capacity']
+
+        # Get time since last request
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        last_aurora_request = redisClient.get('last_aurora_request')
+        if not last_aurora_request:
+            last_aurora_request = 0
+        else:
+            last_aurora_request = int(last_aurora_request.decode())
+        time_since_last_request = round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()) - last_aurora_request
+
+        # Scale DB capacity if needed
+        if (current_capacity < required_capacity) and (time_since_last_request > 600):
+            client.modify_current_db_cluster_capacity(
+                DBClusterIdentifier=Config.DB_CLUSTER_NAME,
+                Capacity=required_capacity,
+                SecondsBeforeTimeout=600,
+                TimeoutAction='RollbackCapacityChange'
+            )
+
+            # Record the request time
+            redisClient.set('last_aurora_request',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+            
+        return current_capacity
+    
+    else:
+        return 'error'

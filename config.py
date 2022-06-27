@@ -98,8 +98,9 @@ class Config(object):
     }
 
     #Aurora DB stuff
-    # MAX_AURORA = 64
-    # DB_CLUSTER_NAME= 'clustername'
+    MAX_AURORA = 64
+    MIN_AURORA = 4
+    DB_CLUSTER_NAME= os.environ.get('DB_CLUSTER_NAME')
 
     # How many multiples of 5 seconds a worker is checked for idleness
     IDLE_MULTIPLIER = {

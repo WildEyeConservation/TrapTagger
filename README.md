@@ -215,6 +215,7 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - WORKER_NAME:              The worker name for the local worker - set to traptagger_worker for your server instance.
 - MAIN_GIT_REPO:            The repository for the main application.
 - MONITORED_EMAIL_ADDRESS:  A monitored email address for user enquiries and questions.
+- DB_CLUSTER_NAME:          The name of your aurora db instance.
 
 ### SSL Certificate
 
