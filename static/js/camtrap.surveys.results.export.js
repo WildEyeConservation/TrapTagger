@@ -222,6 +222,7 @@ function submitExportRequest() {
     }
 
     if (allow) {
+        document.getElementById('btnExportDownload').disabled = true
         var formData = new FormData()
         formData.append("task", selectedTask)
         formData.append("type", selection)
@@ -236,7 +237,7 @@ function submitExportRequest() {
                 
                 if (reply=='Success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                    document.getElementById('modalPWB').innerHTML = 'Your export file is being generated. The download will commence shortly. Please note that this may take a while, especially for larger data sets.'
+                    document.getElementById('modalPWB').innerHTML = 'Your export file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalPW.modal({keyboard: true});
                     export_task_ids.push(selectedTask)
                     if (waitForDownloadTimer != null) {
@@ -250,6 +251,7 @@ function submitExportRequest() {
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                     modalPW.modal({keyboard: true});
                 }
+                document.getElementById('btnExportDownload').disabled = false
             }
         }
         xhttp.open("POST", '/exportRequest');

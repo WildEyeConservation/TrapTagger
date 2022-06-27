@@ -1837,6 +1837,7 @@ limitations under the License. -->
         }
 
         if (legalName&&legalDescription&&legalTGCode&&legalInput&&legalFile&&TGCheckReady) {
+            document.getElementById('btnSaveSurvey').disabled = true
             // if (kmlFileUpload.files.length == 1) {
             if (false) {
                 var reader = new FileReader()
@@ -1853,6 +1854,7 @@ limitations under the License. -->
                         submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),'false')
                     } else {
                         document.getElementById('newSurveyErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                        document.getElementById('btnSaveSurvey').disabled = false
                     }
                 });
                 reader.readAsText(kmlFileUpload.files[0])
@@ -1916,6 +1918,7 @@ limitations under the License. -->
                 } else {
                     document.getElementById('newSurveyErrors').innerHTML = reply.message
                 }
+                document.getElementById('btnSaveSurvey').disabled = false
             }
         }
         xhttp.send(formData);
@@ -2045,6 +2048,7 @@ limitations under the License. -->
         }
 
         if (legalTGCode&&legalInput&&legalFile&&legalDate&&TGCheckReady) {
+            document.getElementById('btnAddImages').disabled = true
             if (document.getElementById('addImagesAddCoordinates').checked) {
                 if (document.getElementById('addCoordinatesManualMethod').checked) {
                     var formData = new FormData()
@@ -2073,6 +2077,7 @@ limitations under the License. -->
                                         addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
                                     } else {
                                         document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                                        document.getElementById('btnAddImages').disabled = false
                                     }
 
                                 }
@@ -2095,6 +2100,7 @@ limitations under the License. -->
                                 addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
                             } else {
                                 document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
+                                document.getElementById('btnAddImages').disabled = false
                             }
                         }
                     });
@@ -2189,6 +2195,7 @@ limitations under the License. -->
                 } else {
                     document.getElementById('addImagesErrors').innerHTML = reply.message
                 }
+                document.getElementById('btnAddImages').disabled = false
             }
         }
         xhttp.send(formData);

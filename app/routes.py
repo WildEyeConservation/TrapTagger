@@ -4985,7 +4985,7 @@ def assignLabel(clusterID):
                         cluster.skipped = True
                     else:
                         cluster.labels.extend(newLabels)
-                        app.logger.info('Cluster labels: {}'.format([r.description for r in cluster.labels]))
+                        if Config.DEBUGGING: app.logger.info('Cluster labels: {}'.format([r.description for r in cluster.labels]))
 
                     cluster.user_id = current_user.id
                     cluster.timestamp = datetime.utcnow()

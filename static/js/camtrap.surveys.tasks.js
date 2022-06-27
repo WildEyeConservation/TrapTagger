@@ -1063,6 +1063,9 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
 
 btnEditTaskSubmit.addEventListener('click', ()=>{
     /** Submit the edited task laels to the server when button is pushed. */
+
+    document.getElementById('btnEditTaskSubmit').disabled = true
+
     var formData = new FormData()
     formData.append("editDict", JSON.stringify(taskEditDict))
 
@@ -1075,6 +1078,7 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
             if (reply=='success') {
                 modalEditTask.modal('hide')
             }
+            document.getElementById('btnEditTaskSubmit').disabled = false
         }
     }
     xhttp.send(formData);
@@ -1088,6 +1092,8 @@ btnCreateTask2.addEventListener('click', ()=>{
 
 btnCreateTask3.addEventListener('click', ()=>{
     /** Submits the new-task information to the server when the last modal is completed. */
+
+    document.getElementById('btnCreateTask3').disabled=true
 
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]')
     includes = []
@@ -1126,6 +1132,7 @@ btnCreateTask3.addEventListener('click', ()=>{
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
+            document.getElementById('btnCreateTask3').disabled=false
             if (reply=='success') {
                 modalAddTask3.modal('hide')
                 updatePage(current_page)
@@ -1360,6 +1367,8 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels) {
 
 function updateTranslationMatrix() {
     /** Updates the label translation selectors in the new task form. */
+
+    document.getElementById('btnCreateTask2').disabled=true
     
     optionValues = []
     for (vb=0;vb<addTaskDescriptions.length;vb++) {
@@ -1422,6 +1431,8 @@ function updateTranslationMatrix() {
 
         addTaskHeading = false
     }
+
+    document.getElementById('btnCreateTask2').disabled=false
 }
 
 function updateClassificationBoxes() {

@@ -114,7 +114,7 @@ btnExcelDownload.addEventListener('click', ()=>{
             reply = JSON.parse(this.responseText);  
             if (reply=='success') {
                 document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                document.getElementById('modalPWB').innerHTML = 'Your Excel file is being generated. The download will commence shortly. Please note that this may take a while, especially for larger datasets.'
+                document.getElementById('modalPWB').innerHTML = 'Your Excel file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger datasets. Do not navigate away from this page.'
                 modalResults.modal('hide')
                 modalPW.modal({keyboard: true});
                 excel_task_ids.push(selectedTask)

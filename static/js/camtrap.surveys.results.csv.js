@@ -344,6 +344,7 @@ btnCsvDownload.addEventListener('click', ()=>{
     checkCSV()
    
     if (legalCSV) {
+        document.getElementById('btnCsvDownload').disabled = true
         allColumns = document.querySelectorAll('[id^=csvColLevelElement-]');
         level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].text.toLowerCase();
         noEmpties = true
@@ -502,7 +503,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                         reply = JSON.parse(this.responseText);  
                         if (reply=='success') {
                             document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                            document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. The download will commence shortly. Please note that this may take a while, especially for larger data sets.'
+                            document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                             modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             csv_task_ids.push(selectedtask)
@@ -517,6 +518,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                             document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                             modalPW.modal({keyboard: true});
                         }
+                        document.getElementById('btnCsvDownload').disabled = false
                     }
                 }
             }(selectedTasks[0])
@@ -526,6 +528,7 @@ btnCsvDownload.addEventListener('click', ()=>{
             newdiv = document.createElement('div')
             newdiv.innerHTML = 'You cannot have empty columns.'
             csvErrors.appendChild(newdiv)
+            document.getElementById('btnCsvDownload').disabled = false
         }
     }
 });
@@ -544,7 +547,7 @@ function downloadPreFormattedCSV() {
                 reply = JSON.parse(this.responseText);  
                 if (reply=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
-                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated. The download will commence shortly. Please note that this may take a while, especially for larger data sets.'
+                    document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)

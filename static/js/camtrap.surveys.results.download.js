@@ -105,6 +105,8 @@ function openDownloadModal() {
 
 function submitDownloadRequest() {
     /** Submits a download export request to the server. */
+
+    document.getElementById('btnDownloadStart').disabled = true
     
     columns = []
     if (document.getElementById('speciesSorted').checked) {
@@ -155,6 +157,7 @@ function submitDownloadRequest() {
             }
             modalDownload.modal('hide')
             modalPW.modal({keyboard: true});
+            document.getElementById('btnDownloadStart').disabled = false
         }
     }
     xhttp.send(formData);

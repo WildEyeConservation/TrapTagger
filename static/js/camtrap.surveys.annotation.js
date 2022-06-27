@@ -71,6 +71,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
     }
 
     if ((taskSize != NaN)&&(isBounding != null)&&allow) {
+        document.getElementById('launchMTurkTaskBtn').disabled=true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -127,6 +128,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                     modalLaunchTask.modal('hide')
                     modalAlert.modal({keyboard: true});
                 }
+                document.getElementById('launchMTurkTaskBtn').disabled=false
             }
         }
         xhttp.open("POST", '/launchTaskMturk/'+selectedTask+'/'+taskSize+'/'+taskTaggingLevel+'/'+isBounding);
