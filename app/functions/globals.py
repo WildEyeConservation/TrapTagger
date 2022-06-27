@@ -287,7 +287,7 @@ def importMonitor():
             if parallel_req > Config.QUEUES['parallel']['max_instances']: parallel_req = Config.QUEUES['parallel']['max_instances']
             default_req = math.ceil(queues['default']/Config.QUEUES['default']['bin_size']) - 1 + instances['default']
             if default_req > Config.QUEUES['default']['max_instances']: default_req = Config.QUEUES['default']['max_instances']
-            required_capacity = 1.5*(default_req + parallel_req)
+            required_capacity = 2*(default_req + parallel_req)
             current_capacity = scaleDbCapacity(required_capacity)
 
             # Launch Instances
