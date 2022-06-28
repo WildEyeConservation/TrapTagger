@@ -2180,20 +2180,32 @@ document.onkeyup = function (event){
     }
 
     switch (event.key.toLowerCase()){
-        case (']'):updateImageProperty('brightness','increase',10)
+        case (']'):
+        case ('insert'):
+            updateImageProperty('brightness','increase',10)
             break;
-        case ('['):updateImageProperty('brightness','decrease',10)
+        case ('['):
+        case ('delete'):
+            updateImageProperty('brightness','decrease',10)
             break;
-        case ("'"):updateImageProperty('contrast','increase',10)
+        case ("'"):
+        case ('home'):
+            updateImageProperty('contrast','increase',10)
             break;
-        case (';'):updateImageProperty('contrast','decrease',10)
+        case (';'):
+        case ('end'):
+            updateImageProperty('contrast','decrease',10)
             break;
-        case ('.'):updateImageProperty('saturate','increase',10)
+        case ('.'):
+        case ('pageup'):
+            updateImageProperty('saturate','increase',10)
             break;
-        case (','):updateImageProperty('saturate','decrease',10)
+        case (','):
+        case ('pagedown'):
+            updateImageProperty('saturate','decrease',10)
             break;
-        case ('?'):
         case ('/'):
+        case ('backspace'):
             resetImageProperty()
             break;
     }

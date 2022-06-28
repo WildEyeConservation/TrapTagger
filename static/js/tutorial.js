@@ -157,7 +157,7 @@ function displayStateInstructions() {
             break;
         case "selectZebra":
             instruction.innerHTML = "Use the following shortcut keys to play with the image brightness, contrast, and saturation to identify and annotate the animal";
-            help.innerHTML = "Increase brightness: ( ] ), decrease brightness: ( [ ), increase contrast: ( ; ), decrease contrast: ( ' ),<br />increase saturation: ( < ), decrease saturation: ( > ) and reset the image settings: ( / )<br />Zoom in or out with your computer mouse wheel";
+            help.innerHTML = "Increase ( insert or ] ), decrease ( delete or [ ) brightness<br />increase ( home or ; ), decrease ( end or ' ) contrast<br />increase ( pageup or < ), decrease ( pagedown or > ) saturation<br />reset the image settings ( backspace or / )<br />zoom in or out with your mouse wheel";
             break;
         case "knockedDown":
             instruction.innerHTML = "If a camera has been knocked over, mark it as knocked down by pressing the keyboard shortcut key 'Q'";

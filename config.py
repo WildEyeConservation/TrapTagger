@@ -65,10 +65,10 @@ class Config(object):
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     SUBNET_ID = os.environ.get('SUBNET_ID')
-    MAX_INFER = 50
-    MAX_CLASSIFICATION = 25
-    MAX_PARALLEL = 12
-    MAX_DEFAULT = 12
+    MAX_INFER = 35
+    MAX_CLASSIFICATION = 18
+    MAX_PARALLEL = 8
+    MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
