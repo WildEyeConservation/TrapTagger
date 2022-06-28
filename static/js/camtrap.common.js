@@ -2166,6 +2166,7 @@ function initKeys(res){
 
 document.onkeyup = function (event){
     /** Sets up the hotkeys. */
+    event.preventDefault()
     activity = true
     if (isTutorial) {
         if (finishedDisplaying['map1'] && !modalActive && !modalActive2) {
