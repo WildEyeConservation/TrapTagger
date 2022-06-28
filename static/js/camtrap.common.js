@@ -2166,7 +2166,7 @@ function initKeys(res){
 
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
-    if (event.key.toLowerCase()!='f12') {
+    if (!['f5','f12'].includes(event.key.toLowerCase())) {
         event.preventDefault()
     }
 }
