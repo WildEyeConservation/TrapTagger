@@ -756,7 +756,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 pass
 
         os.makedirs('docs', exist_ok=True)
-        outputDF.to_csv(fileName+'_writing.csv',index=False)
+        outputDF.to_csv(fileName+'_writing.csv',index=False,date_format="%Y-%m-%d %H:%M:%S")
         os.rename(fileName+'_writing.csv', fileName+'.csv')
 
     except Exception as exc:
