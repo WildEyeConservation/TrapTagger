@@ -127,8 +127,8 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                     document.getElementById('modalAlertBody').innerHTML = reply.message
                     modalLaunchTask.modal('hide')
                     modalAlert.modal({keyboard: true});
+                    document.getElementById('launchMTurkTaskBtn').disabled=false
                 }
-                document.getElementById('launchMTurkTaskBtn').disabled=false
             }
         }
         xhttp.open("POST", '/launchTaskMturk/'+selectedTask+'/'+taskSize+'/'+taskTaggingLevel+'/'+isBounding);
@@ -994,5 +994,6 @@ modalLaunchTask.on('hidden.bs.modal', function(){
     /** Resets the launch-task modal when closed. */
     if (!helpReturn) {
         resetLaunchTaskPage()
+        document.getElementById('launchMTurkTaskBtn').disabled=false
     }
 });

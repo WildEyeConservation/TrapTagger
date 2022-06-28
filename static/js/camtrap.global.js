@@ -81,8 +81,8 @@ function takeJob(jobID) {
                     document.getElementById('modalAlertHeader').innerHTML = 'Alert'
                     document.getElementById('modalAlertBody').innerHTML = 'Sorry, it appears that somebody snatched the last job before you!'
                     modalAlert.modal({keyboard: true});
+                    document.getElementById('takeJobBtn'+wrapJobID.toString()).disabled = false
                 }
-                document.getElementById('takeJobBtn'+wrapJobID.toString()).disabled = false
             }
         }
     }(jobID)
