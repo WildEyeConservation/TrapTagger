@@ -182,6 +182,8 @@ modalExport.on('hidden.bs.modal', function(){
         while(divExport.firstChild){
             divExport.removeChild(divExport.firstChild);
         }
+
+        document.getElementById('btnExportDownload').disabled = false
     }
 })
 
@@ -250,8 +252,8 @@ function submitExportRequest() {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                     modalPW.modal({keyboard: true});
+                    document.getElementById('btnExportDownload').disabled = false
                 }
-                document.getElementById('btnExportDownload').disabled = false
             }
         }
         xhttp.open("POST", '/exportRequest');

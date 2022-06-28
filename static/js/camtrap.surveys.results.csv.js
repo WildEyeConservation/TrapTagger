@@ -517,8 +517,8 @@ btnCsvDownload.addEventListener('click', ()=>{
                             document.getElementById('modalPWH').innerHTML = 'Error'
                             document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
                             modalPW.modal({keyboard: true});
+                            document.getElementById('btnCsvDownload').disabled = false
                         }
-                        document.getElementById('btnCsvDownload').disabled = false
                     }
                 }
             }(selectedTasks[0])
@@ -1355,6 +1355,7 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
         while(csvIncludeDiv.firstChild){
             csvIncludeDiv.removeChild(csvIncludeDiv.firstChild);
         }
+        document.getElementById('btnCsvDownload').disabled = false
     }
 });
 

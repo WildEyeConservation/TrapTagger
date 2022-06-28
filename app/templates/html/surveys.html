@@ -1917,8 +1917,8 @@ limitations under the License. -->
 
                 } else {
                     document.getElementById('newSurveyErrors').innerHTML = reply.message
+                    document.getElementById('btnSaveSurvey').disabled = false
                 }
-                document.getElementById('btnSaveSurvey').disabled = false
             }
         }
         xhttp.send(formData);
@@ -2194,8 +2194,8 @@ limitations under the License. -->
 
                 } else {
                     document.getElementById('addImagesErrors').innerHTML = reply.message
+                    document.getElementById('btnAddImages').disabled = false
                 }
-                document.getElementById('btnAddImages').disabled = false
             }
         }
         xhttp.send(formData);

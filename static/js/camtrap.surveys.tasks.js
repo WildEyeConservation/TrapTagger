@@ -1077,8 +1077,9 @@ btnEditTaskSubmit.addEventListener('click', ()=>{
             reply = JSON.parse(this.responseText);  
             if (reply=='success') {
                 modalEditTask.modal('hide')
+            } else {
+                document.getElementById('btnEditTaskSubmit').disabled = false
             }
-            document.getElementById('btnEditTaskSubmit').disabled = false
         }
     }
     xhttp.send(formData);
@@ -1132,10 +1133,11 @@ btnCreateTask3.addEventListener('click', ()=>{
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
-            document.getElementById('btnCreateTask3').disabled=false
             if (reply=='success') {
                 modalAddTask3.modal('hide')
                 updatePage(current_page)
+            } else {
+                document.getElementById('btnCreateTask3').disabled=false
             }
         }
     }
@@ -1315,6 +1317,7 @@ modalAddTask3.on('hidden.bs.modal', function(){
     /** Resets the helpReturn variable when the add task modal is closed. */
     if (!helpReturn) {
         // pass
+        document.getElementById('btnCreateTask3').disabled = false
     } else {
         helpReturn = false
     }
@@ -1686,6 +1689,8 @@ modalEditTask.on('hidden.bs.modal', function(){
         while(labelErrors.firstChild){
             labelErrors.removeChild(labelErrors.firstChild);
         }
+
+        document.getElementById('btnEditTaskSubmit').disabled = false
     } else {
         discardOpened = false
     }

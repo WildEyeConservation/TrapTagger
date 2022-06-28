@@ -94,6 +94,7 @@ modalDownload.on('hidden.bs.modal', function(){
         while(downloadSpeciesDiv.firstChild){
             downloadSpeciesDiv.removeChild(downloadSpeciesDiv.firstChild);
         }
+        document.getElementById('btnDownloadStart').disabled = false
     }
 })
 
@@ -154,10 +155,10 @@ function submitDownloadRequest() {
             } else {
                 document.getElementById('modalPWH').innerHTML = 'Error'
                 document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                document.getElementById('btnDownloadStart').disabled = false
             }
             modalDownload.modal('hide')
             modalPW.modal({keyboard: true});
-            document.getElementById('btnDownloadStart').disabled = false
         }
     }
     xhttp.send(formData);

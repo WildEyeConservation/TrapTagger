@@ -2219,6 +2219,7 @@ modalNewSurvey.on('hidden.bs.modal', function(){
     
     if ((!helpReturn)&&(!uploading)) {
         resetNewSurveyPage()
+        document.getElementById('btnSaveSurvey').disabled=false
     } else {
         helpReturn = false
     }
@@ -2251,6 +2252,7 @@ modalAddImages.on('hidden.bs.modal', function(){
 
     if ((!helpReturn)&&(!uploading)) {
         resetEditSurveyModal()
+        document.getElementById('btnAddImages').disabled = false
     } else {
         helpReturn = false
     }
