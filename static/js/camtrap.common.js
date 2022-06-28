@@ -2164,7 +2164,12 @@ function initKeys(res){
     }
 }
 
-document.onkeyup = function (event){
+document.onkeydown = function(event) {
+    /** Prevent scrolling from key presses */
+    event.preventDefault()
+}
+
+document.onkeyup = function(event){
     /** Sets up the hotkeys. */
     event.preventDefault()
     activity = true
