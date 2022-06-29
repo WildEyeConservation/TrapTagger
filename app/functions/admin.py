@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker
 from app.functions.individualID import calculate_individual_similarities
-from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse
+from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
 from sqlalchemy.sql import func, or_
 from datetime import datetime
@@ -556,7 +556,8 @@ def reclusterAfterTimestampChange(survey_id):
         delete_task(defaultTask.id)
 
     # create new default task
-    cluster_survey(survey_id,'default')
+    task = cluster_survey(survey_id,'default')
+    recluster_large_clusters(task.id,True)
     db.session.commit()
     defaultTask = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='default').first()
     pool = Pool(processes=4)

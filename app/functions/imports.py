@@ -324,6 +324,9 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             currCluster.images.append(image)
             prevLabels[str(image.camera_id)] = species
 
+        if currCluster and updateClassifications:
+            currCluster.classification = single_cluster_classification(currCluster)
+
         cluster.images = []
         db.session.delete(cluster)
         db.session.commit()
@@ -517,9 +520,6 @@ def cluster_survey(survey_id,queue='parallel'):
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
-
-    db.session.commit()
-    recluster_large_clusters(task.id,False)
 
     return task
 
@@ -2321,6 +2321,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
                 skip = True
         if not skip:
             task=cluster_survey(survey_id)
+            task_id=task.id
         survey.status='Removing Static Detections'
         db.session.commit()
         processStaticDetections(survey)
@@ -2333,6 +2334,9 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         survey.status='Classifying'
         db.session.commit()
         classifySurvey(survey_id=survey_id,sourceBucket=destBucket)
+        survey.status='Re-Clustering'
+        db.session.commit()
+        recluster_large_clusters(task_id,True)
         survey.status='Calculating Scores'
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
