@@ -16,8 +16,8 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker
-from app.functions.individualID import calculate_individual_similarities
+from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, populateMutex, resolve_abandoned_jobs
+from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
 from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
 from sqlalchemy.sql import func, or_
@@ -27,6 +27,7 @@ import ast
 from multiprocessing.pool import ThreadPool as Pool
 import traceback
 from config import Config
+import json
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def delete_task(self,task_id):
@@ -193,6 +194,97 @@ def delete_task(self,task_id):
         db.session.remove()
 
     return status, message
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def stop_task(self,task_id):
+    '''Celery function that stops a running task.'''
+
+    try:
+        task = db.session.query(Task).get(int(task_id))
+
+        if task.status.lower() not in Config.TASK_READY_STATUSES:
+            if not populateMutex(int(task_id)): return json.dumps('error')
+            survey = task.survey
+            app.logger.info(task.survey.name + ': ' + task.name + ' stopped')
+
+            GLOBALS.mutex[int(task_id)]['job'].acquire()
+            turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==int(task_id)).filter(User.id==None).filter(Turkcode.active==True).all()
+            for turkcode in turkcodes:
+                db.session.delete(turkcode)
+
+            db.session.commit()
+            GLOBALS.mutex[int(task_id)]['job'].release()
+
+            abandoned_jobs = db.session.query(Turkcode) \
+                                .join(User, User.username==Turkcode.user_id) \
+                                .filter(User.parent_id!=None) \
+                                .filter(~User.passed.in_(['cTrue','cFalse'])) \
+                                .filter(Turkcode.task_id==int(task_id)) \
+                                .all()
+
+            for job in abandoned_jobs:
+                user = db.session.query(User).filter(User.username==job.user_id).first()
+                user.passed = 'cFalse'
+            db.session.commit()
+
+            resolve_abandoned_jobs(abandoned_jobs)
+
+            if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
+                clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
+                for cluster in clusters:
+                    cluster.skipped = False
+                db.session.commit()
+            elif '-5' in task.tagging_level:
+                cleanUpIndividuals(task_id)
+
+            updateTaskCompletionStatus(int(task_id))
+            updateLabelCompletionStatus(int(task_id))
+            updateIndividualIdStatus(int(task_id))
+
+            GLOBALS.mutex.pop(int(task_id), None)
+
+            task.current_name = None
+            task.status = 'Stopped'
+
+            if 'processing' not in survey.status:
+                survey.status = 'Ready'
+            elif survey.status=='indprocessing':
+                #Check whether individual similarities are still being processed
+                inspector = celery.control.inspect()
+                active_tasks = inspector.active()
+                reserved_tasks = inspector.reserved()
+
+                still_processing = False
+                for tasks in [active_tasks,reserved_tasks]:
+                    for worker in tasks:
+                        for task in tasks[worker]:
+                            if ('calculate_individual_similarities' in task['name']) and (('task_id' in task['kwargs']) and (int(task['kwargs']['task_id']) == int(task_id)) or ((len(task['args'])>0) and (int(task['args'][0]) == int(task_id)))):
+                                still_processing = True
+                                break
+                        else:
+                            continue
+                        break
+                    else:
+                        continue
+                    break
+
+                if not still_processing:
+                    survey.status = 'Ready'
+
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def delete_survey(self,survey_id):

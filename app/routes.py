@@ -823,55 +823,7 @@ def stopTask(task_id):
 
     task = db.session.query(Task).get(int(task_id))
     if task and (task.survey.user==current_user) and (task.status.lower() not in Config.TASK_READY_STATUSES):
-
-        if not populateMutex(int(task_id)): return json.dumps('error')
-        survey = task.survey
-        app.logger.info(task.survey.name + ': ' + task.name + ' stopped by ' + current_user.username)
-
-        GLOBALS.mutex[int(task_id)]['job'].acquire()
-        turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==int(task_id)).filter(User.id==None).filter(Turkcode.active==True).all()
-        for turkcode in turkcodes:
-            db.session.delete(turkcode)
-
-        db.session.commit()
-        GLOBALS.mutex[int(task_id)]['job'].release()
-
-        abandoned_jobs = db.session.query(Turkcode) \
-                            .join(User, User.username==Turkcode.user_id) \
-                            .filter(User.parent_id!=None) \
-                            .filter(~User.passed.in_(['cTrue','cFalse'])) \
-                            .filter(Turkcode.task_id==int(task_id)) \
-                            .all()
-
-        for job in abandoned_jobs:
-            user = db.session.query(User).filter(User.username==job.user_id).first()
-            user.passed = 'cFalse'
-        db.session.commit()
-
-        resolve_abandoned_jobs(abandoned_jobs)
-
-        if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
-            clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.skipped==True).distinct().all()
-            for cluster in clusters:
-                cluster.skipped = False
-            db.session.commit()
-        elif '-5' in task.tagging_level:
-            cleanUpIndividuals(task_id)
-
-        updateTaskCompletionStatus(int(task_id))
-        updateLabelCompletionStatus(int(task_id))
-        updateIndividualIdStatus(int(task_id))
-
-        GLOBALS.mutex.pop(int(task_id), None)
-
-        task.current_name = None
-        task.status = 'Stopped'
-
-        if 'processing' not in survey.status:
-            survey.status = 'Ready'
-
-        db.session.commit()
-
+        stop_task.apply_async(kwargs={'task_id':task_id})
         return json.dumps('success')
 
     return json.dumps('error')

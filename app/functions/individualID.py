@@ -493,6 +493,10 @@ def calculate_individual_similarities(self,task_id,label_id,user_ids):
     try:
         OverallStartTime = time.time()
 
+        task = db.session.query(Task).get(task_id)
+        task.survey.status = 'indprocessing'
+        db.session.commit()
+
         individuals1 = [r.id for r in db.session.query(Individual)\
                                             .filter(Individual.task_id==task_id)\
                                             .filter(Individual.label_id==label_id)\
