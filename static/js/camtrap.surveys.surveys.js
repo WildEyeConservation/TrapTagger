@@ -186,7 +186,7 @@ var barColours = {
 
 var btnOpacity = 0.2
 
-var disabledSurveyStatuses = ['extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','uploading','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
+var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','uploading','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
 var diabledTaskStatuses = ['prepping','deleting','importing','processing','pending','started','initialising']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');

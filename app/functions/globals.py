@@ -1950,15 +1950,18 @@ def scaleDbCapacity(required_capacity):
 
         # Scale DB capacity if needed
         if (current_capacity < required_capacity) and (time_since_last_request > 600):
-            client.modify_current_db_cluster_capacity(
-                DBClusterIdentifier=Config.DB_CLUSTER_NAME,
-                Capacity=required_capacity,
-                SecondsBeforeTimeout=600,
-                TimeoutAction='RollbackCapacityChange'
-            )
+            try:
+                client.modify_current_db_cluster_capacity(
+                    DBClusterIdentifier=Config.DB_CLUSTER_NAME,
+                    Capacity=required_capacity,
+                    SecondsBeforeTimeout=600,
+                    TimeoutAction='RollbackCapacityChange'
+                )
 
-            # Record the request time
-            redisClient.set('last_aurora_request',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+                # Record the request time
+                redisClient.set('last_aurora_request',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+            except:
+                pass
             
         return current_capacity
     
