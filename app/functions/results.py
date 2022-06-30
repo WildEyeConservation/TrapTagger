@@ -1399,7 +1399,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
         
         if '0' in species:
             labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
-            labels.extend(db.session.query(Label).get(GLOBALS.vhl_id))
+            labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         else:
             labels = db.session.query(Label).filter(Label.id.in_(species)).distinct().all()
 
