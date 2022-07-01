@@ -1428,6 +1428,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
         #Wait for processing to complete
         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
         # See https://github.com/celery/celery/issues/4480
+        db.session.remove()
         GLOBALS.lock.acquire()
         with allow_join_result():
             for result in results:

@@ -487,7 +487,7 @@ def cluster_trapgroup(self,trapgroup_id):
     return True
 
 def cluster_survey(survey_id,queue='parallel'):
-    '''Cluster the specified survey. Automatically handles additional images vs. initial clustering. Returns the default task for the survey.'''
+    '''Cluster the specified survey. Automatically handles additional images vs. initial clustering. Returns the default task id for the survey.'''
     
     survey = db.session.query(Survey).get(survey_id)
     survey.status = 'Clustering'
@@ -505,8 +505,11 @@ def cluster_survey(survey_id,queue='parallel'):
     results = []
     for trapgroup in survey.trapgroups:
         results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup.id},queue=queue))
+
+    task_id = task.id
     
     #Wait for processing to complete
+    db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -521,7 +524,7 @@ def cluster_survey(survey_id,queue='parallel'):
             result.forget()
     GLOBALS.lock.release()
 
-    return task
+    return task_id
 
 # def checkDetectionStaticStatus(imcount,detection_ids):
 #     '''Checks each detection in the given batch to se if it is static or not.'''
@@ -677,6 +680,7 @@ def processStaticDetections(survey):
         results.append(processCameraStaticDetections.apply_async(kwargs={'camera_id':camera_id,'imcount':imcount},queue='parallel'))
     
     #Wait for processing to complete
+    db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -693,7 +697,7 @@ def processStaticDetections(survey):
 
     return True
 
-def removeHumans(task):
+def removeHumans(task_id):
     '''Marks clusters from specified as containing humans if the majority of their detections are classified as non-animal by MegaDetector.'''
 
     admin = db.session.query(User).filter(User.username == 'Admin').first()
@@ -706,7 +710,7 @@ def removeHumans(task):
                                   .filter(Detection.static==False)\
                                   .filter(~Detection.status.in_(['deleted','hidden']))\
                                   .filter(~Cluster.labels.any())\
-                                  .filter(Cluster.task_id==task.id)\
+                                  .filter(Cluster.task_id==task_id)\
                                   .group_by(Cluster)
 
     clusters_to_label=[cluster_id for total_dets,non_animal_dets,cluster_id in results if (non_animal_dets/total_dets>0.5)]
@@ -717,7 +721,7 @@ def removeHumans(task):
             cluster.user_id = admin.id
             cluster.timestamp = datetime.utcnow()
 
-            labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task.id).all()
+            labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
             for labelgroup in labelgroups:
                 labelgroup.labels = [human_label]
         db.session.commit()
@@ -908,6 +912,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
         # Fetch the results
         print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
         counter = 0
+        db.session.remove()
         GLOBALS.lock.acquire()
         with allow_join_result():
             for images, result in GLOBALS.results_queue:
@@ -1094,6 +1099,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
         print('{} results to fetch'.format(len(GLOBALS.results_queue)))
 
         counter = 0
+        db.session.remove()
         GLOBALS.lock.acquire()
         with allow_join_result():
             for result in GLOBALS.results_queue:
@@ -1319,6 +1325,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                     #     survey.processing_initialised = False
                     #     localsession.commit()
                     #     result = results.pop(0)
+                    #     db.session.remove()
                     #     with allow_join_result():
                     #         try:
                     #             result.get()
@@ -1337,7 +1344,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
 
     survey.processing_initialised = False
     localsession.commit()
-    localsession.close()
+    localsession.remove()
     
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
@@ -1443,6 +1450,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
 
     survey.processing_initialised = False
     localsession.commit()
+    localsession.remove()
     
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
@@ -1460,8 +1468,6 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
-
-    localsession.close()
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     remove_duplicate_images(survey_id)
@@ -1632,6 +1638,7 @@ def updateSurveyDetectionRatings(survey_id):
         results.append(updateTrapgroupDetectionRatings.apply_async(kwargs={'trapgroup_id':trapgroup.id},queue='parallel'))
     
     #Wait for processing to complete
+    db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -1689,6 +1696,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
     # Wait for processing to finish
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
     # See https://github.com/celery/celery/issues/4480
+    db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -1721,6 +1729,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
 
     #Update cluster classifications
     results = []
+    survey = db.session.query(Survey).get(survey_id)
     for task in survey.tasks:
         for trapgroup in survey.trapgroups:
             results.append(classifyTrapgroup.apply_async(kwargs={'task_id':task.id,'trapgroup_id':trapgroup.id},queue='parallel'))
@@ -1728,6 +1737,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
     # Wait for processing to finish
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
     # See https://github.com/celery/celery/issues/4480
+    db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -1742,6 +1752,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
             result.forget()
     GLOBALS.lock.release()
 
+    survey = db.session.query(Survey).get(survey_id)
     survey.classifier_version = Config.LATEST_CLASSIFIER
     db.session.commit()
     return True
@@ -2321,26 +2332,29 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
                 reclusterAfterTimestampChange(survey_id)
                 skip = True
         if not skip:
-            task=cluster_survey(survey_id)
-            task_id=task.id
+            task_id=cluster_survey(survey_id)
+            survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Static Detections'
         db.session.commit()
         processStaticDetections(survey)
+        survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Humans'
         db.session.commit()
-        removeHumans(task)
+        removeHumans(task_id)
         survey.status='Importing Coordinates'
         db.session.commit()
         importKML(survey.id)
         survey.status='Classifying'
         db.session.commit()
         classifySurvey(survey_id=survey_id,sourceBucket=destBucket)
+        survey = db.session.query(Survey).get(survey_id)
         survey.status='Re-Clustering'
         db.session.commit()
         recluster_large_clusters(task_id,True)
         survey.status='Calculating Scores'
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
+        survey = db.session.query(Survey).get(survey_id)
 
         if addingImages:
             for task in survey.tasks:
@@ -2493,7 +2507,6 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             #import from S3 folder
             import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,admin.id,True,min_area,exclusions,4)
 
-
         # Cluster survey
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey.status = 'Clustering'
@@ -2506,6 +2519,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             task = Task(name='default', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
         db.session.add(task)
         db.session.commit()
+        task_id=task.id
 
         results = []
         for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
@@ -2514,6 +2528,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         # Wait for processing to finish
         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
         # See https://github.com/celery/celery/issues/4480
+        db.session.remove()
         GLOBALS.lock.acquire()
         with allow_join_result():
             for result in results:
@@ -2537,7 +2552,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             # Create labels
             translations = {}
             for species in df['species'].unique():
-                label = Label(description=species,hotkey=None,parent_id=None,task_id=task.id,complete=True)
+                label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
                 db.session.add(label)
                 db.session.commit()
                 translations[species] = label.id
@@ -2555,6 +2570,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             # Wait for processing to finish
             # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
             # See https://github.com/celery/celery/issues/4480
+            db.session.remove()
             GLOBALS.lock.acquire()
             with allow_join_result():
                 for result in results:

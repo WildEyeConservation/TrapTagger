@@ -648,8 +648,8 @@ def reclusterAfterTimestampChange(survey_id):
         delete_task(defaultTask.id)
 
     # create new default task
-    task = cluster_survey(survey_id,'default')
-    recluster_large_clusters(task.id,True)
+    task_id = cluster_survey(survey_id,'default')
+    recluster_large_clusters(task_id,True)
     db.session.commit()
     defaultTask = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='default').first()
     pool = Pool(processes=4)
@@ -948,6 +948,7 @@ def re_classify_survey(self,survey_id):
 
         classifySurvey(survey_id=survey_id,sourceBucket=survey.user.bucket)
 
+        survey = db.session.query(Survey).get(survey_id)
         survey.images_processing = 0
         db.session.commit()
 

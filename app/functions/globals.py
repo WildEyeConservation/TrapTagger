@@ -290,8 +290,16 @@ def importMonitor():
             required_capacity = 3*(default_req + parallel_req)
             current_capacity = scaleDbCapacity(required_capacity)
 
+            # Get time since last db scaling request
+            aurora_request_count = redisClient.get('aurora_request_count')
+            if not aurora_request_count:
+                aurora_request_count = 0
+            else:
+                aurora_request_count = int(aurora_request_count.decode())
+
             # Launch Instances
-            if current_capacity >= required_capacity:
+            if (current_capacity >= required_capacity) or (aurora_request_count >= 2):
+                redisClient.set('aurora_request_count',0)
                 for queue in queues:
                     max_allowed = Config.QUEUES[queue]['max_instances']-instances[queue]
                     if instances_required[queue] > max_allowed: instances_required[queue]=max_allowed
@@ -1960,6 +1968,16 @@ def scaleDbCapacity(required_capacity):
 
                 # Record the request time
                 redisClient.set('last_aurora_request',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+
+                # Increment the request count
+                aurora_request_count = redisClient.get('aurora_request_count')
+                if not aurora_request_count:
+                    aurora_request_count = 0
+                else:
+                    aurora_request_count = int(aurora_request_count.decode())
+                last_aurora_request += 1
+                redisClient.set('last_aurora_request',last_aurora_request)
+
             except:
                 pass
             
