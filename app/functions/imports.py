@@ -1344,7 +1344,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
 
     survey.processing_initialised = False
     localsession.commit()
-    localsession.remove()
+    localsession.close()
     
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
@@ -1450,7 +1450,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
 
     survey.processing_initialised = False
     localsession.commit()
-    localsession.remove()
+    localsession.close()
     
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
