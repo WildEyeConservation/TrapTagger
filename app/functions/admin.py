@@ -1141,7 +1141,7 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
                     if tag not in allTags:
                         allTags.append(tag)
 
-        reply = str(len(allTags)) + ' trapgroups found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+        reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
 
     except Exception as exc:
         app.logger.info(' ')
