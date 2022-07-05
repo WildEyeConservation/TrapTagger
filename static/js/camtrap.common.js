@@ -775,7 +775,7 @@ function updateButtons(mapID = 'map1'){
                 }
             }
         } else {
-            if ((clusterIndex[mapID]==0)||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel))||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel))) {
+            if ((clusterIndex[mapID]==0)||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel.toString()))||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString()))) {
                 prevClusterBtn.classList.add("disabled")
             }else{
                 prevClusterBtn.classList.remove("disabled")
@@ -930,7 +930,7 @@ function prevCluster(mapID = 'map1'){
                         }
                     }
                 } else {
-                    if ((!isTagging)||(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)&&!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel))) {
+                    if ((!isTagging)||(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel.toString())&&!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString()))) {
                         goToPrevCluster(mapID)
                     }
                 }

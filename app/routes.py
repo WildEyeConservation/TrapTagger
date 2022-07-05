@@ -4996,7 +4996,7 @@ def assignLabel(clusterID):
 
                     db.session.commit()
 
-        return json.dumps({'progess': (num, num2), 'reAllocated': reAllocated})
+        return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated})
 
     except:
         return json.dumps('error')
