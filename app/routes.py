@@ -4917,17 +4917,17 @@ def assignLabel(clusterID):
                                 else:
                                     if newLabel.id == GLOBALS.nothing_id:
 
-                                        sq = db.session.query(Cluster) \
-                                            .join(Image, Cluster.images) \
-                                            .join(Detection)
+                                        # sq = db.session.query(Cluster) \
+                                        #     .join(Image, Cluster.images) \
+                                        #     .join(Detection)
 
-                                        sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
+                                        # sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
 
-                                        clusters_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
-                                                                .filter(Detection.score > 0.8) \
-                                                                .filter(Detection.static == False) \
-                                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                                                .distinct().count()
+                                        # clusters_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
+                                        #                         .filter(Detection.score > 0.8) \
+                                        #                         .filter(Detection.static == False) \
+                                        #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        #                         .distinct().count()
 
                                         sq = db.session.query(Trapgroup)\
                                                                 .join(Camera)\
@@ -4937,7 +4937,7 @@ def assignLabel(clusterID):
 
                                         sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
 
-                                        tgs_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
+                                        tgs_available = sq.filter(Cluster.task_id == cluster.task_id) \
                                                                 .filter(Detection.score > 0.8) \
                                                                 .filter(Detection.static == False) \
                                                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -4946,10 +4946,7 @@ def assignLabel(clusterID):
                                                                 .filter(Trapgroup.queueing==False)\
                                                                 .distinct().count()
 
-                                        if (clusters_remaining<=200) or (tgs_remaining<=0):
-                                            # Prevent user being bounced around
-                                            pass
-                                        else:
+                                        if (tgs_available>=1):
                                             reAllocated = True
                                             trapgroup = cluster.images[0].camera.trapgroup
                                             trapgroup.processing = True
