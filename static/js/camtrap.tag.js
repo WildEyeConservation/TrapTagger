@@ -238,7 +238,7 @@ function knockdown(mapID = 'map1'){
         clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [downLabel];
 
         if (batchComplete) {
-            window.location.replace("done")
+            redirectToDone()
         }
 
         clusterIndex[mapID] += 1

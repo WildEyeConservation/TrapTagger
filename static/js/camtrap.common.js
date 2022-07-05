@@ -2045,6 +2045,9 @@ function submitLabels(mapID = 'map1') {
     }
     xhttp.open("POST", '/assignLabel/'+clusterID, true);
     xhttp.send(formData);
+    if (batchComplete&&nothingStatus) {
+        redirectToDone()
+    }
 }
 
 function initKeys(res){
