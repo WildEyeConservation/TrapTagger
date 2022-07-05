@@ -775,7 +775,7 @@ function updateButtons(mapID = 'map1'){
                 }
             }
         } else {
-            if ((clusterIndex[mapID]==0)||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel.toString()))||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString()))) {
+            if ((clusterIndex[mapID]==0)||(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),nothingLabel,nothingLabel.toString()].includes(r)))) {
                 prevClusterBtn.classList.add("disabled")
             }else{
                 prevClusterBtn.classList.remove("disabled")
@@ -930,7 +930,7 @@ function prevCluster(mapID = 'map1'){
                         }
                     }
                 } else {
-                    if ((!isTagging)||(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel.toString())&&!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString()))) {
+                    if ((!isTagging)||(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),nothingLabel,nothingLabel.toString()].includes(r)))) {
                         goToPrevCluster(mapID)
                     }
                 }
@@ -2032,7 +2032,7 @@ function submitLabels(mapID = 'map1') {
                             if (reply.reAllocated=='true') {
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
-                            } else if (reply.reAllocated=='false') {
+                            } else {
                                 nextCluster(mapID)
                             } 
                         }               
