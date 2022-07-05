@@ -4843,12 +4843,14 @@ def assignLabel(clusterID):
 
     try:
         labels = ast.literal_eval(request.form['labels'])
+        reAllocated = False
 
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
         turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
         task = turkcode.task
         num2 = task.size + task.test_size
         cluster = db.session.query(Cluster).get(int(clusterID))
+        isBounding = task.is_bounding
 
         if 'taggingLevel' in request.form:
             taggingLevel = str(request.form['taggingLevel'])
@@ -4878,6 +4880,7 @@ def assignLabel(clusterID):
                             labels.remove(GLOBALS.nothing_id)
 
                         if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and (str(GLOBALS.nothing_id) not in labels):
+                            reAllocated = True
                             trapgroup = cluster.images[0].camera.trapgroup
                             trapgroup.processing = True
                             trapgroup.active = False
@@ -4913,13 +4916,48 @@ def assignLabel(clusterID):
                                 
                                 else:
                                     if newLabel.id == GLOBALS.nothing_id:
-                                        trapgroup = cluster.images[0].camera.trapgroup
-                                        trapgroup.processing = True
-                                        trapgroup.active = False
-                                        trapgroup.user_id = None
-                                        current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                                        db.session.commit()
-                                        removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
+
+                                        sq = db.session.query(Cluster) \
+                                            .join(Image, Cluster.images) \
+                                            .join(Detection)
+
+                                        sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
+
+                                        clusters_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
+                                                                .filter(Detection.score > 0.8) \
+                                                                .filter(Detection.static == False) \
+                                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                                                .distinct().count()
+
+                                        sq = db.session.query(Trapgroup)\
+                                                                .join(Camera)\
+                                                                .join(Image)\
+                                                                .join(Detection)\
+                                                                .join(Cluster,Image.clusters)
+
+                                        sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
+
+                                        tgs_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
+                                                                .filter(Detection.score > 0.8) \
+                                                                .filter(Detection.static == False) \
+                                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                                                .filter(Trapgroup.user_id==None)\
+                                                                .filter(Trapgroup.processing==False)\
+                                                                .filter(Trapgroup.queueing==False)\
+                                                                .distinct().count()
+
+                                        if (clusters_remaining<=200) or (tgs_remaining<=0):
+                                            # Prevent user being bounced around
+                                            pass
+                                        else:
+                                            reAllocated = True
+                                            trapgroup = cluster.images[0].camera.trapgroup
+                                            trapgroup.processing = True
+                                            trapgroup.active = False
+                                            trapgroup.user_id = None
+                                            current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+                                            db.session.commit()
+                                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
 
                                     if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
                                         newLabels.append(newLabel)
@@ -4961,7 +4999,7 @@ def assignLabel(clusterID):
 
                     db.session.commit()
 
-        return json.dumps((num, num2))
+        return json.dumps({'progess': (num, num2), 'reAllocated': reAllocated})
 
     except:
         return json.dumps('error')

@@ -1572,7 +1572,10 @@ function assignLabel(label,mapID = 'map1'){
                                     if (isClassCheck) {
                                         suggestionBack()
                                     }
-                                    nextCluster(mapID)
+                                    if (!clusterLabels[mapID].includes(nothingLabel)) {
+                                        // nothings need to wait to see if they ae ediected first
+                                        nextCluster(mapID)
+                                    }
                                 }
                             }
                         }
@@ -1990,7 +1993,10 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
-                    nextCluster(mapID)
+                    if (!clusterLabels[mapID].includes(nothingLabel)) {
+                        // nothings need to wait to see if they ae ediected first
+                        nextCluster(mapID)
+                    }
                 }
             }
         }
@@ -2005,26 +2011,49 @@ function submitLabels(mapID = 'map1') {
         formData.append("taggingLevel", '-2')
     }
     console.log(clusterLabels[mapID])
+    nothingStatus = false
     if (clusterLabels[mapID].includes(nothingLabel)) {
         // reallocate on nothing
-        clusterRequests[mapID] = [];
-        clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+        nothingStatus = true
     }
     clusterID = clusters[mapID][clusterIndex[mapID]].id
     var xhttp = new XMLHttpRequest();
     if (isTagging) { 
-        xhttp.onreadystatechange =
-            function () {
+        xhttp.onreadystatechange = function(wrapNothingStatus) {
+            return function() {
                 if (this.readyState == 4 && this.status == 278) {
                     window.location.replace(JSON.parse(this.responseText)['redirect'])
-                } else if (this.readyState == 4 && this.status == 200) {                    
-                    Progress = JSON.parse(this.responseText);
-                    updateProgBar(Progress)
+                } else if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    if (reply!='error') {
+                        if (wrapNothingStatus) {
+                            if (reply.reAllocated=='true') {
+                                clusterRequests[mapID] = [];
+                                clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+                            } else if (reply.reAllocated=='false') {
+                                nextCluster(mapID)
+                            } 
+                        }               
+                        Progress = reply.progress
+                        updateProgBar(Progress)
+                    }
                 }
             }
+        }(nothingStatus)
     }
     xhttp.open("POST", '/assignLabel/'+clusterID, true);
     xhttp.send(formData);
+
+
+    clusterPositionSplide[mapID].on( 'click', function(wrapMapID,wrapTrack) {
+        return function() {
+            imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
+            clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
+            update(wrapMapID)
+        }
+    }(mapID,track));
+
+
 }
 
 function initKeys(res){
