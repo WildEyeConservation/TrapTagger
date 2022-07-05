@@ -2045,17 +2045,6 @@ function submitLabels(mapID = 'map1') {
     }
     xhttp.open("POST", '/assignLabel/'+clusterID, true);
     xhttp.send(formData);
-
-
-    clusterPositionSplide[mapID].on( 'click', function(wrapMapID,wrapTrack) {
-        return function() {
-            imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
-            clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
-            update(wrapMapID)
-        }
-    }(mapID,track));
-
-
 }
 
 function initKeys(res){
