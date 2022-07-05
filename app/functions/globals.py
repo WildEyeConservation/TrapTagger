@@ -1975,8 +1975,8 @@ def scaleDbCapacity(required_capacity):
                     aurora_request_count = 0
                 else:
                     aurora_request_count = int(aurora_request_count.decode())
-                last_aurora_request += 1
-                redisClient.set('last_aurora_request',last_aurora_request)
+                aurora_request_count += 1
+                redisClient.set('aurora_request_count',aurora_request_count)
 
             except:
                 pass
