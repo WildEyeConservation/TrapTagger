@@ -19,7 +19,7 @@ from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask
 import GLOBALS
-from sqlalchemy.sql import func, or_
+from sqlalchemy.sql import func, or_, distinct
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 import re
@@ -252,7 +252,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
     
     downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
-    subq = db.session.query(Cluster.id.label('clusterID'),func.count(Image.id).label('imCount'))\
+    subq = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
                 .join(Image,Cluster.images)\
                 .filter(Cluster.task_id==task_id)\
                 .group_by(Cluster.id)\
@@ -676,7 +676,7 @@ def processStaticDetections(survey):
     db.session.commit()
 
     results = []
-    for camera_id, imcount in db.session.query(Image.camera_id, func.count(Image.id)).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey.id).group_by(Image.camera_id):
+    for camera_id, imcount in db.session.query(Image.camera_id, func.count(distinct(Image.id))).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey.id).group_by(Image.camera_id):
         results.append(processCameraStaticDetections.apply_async(kwargs={'camera_id':camera_id,'imcount':imcount},queue='parallel'))
     
     #Wait for processing to complete
@@ -1198,7 +1198,7 @@ def remove_duplicate_images(survey_id):
     survey.status = 'Removing Duplicate Images'
     db.session.commit()
 
-    sq = db.session.query(Image.hash.label('hash'),func.count(Image.id).label('count'))\
+    sq = db.session.query(Image.hash.label('hash'),func.count(distinct(Image.id)).label('count'))\
                     .join(Camera)\
                     .join(Trapgroup)\
                     .filter(Trapgroup.survey_id==survey_id)\
@@ -2178,7 +2178,7 @@ def correct_timestamps(survey_id,setup_time=31):
                         limit1 = 5
                         limit2 = math.floor(length2/length1)*5
                 
-                imCount = db.session.query(Cluster.id.label('clusterID'),func.count(Image.id).label('count')).join(Image,Cluster.images).filter(Cluster.task_id==task_id).group_by(Cluster.id).subquery()
+                imCount = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('count')).join(Image,Cluster.images).filter(Cluster.task_id==task_id).group_by(Cluster.id).subquery()
                 clusters1 = db.session.query(Cluster)\
                                     .join(Image,Cluster.images)\
                                     .join(imCount,imCount.c.clusterID==Cluster.id)\

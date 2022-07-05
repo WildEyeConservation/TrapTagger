@@ -219,7 +219,7 @@ def launchTask(self,task_id):
                     calculate_detection_similarities.delay(task_id=task_id,label_id=label.id,algorithm='none')
 
                 if tL[3] == 'a':
-                    sq = db.session.query(Cluster.id.label('clusterID'),Detection.id.label('detID'),func.count(Detection.id).label('detCount'),func.count(Image.id).label('imCount'))\
+                    sq = db.session.query(Cluster.id.label('clusterID'),Detection.id.label('detID'),func.count(distinct(Detection.id)).label('detCount'),func.count(distinct(Image.id)).label('imCount'))\
                                         .join(Image,Cluster.images)\
                                         .join(Detection)\
                                         .join(Labelgroup)\
@@ -362,7 +362,7 @@ def launchTask(self,task_id):
                 label = db.session.query(Label).get(int(tL[1]))
                 OtherIndividual = alias(Individual)
 
-                sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+                sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -376,7 +376,7 @@ def launchTask(self,task_id):
                                 .group_by(Individual.id)\
                                 .subquery()
 
-                sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+                sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -540,7 +540,7 @@ def manageTasks():
                 label = db.session.query(Label).get(int(tL[1]))
                 OtherIndividual = alias(Individual)
 
-                sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+                sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -554,7 +554,7 @@ def manageTasks():
                                 .group_by(Individual.id)\
                                 .subquery()
 
-                sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+                sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -600,7 +600,7 @@ def manageTasks():
             if '-5' in taggingLevel:
                 OtherIndividual = alias(Individual)
 
-                sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+                sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -614,7 +614,7 @@ def manageTasks():
                                 .group_by(Individual.id)\
                                 .subquery()
 
-                sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+                sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -752,7 +752,7 @@ def manageTasks():
                         label = db.session.query(Label).get(int(tL[1]))
                         OtherIndividual = alias(Individual)
 
-                        sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+                        sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                         .filter(OtherIndividual.c.active==True)\
@@ -766,7 +766,7 @@ def manageTasks():
                                         .group_by(Individual.id)\
                                         .subquery()
 
-                        sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+                        sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                         .filter(OtherIndividual.c.active==True)\
@@ -894,7 +894,7 @@ def allocate_new_trapgroup(task_id,user_id):
         label = db.session.query(Label).get(int(tL[1]))
         OtherIndividual = alias(Individual)
 
-        sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+        sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
@@ -908,7 +908,7 @@ def allocate_new_trapgroup(task_id,user_id):
                         .group_by(Individual.id)\
                         .subquery()
 
-        sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+        sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
@@ -922,7 +922,7 @@ def allocate_new_trapgroup(task_id,user_id):
                         .group_by(Individual.id)\
                         .subquery()
 
-        sq3 = db.session.query(Individual.id.label('indID3'),func.count(Detection.id).label('count3'))\
+        sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
                         .join(Detection,Individual.detections)\
                         .filter(Individual.task_id==task_id)\
                         .filter(Individual.label_id==label.id)\
@@ -994,7 +994,7 @@ def allocate_new_trapgroup(task_id,user_id):
         #Check that a non-empty trapgroup hasn't been deactivated
         if '-5' in taggingLevel:
 
-            sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+            sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
@@ -1008,7 +1008,7 @@ def allocate_new_trapgroup(task_id,user_id):
                             .group_by(Individual.id)\
                             .subquery()
 
-            sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+            sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
@@ -1071,7 +1071,7 @@ def allocate_new_trapgroup(task_id,user_id):
             #Try again
             if '-5' in taggingLevel:
 
-                sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+                sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -1085,7 +1085,7 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .group_by(Individual.id)\
                                 .subquery()
 
-                sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+                sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
@@ -1099,7 +1099,7 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .group_by(Individual.id)\
                                 .subquery()
 
-                sq3 = db.session.query(Individual.id.label('indID3'),func.count(Detection.id).label('count3'))\
+                sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
                                 .join(Detection,Individual.detections)\
                                 .filter(Individual.task_id==task_id)\
                                 .filter(Individual.label_id==label.id)\
@@ -1189,7 +1189,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
         label_id = int(tL[1])
         OtherIndividual = alias(Individual)
 
-        sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+        sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
@@ -1203,7 +1203,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .group_by(Individual.id)\
                         .subquery()
 
-        sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+        sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
@@ -1217,7 +1217,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .group_by(Individual.id)\
                         .subquery()
 
-        sq3 = db.session.query(Individual.id.label('indID3'),func.count(Detection.id).label('count3'))\
+        sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
                         .join(Detection,Individual.detections)\
                         .filter(Individual.task_id==task_id)\
                         .filter(Individual.label_id==label_id)\

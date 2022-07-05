@@ -32,7 +32,7 @@ from app.forms import LoginForm, NewSurveyForm, EnquiryForm, ResetPasswordForm, 
 from werkzeug.urls import url_parse
 from app.forms import RegistrationForm
 import time
-from sqlalchemy.sql import func, or_, alias, and_
+from sqlalchemy.sql import func, or_, alias, and_, distinct
 from sqlalchemy import desc, extract
 from datetime import datetime, timedelta
 import re
@@ -293,7 +293,7 @@ def updateTaskProgressBar(tskd):
             label = db.session.query(Label).get(int(tL[1]))
             OtherIndividual = alias(Individual)
 
-            sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+            sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
@@ -307,7 +307,7 @@ def updateTaskProgressBar(tskd):
                             .group_by(Individual.id)\
                             .subquery()
 
-            sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+            sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
@@ -688,7 +688,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
     elif task_type=='differentiation':
         disabled = 'true'
 
-        subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(labelstable.c.label_id).label('labelCount')) \
+        subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
                         .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
                         .filter(Cluster.task_id==task_id) \
                         .group_by(labelstable.c.cluster_id) \
@@ -942,7 +942,7 @@ def checkSightingEditStatus(task_id, species):
     message = ''
 
     if task and task.survey.user==current_user:
-        subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(labelstable.c.label_id).label('labelCount')) \
+        subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
                         .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
                         .filter(Cluster.task_id==task_id) \
                         .group_by(labelstable.c.cluster_id) \

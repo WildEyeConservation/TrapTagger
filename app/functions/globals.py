@@ -23,7 +23,7 @@ import json
 from flask import render_template
 import time
 import threading
-from sqlalchemy.sql import func, or_, alias
+from sqlalchemy.sql import func, or_, alias, distinct
 from sqlalchemy import desc
 import random
 import string
@@ -991,7 +991,7 @@ def classifyTask(task_id,reClusters = None):
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .subquery()
 
-        totalDetSQ = db.session.query(Cluster.id.label('clusID'), func.count(Detection.id).label('detCountTotal')) \
+        totalDetSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCountTotal')) \
                                 .join(Image, Cluster.images) \
                                 .join(Detection) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
@@ -1021,7 +1021,7 @@ def classifyTask(task_id,reClusters = None):
         for label_id in parentGroupings:
             species = db.session.query(Label).get(int(label_id))
 
-            detCountSQ = db.session.query(Cluster.id.label('clusID'), func.count(Detection.id).label('detCount')) \
+            detCountSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCount')) \
                                 .join(Image, Cluster.images) \
                                 .join(Detection) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
@@ -1305,7 +1305,7 @@ def checkForIdWork(task_id,label,theshold):
     OtherIndividual = alias(Individual)
     if theshold=='-1': theshold=Config.SIMILARITY_SCORE
 
-    sq1 = db.session.query(Individual.id.label('indID1'),func.count(IndSimilarity.id).label('count1'))\
+    sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                     .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                     .filter(OtherIndividual.c.active==True)\
@@ -1318,7 +1318,7 @@ def checkForIdWork(task_id,label,theshold):
                     .group_by(Individual.id)\
                     .subquery()
 
-    sq2 = db.session.query(Individual.id.label('indID2'),func.count(IndSimilarity.id).label('count2'))\
+    sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
                     .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                     .filter(OtherIndividual.c.active==True)\
@@ -1672,7 +1672,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
     if (taggingLevel == '-1') or (taggingLevel == '0'):
         # Initial-level tagging
         if isBounding:
-            subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(labelstable.c.label_id).label('labelCount')) \
+            subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
                             .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
                             .filter(Cluster.task_id==task_id) \
                             .group_by(labelstable.c.cluster_id) \
