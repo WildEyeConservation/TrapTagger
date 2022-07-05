@@ -930,7 +930,7 @@ function prevCluster(mapID = 'map1'){
                         }
                     }
                 } else {
-                    if (!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)&&!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel)) {
+                    if ((!isTagging)||(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)&&!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel))) {
                         goToPrevCluster(mapID)
                     }
                 }
