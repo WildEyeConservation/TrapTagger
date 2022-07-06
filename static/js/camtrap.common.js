@@ -1574,7 +1574,7 @@ function assignLabel(label,mapID = 'map1'){
                                     if (isClassCheck) {
                                         suggestionBack()
                                     }
-                                    if (!clusterLabels[mapID].includes(nothingLabel)) {
+                                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString())) {
                                         // nothings need to wait to see if they ae ediected first
                                         nextCluster(mapID)
                                     }
@@ -1995,7 +1995,7 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
-                    if (!clusterLabels[mapID].includes(nothingLabel)) {
+                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString())) {
                         // nothings need to wait to see if they ae ediected first
                         nextCluster(mapID)
                     }
