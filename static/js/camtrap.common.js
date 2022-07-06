@@ -2012,6 +2012,11 @@ function submitLabels(mapID = 'map1') {
     if (clusterLabels[mapID].includes(nothingLabel.toString())) {
         // reallocate on nothing
         nothingStatus = true
+        if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
+            waitModalID = clusters[mapID][clusterIndex[mapID]]
+            modalWait2Hide = false
+            modalWait2.modal({backdrop: 'static', keyboard: false});
+        }
     }
     clusterID = clusters[mapID][clusterIndex[mapID]].id
     var xhttp = new XMLHttpRequest();
@@ -2024,12 +2029,16 @@ function submitLabels(mapID = 'map1') {
                     reply = JSON.parse(this.responseText);
                     if (reply!='error') {
                         if (wrapNothingStatus) {
-                            if (reply.reAllocated=='true') {
+                            if (reply.reAllocated==true) {
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
                             } else {
                                 nextCluster(mapID)
-                            } 
+                            }
+                            if (modalWait2.is(':visible')) {
+                                modalWait2Hide = true
+                                modalWait2.modal('hide');
+                            }
                         }               
                         Progress = reply.progress
                         updateProgBar(Progress)
