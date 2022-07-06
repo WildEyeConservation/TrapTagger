@@ -2014,7 +2014,7 @@ function submitLabels(mapID = 'map1') {
     }
     console.log(clusterLabels[mapID])
     nothingStatus = false
-    if (clusterLabels[mapID].includes(nothingLabel)) {
+    if (clusterLabels[mapID].includes(nothingLabel.toString())) {
         // reallocate on nothing
         nothingStatus = true
     }
