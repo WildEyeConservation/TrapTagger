@@ -2032,13 +2032,12 @@ function submitLabels(mapID = 'map1') {
                             if (reply.reAllocated==true) {
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
-                            } else {
-                                nextCluster(mapID)
                             }
                             if (modalWait2.is(':visible')) {
                                 modalWait2Hide = true
                                 modalWait2.modal('hide');
                             }
+                            nextCluster(mapID)
                         }               
                         Progress = reply.progress
                         updateProgBar(Progress)
