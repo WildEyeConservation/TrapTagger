@@ -56,12 +56,12 @@ class Config(object):
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
-    CPU_INSTANCE_TYPES = ['t2.xlarge', 't3a.xlarge']
+    CPU_INSTANCE_TYPES = ['t2.medium', 't3a.medium']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
-        'parallel':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'default':         {'t2.xlarge': 1000, 't3a.xlarge': 1000}  #estimated
+        'parallel':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
+        'default':         {'t2.medium': 1000, 't3a.medium': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     SUBNET_ID = os.environ.get('SUBNET_ID')
