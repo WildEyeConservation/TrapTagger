@@ -555,7 +555,11 @@ function updateCanvas(mapID = 'map1') {
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
-            prevCluster(mapID)
+            if (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString())) {
+                redirectToDone()
+            } else {
+                prevCluster(mapID)
+            }
     
         } else if ((clusters[mapID][clusterIndex[mapID]].images.length == 0)||(clusters[mapID][clusterIndex[mapID]].id=='-99')||(clusters[mapID][clusterIndex[mapID]].id=='-782')) {
     
@@ -1466,15 +1470,6 @@ function assignLabel(label,mapID = 'map1'){
                                 }
                             } else {
                                 labelName = names[idx]
-                            }
-
-                            if ((label==nothingLabel)&&(!isTutorial)) {
-                                // reallocate on undo nothing
-                                clusterRequests[mapID] = [];
-                                clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
-                                clusters[mapID][clusterIndex[mapID]][ITEMS] = []
-                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
-                                clusterLabels[mapID] = []
                             }
 
                             if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(labelName)) {
