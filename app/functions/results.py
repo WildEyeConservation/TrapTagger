@@ -370,7 +370,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
         covered_images = df['image_id'].unique()
         covered_images = [int(r) for r in covered_images]
-        missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images)).all()
+        missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images))
+        if len(exclude) != 0:
+            exclude_images = db.session.query(Image).join(Cluster,Image.clusters).join(Label,Cluster.labels).filter(Cluster.task_id==task_id).filter(Label.id.in_(exclude)).distinct().all()
+            missing_images = missing_images.filter(~Image.id.in_([r.id for r in exclude_images]))
+        missing_images = missing_images.distinct().all()
         missing_images = [r.id for r in missing_images]
 
         if len(missing_images) != 0:
