@@ -2079,13 +2079,17 @@ function iterateLabels(labels,headings,init=false) {
         function(wrapTableRow){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if (modalStatus.is(':visible')) {
-                        buildStatusRow(reply,wrapTableRow,headings)
-                        detailledStatusCount -= 1
-                        if (detailledStatusCount<=0) {
-                            document.getElementById('detailledStatusPleaseWait').remove()
+                    reply = JSON.parse(this.responseText); 
+                    if (reply.status=='success') {
+                        if (modalStatus.is(':visible')) {
+                            buildStatusRow(reply,wrapTableRow,headings)
+                            detailledStatusCount -= 1
+                            if (detailledStatusCount<=0) {
+                                document.getElementById('detailledStatusPleaseWait').remove()
+                            }
                         }
+                    } else {
+                        document.getElementById('detailledStatusPleaseWait').innerHTML = reply.message
                     }
                 }
             }
@@ -2188,11 +2192,15 @@ modalStatus.on('shown.bs.modal', function(){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-                    hierarchicalLabels = reply.labels
-                    headings = reply.headings
-                    if (modalStatus.is(':visible')&&(selectedTask==wrapSelectedTask)) {
-                        detailledStatusCount = 0
-                        buildStatusTable(hierarchicalLabels,headings)
+                    if (reply.status=='success') {
+                        hierarchicalLabels = reply.labels
+                        headings = reply.headings
+                        if (modalStatus.is(':visible')&&(selectedTask==wrapSelectedTask)) {
+                            detailledStatusCount = 0
+                            buildStatusTable(hierarchicalLabels,headings)
+                        }
+                    } else {
+                        document.getElementById('detailledStatusPleaseWait').innerHTML = reply.message
                     }
                 }
             }

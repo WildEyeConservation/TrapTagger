@@ -1728,7 +1728,7 @@ def getDetailedTaskStatus(task_id):
     label_id = request.args.get('label', None)
     
     reply = {}
-    if (task!=None) and (task.survey.user_id==current_user.id):
+    if (task!=None) and (task.survey.user_id==current_user.id) and (task.survey.image_count<=200000):
 
         headings = {
             'Summary': [
@@ -1768,11 +1768,12 @@ def getDetailedTaskStatus(task_id):
                 childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
                 labels[label.id] = addChildToDict(childLabels,{},task_id,True,False)
 
-            reply = {'labels':labels,'headings':headings}
+            reply = {'status':'success','labels':labels,'headings':headings}
 
         if label_id:
             admin=db.session.query(User).filter(User.username=='Admin').first()
             label = db.session.query(Label).get(int(label_id))
+            reply['status'] = 'success'
             reply['label'] = label.description
             reply['Summary'] = {}
             reply['Species Annotation'] = {}
@@ -1956,6 +1957,8 @@ def getDetailedTaskStatus(task_id):
                 reply['Sighting Correction']['Checked Sightings'] = '-'
                 reply['Individual ID']['Cluster-Level'] = '-'
                 reply['Individual ID']['Inter-Cluster'] = '-'
+    else:
+        reply = {'status':'error','message':'Your survey is too large for this functionality.'}
 
     return json.dumps(reply)
 
