@@ -324,6 +324,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Image.timestamp.label('original_timestamp'), \
                 Detection.id.label('detection'), \
                 Individual.name.label('individual'), \
+                Individual.active.label('individual_active'), \
+                Individual.task_id.label('individual_task_id'), \
                 Cluster.notes.label('notes'), \
                 Cluster.id.label('cluster'), \
                 Label.description.label('label'), \
@@ -351,7 +353,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Labelgroup.task_id==task_id) \
                 .filter(Detection.static==False) \
                 .filter(Detection.score>0.8) \
-                .filter(Individual.active==True) \
                 .filter(~Detection.status.in_(['deleted','hidden']))
 
     if len(include) != 0:
@@ -411,6 +412,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Remove nulls
     df.fillna('None', inplace=True)
+
+    #Remove inactive individuals and those from other tasks
+    df = df[(df['individual']=='None') | ((df['individual']!='None') & (df['individual_task_id']==task_id) & (df['individual_active']==True))]
 
     #Replace nothings
     df['label'] = df['label'].replace({'Nothing': 'None'}, regex=True)

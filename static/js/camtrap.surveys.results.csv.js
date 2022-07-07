@@ -374,7 +374,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                 levelSelection='trapgroup'
             }
 
-            if (['Name','ID'].includes(dataSelection)) {
+            if (['Name','ID'].includes(dataSelection)&&(levelSelection!='capture')) {
                 dataSelection = levelSelection
             }
 
