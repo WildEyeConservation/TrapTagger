@@ -339,6 +339,28 @@ btnCsvGenerate.addEventListener('click', ()=>{
     modalCSVGenerate.modal({keyboard: true});
 });
 
+function translateCsvInfo(levelSelection,dataSelection) {
+    /** Translates from new naming conevtions to old */
+
+    if (levelSelection=='site') {
+        levelSelection='trapgroup'
+    }
+
+    if (['Name','ID'].includes(dataSelection)&&(levelSelection!='capture')) {
+        dataSelection = levelSelection
+    }
+
+    if (dataSelection=='Description') {
+        dataSelection = 'Survey Description'
+    }
+
+    if ((levelSelection=='capture')&&(dataSelection=='Number')) {
+        dataSelection = 'Capture'
+    }
+
+    return {'levelSelection':levelSelection,'dataSelection':dataSelection}
+}
+
 btnCsvDownload.addEventListener('click', ()=>{
     /** Listener on the csv download button. Checks the legality of the csv before packaging the information and sending the request to the server. */
     checkCSV()
@@ -369,22 +391,9 @@ btnCsvDownload.addEventListener('click', ()=>{
                 noEmpties = false
             }
 
-            // Some translations to the naming conventions
-            if (levelSelection=='site') {
-                levelSelection='trapgroup'
-            }
-
-            if (['Name','ID'].includes(dataSelection)&&(levelSelection!='capture')) {
-                dataSelection = levelSelection
-            }
-
-            if (dataSelection=='Description') {
-                dataSelection = 'Survey Description'
-            }
-
-            if ((levelSelection=='capture')&&(dataSelection=='Number')) {
-                dataSelection = 'Capture'
-            }
+            translation = translateCsvInfo(levelSelection,dataSelection)
+            levelSelection = translation['levelSelection']
+            dataSelection = translation['dataSelection']
     
             if (levelSelection == 'custom') {
                 selection = dataSelection
@@ -451,6 +460,10 @@ btnCsvDownload.addEventListener('click', ()=>{
                     custColDataElement = document.getElementById('custColDataElement-'+String(IDNum1)+'-'+String(IDNum2))
                     levelSelection = custColLevelElements[i].options[custColLevelElements[i].selectedIndex].text.toLowerCase()
                     dataSelection = custColDataElement.options[custColDataElement.selectedIndex].text
+
+                    translation = translateCsvInfo(levelSelection,dataSelection)
+                    levelSelection = translation['levelSelection']
+                    dataSelection = translation['dataSelection']
 
                     if (levelSelection=='text') {
                         selection = document.getElementById('ccTextInput-'+String(IDNum1)+'-'+String(IDNum2)+'-'+String(task_id)).value
