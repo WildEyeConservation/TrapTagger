@@ -1728,7 +1728,7 @@ def getDetailedTaskStatus(task_id):
     label_id = request.args.get('label', None)
     
     reply = {}
-    if (task!=None) and (task.survey.user_id==current_user.id) and (task.survey.image_count<=200000):
+    if (task!=None) and (task.survey.user_id==current_user.id) and (task.survey.image_count<=25000):
 
         headings = {
             'Summary': [
@@ -1958,7 +1958,7 @@ def getDetailedTaskStatus(task_id):
                 reply['Individual ID']['Cluster-Level'] = '-'
                 reply['Individual ID']['Inter-Cluster'] = '-'
     else:
-        reply = {'status':'error','message':'Your survey is too large for this functionality.'}
+        reply = {'status':'error','message':'Your survey is too large for this functionality. Please try again after the next update'}
 
     return json.dumps(reply)
 
