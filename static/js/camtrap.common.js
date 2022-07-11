@@ -2249,101 +2249,103 @@ document.onkeyup = function(event){
         idKeys(event.key.toLowerCase())
     } else if (isTagging||isReviewing) {
         // console.log(event)
-        switch (event.key.toLowerCase()){
-            case ('0'):assignLabel(hotkeys[0])
-                break;
-            case ('1'):assignLabel(hotkeys[1])
-                break;
-            case ('2'):assignLabel(hotkeys[2])
-                break;
-            case ('3'):assignLabel(hotkeys[3])
-                break;
-            case ('4'):assignLabel(hotkeys[4])
-                break;
-            case ('5'):assignLabel(hotkeys[5])
-                break;
-            case ('6'):assignLabel(hotkeys[6])
-                break;
-            case ('7'):assignLabel(hotkeys[7])
-                break;
-            case ('8'):assignLabel(hotkeys[8])
-                break;
-            case ('9'):assignLabel(hotkeys[9])
-                break;
-
-            case ('a'):assignLabel(hotkeys[10])
-                break;
-            case ('b'):assignLabel(hotkeys[11])
-                break;
-            case ('c'):assignLabel(hotkeys[12])
-                break;
-            case ('d'):assignLabel(hotkeys[13])
-                break;
-            case ('e'):assignLabel(hotkeys[14])
-                break;
-            case ('f'):assignLabel(hotkeys[15])
-                break;
-            case ('g'):assignLabel(hotkeys[16])
-                break;
-            case ('h'):assignLabel(hotkeys[17])
-                break;
-            case ('i'):assignLabel(hotkeys[18])
-                break;
-            case ('j'):assignLabel(hotkeys[19])
-                break;
-
-            case ('k'):assignLabel(hotkeys[20])
-                break;
-            case ('l'):assignLabel(hotkeys[21])
-                break;
-            case ('m'):assignLabel(hotkeys[22])
-                break;
-            case ('n'):assignLabel(hotkeys[23])
-                break;
-            case ('o'):assignLabel(hotkeys[24])
-                break;
-            case ('p'):assignLabel(hotkeys[25])
-                break;
-            case ('q'):assignLabel(hotkeys[26])
-                break;
-            case ('r'):assignLabel(hotkeys[27])
-                break;
-            case ('s'):assignLabel(hotkeys[28])
-                break;
-            case ('t'):assignLabel(hotkeys[29])
-                break;
-
-            case ('u'):assignLabel(hotkeys[30])
-                break;
-            case ('v'):assignLabel(hotkeys[31])
-                break;
-            case ('w'):assignLabel(hotkeys[32])
-                break;
-            case ('x'):assignLabel(hotkeys[33])
-                break;
-            case ('y'):assignLabel(hotkeys[34])
-                break;
-            case ('z'):assignLabel(hotkeys[35])
-                break;
-
-            case (' '):assignLabel(hotkeys[36])
-                break;
-
-            case 'control': activateMultiple()
-                break;
-
-            case 'enter': Notes()
-                break;
-
-            case '`': 
-            case '~':
-                prevCluster()
-                break;
-
-            case 'arrowright': nextImage()
-                break;
-            case 'arrowleft': prevImage()
-                break;
+        if ((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) {
+            switch (event.key.toLowerCase()){
+                case ('0'):assignLabel(hotkeys[0])
+                    break;
+                case ('1'):assignLabel(hotkeys[1])
+                    break;
+                case ('2'):assignLabel(hotkeys[2])
+                    break;
+                case ('3'):assignLabel(hotkeys[3])
+                    break;
+                case ('4'):assignLabel(hotkeys[4])
+                    break;
+                case ('5'):assignLabel(hotkeys[5])
+                    break;
+                case ('6'):assignLabel(hotkeys[6])
+                    break;
+                case ('7'):assignLabel(hotkeys[7])
+                    break;
+                case ('8'):assignLabel(hotkeys[8])
+                    break;
+                case ('9'):assignLabel(hotkeys[9])
+                    break;
+    
+                case ('a'):assignLabel(hotkeys[10])
+                    break;
+                case ('b'):assignLabel(hotkeys[11])
+                    break;
+                case ('c'):assignLabel(hotkeys[12])
+                    break;
+                case ('d'):assignLabel(hotkeys[13])
+                    break;
+                case ('e'):assignLabel(hotkeys[14])
+                    break;
+                case ('f'):assignLabel(hotkeys[15])
+                    break;
+                case ('g'):assignLabel(hotkeys[16])
+                    break;
+                case ('h'):assignLabel(hotkeys[17])
+                    break;
+                case ('i'):assignLabel(hotkeys[18])
+                    break;
+                case ('j'):assignLabel(hotkeys[19])
+                    break;
+    
+                case ('k'):assignLabel(hotkeys[20])
+                    break;
+                case ('l'):assignLabel(hotkeys[21])
+                    break;
+                case ('m'):assignLabel(hotkeys[22])
+                    break;
+                case ('n'):assignLabel(hotkeys[23])
+                    break;
+                case ('o'):assignLabel(hotkeys[24])
+                    break;
+                case ('p'):assignLabel(hotkeys[25])
+                    break;
+                case ('q'):assignLabel(hotkeys[26])
+                    break;
+                case ('r'):assignLabel(hotkeys[27])
+                    break;
+                case ('s'):assignLabel(hotkeys[28])
+                    break;
+                case ('t'):assignLabel(hotkeys[29])
+                    break;
+    
+                case ('u'):assignLabel(hotkeys[30])
+                    break;
+                case ('v'):assignLabel(hotkeys[31])
+                    break;
+                case ('w'):assignLabel(hotkeys[32])
+                    break;
+                case ('x'):assignLabel(hotkeys[33])
+                    break;
+                case ('y'):assignLabel(hotkeys[34])
+                    break;
+                case ('z'):assignLabel(hotkeys[35])
+                    break;
+    
+                case (' '):assignLabel(hotkeys[36])
+                    break;
+    
+                case 'control': activateMultiple()
+                    break;
+    
+                case 'enter': Notes()
+                    break;
+    
+                case '`': 
+                case '~':
+                    prevCluster()
+                    break;
+    
+                case 'arrowright': nextImage()
+                    break;
+                case 'arrowleft': prevImage()
+                    break;
+            }
         }
     } else if (isKnockdown) {
         switch (event.key.toLowerCase()){
