@@ -5165,6 +5165,15 @@ def acceptClassification(status,cluster_id,additional):
                                                 .filter(Image.clusters.contains(cluster))\
                                                 .filter(Labelgroup.task_id==cluster.task_id)\
                                                 .all()
+
+                        if (len(cluster.labels) > 1) and (additional != 'true'):
+                            additional = 'true'
+                            if translation.label.parent_id != None:
+                                relatives = translation.label.parent.children.copy()
+                                relatives.append(translation.label.parent)
+                                for label in relatives:
+                                    if label in cluster.labels:
+                                        cluster.labels.remove(label)
                                         
                         if additional == 'true':
                             if translation.label not in cluster.labels:
