@@ -44,6 +44,7 @@ import pandas as pd
 import boto3
 import time
 import requests
+import random
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -940,10 +941,10 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                             app.logger.info(' ')
                             db.session.rollback()
                     
-                    # Commit every 1000 images (250 batches) to prevent long locks on the database
-                    # if counter%250==0: db.session.commit()
-                    db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
-                    db.session.commit()
+                    # Commit every 400 images (100 batches) to speed up result fetching
+                    if counter%100==0:
+                        db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
+                        db.session.commit()
                 
                 except Exception:
                     app.logger.info(' ')
@@ -955,6 +956,10 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                 
                 result.forget()
         GLOBALS.lock.release()
+
+        #Commit the last batch
+        db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
+        db.session.commit()
             
         # If we are piplining some training data, we need to save the crops
         if pipeline:
@@ -1314,7 +1319,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                     else:
                         batch_count += len(jpegs) - (n*chunk_size)
 
-                    if (batch_count / (Config.QUEUES['parallel']['bin_size']/2) ) >= 1:
+                    if (batch_count / ((Config.QUEUES['parallel']['bin_size']/4)*random.uniform(0.5, 1.5)) ) >= 1:
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
@@ -1439,7 +1444,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 else:
                     batch_count += number_of_images - (n*chunk_size)
 
-                if (batch_count / (Config.QUEUES['parallel']['bin_size']/2) ) >= 1:
+                if (batch_count / ((Config.QUEUES['parallel']['bin_size']/4)*random.uniform(0.5, 1.5)) ) >= 1:
                     results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area},queue='parallel'))
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
