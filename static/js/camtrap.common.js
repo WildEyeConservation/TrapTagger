@@ -2194,7 +2194,9 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        event.preventDefault()
+        if ((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) {
+            event.preventDefault()
+        }
     }
 }
 
