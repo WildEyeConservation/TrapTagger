@@ -82,11 +82,13 @@ function loadNewCluster(mapID = 'map1') {
     }
 }
 
-function suggestionBack(mapID='map1') {
+function suggestionBack(resetLabels=true,mapID='map1') {
     /** Returns the tagging level back to the correct value for the classification check and intialises the keys. */
-    clusters[mapID][clusterIndex[mapID]][ITEMS] = orginal_labels
-    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = orginal_label_ids
-    updateDebugInfo()
+    if (resetLabels) {
+        clusters[mapID][clusterIndex[mapID]][ITEMS] = orginal_labels
+        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = orginal_label_ids
+        updateDebugInfo()
+    }
     taggingLevel = '-3'
     getKeys()
 }

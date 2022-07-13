@@ -1550,6 +1550,10 @@ function assignLabel(label,mapID = 'map1'){
                                         }
                                     }
 
+                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf('None'), 1);
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf('0'), 1);
+                                    }
                                     clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
                                     clusterLabels[mapID].push(label)
@@ -1575,10 +1579,10 @@ function assignLabel(label,mapID = 'map1'){
     
                                 if (!multipleStatus) {
                                     if (isClassCheck) {
-                                        suggestionBack()
+                                        suggestionBack(false)
                                     }
                                     if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString())) {
-                                        // nothings need to wait to see if they ae ediected first
+                                        // nothings need to wait to see if they are edited first
                                         nextCluster(mapID)
                                     }
                                 }
