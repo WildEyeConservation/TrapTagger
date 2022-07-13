@@ -557,7 +557,7 @@ function updateCanvas(mapID = 'map1') {
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
-            if (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString())) {
+            if ((typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString()))) {
                 redirectToDone()
             } else {
                 prevCluster(mapID)
