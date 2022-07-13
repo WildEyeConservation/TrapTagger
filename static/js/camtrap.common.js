@@ -60,6 +60,8 @@ var ITEMS='label'
 var ITEM_IDS='label_ids'
 var wrongStatus = false
 var tempTaggingLevel=null
+var orginal_labels
+var orginal_label_ids
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -1365,6 +1367,12 @@ function assignLabel(label,mapID = 'map1'){
                 } else if (label == '3') {
                     // other
                     if (divBtns != null) {
+                        orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+                        orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+                        clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                        updateDebugInfo()
+
                         selectBtns = document.getElementById('selectBtns')
                         multipleStatus = false
                 
