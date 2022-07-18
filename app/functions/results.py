@@ -1301,7 +1301,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
             exifData += label.description.encode()
             # IPTCData.append(label.description.encode())
             if label != imageLabels[-1]:
-                xpKeywordData += ', '
+                xpKeywordData += ','
                 exifData += b', '
 
         # EXIF
@@ -1315,7 +1315,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
             exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
             exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
             exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
-            exif_dict['0th'][40094] = tuple([ord(r) for r in xpKeywordData])
+            exif_dict['0th'][40094] = xpKeywordData.encode('utf-16')
             exif_bytes = piexif.dump(exif_dict)
             output=io.BytesIO()
             piexif.insert(exif_bytes,imageData,output) #insert new exif data without opening & re-saving image
