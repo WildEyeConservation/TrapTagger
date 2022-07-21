@@ -1581,7 +1581,7 @@ function assignLabel(label,mapID = 'map1'){
                                     if (isClassCheck) {
                                         suggestionBack(false)
                                     }
-                                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString())) {
+                                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString()) || isTutorial) {
                                         // nothings need to wait to see if they are edited first
                                         nextCluster(mapID)
                                     }
