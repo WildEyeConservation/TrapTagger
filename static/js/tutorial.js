@@ -81,7 +81,8 @@ function tutProcessUserInput(input) {
         input == ";" || input == "'" ||
         input == "," || input == "." ||
         input == "/" || 
-        ((input == "101") && (state=="selectNothing") && (!modalNothingKnock.is(':visible'))) ) {
+        ((input == "101") && (state=="selectNothing") && (!modalNothingKnock.is(':visible'))) ||
+        ((input == "104") && (state=="knockedDown") && (!modalNothingKnock.is(':visible'))) ) {
         allowableUserInput = true;
     }
 
