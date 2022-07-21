@@ -1296,7 +1296,7 @@ function assignLabel(label,mapID = 'map1'){
 
     if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
         //ignore nothing and knocked down labels in multi
-    } else if ([nothingLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible') && !isTutorial) {
+    } else if ([nothingLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
         // confirmation modal for nothing and knockdowns
         if (label==nothingLabel) {
             document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any present false detections from all other images from this camera.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
