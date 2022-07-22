@@ -77,10 +77,9 @@ function tutProcessUserInput(input) {
             break;
     }
 
-    if (input == "]" || input == "[" ||
-        input == ";" || input == "'" ||
-        input == "," || input == "." ||
-        input == "/" || 
+
+
+    if (['home','end','pageup','pagedown','insert','delete',"]","[",";","'",",",".","/"].includes(input) ||
         ((input == "101") && (state=="selectNothing") && (!modalNothingKnock.is(':visible'))) ||
         ((input == "104") && (state=="knockedDown") && (!modalNothingKnock.is(':visible'))) ) {
         allowableUserInput = true;
