@@ -24,7 +24,7 @@ RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
 RUN pip install --upgrade pip
 RUN pip install -Iv numpy==1.18.5
-RUN pip install torch==1.7.0+cu101 torchvision==0.8.1+cu101 torchaudio==0.7.0 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip3 install torch torchvision torchaudio
 WORKDIR /code
 RUN git clone https://github.com/ultralytics/yolov5.git
 RUN pip install \
