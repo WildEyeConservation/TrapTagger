@@ -35,7 +35,7 @@ printf \
 'AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'\n'
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/megadetectorworker:/code/megadetectorworker -v /home/ubuntu/TrapTagger/CameraTraps:/code/CameraTraps --gpus all --ipc=host --name megadetectorworker$i megadetector_worker celery -A megadetectorworker.megaDetector worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
+  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/megadetectorworker:/code/megadetectorworker -v /home/ubuntu/TrapTagger/CameraTraps:/code/CameraTraps -v /home/ubuntu/TrapTagger/yolov5/utils:/code/utils -v /home/ubuntu/TrapTagger/yolov5/models:/code/models --gpus all --ipc=host --name megadetectorworker$i megadetector_worker celery -A megadetectorworker.megaDetector worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
   echo "Docker container launched!"
 done
 

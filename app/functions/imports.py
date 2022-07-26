@@ -835,7 +835,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
             print('Acquiring lock')
             GLOBALS.lock.acquire()
             print('Queueing batch')
-            GLOBALS.results_queue.append((images, infer.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external}, queue='celery', routing_key='celery.infer')))
+            GLOBALS.results_queue.append((images, infer.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.infer')))
             GLOBALS.lock.release()
             print('Lock released')
 

@@ -30,6 +30,13 @@ class Config(object):
     BUCKET_ROOT = os.environ.get('BUCKET_ROOT')
     SKIP_ID = -117
     SKY_CONST = 0.33
+    DETECTOR = 'MDv5a'
+
+    DETECTOR_THRESHOLDS = {
+        'MDv4': 0.8,
+        'MDv5a': 0.2,
+        'MDv5b': 0.2
+    }
 
     # SQLAlchemy Config
     SECRET_KEY = os.environ.get('SECRET_KEY')
