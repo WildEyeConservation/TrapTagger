@@ -27,7 +27,6 @@ import torchvision as tv
 import tempfile
 import boto3
 import requests
-import detection.ct_utils
 # import base64
 # from io import BytesIO
 
@@ -89,9 +88,10 @@ def infer(batch,sourceBucket,external,model):
 
     try:
         print('Recieved batch of {} images.'.format(len(batch)))
-        global init,detector #,detection_graph,image_tensor,box,score,clss,tf_session
+        global init,detector,ct_utils #,detection_graph,image_tensor,box,score,clss,tf_session
         if not(init):
             print('Initialising')
+            import ct_utils
             if detectors[model]['filename'].endswith('.pb'):
                 from detection.run_tf_detector import TFDetector
                 detector = TFDetector(detectors[model]['filename'])
