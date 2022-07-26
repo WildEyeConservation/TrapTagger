@@ -15,6 +15,8 @@
 FROM nvidia/cuda:10.1-cudnn7-runtime-ubi7
 FROM python:3.6.12
 FROM tensorflow/tensorflow:1.15.0-gpu-py3
+RUN rm /etc/apt/sources.list.d/cuda.list
+RUN rm /etc/apt/sources.list.d/nvidia-ml.list
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git
