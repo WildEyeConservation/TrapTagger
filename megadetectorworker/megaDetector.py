@@ -27,7 +27,7 @@ import torchvision as tv
 import tempfile
 import boto3
 import requests
-import ct_utils
+import detection.ct_utils
 # import base64
 # from io import BytesIO
 
