@@ -35,13 +35,7 @@ printf \
 'AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'\n'
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i \
-    -v /home/ubuntu/TrapTagger/megadetectorworker:/code/megadetectorworker 
-    -v /home/ubuntu/TrapTagger/CameraTraps/detection:/code/CameraTraps/detection \
-    -v /home/ubuntu/TrapTagger/CameraTraps/data_management:/code/CameraTraps/data_management \
-    -v /home/ubuntu/TrapTagger/CameraTraps/visualization:/code/CameraTraps/visualization \
-    -v /home/ubuntu/TrapTagger/CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py \
-    --gpus all --ipc=host --name megadetectorworker$i megadetector_worker celery -A megadetectorworker.megaDetector worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
+  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/megadetectorworker:/code/megadetectorworker -v /home/ubuntu/TrapTagger/CameraTraps/detection:/code/CameraTraps/detection -v /home/ubuntu/TrapTagger/CameraTraps/data_management:/code/CameraTraps/data_management -v /home/ubuntu/TrapTagger/CameraTraps/visualization:/code/CameraTraps/visualization -v /home/ubuntu/TrapTagger/CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py --gpus all --ipc=host --name megadetectorworker$i megadetector_worker celery -A megadetectorworker.megaDetector worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
   echo "Docker container launched!"
 done
 
