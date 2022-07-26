@@ -29,6 +29,7 @@ WORKDIR /code
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
 RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
 RUN git clone https://github.com/ultralytics/yolov5.git
+RUN mkdir CameraTraps
 RUN cp -r yolov5/utils CameraTraps/utils
 RUN cp -r yolov5/models CameraTraps/models
 RUN pip install \
