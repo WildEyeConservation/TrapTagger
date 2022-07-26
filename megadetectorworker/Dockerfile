@@ -22,13 +22,15 @@ RUN apt-get update && \
     apt-get install -y git
 RUN apt-get install ffmpeg libsm6 libxext6  -y
 RUN apt-get install wget
-RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
-RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
 RUN pip install --upgrade pip
 RUN pip install -Iv numpy==1.18.5
 RUN pip3 install torch torchvision torchaudio
 WORKDIR /code
+RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5a.0.0.pt"
+RUN wget "https://github.com/microsoft/CameraTraps/releases/download/v5.0/md_v5b.0.0.pt"
 RUN git clone https://github.com/ultralytics/yolov5.git
+RUN cp -r yolov5/utils CameraTraps/utils
+RUN cp -r yolov5/models CameraTraps/models
 RUN pip install \
     celery\
     humanfriendly\
