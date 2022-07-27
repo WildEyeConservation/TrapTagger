@@ -1066,7 +1066,7 @@ def imageViewer():
                                         'individual': '-1',
                                         'static': detection.static}
                                         for detection in image.detections
-                                        if ((or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and (detection.status not in ['deleted','hidden']) and (detection.static == False) and (include_detections.lower()=='true')) ]}
+                                        if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden']) and (detection.static == False) and (include_detections.lower()=='true')) ]}
                 for image in reqImages]
 
         result = json.dumps([{'id': '-444','classification': ['None'],'required': [], 'images': images, 'label': ['None'], 'tags': ['None'], 'groundTruth': [], 'trapGroup': 'None'}])
@@ -4218,7 +4218,7 @@ def get_clusters():
                                         'individual': '-1',
                                         'static': detection.static}
                                         for detection in image.detections
-                                        if ((or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and (detection.status not in ['deleted','hidden']) and (detection.static == False)) ]}
+                                        if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden']) and (detection.static == False)) ]}
                         for image in sortedImages]
 
             if isBounding:
@@ -4294,7 +4294,7 @@ def getImage():
                                 'individual': '-1',
                                 'static': detection.static}
                                 for detection in image.detections
-                                if ((or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and (detection.status not in ['deleted','hidden'])) ]}] #and (detection.static == False)
+                                if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden'])) ]}] #and (detection.static == False)
 
         GTtask = GLOBALS.ground_truths[str(current_user.id)]['ground']
         otherTask = GLOBALS.ground_truths[str(current_user.id)]['other']
@@ -4465,7 +4465,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                     'individual': '-1',
                                     'static': detection.static}
                                     for detection in image.detections
-                                    if ((or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and (detection.status not in ['deleted','hidden'])) ]}
+                                    if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden'])) ]}
                     for image in sortedImages]
 
             for n in range(len(images)):

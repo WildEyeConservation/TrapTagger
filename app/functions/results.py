@@ -79,6 +79,7 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
             nothing_label2 (str): Index of the nothing label category of task 2
             ground_truth (int): The ground truth task in the comparison
             detection (floar): Detection confidence threshold
+            detection_source (str): The source of the detection
     '''
     
     matches = []
@@ -93,11 +94,11 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
 
     # MegaDetector misses
     if ground_truth == 1:
-        if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=Config.DETECTOR_THRESHOLDS[Config.DETECTOR]):
+        if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source]):
             GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
             GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels1)
     else:
-        if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=Config.DETECTOR_THRESHOLDS[Config.DETECTOR]):
+        if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source]):
             GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
             GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels2)
 

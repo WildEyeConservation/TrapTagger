@@ -35,7 +35,8 @@ class Config(object):
     DETECTOR_THRESHOLDS = {
         'MDv4': 0.8,
         'MDv5a': 0.2,
-        'MDv5b': 0.2
+        'MDv5b': 0.2,
+        'error': 1.0
     }
 
     # SQLAlchemy Config

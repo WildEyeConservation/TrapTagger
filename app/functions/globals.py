@@ -1601,7 +1601,7 @@ def detection_rating(image):
     runningscore = 0
     species = []
     for detection in image.detections:
-        if (or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None):
+        if (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None):
             if (detection.classification.lower()!='nothing') and (detection.classification not in species):
                 species.append(detection.classification)
             minDimension = min(detection.bottom - detection.top, detection.right - detection.left)
