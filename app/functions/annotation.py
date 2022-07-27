@@ -20,7 +20,7 @@ from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels,
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
 import GLOBALS
-from sqlalchemy.sql import func, distinct, or_, alias
+from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 import re

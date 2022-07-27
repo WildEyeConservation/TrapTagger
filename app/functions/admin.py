@@ -20,7 +20,7 @@ from app.functions.globals import classifyTask, finish_knockdown, updateTaskComp
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
 from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
-from sqlalchemy.sql import func, or_
+from sqlalchemy.sql import func, or_, and_
 from datetime import datetime
 import re
 import ast

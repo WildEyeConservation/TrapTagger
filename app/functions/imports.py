@@ -19,7 +19,7 @@ from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask
 import GLOBALS
-from sqlalchemy.sql import func, or_, distinct
+from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 import re

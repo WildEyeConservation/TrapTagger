@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import retryTime, save_crops, list_all, chunker
 import GLOBALS
 from flask_login import current_user
-from sqlalchemy.sql import alias, func
+from sqlalchemy.sql import alias, func, or_, and_
 import re
 import math
 import ast

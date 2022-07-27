@@ -23,7 +23,7 @@ import json
 from flask import render_template
 import time
 import threading
-from sqlalchemy.sql import func, or_, alias, distinct
+from sqlalchemy.sql import func, or_, alias, distinct, and_
 from sqlalchemy import desc
 import random
 import string
