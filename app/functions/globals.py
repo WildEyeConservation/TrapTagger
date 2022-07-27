@@ -336,7 +336,6 @@ def importMonitor():
 
                         # Command to be sent to the image
                         userData  = 'cd /home/ubuntu/TrapTagger;'
-                        # userData += ' git config --global --add safe.directory .;'
                         userData += ' chown -R root /home/ubuntu/TrapTagger;'
                         userData += ' git fetch --all;'
                         userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
