@@ -606,7 +606,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
                     AND image2.id = det2.image_id
                     AND image1.id != image2.id 
                 WHERE
-                    det1.score > 0.8 
+                    det1.score > {} 
                     AND image1.camera_id = {}
                     AND det1.id IN ({})
                     AND det2.id IN ({})
@@ -627,7 +627,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
             if (len(chunk)<10000) and (len(detections)>10000):
                 chunk = detections[-10000:]
             det_ids = ','.join([str(r) for r in chunk])
-            for det_id,matchcount in db.session.execute(queryTemplate1.format(camera_id,det_ids,det_ids)):
+            for det_id,matchcount in db.session.execute(queryTemplate1.format(str(Config.DETECTOR_THRESHOLDS[Config.DETECTOR]),camera_id,det_ids,det_ids)):
                 if matchcount>3 and matchcount/imcount>0.3:
                     detection = db.session.query(Detection).get(det_id)
                     detection.static = True

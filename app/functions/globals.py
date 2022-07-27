@@ -559,14 +559,14 @@ def removeFalseDetections(self,cluster_id,undo):
                                 AND det1.id != det2.id
                             WHERE
                                 det1.id = {}
-                                AND det2.score > 0.8
+                                AND det2.score > {}
                             ) as sq1
                         WHERE
                             area2 < 0.1
                             AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.8
                     """
 
-                    resultproxy = db.session.execute(query.format(str(detection.id)))
+                    resultproxy = db.session.execute(query.format(str(detection.id),str(Config.DETECTOR_THRESHOLDS[Config.DETECTOR])))
 
                     d, result = {}, []
                     for rowproxy in resultproxy:

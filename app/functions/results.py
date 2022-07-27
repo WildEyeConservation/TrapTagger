@@ -93,11 +93,11 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
 
     # MegaDetector misses
     if ground_truth == 1:
-        if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=0.8):
+        if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=Config.DETECTOR_THRESHOLDS[Config.DETECTOR]):
             GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
             GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels1)
     else:
-        if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=0.8):
+        if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=Config.DETECTOR_THRESHOLDS[Config.DETECTOR]):
             GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
             GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels2)
 
