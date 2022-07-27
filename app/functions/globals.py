@@ -335,7 +335,7 @@ def importMonitor():
                         }
 
                         # Command to be sent to the image
-                        userData = '#!/bin/bash\n { cd /home/ubuntu/TrapTagger;'
+                        userData = 'cd /home/ubuntu/TrapTagger;'
                         userData += ' git fetch --all;'
                         userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
                         userData += ' git pull;'
@@ -345,7 +345,6 @@ def importMonitor():
                         userData += ' git lfs pull;'
                         userData += ' cd /home/ubuntu; '
                         userData += Config.QUEUES[queue]['user_data']
-                        userData += ';} > /home/ubuntu/launch.log 2>&1'
 
                         #Determine the cheapest option by calculating th cost per image of all instance types
                         # Add spot instance pricing
@@ -372,7 +371,7 @@ def importMonitor():
                         for n in range(instances_required[queue]):
                             #jitter idle check so that a whole bunch of instances down shutdown together
                             idle_multiplier = round(Config.IDLE_MULTIPLIER[queue]*random.uniform(0.5, 1.5))
-                            kwargs['UserData'] = userData.format(randomString()).replace('IDLE_MULTIPLIER',str(idle_multiplier))
+                            kwargs['UserData'] = '#!/bin/bash\n { ' + userData.format(randomString()).replace('IDLE_MULTIPLIER',str(idle_multiplier)) + ';} > /home/ubuntu/launch.log 2>&1'
                             for item in orderedInstances:
                                 pieces = re.split(',',item)
                                 kwargs['InstanceType'] = pieces[0]
