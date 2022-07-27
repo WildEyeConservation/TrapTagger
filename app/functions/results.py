@@ -66,7 +66,7 @@ def translate(labels, dictionary):
 
     return newLabels
 
-def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2,ground_truth,detection):
+def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2,ground_truth,detection,detection_source):
     '''
     Helper function for prepareComparison. Compares the labels on an image-by-image basis, and populates the comparison global variables.
 
@@ -79,7 +79,7 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
             nothing_label2 (str): Index of the nothing label category of task 2
             ground_truth (int): The ground truth task in the comparison
             detection (floar): Detection confidence threshold
-            detection_source (str): The source of the detection
+            detection_source (list): The source of the detections
     '''
     
     matches = []
@@ -94,11 +94,11 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
 
     # MegaDetector misses
     if ground_truth == 1:
-        if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source]):
+        if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source[0]]):
             GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
             GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels1)
     else:
-        if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source]):
+        if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source[0]]):
             GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
             GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels2)
 
@@ -216,7 +216,8 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
                         sq1.c.label_id1.label('label_id1'), \
                         sq2.c.label_id2.label('label_id2'),\
                         Cluster.id.label('cluster_id'), \
-                        Detection.score.label('detections')) \
+                        Detection.score.label('detections'),
+                        Detection.source.label('detection_source')) \
                         .outerjoin(sq1, sq1.c.image_id1==Image.id) \
                         .outerjoin(sq2, sq2.c.image_id2==Image.id) \
                         .outerjoin(Detection, Detection.image_id==Image.id) \
@@ -232,7 +233,8 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
                         sq1.c.label_id1.label('label_id1'), \
                         sq2.c.label_id2.label('label_id2'),\
                         Cluster.id.label('cluster_id'), \
-                        Detection.score.label('detections')) \
+                        Detection.score.label('detections'),
+                        Detection.source.label('detection_source')) \
                         .outerjoin(sq1, sq1.c.image_id1==Image.id) \
                         .outerjoin(sq2, sq2.c.image_id2==Image.id) \
                         .outerjoin(Detection, Detection.image_id==Image.id) \
@@ -271,7 +273,7 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
 
     nothing_label1 = task1Translation['None']
     nothing_label2 = task2Translation['None']
-    df.apply(lambda x: compareLabels(user_id,x.image_id,x.task1_labels,x.task2_labels,nothing_label1,nothing_label2,ground_truth,x.cluster_detection), axis=1)
+    df.apply(lambda x: compareLabels(user_id,x.image_id,x.task1_labels,x.task2_labels,nothing_label1,nothing_label2,ground_truth,x.cluster_detection,x.detection_source), axis=1)
 
     # Find error souces:
     # empty-clustered
