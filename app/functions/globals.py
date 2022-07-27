@@ -338,7 +338,8 @@ def importMonitor():
                         userData = '#!/bin/bash\n cd /home/ubuntu/TrapTagger;'
                         userData += ' git fetch;'
                         userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
-                        userData += ' git pull;'
+                        # userData += ' git pull;'
+                        userData += ' git reset --hard origin/{};'.format(Config.QUEUES[queue]['branch'])
                         userData += ' git lfs fetch --all;'
                         userData += ' git lfs pull;'
                         userData += ' cd /home/ubuntu; '
