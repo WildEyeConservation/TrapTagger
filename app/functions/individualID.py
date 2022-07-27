@@ -54,7 +54,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                             .join(Labelgroup)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Labelgroup.labels.contains(label))\
-                            .filter(Detection.score > 0.8) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
@@ -65,7 +65,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                             .join(Labelgroup)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Labelgroup.labels.contains(label))\
-                            .filter(Detection.score > 0.8) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
@@ -122,7 +122,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                                     .filter(Detection.image_id==image.id)\
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Detection.score > 0.8) \
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
@@ -195,7 +195,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                                                     .join(Labelgroup)\
                                                     .filter(Labelgroup.task_id==task_id)\
                                                     .filter(Labelgroup.labels.contains(label))\
-                                                    .filter(Detection.score > 0.8) \
+                                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                                     .filter(Detection.static == False) \
                                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                     .filter(~Detection.id.in_(covered_detections))\
@@ -233,7 +233,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                                     .join(Labelgroup)\
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Detection.score > 0.8) \
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
@@ -394,14 +394,14 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
 
                         detections1 = db.session.query(Detection)\
                                                 .filter(Detection.individuals.contains(individual1))\
-                                                .filter(Detection.score > 0.8) \
+                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                                 .filter(Detection.static == False) \
                                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                 .all()
 
                         detections2 = db.session.query(Detection)\
                                                 .filter(Detection.individuals.contains(individual2))\
-                                                .filter(Detection.score > 0.8) \
+                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                                 .filter(Detection.static == False) \
                                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                 .all()

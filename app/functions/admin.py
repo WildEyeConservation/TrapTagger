@@ -744,7 +744,7 @@ def reclusterAfterTimestampChange(survey_id):
             pool.join()
 
             #copy labels & tags
-            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Detection.score>0.8).filter(~Detection.status.in_(['deleted','hidden'])).filter(Detection.static==False).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
+            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).filter(Detection.static==False).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
             for labelgroup in labelgroups:
                 newGroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==newTask.id).filter(Labelgroup.detection_id==labelgroup.detection_id).first()
                 newGroup.checked = labelgroup.checked
@@ -1170,7 +1170,7 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
                                 .join(Camera) \
                                 .join(Trapgroup) \
                                 .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .subquery()
 
@@ -1181,7 +1181,7 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
                                 .join(Trapgroup) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id)\
                                 .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(Detection.status != 'deleted') \
                                 .filter(dimensionSQ.c.area<Config.DET_AREA)
@@ -1235,7 +1235,7 @@ def maskSky(self,survey_id,sky_masked,edge):
                                 .join(Camera) \
                                 .join(Trapgroup) \
                                 .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(Detection.status != 'deleted') \
                                 .filter(Detection.bottom<Config.SKY_CONST)
@@ -1247,7 +1247,7 @@ def maskSky(self,survey_id,sky_masked,edge):
                                 .join(Camera) \
                                 .join(Trapgroup) \
                                 .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .subquery()
 

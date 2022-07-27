@@ -433,7 +433,7 @@ def updateTaskCompletionStatus(task_id):
     check = db.session.query(Cluster)\
                     .join(Image,Cluster.images)\
                     .join(Detection)\
-                    .filter(Detection.score>0.8)\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
                     .filter(~Detection.status.in_(['deleted','hidden']))\
                     .filter(Cluster.task_id==task_id)\
@@ -479,7 +479,7 @@ def clusterIdComplete(task_id,label_id):
                         .filter(Individual.label_id==label.id)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Individual.task_id==task_id)\
-                        .filter(Detection.score > 0.8) \
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static == False) \
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .distinct().all()
@@ -489,7 +489,7 @@ def clusterIdComplete(task_id,label_id):
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(label))\
                         .filter(~Detection.id.in_([r.id for r in identified]))\
-                        .filter(Detection.score > 0.8) \
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static == False) \
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .distinct().count()
@@ -522,7 +522,7 @@ def removeFalseDetections(self,cluster_id,undo):
     try:
         cluster = db.session.query(Cluster).get(cluster_id)
         if cluster:
-            detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Detection.score > 0.8).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
+            detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
 
             if undo:
                 app.logger.info('Undoing the removal of false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
@@ -988,7 +988,7 @@ def classifyTask(task_id,reClusters = None):
                                 .join(Trapgroup) \
                                 .filter(Trapgroup.survey_id==survey_id) \
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .subquery()
@@ -998,7 +998,7 @@ def classifyTask(task_id,reClusters = None):
                                 .join(Detection) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(dimensionSQ.c.area > Config.DET_AREA) \
@@ -1028,7 +1028,7 @@ def classifyTask(task_id,reClusters = None):
                                 .join(Detection) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(dimensionSQ.c.area > Config.DET_AREA) \
@@ -1208,7 +1208,7 @@ def updateLabelCompletionStatus(task_id):
         #                     .filter(Individual.label_id==label.id)\
         #                     .filter(Labelgroup.task_id==task_id)\
         #                     .filter(Individual.task_id==task_id)\
-        #                     .filter(Detection.score > 0.8) \
+        #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
         #                     .filter(Detection.static == False) \
         #                     .filter(~Detection.status.in_(['deleted','hidden'])) \
         #                     .distinct().all()
@@ -1222,7 +1222,7 @@ def updateLabelCompletionStatus(task_id):
         #                     .filter(Labelgroup.task_id==task_id)\
         #                     .filter(Labelgroup.labels.contains(label))\
         #                     .filter(~Detection.id.in_([r.id for r in identified]))\
-        #                     .filter(Detection.score > 0.8) \
+        #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
         #                     .filter(Detection.static == False) \
         #                     .filter(~Detection.status.in_(['deleted','hidden'])) \
         #                     .distinct().count()
@@ -1236,7 +1236,7 @@ def updateLabelCompletionStatus(task_id):
                             .filter(Labelgroup.labels.contains(label)) \
                             .filter(Labelgroup.checked==False) \
                             .filter(Detection.static==False) \
-                            .filter(Detection.score > 0.8) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().count()
 
@@ -1602,7 +1602,7 @@ def detection_rating(image):
     runningscore = 0
     species = []
     for detection in image.detections:
-        if (detection.score > 0.8) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None):
+        if (or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and (detection.static == False) and (detection.status not in ['deleted','hidden']) and (detection.classification!=None):
             if (detection.classification.lower()!='nothing') and (detection.classification not in species):
                 species.append(detection.classification)
             minDimension = min(detection.bottom - detection.top, detection.right - detection.left)
@@ -1835,7 +1835,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
             for detection in image.detections:
                 area = (detection.right-detection.left)*(detection.bottom-detection.top)
                 
-                if (area > min_area) and (detection.score > 0.8):
+                if (area > min_area) and (or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)):
                     key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
                     bbox = [detection.left,detection.top,(detection.right-detection.left),(detection.bottom-detection.top)]
                     print('Crropping detection {} on image {}'.format(bbox,key))

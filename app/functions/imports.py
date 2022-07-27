@@ -285,7 +285,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
         for image in images:
             detections = db.session.query(Detection)\
                                 .filter(Detection.image_id==image.id)\
-                                .filter(Detection.score>0.8)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
                                 .filter(~Detection.status.in_(['deleted','hidden']))\
                                 .all()
@@ -640,7 +640,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
         #                                     .join(sq,sq.c.detID==Detection.id)\
         #                                     .filter(sq.c.area<0.1)\
         #                                     .filter(Image.camera_id==camera_id)\
-        #                                     .filter(Detection.score>0.8)\
+        #                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
         #                                     .distinct().all()]
         # pool = Pool(processes=4)
         # for chunk in chunker(detections,200):
@@ -707,7 +707,7 @@ def removeHumans(task_id):
     results = db.session.query(func.count(Detection.category),
                                   func.count(func.nullif(Detection.category, 1)),Cluster.id)\
                                   .join('image', 'clusters')\
-                                  .filter(Detection.score>0.8)\
+                                  .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                   .filter(Detection.static==False)\
                                   .filter(~Detection.status.in_(['deleted','hidden']))\
                                   .filter(~Cluster.labels.any())\
@@ -1018,7 +1018,7 @@ def classifier_batching(chunk,sourceBucket):
             try:
                 detections = db.session.query(Detection)\
                                     .filter(Detection.image_id==int(image_id))\
-                                    .filter(Detection.score>0.8)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.static==False)\
                                     .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Detection.left!=Detection.right)\
@@ -1088,7 +1088,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                         .join(Camera)\
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Detection.score>0.8)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .order_by(Image.id).distinct().all()]
@@ -1499,7 +1499,7 @@ def classifyCluster(cluster,classifications,dimensionSQ):
                             .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
                             .filter(Image.clusters.contains(cluster)) \
                             .filter(Detection.class_score>Config.CLASS_SCORE) \
-                            .filter(Detection.score > 0.8) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .filter(dimensionSQ.c.area > Config.DET_AREA) \
@@ -1539,7 +1539,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
                 classifications = db.session.query(Detection.classification)\
                                             .join(Image)\
                                             .filter(Detection.class_score>Config.CLASS_SCORE) \
-                                            .filter(Detection.score > 0.8) \
+                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                             .filter(Detection.static == False) \
                                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                                             .filter(Image.clusters.contains(cluster))\
@@ -1567,7 +1567,7 @@ def single_cluster_classification(cluster):
     classifications = db.session.query(Detection.classification)\
                                 .join(Image)\
                                 .filter(Detection.class_score>Config.CLASS_SCORE) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(Image.clusters.contains(cluster))\
@@ -1683,7 +1683,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
                         .join(Camera)\
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Detection.score>0.8)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .distinct().count()
@@ -1721,7 +1721,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
                             .join(Camera)\
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(Detection.score>0.8)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(or_(Detection.left==Detection.right,Detection.top==Detection.bottom))\

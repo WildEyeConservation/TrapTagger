@@ -195,7 +195,7 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
                     .join(Labelgroup)\
                     .join(Label, Labelgroup.labels)\
                     .filter(Labelgroup.task_id==task_id1)\
-                    .filter(Detection.score>0.8)\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
                     .filter(~Detection.status.in_(['deleted','hidden']))\
                     .subquery()
@@ -204,7 +204,7 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
                     .join(Labelgroup)\
                     .join(Label, Labelgroup.labels)\
                     .filter(Labelgroup.task_id==task_id2)\
-                    .filter(Detection.score>0.8)\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
                     .filter(~Detection.status.in_(['deleted','hidden']))\
                     .subquery()
@@ -352,7 +352,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Cluster.task_id==task_id) \
                 .filter(Labelgroup.task_id==task_id) \
                 .filter(Detection.static==False) \
-                .filter(Detection.score>0.8) \
+                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                 .filter(~Detection.status.in_(['deleted','hidden']))
 
     if len(include) != 0:
@@ -819,7 +819,7 @@ def generate_wildbook_export(self,task_id, data):
                         .join(Labelgroup, Labelgroup.detection_id==Detection.id) \
                         .filter(Labelgroup.task_id==task_id) \
                         .filter(Labelgroup.labels.contains(species)) \
-                        .filter(Detection.score > 0.8) \
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static == False) \
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .statement,db.session.bind)
@@ -1242,7 +1242,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
                             .join(Labelgroup,Label.labelgroups)\
                             .join(Detection)\
                             .filter(Detection.image==image)\
-                            .filter(Detection.score>0.8)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(Labelgroup.task_id==task_id)\
@@ -1252,7 +1252,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
                             .join(Labelgroup,Tag.labelgroups)\
                             .join(Detection)\
                             .filter(Detection.image==image)\
-                            .filter(Detection.score>0.8)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(Labelgroup.task_id==task_id)\
@@ -1415,7 +1415,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
                         .join(Detection)\
                         .join(Labelgroup)\
                         .join(Label,Labelgroup.labels)\
-                        .filter(Detection.score>0.8)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Labelgroup.task_id==task.id)\
@@ -1488,7 +1488,7 @@ def generate_training_csv(self,tasks,destBucket,min_area):
                                     .join(Camera) \
                                     .join(Trapgroup) \
                                     .filter(Trapgroup.survey_id==task.survey_id) \
-                                    .filter(Detection.score > 0.8) \
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .subquery()
@@ -1515,7 +1515,7 @@ def generate_training_csv(self,tasks,destBucket,min_area):
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Label.id.in_([r.id for r in labels]))\
                         .filter(dimensionSQ.c.area > min_area)\
-                        .filter(Detection.score > 0.8)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static == False)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .statement,db.session.bind)
@@ -1593,7 +1593,7 @@ def crop_survey_images(self,task_id,min_area,destBucket):
                                 .join(Camera) \
                                 .join(Trapgroup) \
                                 .filter(Trapgroup.survey_id==task.survey_id) \
-                                .filter(Detection.score > 0.8) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .subquery()
@@ -1620,7 +1620,7 @@ def crop_survey_images(self,task_id,min_area,destBucket):
                     .filter(Labelgroup.task_id==task_id)\
                     .filter(Label.id.in_([r.id for r in labels]))\
                     .filter(dimensionSQ.c.area > min_area)\
-                    .filter(Detection.score > 0.8)\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static == False)\
                     .filter(~Detection.status.in_(['deleted','hidden']))\
                     .statement,db.session.bind)
