@@ -335,7 +335,7 @@ def importMonitor():
                         }
 
                         # Command to be sent to the image
-                        userData = '#!/bin/bash\n cd /home/ubuntu/TrapTagger;'
+                        userData = '#!/bin/bash\n { cd /home/ubuntu/TrapTagger;'
                         userData += ' git fetch --all;'
                         userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
                         userData += ' git pull;'
@@ -345,6 +345,7 @@ def importMonitor():
                         userData += ' git lfs pull;'
                         userData += ' cd /home/ubuntu; '
                         userData += Config.QUEUES[queue]['user_data']
+                        userData += ';} > /home/ubuntu/launch.log 2>&1'
 
                         #Determine the cheapest option by calculating th cost per image of all instance types
                         # Add spot instance pricing

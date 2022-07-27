@@ -162,7 +162,7 @@ class Config(object):
                 str(CONCURRENCY['parallel']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
                 BUCKET_ROOT + "'" + 
-                ' -l info > /home/ubuntu/launch.log 2>&1'
+                ' -l info'
         },
         'default': {
             'type': 'CPU',
@@ -201,7 +201,7 @@ class Config(object):
                 str(CONCURRENCY['default']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
                 BUCKET_ROOT + "'" + 
-                ' -l info > /home/ubuntu/launch.log 2>&1'
+                ' -l info'
         },
         'celery': {
             'type': 'GPU',
@@ -223,7 +223,7 @@ class Config(object):
                 'IDLE_MULTIPLIER' + " '" +
                 os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
                 os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
-                '-l info > /home/ubuntu/launch.log 2>&1'
+                '-l info'
         },
         'classification': {
             'type': 'GPU',
@@ -245,7 +245,7 @@ class Config(object):
                 'IDLE_MULTIPLIER' + " '" +
                 os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
                 os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
-                '-l info > /home/ubuntu/launch.log 2>&1'
+                '-l info'
         },
     }
 
