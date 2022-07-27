@@ -1005,6 +1005,7 @@ def imageViewer():
         view_type = request.args.get('type', None)
         id_no = request.args.get('id', None)
         include_detections = request.args.get('detections', 'False')
+        comparisonsurvey = request.args.get('comparisonsurvey', None)
 
         reqImages = []
         if view_type=='image':
@@ -1066,8 +1067,25 @@ def imageViewer():
                                         'individual': '-1',
                                         'static': detection.static}
                                         for detection in image.detections
-                                        if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden']) and (detection.static == False) and (include_detections.lower()=='true')) ]}
-                for image in reqImages]
+                                        if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
+                                        (detection.status not in ['deleted','hidden']) and 
+                                        (detection.static == False) and 
+                                        (include_detections.lower()=='true')) ],
+                'comparison': [{'id': detection.id,
+                                        'top': detection.top,
+                                        'bottom': detection.bottom,
+                                        'left': detection.left,
+                                        'right': detection.right,
+                                        'category': detection.category,
+                                        'individual': '-1',
+                                        'static': detection.static}
+                                        for detection in db.sesson.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==comparisonsurvey).filter(Camera.path==image.camera.path).filter(Image.filename==image.filename).distinct.all()
+                                        if (comparisonsurvey) and 
+                                        ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
+                                        (detection.status not in ['deleted','hidden']) and 
+                                        (detection.static == False) and 
+                                        include_detections.lower()=='true') ]
+                } for image in reqImages]
 
         result = json.dumps([{'id': '-444','classification': ['None'],'required': [], 'images': images, 'label': ['None'], 'tags': ['None'], 'groundTruth': [], 'trapGroup': 'None'}])
 

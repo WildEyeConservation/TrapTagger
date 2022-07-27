@@ -181,6 +181,349 @@ function imageHighlight(switchOn,mapID = 'map1') {
     }
 }
 
+function buildDetection(image,detection,mapID = 'map1',colour=null) {
+    if (detection.static == false) {
+                
+        if (detection.individual!='-1') {
+            rectOptions.color = individuals[individualIndex][detection.individual].colour
+        } else {
+            if (colour) {
+                rectOptions.color = colour
+            } else {
+                rectOptions.color = "rgba(223,105,26,1)"
+            }
+        }
+
+        rect = L.rectangle([[detection.top*mapHeight[mapID],detection.left*mapWidth[mapID]],[detection.bottom*mapHeight[mapID],detection.right*mapWidth[mapID]]], rectOptions)
+
+        if (isBounding) {
+            rect.bindTooltip(detection.label,{permanent: true, direction:"center"})
+
+            var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+            var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+            var centerPoint = map[mapID].latLngToContainerPoint(center)
+            var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+            var offset = [0,centerPoint.y-bottomPoint.y]
+    
+            rect._tooltip.options.offset = offset
+            rect._tooltip.options.opacity = 0.8
+            rect.openTooltip()
+
+        } else if ((document.getElementById('btnSendToBack')!=null)&&(detection.individual!='-1')) {
+            rect.bindTooltip(individuals[individualIndex][detection.individual].name,{permanent: true, direction:"center"})
+
+            var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+            var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
+            var centerPoint = map[mapID].latLngToContainerPoint(center)
+            var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+            var offset = [0,centerPoint.y-bottomPoint.y]
+    
+            rect._tooltip.options.offset = offset
+            rect._tooltip.options.opacity = 0.8
+            rect.openTooltip()
+        }
+
+        drawnItems[mapID].addLayer(rect)
+        if (isBounding||isIDing) {
+            if (!toolTipsOpen) {
+                rect.closeTooltip()
+            }
+            dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
+        }
+        if (document.getElementById('btnSendToBack')!=null) {
+            rect.addEventListener('click', function(wrapMapID,wrapDetectionID,wrapImageID,wrapRect) {
+                return function() {
+                    if (individualsReady) {
+                        wrapIndividual = '-1'
+                        for (individualID in individuals[individualIndex]) {
+                            if (individuals[individualIndex][individualID].detections.includes(wrapDetectionID)) {
+                                wrapIndividual = individualID
+                                break
+                            }
+                        }
+
+                        if (deleteMode) {
+                            // Delete selected invidual
+                            if (wrapIndividual!='-1') {
+                                if (individuals.length>0) {
+                                    newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
+                                } else {
+                                    newSet = {}
+                                }
+                                colours[newSet[wrapIndividual].colour]=false
+                                delete newSet[wrapIndividual]
+
+                                for (individualID in newSet) {
+                                    index = newSet[individualID].family.indexOf(wrapIndividual);
+                                    if (index > -1) {
+                                        newSet[individualID].family.splice(index, 1);
+                                    }
+
+                                    index = newSet[individualID].children.indexOf(wrapIndividual);
+                                    if (index > -1) {
+                                        newSet[individualID].children.splice(index, 1);
+                                    }
+                                }
+
+                                individuals.push(newSet)
+                                individualIndex += 1
+                                buildIndividuals()
+                                deleteIndividualPress()
+                            }
+
+                        } else if (sendBackMode) {
+                            wrapRect.bringToBack()
+                            sendToBack()
+                        } else if (unidentifiableMode) {
+                            if (wrapIndividual=='-1') {
+                                if (individuals.length>0) {
+                                    newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
+                                } else {
+                                    newSet = {}
+                                }
+
+                                newID = 'n' + wrapDetectionID.toString()
+                                for (colour in colours) {
+                                    if (colours[colour]==false) {
+                                        colours[colour] = true
+                                        break
+                                    }
+                                }
+
+                                newSet[newID] = {"name": "unidentifiable", "tags": [], "notes": "", "colour": colour, "detections": [wrapDetectionID], "images": [wrapImageID], "children": [], "family": []}
+                                individuals.push(newSet)
+                                individualIndex += 1
+                                buildIndividuals()
+                            }
+                            activateUnidentifiable()
+                        } else {   
+                            disallow = false
+                            if (previousClick != null) {
+                                if (previousClick.individual != '-1') {
+                                    prevList = individuals[individualIndex][previousClick.individual].images
+                                } else {
+                                    prevList = [previousClick.image]
+                                }
+    
+                                if (wrapIndividual != '-1') {
+                                    wrapList = individuals[individualIndex][wrapIndividual].images
+                                } else {
+                                    wrapList = [wrapImageID]
+                                }
+                                
+                                for (dx=0;dx<prevList.length;dx++) {
+                                    if (wrapList.includes(prevList[dx])) {
+                                        disallow = true
+                                    }
+                                }
+                            }
+
+                            if ((disallow)||(previousClick == null)||(previousClick.map==wrapMapID)||(previousClick.image==wrapImageID)||((previousClick.individual==wrapIndividual)&&(wrapIndividual!='-1'))) {
+                                if (previousClick != null) {
+                                    if (previousClick.individual != '-1') {
+                                        colour = individuals[individualIndex][previousClick.individual].colour
+                                    } else {
+                                        colour = "rgba(223,105,26,1)"
+                                    }
+                                    previousClick.rect.setStyle({color: colour}); //un-highlight old selection
+                                }
+                                wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
+                                previousClick = {'detID': wrapDetectionID, 'map': wrapMapID, 'image': wrapImageID, 'rect': wrapRect, "individual": wrapIndividual}
+                            } else {
+                                //match created
+                                goAhead = true
+                                if (individuals.length>0) {
+                                    newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
+                                } else {
+                                    newSet = {}
+                                }
+                                if ((previousClick.individual=='-1')&&(wrapIndividual=='-1')) { //if new
+                                    if (!parentMode) {
+                                        newID = 'n' + previousClick.detID.toString()
+                                        for (colour in colours) {
+                                            if (colours[colour]==false) {
+                                                colours[colour] = true
+                                                break
+                                            }
+                                        }
+                                        detIdList = [previousClick.detID,wrapDetectionID]
+                                        imIdList = [previousClick.image,wrapImageID]
+                                        newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
+                                        globalIndividual = newID
+                                        goAhead = false
+    
+                                        if (globalTags==null) {
+                                            var xhttp = new XMLHttpRequest();
+                                            xhttp.onreadystatechange =
+                                                function () {
+                                                    if (this.readyState == 4 && this.status == 278) {
+                                                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                                                    } else if (this.readyState == 4 && this.status == 200) {
+                                                        globalTags = JSON.parse(this.responseText);
+                                                        prepIndividualModal()
+                                                    }
+                                                };
+                                            xhttp.open("GET", '/prepNewIndividual');
+                                            xhttp.send();
+                                        } else {
+                                            prepIndividualModal()
+                                        }
+                                    } else {
+                                        activateParent()
+                                    }
+                                } else { //else combine individuals
+                                    if (!parentMode) {
+                                        if ((previousClick.individual != '-1')&&(wrapIndividual != '-1')) {
+                                            // combine two individuals
+                                            if (newSet[previousClick.individual].detections.length >= newSet[wrapIndividual].detections.length) {
+                                                // Use previous click individual
+                                                newID = previousClick.individual
+                                                detIdList = newSet[wrapIndividual].detections
+                                                imIdList = newSet[wrapIndividual].images
+                                                tagList = newSet[wrapIndividual].tags
+                                                childList = newSet[wrapIndividual].children
+                                                familyList = newSet[wrapIndividual].family
+                                                otherNotes = newSet[wrapIndividual].notes
+                                                otherName = newSet[wrapIndividual].name
+                                                colours[newSet[wrapIndividual].colour]=false
+                                                delete newSet[wrapIndividual]
+                                            } else {
+                                                // Use new click individual
+                                                newID = wrapIndividual
+                                                detIdList = newSet[previousClick.individual].detections
+                                                imIdList = newSet[previousClick.individual].images
+                                                tagList = newSet[previousClick.individual].tags
+                                                childList = newSet[previousClick.individual].children
+                                                familyList = newSet[previousClick.individual].family
+                                                otherNotes = newSet[previousClick.individual].notes
+                                                otherName = newSet[previousClick.individual].name
+                                                colours[newSet[previousClick.individual].colour]=false
+                                                delete newSet[previousClick.individual]
+                                            }
+                                        } else if (previousClick.individual != '-1') {
+                                            // associate with previous individual
+                                            newID = previousClick.individual
+                                            detIdList = [wrapDetectionID]
+                                            imIdList = [wrapImageID]
+                                            tagList = []
+                                            childList = []
+                                            familyList = []
+                                            otherNotes = ''
+                                        } else {
+                                            // associate with new click individual
+                                            newID = wrapIndividual
+                                            detIdList = [previousClick.detID]
+                                            imIdList = [previousClick.image]
+                                            tagList = []
+                                            childList = []
+                                            familyList = []
+                                            otherNotes = ''
+                                        }
+                                        colour = newSet[newID].colour
+    
+                                        newSet[newID].detections.push(...detIdList)
+                                        newSet[newID].detections = [...new Set(newSet[newID].detections)]
+    
+                                        newSet[newID].images.push(...imIdList)
+                                        newSet[newID].images = [...new Set(newSet[newID].images)]
+    
+                                        newSet[newID].tags.push(...tagList)
+                                        newSet[newID].tags = [...new Set(newSet[newID].tags)]
+
+                                        newSet[newID].children.push(...childList)
+                                        newSet[newID].children = [...new Set(newSet[newID].children)]
+
+                                        newSet[newID].family.push(...familyList)
+                                        newSet[newID].family = [...new Set(newSet[newID].family)]
+
+                                        if ((newSet[newID].notes!='')&&(otherNotes!='')&&(otherNotes!=newSet[newID].notes)) {
+                                            document.getElementById('reconName1').innerHTML = newSet[newID].name
+                                            document.getElementById('reconBox1').value = newSet[newID].notes
+                                            document.getElementById('reconName2').innerHTML = otherName
+                                            document.getElementById('reconBox2').value = otherNotes
+                                            globalIndividual = newID
+                                            modalNoteRecon.modal({backdrop: 'static', keyboard: false});
+                                        }
+
+                                    } else {
+                                        if ((previousClick.individual != '-1')&&(wrapIndividual != '-1')) {
+                                            if (!newSet[previousClick.individual].family.includes(wrapIndividual)) {
+                                                newSet[previousClick.individual].children.push(wrapIndividual)
+                                                newSet[previousClick.individual].family.push(wrapIndividual)
+                                            }
+                                        }
+                                        activateParent()
+                                    }
+                                }
+                                
+                                individuals.push(newSet)
+                                individualIndex += 1
+                                if (goAhead) {
+                                    buildIndividuals()
+                                }
+                                previousClick = null
+                            }
+                        }
+                    }
+                }
+            }(mapID,detection.id,image.id,rect));
+
+            //Right click
+            rect.addEventListener('contextmenu', function(wrapMapID,wrapDetID,wrapImageID,wrapRect) {
+                return function() {
+
+                    alreadyAllocated = false
+                    for (individualID in individuals[individualIndex]) {
+                        if (individuals[individualIndex][individualID].detections.includes(wrapDetID)) {
+                            alreadyAllocated = true
+                        }
+                    }
+
+                    if (!alreadyAllocated) {
+                        if (individuals.length>0) {
+                            newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
+                        } else {
+                            newSet = {}
+                        }
+                        newID = 'n' + wrapDetID.toString()
+                        for (colour in colours) {
+                            if (colours[colour]==false) {
+                                colours[colour] = true
+                                break
+                            }
+                        }
+
+                        detIdList = [wrapDetID]
+                        imIdList = [wrapImageID]
+                        newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
+                        globalIndividual = newID
+                        individuals.push(newSet)
+                        individualIndex += 1
+
+                        if (globalTags==null) {
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.onreadystatechange =
+                                function () {
+                                    if (this.readyState == 4 && this.status == 278) {
+                                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                                    } else if (this.readyState == 4 && this.status == 200) {
+                                        globalTags = JSON.parse(this.responseText);
+                                        prepIndividualModal()
+                                    }
+                                };
+                            xhttp.open("GET", '/prepNewIndividual');
+                            xhttp.send();
+                        } else {
+                            prepIndividualModal()
+                        }
+                    }
+                }
+            }(mapID,detection.id,image.id,rect));
+
+        }
+    }
+}
+
 function addDetections(mapID = 'map1') {
     /** Adds the bounding boxes to the active image. */
     if (!addedDetections[mapID]) {
@@ -193,342 +536,11 @@ function addDetections(mapID = 'map1') {
         fullRes[mapID] = false
         drawnItems[mapID].clearLayers()
         for (iii=0;iii<image.detections.length;iii++) {
-            detection = image.detections[iii]
-            if (detection.static == false) {
-                
-                if (detection.individual!='-1') {
-                    rectOptions.color = individuals[individualIndex][detection.individual].colour
-                } else {
-                    rectOptions.color = "rgba(223,105,26,1)"
-                }
-
-                rect = L.rectangle([[detection.top*mapHeight[mapID],detection.left*mapWidth[mapID]],[detection.bottom*mapHeight[mapID],detection.right*mapWidth[mapID]]], rectOptions)
-
-                if (isBounding) {
-                    rect.bindTooltip(detection.label,{permanent: true, direction:"center"})
-
-                    var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                    var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                    var centerPoint = map[mapID].latLngToContainerPoint(center)
-                    var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
-                    var offset = [0,centerPoint.y-bottomPoint.y]
-            
-                    rect._tooltip.options.offset = offset
-                    rect._tooltip.options.opacity = 0.8
-                    rect.openTooltip()
-
-                } else if ((document.getElementById('btnSendToBack')!=null)&&(detection.individual!='-1')) {
-                    rect.bindTooltip(individuals[individualIndex][detection.individual].name,{permanent: true, direction:"center"})
-
-                    var center = L.latLng([(rect._bounds._northEast.lat+rect._bounds._southWest.lat)/2,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                    var bottom = L.latLng([rect._bounds._southWest.lat,(rect._bounds._northEast.lng+rect._bounds._southWest.lng)/2])
-                    var centerPoint = map[mapID].latLngToContainerPoint(center)
-                    var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
-                    var offset = [0,centerPoint.y-bottomPoint.y]
-            
-                    rect._tooltip.options.offset = offset
-                    rect._tooltip.options.opacity = 0.8
-                    rect.openTooltip()
-                }
-
-                drawnItems[mapID].addLayer(rect)
-                if (isBounding||isIDing) {
-                    if (!toolTipsOpen) {
-                        rect.closeTooltip()
-                    }
-                    dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
-                }
-                if (document.getElementById('btnSendToBack')!=null) {
-                    rect.addEventListener('click', function(wrapMapID,wrapDetectionID,wrapImageID,wrapRect) {
-                        return function() {
-                            if (individualsReady) {
-                                wrapIndividual = '-1'
-                                for (individualID in individuals[individualIndex]) {
-                                    if (individuals[individualIndex][individualID].detections.includes(wrapDetectionID)) {
-                                        wrapIndividual = individualID
-                                        break
-                                    }
-                                }
-    
-                                if (deleteMode) {
-                                    // Delete selected invidual
-                                    if (wrapIndividual!='-1') {
-                                        if (individuals.length>0) {
-                                            newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
-                                        } else {
-                                            newSet = {}
-                                        }
-                                        colours[newSet[wrapIndividual].colour]=false
-                                        delete newSet[wrapIndividual]
-
-                                        for (individualID in newSet) {
-                                            index = newSet[individualID].family.indexOf(wrapIndividual);
-                                            if (index > -1) {
-                                                newSet[individualID].family.splice(index, 1);
-                                            }
-
-                                            index = newSet[individualID].children.indexOf(wrapIndividual);
-                                            if (index > -1) {
-                                                newSet[individualID].children.splice(index, 1);
-                                            }
-                                        }
-
-                                        individuals.push(newSet)
-                                        individualIndex += 1
-                                        buildIndividuals()
-                                        deleteIndividualPress()
-                                    }
-    
-                                } else if (sendBackMode) {
-                                    wrapRect.bringToBack()
-                                    sendToBack()
-                                } else if (unidentifiableMode) {
-                                    if (wrapIndividual=='-1') {
-                                        if (individuals.length>0) {
-                                            newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
-                                        } else {
-                                            newSet = {}
-                                        }
-
-                                        newID = 'n' + wrapDetectionID.toString()
-                                        for (colour in colours) {
-                                            if (colours[colour]==false) {
-                                                colours[colour] = true
-                                                break
-                                            }
-                                        }
-
-                                        newSet[newID] = {"name": "unidentifiable", "tags": [], "notes": "", "colour": colour, "detections": [wrapDetectionID], "images": [wrapImageID], "children": [], "family": []}
-                                        individuals.push(newSet)
-                                        individualIndex += 1
-                                        buildIndividuals()
-                                    }
-                                    activateUnidentifiable()
-                                } else {   
-                                    disallow = false
-                                    if (previousClick != null) {
-                                        if (previousClick.individual != '-1') {
-                                            prevList = individuals[individualIndex][previousClick.individual].images
-                                        } else {
-                                            prevList = [previousClick.image]
-                                        }
-            
-                                        if (wrapIndividual != '-1') {
-                                            wrapList = individuals[individualIndex][wrapIndividual].images
-                                        } else {
-                                            wrapList = [wrapImageID]
-                                        }
-                                        
-                                        for (dx=0;dx<prevList.length;dx++) {
-                                            if (wrapList.includes(prevList[dx])) {
-                                                disallow = true
-                                            }
-                                        }
-                                    }
-        
-                                    if ((disallow)||(previousClick == null)||(previousClick.map==wrapMapID)||(previousClick.image==wrapImageID)||((previousClick.individual==wrapIndividual)&&(wrapIndividual!='-1'))) {
-                                        if (previousClick != null) {
-                                            if (previousClick.individual != '-1') {
-                                                colour = individuals[individualIndex][previousClick.individual].colour
-                                            } else {
-                                                colour = "rgba(223,105,26,1)"
-                                            }
-                                            previousClick.rect.setStyle({color: colour}); //un-highlight old selection
-                                        }
-                                        wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
-                                        previousClick = {'detID': wrapDetectionID, 'map': wrapMapID, 'image': wrapImageID, 'rect': wrapRect, "individual": wrapIndividual}
-                                    } else {
-                                        //match created
-                                        goAhead = true
-                                        if (individuals.length>0) {
-                                            newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
-                                        } else {
-                                            newSet = {}
-                                        }
-                                        if ((previousClick.individual=='-1')&&(wrapIndividual=='-1')) { //if new
-                                            if (!parentMode) {
-                                                newID = 'n' + previousClick.detID.toString()
-                                                for (colour in colours) {
-                                                    if (colours[colour]==false) {
-                                                        colours[colour] = true
-                                                        break
-                                                    }
-                                                }
-                                                detIdList = [previousClick.detID,wrapDetectionID]
-                                                imIdList = [previousClick.image,wrapImageID]
-                                                newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
-                                                globalIndividual = newID
-                                                goAhead = false
-            
-                                                if (globalTags==null) {
-                                                    var xhttp = new XMLHttpRequest();
-                                                    xhttp.onreadystatechange =
-                                                        function () {
-                                                            if (this.readyState == 4 && this.status == 278) {
-                                                                window.location.replace(JSON.parse(this.responseText)['redirect'])
-                                                            } else if (this.readyState == 4 && this.status == 200) {
-                                                                globalTags = JSON.parse(this.responseText);
-                                                                prepIndividualModal()
-                                                            }
-                                                        };
-                                                    xhttp.open("GET", '/prepNewIndividual');
-                                                    xhttp.send();
-                                                } else {
-                                                    prepIndividualModal()
-                                                }
-                                            } else {
-                                                activateParent()
-                                            }
-                                        } else { //else combine individuals
-                                            if (!parentMode) {
-                                                if ((previousClick.individual != '-1')&&(wrapIndividual != '-1')) {
-                                                    // combine two individuals
-                                                    if (newSet[previousClick.individual].detections.length >= newSet[wrapIndividual].detections.length) {
-                                                        // Use previous click individual
-                                                        newID = previousClick.individual
-                                                        detIdList = newSet[wrapIndividual].detections
-                                                        imIdList = newSet[wrapIndividual].images
-                                                        tagList = newSet[wrapIndividual].tags
-                                                        childList = newSet[wrapIndividual].children
-                                                        familyList = newSet[wrapIndividual].family
-                                                        otherNotes = newSet[wrapIndividual].notes
-                                                        otherName = newSet[wrapIndividual].name
-                                                        colours[newSet[wrapIndividual].colour]=false
-                                                        delete newSet[wrapIndividual]
-                                                    } else {
-                                                        // Use new click individual
-                                                        newID = wrapIndividual
-                                                        detIdList = newSet[previousClick.individual].detections
-                                                        imIdList = newSet[previousClick.individual].images
-                                                        tagList = newSet[previousClick.individual].tags
-                                                        childList = newSet[previousClick.individual].children
-                                                        familyList = newSet[previousClick.individual].family
-                                                        otherNotes = newSet[previousClick.individual].notes
-                                                        otherName = newSet[previousClick.individual].name
-                                                        colours[newSet[previousClick.individual].colour]=false
-                                                        delete newSet[previousClick.individual]
-                                                    }
-                                                } else if (previousClick.individual != '-1') {
-                                                    // associate with previous individual
-                                                    newID = previousClick.individual
-                                                    detIdList = [wrapDetectionID]
-                                                    imIdList = [wrapImageID]
-                                                    tagList = []
-                                                    childList = []
-                                                    familyList = []
-                                                    otherNotes = ''
-                                                } else {
-                                                    // associate with new click individual
-                                                    newID = wrapIndividual
-                                                    detIdList = [previousClick.detID]
-                                                    imIdList = [previousClick.image]
-                                                    tagList = []
-                                                    childList = []
-                                                    familyList = []
-                                                    otherNotes = ''
-                                                }
-                                                colour = newSet[newID].colour
-            
-                                                newSet[newID].detections.push(...detIdList)
-                                                newSet[newID].detections = [...new Set(newSet[newID].detections)]
-            
-                                                newSet[newID].images.push(...imIdList)
-                                                newSet[newID].images = [...new Set(newSet[newID].images)]
-            
-                                                newSet[newID].tags.push(...tagList)
-                                                newSet[newID].tags = [...new Set(newSet[newID].tags)]
-
-                                                newSet[newID].children.push(...childList)
-                                                newSet[newID].children = [...new Set(newSet[newID].children)]
-
-                                                newSet[newID].family.push(...familyList)
-                                                newSet[newID].family = [...new Set(newSet[newID].family)]
-
-                                                if ((newSet[newID].notes!='')&&(otherNotes!='')&&(otherNotes!=newSet[newID].notes)) {
-                                                    document.getElementById('reconName1').innerHTML = newSet[newID].name
-                                                    document.getElementById('reconBox1').value = newSet[newID].notes
-                                                    document.getElementById('reconName2').innerHTML = otherName
-                                                    document.getElementById('reconBox2').value = otherNotes
-                                                    globalIndividual = newID
-                                                    modalNoteRecon.modal({backdrop: 'static', keyboard: false});
-                                                }
-
-                                            } else {
-                                                if ((previousClick.individual != '-1')&&(wrapIndividual != '-1')) {
-                                                    if (!newSet[previousClick.individual].family.includes(wrapIndividual)) {
-                                                        newSet[previousClick.individual].children.push(wrapIndividual)
-                                                        newSet[previousClick.individual].family.push(wrapIndividual)
-                                                    }
-                                                }
-                                                activateParent()
-                                            }
-                                        }
-                                        
-                                        individuals.push(newSet)
-                                        individualIndex += 1
-                                        if (goAhead) {
-                                            buildIndividuals()
-                                        }
-                                        previousClick = null
-                                    }
-                                }
-                            }
-                        }
-                    }(mapID,detection.id,image.id,rect));
-
-                    //Right click
-                    rect.addEventListener('contextmenu', function(wrapMapID,wrapDetID,wrapImageID,wrapRect) {
-                        return function() {
-
-                            alreadyAllocated = false
-                            for (individualID in individuals[individualIndex]) {
-                                if (individuals[individualIndex][individualID].detections.includes(wrapDetID)) {
-                                    alreadyAllocated = true
-                                }
-                            }
-
-                            if (!alreadyAllocated) {
-                                if (individuals.length>0) {
-                                    newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
-                                } else {
-                                    newSet = {}
-                                }
-                                newID = 'n' + wrapDetID.toString()
-                                for (colour in colours) {
-                                    if (colours[colour]==false) {
-                                        colours[colour] = true
-                                        break
-                                    }
-                                }
-
-                                detIdList = [wrapDetID]
-                                imIdList = [wrapImageID]
-                                newSet[newID] = {"colour": colour, "detections": detIdList, "images": imIdList, "children": [], "family": []}
-                                globalIndividual = newID
-                                individuals.push(newSet)
-                                individualIndex += 1
-
-                                if (globalTags==null) {
-                                    var xhttp = new XMLHttpRequest();
-                                    xhttp.onreadystatechange =
-                                        function () {
-                                            if (this.readyState == 4 && this.status == 278) {
-                                                window.location.replace(JSON.parse(this.responseText)['redirect'])
-                                            } else if (this.readyState == 4 && this.status == 200) {
-                                                globalTags = JSON.parse(this.responseText);
-                                                prepIndividualModal()
-                                            }
-                                        };
-                                    xhttp.open("GET", '/prepNewIndividual');
-                                    xhttp.send();
-                                } else {
-                                    prepIndividualModal()
-                                }
-                            }
-                        }
-                    }(mapID,detection.id,image.id,rect));
-
-                }
+            buildDetection(image,image.detections[iii],mapID)
+        }
+        if ('comparison' in image) {
+            for (iii=0;iii<image.comparison.length;iii++) {
+                buildDetection(image,image.comparison[iii],mapID,'rgba(26,105,223,1)')
             }
         }
         if (isBounding) {
