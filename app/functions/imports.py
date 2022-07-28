@@ -904,7 +904,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
             db.session.commit()
             camera_id = camera.id
                 
-            for filenames in chunker(jpegs,4):
+            for filenames in chunker(jpegs,200):
                 pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external))
 
         pool.close()
@@ -941,8 +941,8 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                             app.logger.info(' ')
                             db.session.rollback()
                     
-                    # Commit every 400 images (100 batches) to speed up result fetching
-                    if counter%100==0:
+                    # Commit every 400 images (2 batches) to speed up result fetching
+                    if counter%2==0:
                         db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
                         db.session.commit()
                 
