@@ -1053,7 +1053,10 @@ def imageViewer():
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
 
-        if len(reqImages) == 0:
+        if comparisonsurvey:
+            check = db.session.query(Survey).get(comparisonsurvey)
+
+        if (len(reqImages) == 0) or (comparisonsurvey and check.user!=current_user):
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block')
 
         images = [{'id': image.id,
@@ -1079,7 +1082,7 @@ def imageViewer():
                                         'category': detection.category,
                                         'individual': '-1',
                                         'static': detection.static}
-                                        for detection in db.sesson.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==comparisonsurvey).filter(Camera.path==image.camera.path).filter(Image.filename==image.filename).distinct.all()
+                                        for detection in db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==comparisonsurvey).filter(Camera.path==image.camera.path).filter(Image.filename==image.filename).distinct().all()
                                         if (comparisonsurvey) and 
                                         ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
                                         (detection.status not in ['deleted','hidden']) and 
