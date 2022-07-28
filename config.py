@@ -67,14 +67,14 @@ class Config(object):
     CPU_INSTANCE_TYPES = ['t2.medium', 't3a.medium']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
-        'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
+        # 'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
         'parallel':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
         'default':         {'t2.medium': 1000, 't3a.medium': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     SUBNET_ID = os.environ.get('SUBNET_ID')
     MAX_INFER = 35
-    MAX_CLASSIFICATION = 18
+    # MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 8
     MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
@@ -100,7 +100,7 @@ class Config(object):
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
         'celery': '300',
-        'classification': '300',
+        # 'classification': '300',
         'parallel': '300',
         'default': '300'
     }
@@ -112,8 +112,8 @@ class Config(object):
 
     # How many multiples of 5 seconds a worker is checked for idleness
     IDLE_MULTIPLIER = {
-        'celery': 18,
-        'classification': 12,
+        'celery': 12,
+        # 'classification': 12,
         'parallel': 48,
         'default': 12
     }
@@ -226,28 +226,28 @@ class Config(object):
                 os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
                 '-l info'
         },
-        'classification': {
-            'type': 'GPU',
-            'ami': PARALLEL_AMI,
-            'instances': GPU_INSTANCE_TYPES,
-            'max_instances': MAX_CLASSIFICATION,
-            'launch_delay': 600,
-            'bin_size': 4,
-            'init_size': 2,
-            'queue_type': 'rate',
-            'repo': os.environ.get('MAIN_GIT_REPO'),
-            'branch': BRANCH,
-            'user_data': 
-                'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
-                'classification_worker_{}' + ' ' + 
-                HOST_IP + ' ' + 
-                'classification ' + 
-                SETUP_PERIOD['classification'] + " " + 
-                'IDLE_MULTIPLIER' + " '" +
-                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
-                '-l info'
-        },
+        # 'classification': {
+        #     'type': 'GPU',
+        #     'ami': PARALLEL_AMI,
+        #     'instances': GPU_INSTANCE_TYPES,
+        #     'max_instances': MAX_CLASSIFICATION,
+        #     'launch_delay': 600,
+        #     'bin_size': 4,
+        #     'init_size': 2,
+        #     'queue_type': 'rate',
+        #     'repo': os.environ.get('MAIN_GIT_REPO'),
+        #     'branch': BRANCH,
+        #     'user_data': 
+        #         'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
+        #         'classification_worker_{}' + ' ' + 
+        #         HOST_IP + ' ' + 
+        #         'classification ' + 
+        #         SETUP_PERIOD['classification'] + " " + 
+        #         'IDLE_MULTIPLIER' + " '" +
+        #         os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+        #         os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
+        #         '-l info'
+        # },
     }
 
     # csv options

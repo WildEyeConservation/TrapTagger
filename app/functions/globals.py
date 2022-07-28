@@ -173,7 +173,7 @@ def get_price(region, instance, os):
 
 @celery.task(ignore_result=True)
 def importMonitor():
-    '''Periodic Celery task that monitors the length of the classification & inference queues, and fires up EC2 instances as needed.'''
+    '''Periodic Celery task that monitors the length of the celery queues, and fires up EC2 instances as needed.'''
     
     try:
         startTime = datetime.utcnow()
@@ -190,15 +190,15 @@ def importMonitor():
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
             client = boto3.client('ec2',region_name=Config.AWS_REGION)
 
-            total_images = {'total': 0, 'celery': 0, 'classification': 0}
+            total_images = {'total': 0, 'celery': 0} #, 'classification': 0}
             surveys = db.session.query(Survey).filter(Survey.images_processing!=0).distinct().all()
             for survey in surveys:
                 total_images['total'] += survey.images_processing
                 if not survey.processing_initialised:
-                    if survey.status=='Importing':
+                    if survey.status in ['Importing','Classifying']:
                         total_images['celery'] += survey.images_processing
-                    elif survey.status=='Classifying':
-                        total_images['classification'] += survey.images_processing
+                    # elif survey.status=='Classifying':
+                    #     total_images['classification'] += survey.images_processing
                     survey.processing_initialised = True
                     db.session.commit()
             print('Images being imported: {}'.format(total_images))
@@ -278,7 +278,7 @@ def importMonitor():
 
             # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
             instances_required['celery'] += round(total_images['celery']/Config.QUEUES['parallel']['bin_size'])*Config.QUEUES['celery']['init_size']
-            instances_required['classification'] += round(total_images['classification']/Config.QUEUES['parallel']['bin_size'])*Config.QUEUES['classification']['init_size']
+            # instances_required['classification'] += round(total_images['classification']/Config.QUEUES['parallel']['bin_size'])*Config.QUEUES['classification']['init_size']
 
             print('Instances required: {}'.format(instances_required))
 

@@ -1056,7 +1056,7 @@ def classifier_batching(chunk,sourceBucket):
 
         if len(batch['images'].keys()) >= 0:
             GLOBALS.lock.acquire()
-            GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue='classification', routing_key='classification.classify'))
+            GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue='celery', routing_key='classification.classify'))
             GLOBALS.lock.release()
 
     except Exception:

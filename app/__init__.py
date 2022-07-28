@@ -40,10 +40,10 @@ task_routes = {
             'queue': 'celery',
             'routing_key': 'celery.infer',
         },
-        'megadetectorworker.megaDetector.classify': {
-            'queue': 'classification',
-            'routing_key': 'classification.classify',
-        },
+        # 'megadetectorworker.megaDetector.classify': {
+        #     'queue': 'classification',
+        #     'routing_key': 'classification.classify',
+        # },
         'megadetectorworker.megaDetector.inferAndClassify': {
             'queue': 'local',
             'routing_key': 'local.inferAndClassify',
@@ -74,7 +74,7 @@ def make_celery(flask_app):
     celery.conf.task_queues = (
         Queue('default',    routing_key='task.#'),
         Queue('celery',     routing_key='celery.#'),
-        Queue('classification',     routing_key='classification.#'),
+        # Queue('classification',     routing_key='classification.#'),
         Queue('local',     routing_key='local.#'),
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
