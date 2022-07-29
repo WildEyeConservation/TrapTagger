@@ -2822,7 +2822,7 @@ def classifySpecies():
         urls = re.split(',',request.form['urls'])
 
         if token==Config.TOKEN:
-            result = inferAndClassify.apply_async(kwargs={'batch': urls}, queue='local', routing_key='local.inferAndClassify',expires=datetime.now() + timedelta(minutes=2))
+            result = inferAndClassify.apply_async(kwargs={'batch': urls,'detector_model': Config.DETECTOR,'threshold': Config.DETECTOR_THRESHOLDS[Config.DETECTOR]}, queue='local', routing_key='local.inferAndClassify',expires=datetime.now() + timedelta(minutes=2))
             GLOBALS.lock.acquire()
             with allow_join_result():
                 try:

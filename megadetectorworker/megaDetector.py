@@ -250,12 +250,14 @@ def infer(batch,sourceBucket,external,model):
     return results
 
 @app.task()
-def inferAndClassify(batch):
+def inferAndClassify(batch,detector_model,threshold):
     '''
     Runs both detection and classification on a batch of images for the API.
 
         Parameters:
-            batch (list): List of image urls to process.
+            batch (list): List of image urls to process
+            detector_model (str): The detector to use
+            threshold (float): The confidence threshold to use
 
         Returns:
             output (dict): The detections and their classifications in a url-keyed dictionary
@@ -263,14 +265,18 @@ def inferAndClassify(batch):
 
     try:
         global init,detector,detection_graph,image_tensor,box,score,clss,tf_session
-        global num_workers, batch_size, img_size, categories, model, device, classifier_init
-        
+        global num_workers, batch_size, img_size, categories, model, device, classifier_init, ct_utils
+
         if not(init):
             print('Initialising Detector')
-            from detection.run_tf_detector import TFDetector
-            detector = TFDetector("megadetectorworker/md_v4.1.0.pb")
+            import ct_utils
+            if detectors[detector_model]['filename'].endswith('.pb'):
+                from detection.run_tf_detector import TFDetector
+                detector = TFDetector(detectors[detector_model]['filename'])
+            elif detectors[detector_model]['filename'].endswith('.pt'):
+                from detection.pytorch_detector import PTDetector
+                detector = PTDetector(detectors[detector_model]['filename'])
             init=True
-        print('Detector Initialised')
 
         if classifier_init == False:
             print('Initialising Classifier')
@@ -310,31 +316,50 @@ def inferAndClassify(batch):
                     with open(temp_file.name, 'wb') as handler:
                         handler.write(response.content)
                     image = Image.open(temp_file.name)
-                output_batch.append(np.asarray(image.resize((1024, 600)), np.uint8))
+                if '4' in detector_model: output_batch.append(np.asarray(image.resize((1024, 600)), np.uint8))
                 images[imageURL] = image
             except:
                 print('Failed to retrieve image {}'.format(imageURL))
         
         print('Detecting...')
-        (box_np, score_np, clss_np) = detector.tf_session.run([detector.box_tensor, detector.score_tensor, detector.class_tensor],feed_dict={detector.image_tensor: np.stack(output_batch)})
-        print('Detection Complete')
-        
         index = 0
         detections = {}
-        for i,image_id in enumerate(images):
-            for j, scr in enumerate(score_np[i, :]):
-                if scr < 0.8:
-                    break
-                detection_id = str(index)
-                detections[detection_id] = {'top':float(box_np[i, j, 0]),
-                                            'left':float(box_np[i, j, 1]),
-                                            'bottom':float(box_np[i, j, 2]),
-                                            'right':float(box_np[i, j, 3]),
-                                            'category':int(clss_np[i, j]),
-                                            'score': float(score_np[i, j]),
-                                            'image_id': image_id}
-                image_detections[image_id].append(detection_id)
-                index += 1
+        if '5' in detector_model:
+            for imageURL in images:
+                result = detector.generate_detections_one_image(images[imageURL], imageURL, detection_threshold=threshold)
+
+                for detection in result['detections']:
+                    detection_id = str(index)
+                    bbox = ct_utils.convert_xywh_to_tf(detection['bbox'])
+                    detections[detection_id] = {
+                                'top':float(bbox[0]),
+                                'left':float(bbox[1]),
+                                'bottom':float(bbox[2]),
+                                'right':float(bbox[3]),
+                                'category':int(detection['category']),
+                                'score': float(detection['conf'])}
+                    image_detections[image_id].append(detection_id)
+                    index += 1
+
+        elif '4' in detector_model:
+            (box_np, score_np, clss_np) = detector.tf_session.run([detector.box_tensor, detector.score_tensor, detector.class_tensor],feed_dict={detector.image_tensor: np.stack(output_batch)})
+        
+            for i,image_id in enumerate(images):
+                for j, scr in enumerate(score_np[i, :]):
+                    if scr < threshold:
+                        break
+                    detection_id = str(index)
+                    detections[detection_id] = {'top':float(box_np[i, j, 0]),
+                                                'left':float(box_np[i, j, 1]),
+                                                'bottom':float(box_np[i, j, 2]),
+                                                'right':float(box_np[i, j, 3]),
+                                                'category':int(clss_np[i, j]),
+                                                'score': float(score_np[i, j]),
+                                                'image_id': image_id}
+                    image_detections[image_id].append(detection_id)
+                    index += 1
+
+        print('Detection Complete')
 
         inferred_batch = {'images': images, 'detections': detections}
 
