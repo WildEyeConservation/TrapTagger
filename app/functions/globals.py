@@ -340,8 +340,6 @@ def importMonitor():
                         userData += ' git fetch --all;'
                         userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
                         userData += ' git pull;'
-                        userData += ' git lfs fetch --all;'
-                        userData += ' git lfs pull;'
                         userData += ' cd /home/ubuntu; '
                         userData += Config.QUEUES[queue]['user_data']
 
