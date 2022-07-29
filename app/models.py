@@ -179,7 +179,7 @@ class Detection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     image_id = db.Column(db.Integer, db.ForeignKey('image.id'), index=True)
     category = db.Column(db.Integer, index=True)
-    source = db.Column(db.String(64), index=False)
+    source = db.Column(db.String(64), index=True)
     status = db.Column(db.String(64), index=True)
     top = db.Column(db.Float, index=False)
     left = db.Column(db.Float, index=False)

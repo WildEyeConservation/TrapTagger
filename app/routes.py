@@ -5558,7 +5558,7 @@ def editSightings(image_id,task_id):
                                     static=False,
                                     image_id=int(image_id),
                                     category=1,
-                                    source=current_user.username,
+                                    source='user',
                                     status='added',
                                     classification='nothing'
                                 )
@@ -5588,7 +5588,7 @@ def editSightings(image_id,task_id):
                                 detection.bottom = detectionsDict[detID]['bottom']
                                 detection.left = detectionsDict[detID]['left']
                                 detection.right = detectionsDict[detID]['right']
-                                detection.source=current_user.username
+                                detection.source='user'
                                 detection.status = 'edited'
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
                                 labelgroup.labels = [label]

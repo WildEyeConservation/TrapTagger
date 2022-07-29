@@ -668,16 +668,16 @@ def processCameraStaticDetections(self,camera_id,imcount):
 
     return True
 
-def processStaticDetections(survey):
+def processStaticDetections(survey_id):
     '''Identify static detections for a survey based on IOU and percentage of images of a camera containing a detection.'''
 
-    detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).filter(Detection.static==True).all()
+    detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
     for detection in detections:
         detection.static = False
     db.session.commit()
 
     results = []
-    for camera_id, imcount in db.session.query(Image.camera_id, func.count(distinct(Image.id))).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey.id).group_by(Image.camera_id):
+    for camera_id, imcount in db.session.query(Image.camera_id, func.count(distinct(Image.id))).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey_id).group_by(Image.camera_id):
         results.append(processCameraStaticDetections.apply_async(kwargs={'camera_id':camera_id,'imcount':imcount},queue='parallel'))
     
     #Wait for processing to complete
@@ -2341,7 +2341,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
             survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Static Detections'
         db.session.commit()
-        processStaticDetections(survey)
+        processStaticDetections(survey_id)
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Humans'
         db.session.commit()
@@ -2593,7 +2593,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Static Detections'
         db.session.commit()
-        processStaticDetections(survey)
+        processStaticDetections(survey_id)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
