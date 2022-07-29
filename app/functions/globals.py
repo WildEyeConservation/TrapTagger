@@ -1958,12 +1958,12 @@ def scaleDbCapacity(required_capacity):
         time_since_last_request = round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()) - last_aurora_request
 
         # Scale DB capacity if needed
-        if (current_capacity < required_capacity) and (time_since_last_request > 600):
+        if (current_capacity < required_capacity) and (time_since_last_request > 300):
             try:
                 client.modify_current_db_cluster_capacity(
                     DBClusterIdentifier=Config.DB_CLUSTER_NAME,
                     Capacity=required_capacity,
-                    SecondsBeforeTimeout=600,
+                    SecondsBeforeTimeout=300,
                     TimeoutAction='RollbackCapacityChange'
                 )
 
