@@ -73,9 +73,9 @@ class Config(object):
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     SUBNET_ID = os.environ.get('SUBNET_ID')
-    MAX_INFER = 35
+    MAX_INFER = 25
     # MAX_CLASSIFICATION = 18
-    MAX_PARALLEL = 8
+    MAX_PARALLEL = 50
     MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
 
@@ -107,7 +107,7 @@ class Config(object):
 
     #Aurora DB stuff
     MAX_AURORA = 64
-    MIN_AURORA = 4
+    MIN_AURORA = 8
     DB_CLUSTER_NAME= os.environ.get('DB_CLUSTER_NAME')
 
     # How many multiples of 5 seconds a worker is checked for idleness
@@ -132,7 +132,7 @@ class Config(object):
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_PARALLEL,
             'launch_delay': 180,
-            'bin_size': 10000,
+            'bin_size': 2695,
             'queue_type': 'time',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -209,9 +209,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': GPU_INSTANCE_TYPES,
             'max_instances': MAX_INFER,
-            'launch_delay': 900,
+            'launch_delay': 600,
             'bin_size': 35,
-            'init_size': 6,
+            'init_size': 0.5,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
