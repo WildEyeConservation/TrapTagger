@@ -1289,7 +1289,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['bin_size']/8)
+    chunk_size = round(Config.QUEUES['parallel']['bin_size']/2)
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -1319,7 +1319,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                     else:
                         batch_count += len(jpegs) - (n*chunk_size)
 
-                    if (batch_count / ((Config.QUEUES['parallel']['bin_size']/4)*random.uniform(0.5, 1.5)) ) >= 1:
+                    if (batch_count / ((Config.QUEUES['parallel']['bin_size'])*random.uniform(0.5, 1.5)) ) >= 1:
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
@@ -1400,7 +1400,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['bin_size']/8)
+    chunk_size = round(Config.QUEUES['parallel']['bin_size']/2)
     for dirpath in df['dirpath'].unique():
         tags = tgcode.findall(dirpath)
 
@@ -1444,7 +1444,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 else:
                     batch_count += number_of_images - (n*chunk_size)
 
-                if (batch_count / ((Config.QUEUES['parallel']['bin_size']/4)*random.uniform(0.5, 1.5)) ) >= 1:
+                if (batch_count / ((Config.QUEUES['parallel']['bin_size'])*random.uniform(0.5, 1.5)) ) >= 1:
                     results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area},queue='parallel'))
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
