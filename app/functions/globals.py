@@ -367,7 +367,7 @@ def importMonitor():
                         orderedInstances = {k: v for k, v in sorted(costPerImage.items(), key=lambda item: item[1])}
                             
                         #Launch instances - try launch cheapest, if no capacity, launch the next cheapest
-                        for n in range(instances_required[queue]):
+                        for n in range(round(instances_required[queue])):
                             #jitter idle check so that a whole bunch of instances down shutdown together
                             idle_multiplier = round(Config.IDLE_MULTIPLIER[queue]*random.uniform(0.5, 1.5))
                             kwargs['UserData'] = '#!/bin/bash\n { ' + userData.format(randomString()).replace('IDLE_MULTIPLIER',str(idle_multiplier)) + ';} > /home/ubuntu/launch.log 2>&1'
