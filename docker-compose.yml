@@ -286,7 +286,11 @@ services:
         image: megadetector_worker
         container_name: traptagger_endpoint
         volumes:
-            - ./:/code/
+            - ./megadetectorworker:/code/megadetectorworker 
+            - ./CameraTraps/detection:/code/CameraTraps/detection 
+            - ./CameraTraps/data_management:/code/CameraTraps/data_management 
+            - ./CameraTraps/visualization:/code/CameraTraps/visualization 
+            - ./CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py 
         environment:
             - CUDA_VISIBLE_DEVICES=0
             - REDIS_IP=traptagger_redis

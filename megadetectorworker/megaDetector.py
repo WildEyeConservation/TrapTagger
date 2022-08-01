@@ -338,7 +338,7 @@ def inferAndClassify(batch,detector_model,threshold):
                                 'right':float(bbox[3]),
                                 'category':int(detection['category']),
                                 'score': float(detection['conf'])}
-                    image_detections[image_id].append(detection_id)
+                    image_detections[imageURL].append(detection_id)
                     index += 1
 
         elif '4' in detector_model:
