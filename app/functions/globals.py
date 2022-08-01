@@ -1733,7 +1733,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
     try:
         pool = Pool(processes=4)
         for image_id in image_ids:
-            pool.apply_async(save_crops,(image_id,source,min_area,destBucket,external,update_image_info))
+            pool.apply_async(save_crops,(int(image_id),source,min_area,destBucket,external,update_image_info))
         pool.close()
         pool.join()
 

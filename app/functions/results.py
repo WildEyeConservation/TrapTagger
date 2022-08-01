@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, save_crops, list_all, chunker
+from app.functions.globals import retryTime, list_all, chunker, batch_crops
 import GLOBALS
 from flask_login import current_user
 from sqlalchemy.sql import alias, func, or_, and_
@@ -1633,11 +1633,25 @@ def crop_survey_images(self,task_id,min_area,destBucket):
 
         sourceBucket = task.survey.user.bucket+'-raw'
 
-        pool = Pool(processes=4)
-        for image_id in df['image_id'].unique():
-            pool.apply_async(save_crops,(int(image_id),sourceBucket,min_area,destBucket,False,False))
-        pool.close()
-        pool.join()
+        results = []
+        for chunk in chunker(df['image_id'].unique(),10000):
+            results.append(batch_crops.apply_async(kwargs={'image_ids':chunk,'source':sourceBucket,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False},queue='default'))
+
+        # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+        # See https://github.com/celery/celery/issues/4480
+        GLOBALS.lock.acquire()
+        with allow_join_result():
+            for result in results:
+                try:
+                    result.get()
+                except Exception:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+                result.forget()
+        GLOBALS.lock.release()
 
         task.survey.images_processing = 0
         # task.survey.status='Ready'
