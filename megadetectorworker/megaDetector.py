@@ -294,11 +294,12 @@ def inferAndClassify(batch,detector_model,threshold):
             print(status)
 
             classifier_init = True
-        print('Classifier Initialised')
+            print('Classifier Initialised')
     
         output_batch = []
         image_detections = {}
         images = {}
+        print('Fetching images...')
         for imageURL in batch:
             image_detections[imageURL] = []
             try:
@@ -337,7 +338,8 @@ def inferAndClassify(batch,detector_model,threshold):
                                 'bottom':float(bbox[2]),
                                 'right':float(bbox[3]),
                                 'category':int(detection['category']),
-                                'score': float(detection['conf'])}
+                                'score': float(detection['conf']),
+                                'image_id': imageURL}
                     image_detections[imageURL].append(detection_id)
                     index += 1
 
