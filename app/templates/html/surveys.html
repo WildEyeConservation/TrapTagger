@@ -1792,10 +1792,10 @@ limitations under the License. -->
         legalTGCode = true
         if (newSurveyTGCode == '') {
             legalTGCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'The trapgroup code field cannot be empty.'
+            document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
         } else if ((newSurveyTGCode.includes('/'))||(newSurveyTGCode.includes('\\'))) {
             legalTGCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'The trapgroup code cannot contain slashes.'
+            document.getElementById('newSurveyErrors').innerHTML = 'The site identifier code cannot contain slashes.'
         }
         
         legalInput = false
@@ -1828,12 +1828,12 @@ limitations under the License. -->
         tgInfoDiv = document.getElementById('newSurveyTGInfo')
         if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML=='Checking...')) {
             TGCheckReady = false
-            document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your trapgroup-code check to finish.'
+            document.getElementById('newSurveyErrors').innerHTML = 'Please wait for your site-identifier check to finish.'
         }
 
         if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML == '0 sites found: ')) {
             legalTGCode = false
-            document.getElementById('newSurveyErrors').innerHTML = 'Your specified trapgroup code does not result in any trapgroups. Please try again.'
+            document.getElementById('newSurveyErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
         }
 
         if (legalName&&legalDescription&&legalTGCode&&legalInput&&legalFile&&TGCheckReady) {
@@ -1997,10 +1997,10 @@ limitations under the License. -->
 
             if ((addImagesTGCode == '')||(addImagesTGCode == ' ')) {
                 legalTGCode = false
-                document.getElementById('addImagesErrors').innerHTML = 'The trapgroup code field cannot be empty.'
+                document.getElementById('addImagesErrors').innerHTML = 'The site identifier field cannot be empty.'
             } else if ((addImagesTGCode.includes('/'))||(addImagesTGCode.includes('\\'))) {
                 legalTGCode = false
-                document.getElementById('addImagesErrors').innerHTML = 'The trapgroup code cannot contain slashes.'
+                document.getElementById('addImagesErrors').innerHTML = 'The site identifier cannot contain slashes.'
             }
             
             legalInput = false
@@ -2039,12 +2039,12 @@ limitations under the License. -->
         tgInfoDiv = document.getElementById('addImagesTGInfo')
         if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML=='Checking...')) {
             TGCheckReady = false
-            document.getElementById('addImagesErrors').innerHTML = 'Please wait for your trapgroup-code check to finish.'
+            document.getElementById('addImagesErrors').innerHTML = 'Please wait for your site-identifier check to finish.'
         }
         
         if ((tgInfoDiv!=null)&&(tgInfoDiv.innerHTML == '0 sites found: ')) {
             legalTGCode = false
-            document.getElementById('addImagesErrors').innerHTML = 'Your specified trapgroup code does not result in any trapgroups. Please try again.'
+            document.getElementById('addImagesErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
         }
 
         if (legalTGCode&&legalInput&&legalFile&&legalDate&&TGCheckReady) {
