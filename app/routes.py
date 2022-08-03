@@ -3734,7 +3734,7 @@ def getSuggestion(individual_id):
                                     'individual': '-1',
                                     'static': detection.static}
                                     for detection in image.detections if (
-                                            (or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) and 
+                                            (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
                                             (detection.status not in ['deleted','hidden']) and 
                                             (detection.static == False) and 
                                             (individual in detection.individuals[:])

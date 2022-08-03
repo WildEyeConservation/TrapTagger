@@ -1832,7 +1832,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
             for detection in image.detections:
                 area = (detection.right-detection.left)*(detection.bottom-detection.top)
                 
-                if (area > min_area) and (or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)):
+                if (area > min_area) and (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]):
                     key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
                     bbox = [detection.left,detection.top,(detection.right-detection.left),(detection.bottom-detection.top)]
                     print('Crropping detection {} on image {}'.format(bbox,key))
