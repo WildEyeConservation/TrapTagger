@@ -1006,16 +1006,17 @@ def imageViewer():
         id_no = request.args.get('id', None)
         include_detections = request.args.get('detections', 'False')
         comparisonsurvey = request.args.get('comparisonsurvey', None)
+        admin=db.session.query(User).filter(User.username=='Admin').first()
 
         reqImages = []
         if view_type=='image':
             image = db.session.query(Image).get(int(id_no))
-            if image and (image.camera.trapgroup.survey.user==current_user):
+            if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
                 reqImages = [image]
 
         elif view_type=='capture':
             image = db.session.query(Image).get(int(id_no))
-            if image and (image.camera.trapgroup.survey.user==current_user):
+            if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera_id==image.camera_id)\
                                 .filter(Image.corrected_timestamp==image.corrected_timestamp)\
@@ -1023,12 +1024,12 @@ def imageViewer():
 
         elif view_type=='cluster':
             cluster = db.session.query(Cluster).get(int(id_no))
-            if cluster and (cluster.task.survey.user==current_user):
+            if cluster and ((cluster.task.survey.user==current_user) or (current_user.id==admin.id)):
                 reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
 
         elif view_type=='camera':
             camera = db.session.query(Camera).get(int(id_no))
-            if camera and (camera.trapgroup.survey.user==current_user):
+            if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera==camera)\
                                 .order_by(Image.corrected_timestamp)\
@@ -1036,7 +1037,7 @@ def imageViewer():
 
         elif view_type=='trapgroup':
             trapgroup = db.session.query(Trapgroup).get(int(id_no))
-            if trapgroup and (trapgroup.survey.user==current_user):
+            if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .filter(Camera.trapgroup==trapgroup)\
@@ -1045,7 +1046,7 @@ def imageViewer():
 
         elif view_type=='survey':
             survey = db.session.query(Survey).get(int(id_no))
-            if survey and (survey.user==current_user):
+            if survey and ((survey.user==current_user) or (current_user.id==admin.id)):
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
@@ -1056,7 +1057,7 @@ def imageViewer():
         if comparisonsurvey:
             check = db.session.query(Survey).get(comparisonsurvey)
 
-        if (len(reqImages) == 0) or (comparisonsurvey and check.user!=current_user):
+        if (len(reqImages) == 0) or ((comparisonsurvey and check.user!=current_user) or (current_user.id==admin.id)):
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block')
 
         images = [{'id': image.id,
