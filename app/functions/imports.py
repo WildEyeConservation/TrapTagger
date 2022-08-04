@@ -791,7 +791,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                     timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
                                     break
                             assert timestamp
-                        except (KeyError, ValueError):
+                        except:
                             app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                             continue
                     else:
@@ -827,7 +827,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash}
                         images.append(image)
                         
-                    except (ValueError):
+                    except:
                         app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
                         continue
         

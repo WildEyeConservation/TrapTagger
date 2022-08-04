@@ -1824,7 +1824,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
                     image.timestamp = timestamp
                     db.session.commit()
                     print('Success')
-                except (KeyError, ValueError):
+                except:
                     print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
 
             # crop the detections if they have sufficient area and score
