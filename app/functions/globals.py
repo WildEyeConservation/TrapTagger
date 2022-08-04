@@ -1309,7 +1309,7 @@ def checkForIdWork(task_id,label,theshold):
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                     .filter(OtherIndividual.c.active==True)\
                     .filter(OtherIndividual.c.name!='unidentifiable')\
-                    .filter(IndSimilarity.score>theshold)\
+                    .filter(IndSimilarity.score>=theshold)\
                     .filter(Individual.task_id==task_id)\
                     .filter(Individual.label_id==label.id)\
                     .filter(Individual.active==True)\
@@ -1322,7 +1322,7 @@ def checkForIdWork(task_id,label,theshold):
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                     .filter(OtherIndividual.c.active==True)\
                     .filter(OtherIndividual.c.name!='unidentifiable')\
-                    .filter(IndSimilarity.score>theshold)\
+                    .filter(IndSimilarity.score>=theshold)\
                     .filter(Individual.task_id==task_id)\
                     .filter(Individual.label_id==label.id)\
                     .filter(Individual.active==True)\

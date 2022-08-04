@@ -298,7 +298,7 @@ def updateTaskProgressBar(tskd):
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>tL[2])\
+                            .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
@@ -312,7 +312,7 @@ def updateTaskProgressBar(tskd):
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>tL[2])\
+                            .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
@@ -3679,7 +3679,7 @@ def getSuggestion(individual_id):
 
                 suggestion = db.session.query(IndSimilarity)\
                                     .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
-                                    .filter(IndSimilarity.score>tL[2])\
+                                    .filter(IndSimilarity.score>=tL[2])\
                                     .filter(IndSimilarity.skipped==False)\
                                     .filter(~IndSimilarity.individual_1.in_(inactiveIndividuals))\
                                     .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\

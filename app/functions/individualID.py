@@ -725,7 +725,7 @@ def getProgress(individual_id):
     # Skipped and accepted
     completed = db.session.query(IndSimilarity)\
                                 .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
-                                .filter(IndSimilarity.score>tL[2])\
+                                .filter(IndSimilarity.score>=tL[2])\
                                 .filter(or_(
                                     IndSimilarity.skipped == True,
                                     IndSimilarity.individual_1.in_(inactiveIndividuals),
@@ -742,7 +742,7 @@ def getProgress(individual_id):
     total = db.session.query(IndSimilarity)\
                                 .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
                                 .filter(or_(
-                                    IndSimilarity.score>tL[2],
+                                    IndSimilarity.score>=tL[2],
                                     IndSimilarity.score == -2000
                                 ))\
                                 .distinct().count()
