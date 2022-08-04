@@ -1057,7 +1057,7 @@ def imageViewer():
         if comparisonsurvey:
             check = db.session.query(Survey).get(comparisonsurvey)
 
-        if (len(reqImages) == 0) or ((comparisonsurvey and check.user!=current_user) or (current_user.id==admin.id)):
+        if (len(reqImages) == 0) or (comparisonsurvey and ((check.user!=current_user) and (current_user.id!=admin.id))):
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block')
 
         images = [{'id': image.id,
