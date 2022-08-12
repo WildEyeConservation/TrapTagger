@@ -1221,6 +1221,11 @@ def pipelineData():
         else:
             sourceBucket = None
 
+        if 'label_source' in request.form:
+            label_source = request.form['label_source']
+        else:
+            label_source = None
+
         if surveyName and bucketName and dataSource and trapgroupCode and min_area:
             if 'csv' in request.files:
                 uploaded_file = request.files['csv']
@@ -1254,7 +1259,8 @@ def pipelineData():
                     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=open(key, 'rb'))
 
                 pipeline_survey.delay(surveyName=surveyName,bucketName=bucketName,dataSource=dataSource,fileAttached=fileAttached,
-                                        trapgroupCode=trapgroupCode,min_area=min_area,exclusions=exclusions,sourceBucket=sourceBucket)
+                                        trapgroupCode=trapgroupCode,min_area=min_area,exclusions=exclusions,sourceBucket=sourceBucket,
+                                        label_source=label_source)
         else:
             status='error'
             message='Insufficient arguments supplied.'

@@ -31,6 +31,7 @@ function submitRequest() {
     min_area = document.getElementById('min_area').value
     exclusions = document.getElementById('exclusions').value
     sourceBucket = document.getElementById('sourceBucket').value
+    label_source = document.getElementById('label_source').value
     csvFileUpload = document.getElementById("csvFileUpload")
 
     var formData = new FormData()
@@ -61,6 +62,10 @@ function submitRequest() {
     
     if (sourceBucket!='') {
         formData.append("sourceBucket", sourceBucket)
+    }
+
+    if (label_source!='') {
+        formData.append("label_source", label_source)
     }
     
     if (csvFileUpload.files.length > 0) {

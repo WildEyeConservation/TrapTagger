@@ -852,7 +852,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
     return True
 
 @celery.task(bind=True,max_retries=29)
-def importImages(self,batch,csv,pipeline,external,min_area):
+def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
     '''
     Imports all specified images from a directory path under a single camera object in the database. Ignores duplicate image hashes, and duplicate image paths (from previous imports).
 
@@ -869,6 +869,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
                 destBucket (str): The destination for the compressed images
                 lower_index (int): The lower index of images from the folder to be imported
                 upper_index (int): The upper index of images from the folder to be imported
+            label_source (str): The exif field where labels are to be extracted from
     '''
     
     try:
@@ -964,6 +965,9 @@ def importImages(self,batch,csv,pipeline,external,min_area):
         # If we are piplining some training data, we need to save the crops
         if pipeline:
             print('Pipelining data')
+            if label_source:
+                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='import').first()
+                task_id = task.id
             pool = Pool(processes=4)
             for item in batch:
                 sourceBucket = item['sourceBucket']
@@ -987,7 +991,7 @@ def importImages(self,batch,csv,pipeline,external,min_area):
 
                 images = db.session.query(Image).join(Camera).filter(Camera.path==dirpath).filter(Image.filename.in_(jpegs)).distinct().all()
                 for image in images:
-                    pool.apply_async(save_crops,(image.id,sourceBucket,min_area,destBucket,external,True))
+                    pool.apply_async(save_crops,(image.id,sourceBucket,min_area,destBucket,external,True,label_source,task_id))
 
             print('All jobs queued.')
             pool.close()
@@ -1259,7 +1263,7 @@ def remove_duplicate_images(survey_id):
     
     return True
 
-def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pipeline,min_area,exclusions,processes=4):
+def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pipeline,min_area,exclusions,processes=4,label_source=None):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
 
@@ -1274,6 +1278,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
             min_area (float): The minimum area detection to crop if pipelining
             exclusions (list): A list of folders to exclude
             processes (int): Optional number of threads used for the import
+            label_source (str): Exif field where labels should be extracted from
     '''
     
     isjpeg = re.compile('\.jpe?g$', re.I)
@@ -1320,7 +1325,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                         batch_count += len(jpegs) - (n*chunk_size)
 
                     if (batch_count / ((Config.QUEUES['parallel']['bin_size'])*random.uniform(0.5, 1.5)) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area},queue='parallel'))
+                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -1345,7 +1350,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
@@ -1371,7 +1376,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     remove_duplicate_images(sid)
 
-def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions):
+def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions,label_source):
     '''
     Imports a survey of images for classifier training purposes. Saves only the detection crops.
 
@@ -1384,6 +1389,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
             min_area (float): The minimum detection size to be cropped 
             destBucket (str): The bucket where the crops must be saved
             exclusions (list): List of folders to exclude from the import
+            label_source (str): The exif field wfrom which labels should be extracted
     '''
 
     # Create survey
@@ -1445,13 +1451,13 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                     batch_count += number_of_images - (n*chunk_size)
 
                 if (batch_count / ((Config.QUEUES['parallel']['bin_size'])*random.uniform(0.5, 1.5)) ) >= 1:
-                    results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area},queue='parallel'))
+                    results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
                     batch = []
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
@@ -2461,10 +2467,10 @@ def pipeline_cluster_camera(self,camera_id,task_id):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroupCode,min_area,exclusions,sourceBucket):
+def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroupCode,min_area,exclusions,sourceBucket,label_source):
     '''
     Celery task for processing pre-annotated data. Creates a survey etc. as normal, but does not classify the data, nor bother to 
-    cluster it. Additionally saves crops instead of compressed images. Has two operational modes:
+    cluster it. Additionally saves crops instead of compressed images.
 
         Parameters:
             surveyName (str): The desired survey name
@@ -2478,12 +2484,27 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             min_area (float): The minimum area detection to crop
             exclusions (list): A list of folders to exclude
             sourceBucket (str): The bucket where the folder should be found if no csv file was attached
+            label_source (str): The metadata field where labels are to be extracted from
     '''
     
     try:
         app.logger.info("Pipelining survey {}".format(surveyName))
         admin = db.session.query(User).filter(User.username=='Admin').first()
         user_id = admin.id
+
+        localsession=db.session()
+        survey = Survey.get_or_create(localsession,name=surveyName,user_id=user_id,trapgroup_code=trapgroupCode)
+        survey.status = 'Importing'
+
+        if fileAttached or label_source:
+            task = Task(name='import', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
+        else:
+            task = Task(name='default', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
+        db.session.add(task)
+        task_id=task.id
+
+        localsession.commit()
+        localsession.remove()
 
         if fileAttached:
             fileName = 'csvFiles/' + surveyName + '.csv'
@@ -2506,11 +2527,11 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             del df['filepath']
 
             # Start importing these
-            pipeline_csv(df,surveyName,trapgroupCode,dataSource,True,min_area,bucketName,exclusions)
+            pipeline_csv(df,surveyName,trapgroupCode,dataSource,True,min_area,bucketName,exclusions,label_source)
 
         else:
             #import from S3 folder
-            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,admin.id,True,min_area,exclusions,4)
+            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,admin.id,True,min_area,exclusions,4,label_source)
 
         # Cluster survey
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
@@ -2518,59 +2539,11 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         db.session.commit()
         survey_id = survey.id
 
-        if fileAttached:
-            task = Task(name='import', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
-        else:
-            task = Task(name='default', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
-        db.session.add(task)
-        db.session.commit()
-        task_id=task.id
-
-        results = []
-        for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
-            results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera.id,'task_id':task.id},queue='parallel'))
-
-        # Wait for processing to finish
-        # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-        # See https://github.com/celery/celery/issues/4480
-        db.session.remove()
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()        
-
-        # Extract labels:
-        if fileAttached:
-            survey = db.session.query(Survey).get(survey_id)
-            survey.status = 'Extracting Labels'
-            db.session.commit()
-
-            # Create labels
-            translations = {}
-            for species in df['species'].unique():
-                label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
-                db.session.add(label)
-                db.session.commit()
-                translations[species] = label.id
-
-            # Run the folders in parallel
+        # if labels extracted from metadata, there are already labelled clusters
+        if not label_source:
             results = []
-            for dirpath in df['dirpath'].unique():
-                dirpathDF = df.loc[df['dirpath'] == dirpath]
-                key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-                    dirpathDF.to_csv(temp_file.name,index=False)
-                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
-                results.append(extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey_id,'destBucket':bucketName},queue='parallel'))
+            for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
+                results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera.id,'task_id':task_id},queue='parallel'))
 
             # Wait for processing to finish
             # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
@@ -2588,7 +2561,49 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                         app.logger.info(' ')
                     result.forget()
-            GLOBALS.lock.release()
+            GLOBALS.lock.release()        
+
+            # Extract labels:
+            if fileAttached:
+                survey = db.session.query(Survey).get(survey_id)
+                survey.status = 'Extracting Labels'
+                db.session.commit()
+
+                # Create labels
+                translations = {}
+                for species in df['species'].unique():
+                    label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
+                    db.session.add(label)
+                    db.session.commit()
+                    translations[species] = label.id
+
+                # Run the folders in parallel
+                results = []
+                for dirpath in df['dirpath'].unique():
+                    dirpathDF = df.loc[df['dirpath'] == dirpath]
+                    key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                        dirpathDF.to_csv(temp_file.name,index=False)
+                        GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                    results.append(extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey_id,'destBucket':bucketName},queue='parallel'))
+
+                # Wait for processing to finish
+                # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+                # See https://github.com/celery/celery/issues/4480
+                db.session.remove()
+                GLOBALS.lock.acquire()
+                with allow_join_result():
+                    for result in results:
+                        try:
+                            result.get()
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                        result.forget()
+                GLOBALS.lock.release()
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Removing Static Detections'

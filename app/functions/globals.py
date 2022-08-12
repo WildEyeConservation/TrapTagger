@@ -49,6 +49,7 @@ from PIL import ImageOps
 import pyexifinfo
 import hashlib
 from multiprocessing.pool import ThreadPool as Pool
+from iptcinfo3 import IPTCInfo
 
 def cleanupWorkers(one, two):
     '''
@@ -1750,7 +1751,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
     return True
 
-def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
+def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):
     '''
     Crops all the detections out of the supplied image and saves them to S3 for training purposes.
 
@@ -1761,6 +1762,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
             destBucket (str): The bucket where the crops must be saved
             external (bool): Whether the image is stored outside of S3
             update_image_info (bool): Whether to update the image hash and timestamp in the database
+            label_source (str): If not None, the exif field to extract image labels from (for pipelining data)
+            task_id (int): The task to which the exif labels must be added
     '''
 
     image = db.session.query(Image).get(image_id)
@@ -1826,6 +1829,28 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info):
                     print('Success')
                 except:
                     print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
+
+                # Extract exif labels
+                print('Extracting Labels')
+                try:
+                    if label_source:
+                        cluster = Cluster(task_id=task_id)
+                        db.session.add(cluster)
+                        cluster.images = [image]
+                        if label_source=='iptc':
+                            info = IPTCInfo(temp_file.name)
+                            for label_name in info['keywords']:
+                                description = label_name.decode()
+                                label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
+                                if not label:
+                                    label = Label(description=description,task_id=task_id)
+                                    db.session.add(label)
+                                    db.session.commit()
+                                cluster.labels.append(label)
+                        db.session.commit()
+                        print('Success')
+                except:
+                    print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
 
             # crop the detections if they have sufficient area and score
             print('Cropping detections...')
