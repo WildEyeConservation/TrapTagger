@@ -2532,7 +2532,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
 
         else:
             #import from S3 folder
-            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,admin.id,True,min_area,exclusions,4,label_source)
+            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,user_id,True,min_area,exclusions,4,label_source)
 
         # Cluster survey
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
