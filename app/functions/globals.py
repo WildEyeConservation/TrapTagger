@@ -1832,8 +1832,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
 
                 # Extract exif labels
                 print('Extracting Labels')
-                try:
-                    if label_source:
+                if False: #label_source:
+                    try:
                         cluster = Cluster(task_id=task_id)
                         db.session.add(cluster)
                         cluster.images = [image]
@@ -1855,8 +1855,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                                 print('label added')
                         db.session.commit()
                         print('Success')
-                except:
-                    print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
+                    except:
+                        print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
 
             # crop the detections if they have sufficient area and score
             print('Cropping detections...')
