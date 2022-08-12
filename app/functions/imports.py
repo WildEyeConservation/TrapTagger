@@ -2495,12 +2495,13 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         localsession=db.session()
         survey = Survey.get_or_create(localsession,name=surveyName,user_id=user_id,trapgroup_code=trapgroupCode)
         survey.status = 'Importing'
+        localsession.commit()
 
         if fileAttached or label_source:
-            task = Task(name='import', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
+            task = Task(name='import', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
         else:
-            task = Task(name='default', survey_id=survey_id, tagging_level='-1', test_size=0, status='Ready')
-        db.session.add(task)
+            task = Task(name='default', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
+        localsession.add(task)
         task_id=task.id
 
         localsession.commit()
