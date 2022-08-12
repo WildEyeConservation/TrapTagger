@@ -1837,16 +1837,22 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                         cluster = Cluster(task_id=task_id)
                         db.session.add(cluster)
                         cluster.images = [image]
+                        print('Cluster created')
                         if label_source=='iptc':
+                            print('type: iptc')
                             info = IPTCInfo(temp_file.name)
+                            print('Info extracted')
                             for label_name in info['keywords']:
                                 description = label_name.decode()
+                                print('Handling label: {}'.format(description))
                                 label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
                                 if not label:
+                                    print('Creating label')
                                     label = Label(description=description,task_id=task_id)
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
+                                print('label added')
                         db.session.commit()
                         print('Success')
                 except:
