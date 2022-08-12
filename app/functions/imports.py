@@ -2505,7 +2505,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         task_id=task.id
 
         localsession.commit()
-        localsession.remove()
+        localsession.close()
 
         if fileAttached:
             fileName = 'csvFiles/' + surveyName + '.csv'
