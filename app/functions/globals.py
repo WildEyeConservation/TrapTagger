@@ -1751,71 +1751,71 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
     return True
 
-@celery.task(bind=True,max_retries=29)
-def extract_labels(self,image_ids,source,external,label_source,task_id):
-    try:
-        for image_id in image_ids:
-            image = db.session.query(Image).get(image_id)
+# @celery.task(bind=True,max_retries=29)
+# def extract_labels(self,image_ids,source,external,label_source,task_id):
+#     try:
+#         for image_id in image_ids:
+#             image = db.session.query(Image).get(image_id)
 
-            # Download file
-            print('Downloading file...')
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                if external:
-                    attempts = 0
-                    retry = True
-                    while retry and (attempts < 10):
-                        attempts += 1
-                        try:
-                            response = requests.get(source+'/'+image.camera.path+'/'+image.filename, timeout=30)
-                            assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
-                            retry = False
-                        except:
-                            retry = True
-                    with open(temp_file.name, 'wb') as handler:
-                        handler.write(response.content)
-                else:
-                    GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
-                print('Success')
+#             # Download file
+#             print('Downloading file...')
+#             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+#                 if external:
+#                     attempts = 0
+#                     retry = True
+#                     while retry and (attempts < 10):
+#                         attempts += 1
+#                         try:
+#                             response = requests.get(source+'/'+image.camera.path+'/'+image.filename, timeout=30)
+#                             assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
+#                             retry = False
+#                         except:
+#                             retry = True
+#                     with open(temp_file.name, 'wb') as handler:
+#                         handler.write(response.content)
+#                 else:
+#                     GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+#                 print('Success')
 
-                # Extract exif labels
-                print('Extracting Labels')
-                try:
-                    cluster = Cluster(task_id=task_id)
-                    db.session.add(cluster)
-                    cluster.images = [image]
-                    print('Cluster created')
-                    if label_source=='iptc':
-                        print('type: iptc')
-                        info = IPTCInfo(temp_file.name)
-                        print('Info extracted')
-                        for label_name in info['keywords']:
-                            description = label_name.decode()
-                            print('Handling label: {}'.format(description))
-                            label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
-                            if not label:
-                                print('Creating label')
-                                label = Label(description=description,task_id=task_id)
-                                db.session.add(label)
-                                db.session.commit()
-                            cluster.labels.append(label)
-                            print('label added')
-                    db.session.commit()
-                    print('Success')
-                except:
-                    print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
+#                 # Extract exif labels
+#                 print('Extracting Labels')
+#                 try:
+#                     cluster = Cluster(task_id=task_id)
+#                     db.session.add(cluster)
+#                     cluster.images = [image]
+#                     print('Cluster created')
+#                     if label_source=='iptc':
+#                         print('type: iptc')
+#                         info = IPTCInfo(temp_file.name)
+#                         print('Info extracted')
+#                         for label_name in info['keywords']:
+#                             description = label_name.decode()
+#                             print('Handling label: {}'.format(description))
+#                             label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
+#                             if not label:
+#                                 print('Creating label')
+#                                 label = Label(description=description,task_id=task_id)
+#                                 db.session.add(label)
+#                                 db.session.commit()
+#                             cluster.labels.append(label)
+#                             print('label added')
+#                     db.session.commit()
+#                     print('Success')
+#                 except:
+#                     print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
     
-    finally:
-        db.session.remove()
+#     finally:
+#         db.session.remove()
 
-    return True
+#     return True
 
 def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):
     '''
