@@ -1878,7 +1878,6 @@ limitations under the License. -->
                 if (reply.status=='success') {
 
                     if (document.getElementById('BrowserUpload').checked == true) {
-                        inputFile = document.getElementById('inputFile')
                         uploading = true
                         ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
@@ -1906,7 +1905,7 @@ limitations under the License. -->
                         modalNewSurvey.modal('hide')
                         modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 
-                        uploadFiles()
+                        uploadSurveyToCloud(surveyName)
                     } else {
                         document.getElementById('modalAlertHeader').innerHTML = 'Success'
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is being imported.'
@@ -2169,7 +2168,7 @@ limitations under the License. -->
                         modalAddImages.modal('hide')
                         modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 
-                        uploadFiles()
+                        uploadSurveyToCloud(surveyName)
                     } else {
 
                         if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('addImagesAddCoordinates').checked)) {

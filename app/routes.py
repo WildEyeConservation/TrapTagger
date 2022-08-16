@@ -6122,8 +6122,8 @@ def uploadImageToCloud():
             temp_file = BytesIO()
             uploaded_file.save(temp_file)
             temp_file.seek(0)
-            GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
-            hash = GLOBALS.s3client.head_object(Bucket='traptagger',Key=key)['ETag'][1:-1]
+            response = GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
+            hash = response['ETag'][1:-1]
             
             return json.dumps({'status': 'success', 'hash': hash})
 

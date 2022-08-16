@@ -2291,12 +2291,21 @@ $('.modal').on("hidden.bs.modal", function (e) {
     }
 });
 
-function uploadSurveyToCloud() {
-    surveyName = document.getElementById('newSurveyName').value
+function uploadSurveyToCloud(surveyName) {
     inputFiles = document.getElementById('inputFile')
     if (inputFiles.files.length>0) {
         uploadImageToCloud(0,surveyName,1)
     }
+}
+
+function updateUploadProgress(value,total) {
+    progBar = document.getElementById('uploadProgBar')
+    perc=(value/total)*100
+    remaining = total-value
+
+    progBar.setAttribute('aria-valuenow',value)
+    progBar.setAttribute('style',"width:"+perc+"%")
+    progBar.innerHTML = remaining + " images remaining."
 }
 
 function uploadImageToCloud(fileIndex,surveyName,attempts) {
@@ -2312,12 +2321,24 @@ function uploadImageToCloud(fileIndex,surveyName,attempts) {
         return function() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText)
-                if ((reply.status!='success') && (wrapAttempts<5)) {
+                if (stopFlag) {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.open("GET", '/deleteImages/'+surveyName);
+                    xhttp.send();
+                } else if ((reply.status!='success') && (wrapAttempts<5)) {
                     uploadImageToCloud(wrapFileIndex,wrapSurveyName,wrapAttempts+1)
                 } else if (wrapFileIndex < document.getElementById('inputFile').files.length-1) {
+                    updateUploadProgress(wrapFileIndex+1,document.getElementById('inputFile').files.length)
                     uploadImageToCloud(wrapFileIndex+1,wrapSurveyName,1)
                 } else {
                     // DONE! Close modals etc.
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
+                    xhttp.send();
+                    modalUploadProgress.modal('hide')
+                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
+                    document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
+                    modalAlert.modal({keyboard: true});
                 }
             }
         }
