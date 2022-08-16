@@ -6115,7 +6115,7 @@ def uploadImageToCloud():
             surveyName = request.form['surveyName']
         else:
             surveyName = None
-            
+
         # path = request.args.get('path', None)
         app.logger.info('uploadImageToCloud request recieved')
         app.logger.info(surveyName)
@@ -6129,6 +6129,7 @@ def uploadImageToCloud():
             
             temp_file = BytesIO()
             uploaded_file.save(temp_file)
+            temp_file.seek(0)
             app.logger.info('file saved')
             GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
             app.logger.info('image uploaded')
