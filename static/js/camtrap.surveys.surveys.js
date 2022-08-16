@@ -2292,6 +2292,7 @@ $('.modal').on("hidden.bs.modal", function (e) {
 });
 
 function uploadSurveyToCloud(surveyName) {
+    stopFlag=false
     inputFiles = document.getElementById('inputFile')
     if (inputFiles.files.length>0) {
         uploadImageToCloud(0,surveyName,1)
@@ -2339,6 +2340,7 @@ function uploadImageToCloud(fileIndex,surveyName,attempts) {
                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
                     document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
                     modalAlert.modal({keyboard: true});
+                    stopFlag=true
                 }
             }
         }
