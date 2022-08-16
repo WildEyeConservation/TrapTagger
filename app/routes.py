@@ -6107,6 +6107,7 @@ def uploadImageToCloud():
     '''
     Uploads the sent image to AWS S3 on behalf of the user to enure they only access their own folder.
     '''
+    print('########################################################')
 
     if current_user.admin:
         surveyName = request.args.get('surveyName', None)
