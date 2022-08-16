@@ -92,6 +92,7 @@ services:
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
             - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
         command: gunicorn -b 0.0.0.0:8000 -w 1 -k gthread app:app
         networks:
             my-network:
@@ -137,6 +138,7 @@ services:
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
             - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
         command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -178,6 +180,7 @@ services:
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
             - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -219,6 +222,7 @@ services:
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
             - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -260,6 +264,7 @@ services:
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET_ROOT=${BUCKET_ROOT}
             - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network

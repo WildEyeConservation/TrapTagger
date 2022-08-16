@@ -2290,3 +2290,37 @@ $('.modal').on("hidden.bs.modal", function (e) {
         $('body').addClass('modal-open');
     }
 });
+
+function uploadSurveyToCloud() {
+    surveyName = document.getElementById('surveyName').value
+    inputFiles = document.getElementById('inputFile')
+    if (inputFiles.files.length>0) {
+        uploadImageToCloud(0,surveyName,1)
+    }
+}
+
+function uploadImageToCloud(fileIndex,surveyName,attempts) {
+
+    var formData = new FormData()
+    formData.append("image", document.getElementById('inputFile').files[fileIndex])
+    formData.append("surveyName", surveyName)
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/uploadImageToCloud');
+    xhttp.onreadystatechange =
+    function(wrapFileIndex,wrapSurveyName,wrapAttempts){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText)
+                if ((reply.status!='success') && (wrapAttempts<5)) {
+                    uploadImageToCloud(wrapFileIndex,wrapSurveyName,wrapAttempts+1)
+                } else if (wrapFileIndex < document.getElementById('inputFile').files.length-1) {
+                    uploadImageToCloud(wrapFileIndex+1,wrapSurveyName,1)
+                } else {
+                    // DONE! Close modals etc.
+                }
+            }
+        }
+    }(fileIndex,surveyName,attempts)
+    xhttp.send(formData);
+}

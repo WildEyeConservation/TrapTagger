@@ -6100,3 +6100,27 @@ def getHelp():
         return json.dumps(render_template('help/'+helpRequired+'.html'))
     else:
         return json.dumps('Error')
+
+@app.route('/uploadImageToCloud', methods=['POST'])
+@login_required
+def uploadImageToCloud():
+    '''
+    Uploads the sent image to AWS S3 on behalf of the user to enure they only access their own folder.
+    '''
+
+    if current_user.admin:
+        surveyName = request.args.get('surveyName', None)
+        # path = request.args.get('path', None)
+        
+        if surveyName and path and ('image' in request.files):
+            uploaded_file = request.files['image']
+            key = current_user.bucket + '/' + surveyName + '/' + uploaded_file.filename
+            
+            temp_file = BytesIO()
+            uploaded_file.save(temp_file)
+            GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
+            hash = GLOBALS.s3client.head_object(Bucket='traptagger',Key=key)['ETag'][1:-1]
+            
+            return json.dumps({'status': 'success', 'hash': hash})
+
+    return json.dumps({'status': 'error'})

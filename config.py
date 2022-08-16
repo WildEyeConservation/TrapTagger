@@ -61,6 +61,7 @@ class Config(object):
 
     AWS_REGION = os.environ.get('REGION_NAME')
     TOKEN = os.environ.get('TOKEN')
+    IAM_ADMIN_GROUP = os.environ.get('IAM_ADMIN_GROUP')
 
     #Worker config
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
@@ -164,7 +165,8 @@ class Config(object):
                 os.environ.get('MAIN_GIT_REPO') + "' '" + 
                 str(CONCURRENCY['parallel']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
-                BUCKET_ROOT + "'" + 
+                BUCKET_ROOT + "' '" + 
+                IAM_ADMIN_GROUP + "'" + 
                 ' -l info'
         },
         'default': {
@@ -203,7 +205,8 @@ class Config(object):
                 os.environ.get('MAIN_GIT_REPO') + "' '" + 
                 str(CONCURRENCY['default']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
-                BUCKET_ROOT + "'" + 
+                BUCKET_ROOT + "' '" + 
+                IAM_ADMIN_GROUP + "'" + 
                 ' -l info'
         },
         'celery': {

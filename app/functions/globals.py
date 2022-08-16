@@ -1419,101 +1419,107 @@ def create_new_aws_user(organisation,bucket):
     s3UserName = response['AccessKey']['AccessKeyId']
     s3Password = response['AccessKey']['SecretAccessKey']
 
+    #Add user to TrapTagger Admin Group
+    response = iam.add_user_to_group(
+        GroupName=Config.IAM_ADMIN_GROUP,
+        UserName=userName
+    )
+
     #Create buckets
-    s3 = boto3.client('s3', region_name=Config.AWS_REGION)
-    response = s3.create_bucket(
-        ACL='private',
-        Bucket=bucket_name_raw,
-        CreateBucketConfiguration={
-            'LocationConstraint': 'eu-west-2'
-        }
-    )
+    # s3 = boto3.client('s3', region_name=Config.AWS_REGION)
+    # response = s3.create_bucket(
+    #     ACL='private',
+    #     Bucket=bucket_name_raw,
+    #     CreateBucketConfiguration={
+    #         'LocationConstraint': 'eu-west-2'
+    #     }
+    # )
 
-    response = s3.create_bucket(
-        ACL='private',
-        Bucket=bucket_name,
-        CreateBucketConfiguration={
-            'LocationConstraint': 'eu-west-2'
-        }
-    )
+    # response = s3.create_bucket(
+    #     ACL='private',
+    #     Bucket=bucket_name,
+    #     CreateBucketConfiguration={
+    #         'LocationConstraint': 'eu-west-2'
+    #     }
+    # )
 
-    time.sleep(10)
+    # time.sleep(10)
 
-    #set bucket policy
-    bucket_policy = {
-        'Version': '2012-10-17',
-        'Statement': [
-        {
-            'Sid': 'AddPerm',
-            'Effect': 'Allow',
-            'Principal': {"AWS": ["arn:aws:iam::275736403632:user/"+userName, "arn:aws:iam::275736403632:root"]},
-            'Action': "s3:*",
-            'Resource': 'arn:aws:s3:::'+bucket_name_raw+'/*'
-        },
-        {
-            "Sid":"Allow get requests from traptagger",
-            "Effect":"Allow",
-            "Principal":"*",
-            "Action":"s3:GetObject",
-            "Resource":"arn:aws:s3:::"+bucket_name_raw+"/*",
-            "Condition":{"StringLike":{"aws:Referer":["https://www."+Config.DNS+"/*","https://"+Config.DNS+"/*"]}}
-        },
-        {
-            "Sid": "AddPerm",
-            "Effect": "Allow",
-            "Principal": {"AWS": ["arn:aws:iam::275736403632:user/"+userName, "arn:aws:iam::275736403632:root"]},
-            "Action": "s3:ListBucket",
-            "Resource": "arn:aws:s3:::"+bucket_name_raw
-        }
-        ]
-    }
-    s3.put_bucket_policy(Bucket=bucket_name_raw, Policy=json.dumps(bucket_policy))
+    # #set bucket policy
+    # bucket_policy = {
+    #     'Version': '2012-10-17',
+    #     'Statement': [
+    #     {
+    #         'Sid': 'AddPerm',
+    #         'Effect': 'Allow',
+    #         'Principal': {"AWS": ["arn:aws:iam::275736403632:user/"+userName, "arn:aws:iam::275736403632:root"]},
+    #         'Action': "s3:*",
+    #         'Resource': 'arn:aws:s3:::'+bucket_name_raw+'/*'
+    #     },
+    #     {
+    #         "Sid":"Allow get requests from traptagger",
+    #         "Effect":"Allow",
+    #         "Principal":"*",
+    #         "Action":"s3:GetObject",
+    #         "Resource":"arn:aws:s3:::"+bucket_name_raw+"/*",
+    #         "Condition":{"StringLike":{"aws:Referer":["https://www."+Config.DNS+"/*","https://"+Config.DNS+"/*"]}}
+    #     },
+    #     {
+    #         "Sid": "AddPerm",
+    #         "Effect": "Allow",
+    #         "Principal": {"AWS": ["arn:aws:iam::275736403632:user/"+userName, "arn:aws:iam::275736403632:root"]},
+    #         "Action": "s3:ListBucket",
+    #         "Resource": "arn:aws:s3:::"+bucket_name_raw
+    #     }
+    #     ]
+    # }
+    # s3.put_bucket_policy(Bucket=bucket_name_raw, Policy=json.dumps(bucket_policy))
 
-    bucket_policy = {
-        "Version":"2012-10-17",
-        "Statement":[
-            {
-                'Sid': 'AddPerm',
-                'Effect': 'Allow',
-                'Principal': {"AWS": ["arn:aws:iam::275736403632:root"]},
-                'Action': "s3:*",
-                'Resource': 'arn:aws:s3:::'+bucket_name+'/*'
-            },
-            {
-                "Sid":"Allow get requests from traptagger",
-                "Effect":"Allow",
-                "Principal":"*",
-                "Action":"s3:GetObject",
-                "Resource":"arn:aws:s3:::"+bucket_name+"/*",
-                "Condition":{"StringLike":{"aws:Referer":["https://www."+Config.DNS+"/*","https://"+Config.DNS+"/*"]}}
-            },
-            {
-                "Sid": "AddPerm",
-                "Effect": "Allow",
-                "Principal": {"AWS": ["arn:aws:iam::275736403632:root"]},
-                "Action": "s3:ListBucket",
-                "Resource": "arn:aws:s3:::"+bucket_name
-            }
-        ]
-        }
-    s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(bucket_policy))
-
+    # bucket_policy = {
+    #     "Version":"2012-10-17",
+    #     "Statement":[
+    #         {
+    #             'Sid': 'AddPerm',
+    #             'Effect': 'Allow',
+    #             'Principal': {"AWS": ["arn:aws:iam::275736403632:root"]},
+    #             'Action': "s3:*",
+    #             'Resource': 'arn:aws:s3:::'+bucket_name+'/*'
+    #         },
+    #         {
+    #             "Sid":"Allow get requests from traptagger",
+    #             "Effect":"Allow",
+    #             "Principal":"*",
+    #             "Action":"s3:GetObject",
+    #             "Resource":"arn:aws:s3:::"+bucket_name+"/*",
+    #             "Condition":{"StringLike":{"aws:Referer":["https://www."+Config.DNS+"/*","https://"+Config.DNS+"/*"]}}
+    #         },
+    #         {
+    #             "Sid": "AddPerm",
+    #             "Effect": "Allow",
+    #             "Principal": {"AWS": ["arn:aws:iam::275736403632:root"]},
+    #             "Action": "s3:ListBucket",
+    #             "Resource": "arn:aws:s3:::"+bucket_name
+    #         }
+    #     ]
+    #     }
+    # s3.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(bucket_policy))
 
     ############################Set up for browser upload
+    
     #Set bucket cors
-    s3.put_bucket_cors(
-        Bucket=bucket_name_raw,
-        CORSConfiguration={
-            'CORSRules': [
-                {
-                    'AllowedHeaders': ['*'],
-                    'AllowedMethods': ['HEAD','POST','GET','PUT','DELETE'],
-                    'AllowedOrigins': ['*'],
-                    'ExposeHeaders': ['ETag','Content-Length','Content-Type','Connection','Date','Server','x-amz-delete-marker','x-amz-id-2','x-amz-request-id','x-amz-version-id']
-                },
-            ]
-        },
-    )
+    # s3.put_bucket_cors(
+    #     Bucket=bucket_name_raw,
+    #     CORSConfiguration={
+    #         'CORSRules': [
+    #             {
+    #                 'AllowedHeaders': ['*'],
+    #                 'AllowedMethods': ['HEAD','POST','GET','PUT','DELETE'],
+    #                 'AllowedOrigins': ['*'],
+    #                 'ExposeHeaders': ['ETag','Content-Length','Content-Type','Connection','Date','Server','x-amz-delete-marker','x-amz-id-2','x-amz-request-id','x-amz-version-id']
+    #             },
+    #         ]
+    #     },
+    # )
 
     cognito = boto3.client('cognito-identity', region_name=Config.AWS_REGION)
 
@@ -1524,23 +1530,23 @@ def create_new_aws_user(organisation,bucket):
 
     IdentityPoolId = response['IdentityPoolId']
 
-    policy_document = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": "s3:*",
-                "Resource": "arn:aws:s3:::"+bucket_name_raw+"/*"
-            }
-        ]
-    }
+    # policy_document = {
+    #     "Version": "2012-10-17",
+    #     "Statement": [
+    #         {
+    #             "Effect": "Allow",
+    #             "Action": "s3:*",
+    #             "Resource": "arn:aws:s3:::"+bucket_name_raw+"/*"
+    #         }
+    #     ]
+    # }
 
-    response = iam.create_policy(
-        PolicyName='traptagger_'+userName,
-        PolicyDocument=json.dumps(policy_document)
-    )
+    # response = iam.create_policy(
+    #     PolicyName='traptagger_'+userName,
+    #     PolicyDocument=json.dumps(policy_document)
+    # )
 
-    policyArn = response['Policy']['Arn']
+    # policyArn = response['Policy']['Arn']
 
     roleName = 'traptagger_role_'+userName
 
