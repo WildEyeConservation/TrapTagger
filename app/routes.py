@@ -6111,15 +6111,21 @@ def uploadImageToCloud():
     if current_user.admin:
         surveyName = request.args.get('surveyName', None)
         # path = request.args.get('path', None)
+        print('uploadImageToCloud request recieved')
         
-        if surveyName and path and ('image' in request.files):
+        if surveyName and ('image' in request.files):
             uploaded_file = request.files['image']
+            print('image found')
             key = current_user.bucket + '/' + surveyName + '/' + uploaded_file.filename
+            print(key)
             
             temp_file = BytesIO()
             uploaded_file.save(temp_file)
+            print('file saved')
             GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
+            print('image uploaded')
             hash = GLOBALS.s3client.head_object(Bucket='traptagger',Key=key)['ETag'][1:-1]
+            print(hash)
             
             return json.dumps({'status': 'success', 'hash': hash})
 
