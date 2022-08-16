@@ -6113,6 +6113,8 @@ def uploadImageToCloud():
         surveyName = request.args.get('surveyName', None)
         # path = request.args.get('path', None)
         app.logger.info('uploadImageToCloud request recieved')
+        app.logger.info(surveyName)
+        app.logger.info(request.files)
         
         if surveyName and ('image' in request.files):
             uploaded_file = request.files['image']
