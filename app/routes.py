@@ -6110,7 +6110,12 @@ def uploadImageToCloud():
     app.logger.info('########################################################')
 
     if current_user.admin:
-        surveyName = request.args.get('surveyName', None)
+
+        if 'surveyName' in request.form:
+            surveyName = request.form['surveyName']
+        else:
+            surveyName = None
+            
         # path = request.args.get('path', None)
         app.logger.info('uploadImageToCloud request recieved')
         app.logger.info(surveyName)
