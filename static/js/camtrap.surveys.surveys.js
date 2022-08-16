@@ -2292,7 +2292,7 @@ $('.modal').on("hidden.bs.modal", function (e) {
 });
 
 function uploadSurveyToCloud() {
-    surveyName = document.getElementById('surveyName').value
+    surveyName = document.getElementById('newSurveyName').value
     inputFiles = document.getElementById('inputFile')
     if (inputFiles.files.length>0) {
         uploadImageToCloud(0,surveyName,1)
