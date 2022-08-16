@@ -6107,7 +6107,6 @@ def uploadImageToCloud():
     '''
     Uploads the sent image to AWS S3 on behalf of the user to enure they only access their own folder.
     '''
-    app.logger.info('########################################################')
 
     if current_user.admin:
 
@@ -6115,26 +6114,16 @@ def uploadImageToCloud():
             surveyName = request.form['surveyName']
         else:
             surveyName = None
-
-        # path = request.args.get('path', None)
-        app.logger.info('uploadImageToCloud request recieved')
-        app.logger.info(surveyName)
-        app.logger.info(request.files)
         
         if surveyName and ('image' in request.files):
             uploaded_file = request.files['image']
-            app.logger.info('image found')
             key = current_user.bucket + '/' + surveyName + '/' + uploaded_file.filename
-            app.logger.info(key)
             
             temp_file = BytesIO()
             uploaded_file.save(temp_file)
             temp_file.seek(0)
-            app.logger.info('file saved')
             GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
-            app.logger.info('image uploaded')
             hash = GLOBALS.s3client.head_object(Bucket='traptagger',Key=key)['ETag'][1:-1]
-            app.logger.info(hash)
             
             return json.dumps({'status': 'success', 'hash': hash})
 
