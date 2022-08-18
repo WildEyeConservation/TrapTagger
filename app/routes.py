@@ -50,6 +50,24 @@ from flask_cors import cross_origin
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.lock = Lock()
 
+@app.before_request
+def check_for_maintenance():
+    '''Checks if site is in maintenance mode and returns a message accordingly.'''
+    if Config.MAINTENANCE: 
+        return render_template("html/block.html",text="Platform undergoing maintenance. Please try again later.", helpFile='block'), 503
+
+@app.errorhandler(404)
+def not_found_error(error):
+    '''Handles users requesting non-existent endpoints.'''
+    return render_template("html/block.html",text="Page not found.", helpFile='block'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    '''Handles server errors.'''
+    # db.session.rollback()
+    db.session.remove()
+    return render_template("html/block.html",text="An unexpected error has occurred.", helpFile='block'), 500
+
 @app.route('/getUniqueName')
 @login_required
 def getUniqueName():
@@ -2019,18 +2037,6 @@ def dotask(username):
             return redirect(url_for('index'))
     else:
         return render_template("html/block.html",text="Invalid URL.", helpFile='block')
-
-@app.errorhandler(404)
-def not_found_error(error):
-    '''Handles users requesting non-existent endpoints.'''
-    return render_template("html/block.html",text="Page not found.", helpFile='block'), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    '''Handles server errors.'''
-    # db.session.rollback()
-    db.session.remove()
-    return render_template("html/block.html",text="An unexpected error has occurred.", helpFile='block'), 500
 
 @app.route('/createAccount/<token>')
 def createAccount(token):

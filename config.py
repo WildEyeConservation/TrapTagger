@@ -21,6 +21,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 class Config(object):
     LOAD_TESTING = False
     DEBUGGING = False
+    MAINTENANCE = False
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
