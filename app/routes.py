@@ -52,9 +52,9 @@ GLOBALS.lock = Lock()
 
 @app.before_request
 def check_for_maintenance():
-    '''Checks if site is in maintenance mode and redirects theuser to the maintenance page accordingly.'''
-    if Config.MAINTENANCE and request.path != url_for('maintenance'): 
-        return redirect(url_for('maintenance'))
+    '''Checks if site is in maintenance mode and returns a message accordingly.'''
+    if Config.MAINTENANCE: 
+        return render_template("html/block.html",text="Platform undergoing maintenance. Please try again later.", helpFile='block'), 503
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -67,11 +67,6 @@ def internal_error(error):
     # db.session.rollback()
     db.session.remove()
     return render_template("html/block.html",text="An unexpected error has occurred.", helpFile='block'), 500
-
-@app.route('/maintenance')
-def maintenance():
-    '''The maintenance page.'''
-    return render_template("html/block.html",text="Platform undergoing maintenance. Please try again later.", helpFile='block'), 503
 
 @app.route('/getUniqueName')
 @login_required
