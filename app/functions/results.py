@@ -804,7 +804,6 @@ def generate_wildbook_export(self,task_id, data):
             except:
                 pass
 
-        bucketName = task.survey.user.bucket + '-raw'
         tempFolderName = fileName+'_temp'
         species = db.session.query(Label).get(int(data['species']))
 
@@ -855,7 +854,7 @@ def generate_wildbook_export(self,task_id, data):
             tempDF = df.loc[n*1000:(n+1)*1000-1]
 
             tempDF.apply(lambda x: GLOBALS.s3client.download_file(
-                Bucket=bucketName, 
+                Bucket=Config.BUCKET, 
                 Key=(x['path']+'/'+x['filename']), 
                 Filename=(subsetFolder+'/'+x['Encounter.mediaAsset0'])
             ), axis=1)
@@ -1221,7 +1220,7 @@ def generate_excel(self,task_id):
 
     return None
 
-def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,individual_sorted,surveyName,labels):
+def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
     '''
     Processes a single image for exif download by downloading the file locally, editing its metadata (without opening it) and saving it 
     to a Downloads folder in the user's bucket. Labels are saved in the user comment exif data, xpkeyword data and the IPTC keywords.
@@ -1230,7 +1229,6 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
             image_id (int): The image to process
             task_id (int): The task whose labels must be used
             species_sorted (bool): Whether the dataset should be sorted into species folders
-            bucket (str): The bucket where the image should be uploaded
             flat_structure (bool): Whether the folder structure should be flattened
             individual_sorted (bool): Wether to sort the data by individuals
             surveyName (str): The name of the survey associated with the image
@@ -1276,7 +1274,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
                 if len(individuals)==0: individuals = [None]
             for individual in individuals:
                 if not (species_sorted and (label.id not in labels)):
-                    destinationKey = 'Downloads/' + surveyName
+                    destinationKey = splitPath[0] + '/Downloads/' + surveyName
                     if species_sorted:  destinationKey += '/' + label.description
                     if individual and individual_sorted: destinationKey += '/' + individual.name
                     if flat_structure:
@@ -1285,14 +1283,14 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
                         filename += '_' + str(image.id) + '.jpg'
                         destinationKey += '/' + filename
                     else:
-                        for split in splitPath: destinationKey += '/' + split
+                        for split in splitPath[1:]: destinationKey += '/' + split
                         destinationKey += '/' +image.filename
                     destinationKeys.append(destinationKey)
 
         # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
         # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
 
-        s3_response_object = GLOBALS.s3client.get_object(Bucket=bucket,Key=sourceKey)
+        s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=sourceKey)
         imageData = s3_response_object['Body'].read()
 
         exifData = b'ASCII\x00\x00\x00'
@@ -1336,7 +1334,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
         #     pass
 
         for destinationKey in destinationKeys:
-            GLOBALS.s3client.put_object(Body=output,Bucket=bucket,Key=destinationKey)
+            GLOBALS.s3client.put_object(Body=output,Bucket=Config.BUCKET,Key=destinationKey)
             # GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
 
     except Exception:
@@ -1352,14 +1350,13 @@ def prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,ind
     return True
 
 @celery.task(bind=True,max_retries=29)
-def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structure,individual_sorted,surveyName,labels):
+def prepare_exif_batch(self,image_ids,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
     ''' Prepares a batch of exif images, allowing for parallelisation across instances. 
     
         Parameters:
             image_ids (list): The batch of images to process
             task_id (int): The task whose labels must be used
             species_sorted (bool): Whether the dataset should be sorted into species folders
-            bucket (str): The bucket where the image should be uploaded
             flat_structure (bool): Whether the folder structure should be flattened
             individual_sorted (bool): Whether the images should be sorted by individuals
             surveyName (str): The name of the survey associated with the image
@@ -1368,7 +1365,7 @@ def prepare_exif_batch(self,image_ids,task_id,species_sorted,bucket,flat_structu
 
     try:
         for image_id in image_ids:
-            prepare_exif_image(image_id,task_id,species_sorted,bucket,flat_structure,individual_sorted,surveyName,labels)
+            prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1400,12 +1397,11 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
         task = db.session.query(Task).get(task_id)
         task.survey.status = 'Processing'
         db.session.commit()
-        bucket = task.survey.user.bucket + '-raw'
         surveyName = task.survey.name
 
         # Delete previous
         s3 = boto3.resource('s3')
-        bucketObject = s3.Bucket(bucket)
+        bucketObject = s3.Bucket(Config.BUCKET)
         bucketObject.objects.filter(Prefix='Downloads/'+surveyName+'/').delete()
         
         if '0' in species:
@@ -1430,7 +1426,6 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
             results.append(prepare_exif_batch.apply_async(kwargs={  'image_ids':[r.id for r in batch],
                                                                     'task_id':task_id,
                                                                     'species_sorted':species_sorted,
-                                                                    'bucket':bucket,
                                                                     'flat_structure':flat_structure,
                                                                     'individual_sorted':individual_sorted,
                                                                     'surveyName': surveyName,
@@ -1631,11 +1626,9 @@ def crop_survey_images(self,task_id,min_area,destBucket):
         # Drop detections
         df = df.drop_duplicates(subset=['detection_id'], keep=False)
 
-        sourceBucket = task.survey.user.bucket+'-raw'
-
         results = []
         for chunk in chunker(df['image_id'].unique(),10000):
-            results.append(batch_crops.apply_async(kwargs={'image_ids':[int(r) for r in chunk],'source':sourceBucket,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False},queue='default'))
+            results.append(batch_crops.apply_async(kwargs={'image_ids':[int(r) for r in chunk],'source':task.survey.user.folder,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False},queue='default'))
 
         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
         # See https://github.com/celery/celery/issues/4480

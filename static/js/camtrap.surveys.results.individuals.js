@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+function modifyToCompURL(url) {
+    /** Modifies the source URL to the compressed folder of the user */
+    splits=url.split('/')
+    splits[0]=splits[0]+'-comp'
+    return splits.join('/')
+}
+
 function updateSlider() {
     /** Updates the image slider for the individual modal. */
     
@@ -22,7 +29,7 @@ function updateSlider() {
 
     for (ndx=0;ndx<individualImages.length;ndx++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + individualImages[ndx].url)
+        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[ndx].url))
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
@@ -55,7 +62,7 @@ function updateSlider() {
                 document.getElementById('tgInfo').innerHTML = image.trapgroup
                 document.getElementById('timeInfo').innerHTML = image.timestamp
                 addedDetections = false
-                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
             }
         });
 
@@ -134,7 +141,7 @@ function prepMap(image) {
     
     if (bucketName != null) {
         mapReady = false
-        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + image.url
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
         var img = new Image();
         img.onload = function(){
             w = this.width
@@ -182,7 +189,7 @@ function prepMap(image) {
     
             map.on('zoomstart', function() {
                 if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+"-raw.s3.amazonaws.com/" + individualImages[individualSplide.index].url)
+                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
                     fullRes = true
                 }
             });
@@ -300,7 +307,7 @@ function getIndividuals(page = null) {
 
                 image = document.createElement('img')
                 image.setAttribute('width','100%')
-                image.src = "https://"+bucketName+".s3.amazonaws.com/" + newIndividual.url
+                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
                 col.appendChild(image)
 
                 h5 = document.createElement('h5')

@@ -107,14 +107,13 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                 aid_list = []
                 aid_Translation = {}
                 det_Translation = {}
-                bucket = task.survey.user.bucket + '-raw'
                 for image in images:
                     # parallel?
 
                     #Download & import image
                     key = image.camera.path+'/'+image.filename
                     filename = imFolder + '/' + str(image.id) + '.jpg'
-                    GLOBALS.s3client.download_file(Bucket=bucket, Key=key, Filename=filename)
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=filename)
                     gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
 
                     imDetections = db.session.query(Detection)\

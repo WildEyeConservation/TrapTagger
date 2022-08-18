@@ -208,12 +208,11 @@ class Turkcode(db.Model):
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True)
-    bucket = db.Column(db.String(64), index=True, unique=True)
+    folder = db.Column(db.String(64), index=True, unique=True)
     email = db.Column(db.String(64), index=False, unique=True)
     passwordHash = db.Column(db.String(128), index=False, unique=False)
     passed = db.Column(db.String(64), index=False)
     admin = db.Column(db.Boolean, default=False, index=False)
-    identity_pool_id = db.Column(db.String(64), index=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     last_ping = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     clusters_allocated = db.Column(db.Integer, default=0, index=False)

@@ -27,7 +27,7 @@ class Config(object):
     KEY_NAME = os.environ.get('KEY_NAME')
     WORKER_NAME = 'celery@'+os.environ.get('WORKER_NAME')
     QUEUE = os.environ.get('QUEUE')
-    BUCKET_ROOT = os.environ.get('BUCKET_ROOT')
+    BUCKET = os.environ.get('BUCKET')
     SKIP_ID = -117
     SKY_CONST = 0.33
     DETECTOR = 'MDv5a'
@@ -165,7 +165,7 @@ class Config(object):
                 os.environ.get('MAIN_GIT_REPO') + "' '" + 
                 str(CONCURRENCY['parallel']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
-                BUCKET_ROOT + "' '" + 
+                BUCKET + "' '" + 
                 IAM_ADMIN_GROUP + "'" + 
                 ' -l info'
         },
@@ -205,7 +205,7 @@ class Config(object):
                 os.environ.get('MAIN_GIT_REPO') + "' '" + 
                 str(CONCURRENCY['default']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
-                BUCKET_ROOT + "' '" + 
+                BUCKET + "' '" + 
                 IAM_ADMIN_GROUP + "'" + 
                 ' -l info'
         },

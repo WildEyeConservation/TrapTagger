@@ -139,6 +139,13 @@ var colours = {
     'rgba(189,218,138,1)': false
 }
 
+function modifyToCompURL(url) {
+    /** Modifies the source URL to the compressed folder of the user */
+    splits=url.split('/')
+    splits[0]=splits[0]+'-comp'
+    return splits.join('/')
+}
+
 function preload(mapID = 'map1') {
     /** Pre-loads the next three first-images of the next clusters. */
     if (bucketName!=null) {
@@ -147,7 +154,7 @@ function preload(mapID = 'map1') {
                 for (ii=0;ii<clusters[mapID][clusterIndex[mapID]].images.length;ii++) {
                     if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
                         im = new Image();
-                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID]].images[ii].url
+                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[ii].url)
                     }
                 }
             }
@@ -157,12 +164,12 @@ function preload(mapID = 'map1') {
                     if ((clusters[mapID][clusterIndex[mapID] + i].id != '-99')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-101')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-782')) {
                         if (clusters[mapID][clusterIndex[mapID] + i].required.length==0) {
                             im = new Image();
-                            im.src = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID] + i].images[0].url
+                            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[0].url)
                         } else {
                             for (requiredIndex=0;requiredIndex<clusters[mapID][clusterIndex[mapID] + i].required.length;requiredIndex++) {
                                 im = new Image();
                                 req = clusters[mapID][clusterIndex[mapID] + i].required[requiredIndex]
-                                im.src = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID] + i].images[req].url
+                                im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[req].url)
                             }
                         }   
                     }                
@@ -650,7 +657,7 @@ function updateCanvas(mapID = 'map1') {
                 addedDetections[mapID] = false
 
                 if (activeImage[mapID] != null) {
-                    activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
+                    activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
                 }
 
                 if (isIDing && (typeof clusters['map1'][clusterIndex['map1']] != 'undefined') && (Object.keys(clusters).includes('map2')) && (typeof clusters['map2'][clusterIndex['map2']] != 'undefined') && (imageIndex['map1']<clusters['map1'][clusterIndex['map1']].images.length) && (imageIndex['map2']<clusters['map2'][clusterIndex['map2']].images.length)) {
@@ -1123,7 +1130,7 @@ function updateSlider(mapID = 'map1') {
             clusterPosition[mapID].removeChild(clusterPosition[mapID].firstChild);
         }
         for (ndx=0;ndx<clusters[mapID][clusterIndex[mapID]].images.length;ndx++) {
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID]].images[ndx].url
+            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[ndx].url)
             img = document.createElement('img')
             img.setAttribute('src',imageUrl)
             imgli = document.createElement('li')
@@ -1712,7 +1719,7 @@ function prepMap(mapID = 'map1') {
     } else {
         if (bucketName != null) {
             mapReady[mapID] = false
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url
+            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
             var img = new Image();
             img.onload = function(wrapMapID){
                 return function() {
@@ -1771,7 +1778,7 @@ function prepMap(mapID = 'map1') {
                     map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
                         return function () { 
                             if ((!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
-                                activeImage[wrapWrapMapID].setUrl("https://"+bucketName+"-raw.s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
+                                activeImage[wrapWrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
                                 fullRes[wrapWrapMapID] = true
                             }
                         }
@@ -1870,25 +1877,21 @@ function onload (){
         prepareTable()
     }
 
-    if (isTutorial) {
-        bucketName = "traptagger";
-    } else {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 278) {
-                window.location.replace(JSON.parse(this.responseText)['redirect'])
-            } else if (this.readyState == 4 && this.status == 200) {
-                bucketName = JSON.parse(this.responseText).bucketName
-                if (isViewing) {
-                    clusters['map1'] = sentClusters
-                    update()
-                }
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        } else if (this.readyState == 4 && this.status == 200) {
+            bucketName = JSON.parse(this.responseText).bucketName
+            if (isViewing) {
+                clusters['map1'] = sentClusters
+                update()
             }
         }
-        xhttp.open("GET", '/get_s3_info');
-        xhttp.send();
     }
+    xhttp.open("GET", '/get_s3_info');
+    xhttp.send();
 
     if (isTagging||isBounding) {
         emptyCount = 0

@@ -198,12 +198,11 @@ def importKML(survey_id):
     '''Import kml file for specified survey. Looks for matching trapgroup tags and placemark names. Overwrites old coordinates.'''
     
     survey = db.session.query(Survey).get(survey_id)
-    bucketName = survey.user.bucket
-    key = 'kmlFiles/' + survey.name + '.kml'
+    key = survey.user.folder + '-comp/kmlFiles/' + survey.name + '.kml'
     
     try:
         with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
-            GLOBALS.s3client.download_file(Bucket=bucketName, Key=key, Filename=temp_file.name)
+            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=temp_file.name)
 
             with open(temp_file.name) as f:
                 kmlData = kmlparser.parse(f).getroot()
@@ -771,6 +770,10 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         # alternative exif API.
         warnings.filterwarnings('ignore',category=ResourceWarning)
 
+        splits = dirpath.split('/')
+        splits[0] = splits[0]+'-comp'
+        newpath = '/'.join(splits)
+
         batch = []
         images = []
         for filename in filenames:
@@ -810,7 +813,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                 img.transform(resize='800')
                                 if not pipeline:
                                     print('Uploading {}'.format(filename))
-                                    GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, dirpath + '/' + filename)
+                                    GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
                                 # bio=BytesIO(img.make_blob())
                                 # b64blob=base64.b64encode(bio.getvalue()).decode()
 
@@ -1044,7 +1047,10 @@ def classifier_batching(chunk,sourceBucket):
 
                 ######################Download on worker approach
                 if len(detections) > 0:
-                    batch['images'][str(image_id)] = os.path.join(detections[0].image.camera.path, detections[0].image.filename)
+                    splits = detections[0].image.camera.path.split('/')
+                    splits[0] = splits[0]+'-comp'
+                    newpath = '/'.join(splits)
+                    batch['images'][str(image_id)] = os.path.join(newpath, detections[0].image.filename)
 
                 for detection in detections:
                     detection_id = str(detection.id)
@@ -2325,9 +2331,8 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         else:
             addingImages = False
 
-        sourceBucket = db.session.query(User).get(user_id).bucket+'-raw'
-        destBucket = db.session.query(User).get(user_id).bucket
-        import_folder(s3Folder, tag, surveyName,sourceBucket,destBucket,user_id,False,None,[],processes)
+        user = db.session.query(User).get(user_id)
+        import_folder(user.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey_id = survey.id
         survey.correct_timestamps = correctTimestamps
@@ -2357,7 +2362,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         importKML(survey.id)
         survey.status='Classifying'
         db.session.commit()
-        classifySurvey(survey_id=survey_id,sourceBucket=destBucket)
+        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Re-Clustering'
         db.session.commit()

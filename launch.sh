@@ -43,7 +43,7 @@ export IDLE_MULTIPLIER=${21}
 export MAIN_GIT_REPO=${22}
 export CONCURRENCY=${23}
 export MONITORED_EMAIL_ADDRESS=${24}
-export BUCKET_ROOT=${25}
+export BUCKET=${25}
 export IAM_ADMIN_GROUP=${26}
 
 printf \
@@ -71,7 +71,7 @@ printf \
 'MAIN_GIT_REPO='$MAIN_GIT_REPO'\n'\
 'CONCURRENCY='$CONCURRENCY'\n'\
 'MONITORED_EMAIL_ADDRESS='$MONITORED_EMAIL_ADDRESS'\n'\
-'BUCKET_ROOT='$BUCKET_ROOT'\n'\
+'BUCKET='$BUCKET'\n'\
 'IAM_ADMIN_GROUP='$IAM_ADMIN_GROUP'\n'
 
 docker-compose -f /home/ubuntu/TrapTagger/parallel-docker-compose.yml up > worker.log 2>&1 &

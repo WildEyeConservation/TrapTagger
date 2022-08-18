@@ -831,15 +831,15 @@ def stopTask(task_id):
 @app.route('/get_s3_info')
 @login_required
 def get_s3_info():
-    '''Returns all S3 info pertaining to the requester: region, bucket name, and identity pool ID.'''
+    '''Returns all S3 info pertaining to the requester: region, and bucket name.'''
 
     if current_user.admin:
-        bucket_name = current_user.bucket
+        folder_name = current_user.folder
     else:
-        bucket_name = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.survey.user.bucket
+        folder_name = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.survey.user.folder
     return json.dumps({'region': Config.AWS_REGION,
-                   'bucketName': bucket_name,
-                   'poolId': current_user.identity_pool_id})
+                   'bucketName': Config.BUCKET,
+                   'folderName': folder_name})
 
 @app.route('/deleteTask/<task_id>')
 @login_required
@@ -912,10 +912,9 @@ def deleteImages(surveyName):
 
     survey = db.session.query(Survey).filter(Survey.user_id==current_user.id).filter(Survey.name==surveyName).first()
     if survey:
-        bucketName = survey.user.bucket
         survey.status = 'Cancelled'
         db.session.commit()
-        delete_images(surveyName,bucketName)
+        delete_images(surveyName,survey.user.folder)
     return json.dumps('')
 
 @app.route('/updateSurveyStatus/<surveyName>/<status>')
@@ -1160,11 +1159,10 @@ def createNewSurvey(surveyName, newSurveyDescription, newSurveyTGCode, newSurvey
         if status == 'success':
 
             if fileAttached:
-                bucketName = current_user.bucket
-                key = 'kmlFiles/' + surveyName + '.kml'
+                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
-                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                    GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
             if newSurveyS3Folder=='none':
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='uploading', correct_timestamps=correctTimestamps)
@@ -1362,11 +1360,11 @@ def checkTrapgroupCode():
 @app.route('/getFolders')
 @login_required
 def getFolders():
-    '''Fetches the list of folders in the user's S3 bucket.'''
+    '''Fetches the list of folders in the user's S3 folder.'''
     
     folders = []
     if current_user.is_authenticated and current_user.admin:
-        folders = list_all(current_user.bucket+'-raw','')[0]
+        folders = list_all(Config.BUCKET,current_user.folder)[0]
         if 'Downloads' in folders: folders.remove('Downloads')
 
     return json.dumps(folders)
@@ -1523,11 +1521,10 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox, ignore_
         if status == 'success':
 
             if fileAttached:
-                bucketName = current_user.bucket
-                key = 'kmlFiles/' + surveyName + '.kml'
+                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
-                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                    GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
             if newSurveyTGCode!=' ':
                 if checkbox=='false':
@@ -2045,14 +2042,14 @@ def createAccount(token):
         return render_template("html/block.html",text="Error.", helpFile='block')
 
     if 'organisation' in info.keys():
-        bucket = Config.BUCKET_ROOT + '-' + info['organisation'].lower().replace(' ','-').replace('_','-')
+        folder = info['organisation'].lower().replace(' ','-').replace('_','-')
         check = db.session.query(User).filter(or_(
             func.lower(User.username)==info['organisation'].lower(),
-            User.bucket==bucket
+            User.folder==folder
         )).first()
         
-        if (check == None) and (len(bucket) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', bucket=bucket)
+        if (check == None) and (len(folder) <= 64):
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder)
             newTurkcode = Turkcode(user_id=info['organisation'], active=False, tagging_time=0)
             newPassword = randomString()
             newUser.set_password(newPassword)
@@ -2061,7 +2058,7 @@ def createAccount(token):
             db.session.commit()
 
             #Create all the necessary AWS stuff
-            s3UserName, s3Password, bucket_name = create_new_aws_user(info['organisation'],bucket)
+            s3UserName, s3Password = create_new_aws_user(folder)
 
             url1 = 'https://'+Config.DNS+'/login'
             url2 = 'https://'+Config.DNS+'/requestPasswordChange'
@@ -2070,9 +2067,9 @@ def createAccount(token):
                 sender=app.config['ADMINS'][0],
                 recipients=[info['email']],
                 text_body=render_template('email/enquirySuccess.txt',
-                    organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=bucket_name, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS),
+                    organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=folder, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS),
                 html_body=render_template('email/enquirySuccess.html',
-                    organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=bucket_name, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS))
+                    organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=folder, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS))
 
             return render_template("html/block.html",text="Account successfully created.", helpFile='block')
         else:
@@ -2244,26 +2241,26 @@ def register():
         enquiryForm = EnquiryForm()
         if enquiryForm.validate_on_submit():
             if enquiryForm.info.data == '':
-                bucket = 'traptagger-' + enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
+                folder = enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
 
                 check = db.session.query(User).filter(or_(
                     func.lower(User.username)==enquiryForm.organisation.data.lower(),
-                    User.bucket==bucket
+                    User.folder==folder
                 )).first()
 
                 disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
                 disallowed = any(r in disallowed_chars for r in enquiryForm.organisation.data)
 
-                if (check == None) and (len(bucket) <= 64) and not disallowed:
+                if (check == None) and (len(folder) <= 64) and not disallowed:
                     send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
                     flash('Enquiry submitted.')
                     return redirect(url_for('register'))
                 elif disallowed:
                     flash('Your organisation name cannot contain special characters.')
-                elif len(bucket) <= 64:
+                elif len(folder) <= 64:
                     flash('Your organisation name is too long.')
                 else:
-                    flash('That organisation already has an account.')
+                    flash('Invalid organsiation name. Please try again.')
             else:
                 flash('Enquiry (not) submitted.')
                 return redirect(url_for('register'))
@@ -6117,12 +6114,12 @@ def uploadImageToCloud():
         
         if surveyName and ('image' in request.files):
             uploaded_file = request.files['image']
-            key = current_user.bucket + '/' + surveyName + '/' + uploaded_file.filename
+            key = current_user.folder + '/' + surveyName + '/' + uploaded_file.filename
             
             temp_file = BytesIO()
             uploaded_file.save(temp_file)
             temp_file.seek(0)
-            response = GLOBALS.s3client.put_object(Bucket='traptagger',Key=key,Body=temp_file)
+            response = GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
             hash = response['ETag'][1:-1]
             
             return json.dumps({'status': 'success', 'hash': hash})

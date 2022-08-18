@@ -946,7 +946,7 @@ def re_classify_survey(self,survey_id):
         survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
         db.session.commit()
 
-        classifySurvey(survey_id=survey_id,sourceBucket=survey.user.bucket)
+        classifySurvey(survey_id=survey_id,sourceBucket=survey.user.folder+'-comp')
 
         survey = db.session.query(Survey).get(survey_id)
         survey.images_processing = 0
@@ -1128,18 +1128,17 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
 
     try:
         reply = None
-        sourceBucket = db.session.query(User).get(user_id).bucket+'-raw'
-        isjpeg = re.compile('\.jpe?g$', re.I)
+        # isjpeg = re.compile('\.jpe?g$', re.I)
         tgCode = re.compile(tgCode)
         allTags = []
-        for dirpath, folders, filenames in s3traverse(sourceBucket, folder):
-            jpegs = list(filter(isjpeg.search, filenames))
-            if len(jpegs):
-                tags = tgCode.findall(dirpath)
-                if len(tags) > 0:
-                    tag = tags[0]
-                    if tag not in allTags:
-                        allTags.append(tag)
+        for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder):
+            # jpegs = list(filter(isjpeg.search, filenames))
+            # if len(jpegs):
+            tags = tgCode.findall(dirpath)
+            if len(tags) > 0:
+                tag = tags[0]
+                if tag not in allTags:
+                    allTags.append(tag)
 
         reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
 

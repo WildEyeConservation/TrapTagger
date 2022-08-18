@@ -49,7 +49,7 @@ services:
             - WORKER_NAME=${WORKER_NAME}
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
-            - BUCKET_ROOT=${BUCKET_ROOT}
+            - BUCKET=${BUCKET}
         command: celery -A app.celery worker -E -n ${WORKER_NAME} -Q ${QUEUE} -Ofair --concurrency=${CONCURRENCY} --loglevel=info
         networks:
             - my-network
