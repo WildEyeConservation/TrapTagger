@@ -125,13 +125,13 @@ celery = make_celery(app)
 
 from app import routes
 from app.functions.globals import update_label_ids
-update_label_ids()
+if not Config.MAINTENANCE: update_label_ids()
 
 @celeryd_after_setup.connect
 def initialise_periodic_functions(sender, instance, **kwargs):
     '''Initialises the periodic functions, which then call themselves when they complete. Prevents overlap when server is under load.'''
 
-    if sender=='celery@priority_worker':
+    if (not Config.MAINTENANCE) and (sender=='celery@priority_worker'):
         import sqlalchemy as sa
         from flask_migrate import upgrade
         from app.functions.imports import setupDatabase

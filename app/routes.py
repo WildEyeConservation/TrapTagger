@@ -53,7 +53,7 @@ GLOBALS.lock = Lock()
 @app.before_request
 def check_for_maintenance():
     '''Checks if site is in maintenance mode and returns a message accordingly.'''
-    if Config.MAINTENANCE: 
+    if Config.MAINTENANCE:
         return render_template("html/block.html",text="Platform undergoing maintenance. Please try again later.", helpFile='block'), 503
 
 @app.errorhandler(404)
