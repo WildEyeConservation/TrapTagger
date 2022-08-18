@@ -1395,7 +1395,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
     try:
         app.logger.info('prepare_exif started for task {}'.format(task_id))
         task = db.session.query(Task).get(task_id)
-        task.survey.status = 'Processing'
+        results['mdv5']['animal_missed'].status = 'Processing'
         db.session.commit()
         surveyName = task.survey.name
 
@@ -1420,6 +1420,9 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
                         .filter(Labelgroup.task_id==task.id)\
                         .filter(Label.id.in_([r.id for r in labels]))\
                         .distinct().all()
+
+        task.survey.images_processing=len(images)
+        db.session.commit()
 
         results = []
         for batch in chunker(images,5000):
