@@ -1382,7 +1382,7 @@ def getFolders():
     
     folders = []
     if current_user.is_authenticated and current_user.admin:
-        folders = list_all(Config.BUCKET,current_user.folder)[0]
+        folders = list_all(Config.BUCKET,current_user.folder+'/')[0]
         if 'Downloads' in folders: folders.remove('Downloads')
 
     return json.dumps(folders)
