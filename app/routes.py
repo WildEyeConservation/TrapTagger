@@ -53,7 +53,7 @@ GLOBALS.lock = Lock()
 @app.before_request
 def check_for_maintenance():
     '''Checks if site is in maintenance mode and redirects theuser to the maintenance page accordingly.'''
-    if Config.MAINTENANCE: 
+    if Config.MAINTENANCE and request.path != url_for('maintenance'): 
         return redirect(url_for('maintenance'))
 
 @app.errorhandler(404)
