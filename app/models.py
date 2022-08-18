@@ -213,6 +213,7 @@ class User(db.Model, UserMixin):
     passwordHash = db.Column(db.String(128), index=False, unique=False)
     passed = db.Column(db.String(64), index=False)
     admin = db.Column(db.Boolean, default=False, index=False)
+    last_notification_read = db.Column(db.Integer, default=0, index=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     last_ping = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     clusters_allocated = db.Column(db.Integer, default=0, index=False)

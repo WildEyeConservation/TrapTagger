@@ -2055,7 +2055,7 @@ def createAccount(token):
         )).first()
         
         if (check == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder)
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder, last_notification_read=Config.LATEST_NOTIFICATION)
             newTurkcode = Turkcode(user_id=info['organisation'], active=False, tagging_time=0)
             newPassword = randomString()
             newUser.set_password(newPassword)
@@ -6131,3 +6131,16 @@ def uploadImageToCloud():
             return json.dumps({'status': 'success', 'hash': hash})
 
     return json.dumps({'status': 'error'})
+
+@app.route('/checkNotifications', methods=['POST'])
+@login_required
+def checkNotifications():
+    '''Checks if there are any new notifications for the user.'''
+    
+    if current_user.admin:
+        if current_user.last_notification_read < Config.LATEST_NOTIFICATION:
+            current_user.last_notification_read += 1
+            db.session.commit()
+            return json.dumps({'status':'success','content':render_template('notifications/{}.html'.format(str(current_user.last_notification_read)))})
+    
+    return json.dumps({'status':'error'})

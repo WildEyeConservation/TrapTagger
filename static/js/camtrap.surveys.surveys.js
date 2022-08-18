@@ -106,6 +106,7 @@ var surveyName
 var uploading = false
 const modalUploadProgress = $('#modalUploadProgress');
 
+const modalNotification = $('#modalNotification');
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
 const modalExport = $('#modalExport');
@@ -377,8 +378,27 @@ function buildSurveys(survey,disableSurvey) {
     surveyListDiv.appendChild(newSurveyDiv) 
 }
 
+function checkNotifications() {
+    /**Checks for and displays new notifications.*/
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/checkNotifications');
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+
+            if (reply.status=='success') {
+                document.getElementById('modalNotificationBody').innerHTML = reply.content
+                modalNotification.modal({keyboard: true});
+            }
+        }
+    }
+    xhttp.send();
+}
+
 function onload(){
     /**Function for initialising the page on load.*/
+    checkNotifications()
     updatePage(current_page)
 }
 
@@ -2797,4 +2817,9 @@ modalUploadProgress.on('hidden.bs.modal', function(){
     resetNewSurveyPage()
     resetAddImagesPage()
     uploading = false
+});
+
+modalNotification.on('hidden.bs.modal', function(){
+    /** Checks for the next notification on close*/
+    checkNotifications()
 });
