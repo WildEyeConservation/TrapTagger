@@ -1402,7 +1402,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
         # Delete previous
         s3 = boto3.resource('s3')
         bucketObject = s3.Bucket(Config.BUCKET)
-        bucketObject.objects.filter(Prefix='Downloads/'+surveyName+'/').delete()
+        bucketObject.objects.filter(Prefix=task.survey.user.folder+'/Downloads/'+surveyName+'/').delete()
         
         if '0' in species:
             labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()

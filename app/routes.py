@@ -2051,7 +2051,8 @@ def createAccount(token):
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
         check = db.session.query(User).filter(or_(
             func.lower(User.username)==info['organisation'].lower(),
-            User.folder==folder
+            User.folder==folder,
+            User.email==info['email']
         )).first()
         
         if (check == None) and (len(folder) <= 64):
