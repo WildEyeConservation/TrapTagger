@@ -2045,6 +2045,10 @@ function submitLabels(mapID = 'map1') {
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
     }
+    url = '/assignLabel/'+clusterID
+    if (isReviewing) {
+        url += '?explore=true'
+    }
     clusterID = clusters[mapID][clusterIndex[mapID]].id
     var xhttp = new XMLHttpRequest();
     if (isTagging) { 
@@ -2074,7 +2078,7 @@ function submitLabels(mapID = 'map1') {
             }
         }(nothingStatus)
     }
-    xhttp.open("POST", '/assignLabel/'+clusterID, true);
+    xhttp.open("POST", url, true);
     xhttp.send(formData);
     if (batchComplete&&nothingStatus) {
         redirectToDone()

@@ -4878,6 +4878,7 @@ def assignLabel(clusterID):
 
     try:
         labels = ast.literal_eval(request.form['labels'])
+        explore = request.args.get('explore', None)
         reAllocated = False
 
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
@@ -4981,7 +4982,7 @@ def assignLabel(clusterID):
                                                                 .filter(Trapgroup.queueing==False)\
                                                                 .distinct().count()
 
-                                        if (tgs_available>=1):
+                                        if (tgs_available>=1) and (not explore):
                                             reAllocated = True
                                             trapgroup = cluster.images[0].camera.trapgroup
                                             trapgroup.processing = True
