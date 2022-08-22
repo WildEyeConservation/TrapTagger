@@ -32,7 +32,7 @@ class Config(object):
     BUCKET = os.environ.get('BUCKET')
     SKIP_ID = -117
     SKY_CONST = 0.33
-    DETECTOR = 'MDv5a'
+    DETECTOR = 'MDv5b'
 
     DETECTOR_THRESHOLDS = {
         'MDv4': 0.8,
