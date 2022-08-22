@@ -1318,7 +1318,11 @@ function assignLabel(label,mapID = 'map1'){
     } else if ([nothingLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
         // confirmation modal for nothing and knockdowns
         if (label==nothingLabel) {
-            document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any present false detections from all other images from this camera.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+            if (isReviewing) {
+                document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+            } else {
+                document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any present false detections from all other images from this camera.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+            }
         } else {
             document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
         }
@@ -2045,11 +2049,11 @@ function submitLabels(mapID = 'map1') {
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
     }
+    clusterID = clusters[mapID][clusterIndex[mapID]].id
     url = '/assignLabel/'+clusterID
     if (isReviewing) {
         url += '?explore=true'
     }
-    clusterID = clusters[mapID][clusterIndex[mapID]].id
     var xhttp = new XMLHttpRequest();
     if (isTagging) { 
         xhttp.onreadystatechange = function(wrapNothingStatus) {
