@@ -2040,7 +2040,7 @@ function submitLabels(mapID = 'map1') {
     }
     console.log(clusterLabels[mapID])
     nothingStatus = false
-    if (clusterLabels[mapID].includes(nothingLabel.toString())) {
+    if (clusterLabels[mapID].includes(nothingLabel.toString()) && isTagging) {
         // reallocate on nothing
         nothingStatus = true
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
