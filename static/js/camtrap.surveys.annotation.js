@@ -51,7 +51,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                 allow = false
             }
         } else if (document.getElementById('idStage').value=='-5') {
-            if (document.getElementById('idStage').text == 'Exhaustive') {
+            if (document.getElementById('idStage')[document.getElementById('idStage').selectedIndex].text == 'Exhaustive') {
                 taskTaggingLevel += ',0'
             } else {
                 taskTaggingLevel += ',-1'
