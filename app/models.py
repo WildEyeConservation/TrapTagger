@@ -79,6 +79,12 @@ individual_parent_child = db.Table("individual_parent_child", #db.Base.metadata,
     db.UniqueConstraint('parent_id', 'child_id')
 )
 
+userNotifications = db.Table('userNotifications',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), index=True),
+    db.Column('notification_id', db.Integer, db.ForeignKey('notification.id')),
+    db.UniqueConstraint('user_id', 'notification_id')
+)
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -213,7 +219,6 @@ class User(db.Model, UserMixin):
     passwordHash = db.Column(db.String(128), index=False, unique=False)
     passed = db.Column(db.String(64), index=False)
     admin = db.Column(db.Boolean, default=False, index=False)
-    last_notification_read = db.Column(db.Integer, default=0, index=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     last_ping = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     clusters_allocated = db.Column(db.Integer, default=0, index=False)
@@ -375,3 +380,13 @@ class IndSimilarity(db.Model):
 
     def __repr__(self):
         return '<Individual similarity for {} and {}>'.format(self.individual_1, self.individual_2)
+
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contents = db.Column(db.String(1024), index=False)
+    expires = db.Column(db.DateTime, default=None, index=True)
+    users = db.relationship('User', secondary=userNotifications, lazy='subquery', backref=db.backref('notifications', lazy=True))
+
+    def __repr__(self):
+        return '<Notification: {}>'.format(self.contents)

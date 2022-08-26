@@ -2056,12 +2056,16 @@ def createAccount(token):
         )).first()
         
         if (check == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder, last_notification_read=Config.LATEST_NOTIFICATION)
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder)
             newTurkcode = Turkcode(user_id=info['organisation'], active=False, tagging_time=0)
             newPassword = randomString()
             newUser.set_password(newPassword)
+            notifications = db.session.query(Notification)\
+                                    .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
+                                    .distinct().all()
             db.session.add(newUser)
             db.session.add(newTurkcode)
+            newUser.notifications = notifications
             db.session.commit()
 
             #Create all the necessary AWS stuff
@@ -6140,9 +6144,14 @@ def checkNotifications():
     '''Checks if there are any new notifications for the user.'''
     
     if current_user.admin:
-        if current_user.last_notification_read < Config.LATEST_NOTIFICATION:
-            current_user.last_notification_read += 1
+        notification = db.session.query(Notification)\
+                            .filter(~Notification.users.contains(current_user))\
+                            .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
+                            .order_by(Notification.id)\
+                            .first()
+        if notification:
+            notification.users.append(current_user)
             db.session.commit()
-            return json.dumps({'status':'success','content':render_template('notifications/{}.html'.format(str(current_user.last_notification_read)))})
+            return json.dumps({'status':'success','content':notification.contents})
     
     return json.dumps({'status':'error'})
