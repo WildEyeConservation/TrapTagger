@@ -139,6 +139,119 @@ service on the web console and do the following:
 
 - Create record
 
+### Bucket
+
+TrapTagger uses an AWS S3 bucket to store user data. Each user will get two folders in this bucket - one that they can access with the same name as their account, and one that contains all the compressed versions of their images. In order to set up your bucket:
+
+- Go to the AWS S3 console in your browser
+- Click 'create bucket'
+- Give that bucket a useful name and save it for later
+- Select your desired AWS region and click 'create bucket'
+- Select your newly created bucket and select the permissions tab
+- Set the bucket policy to the following, replacing both yourDomain and bucketName with your site domain and bucket name respectively:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Root Permissions",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::275736403632:root"
+            },
+            "Action": "s3:*",
+            "Resource": "arn:aws:s3:::bucketName/*"
+        },
+        {
+            "Sid": "Allow get requests from domain",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::bucketName/*",
+            "Condition": {
+                "StringLike": {
+                    "aws:Referer": [
+                        "https://yourDomain/*"
+                    ]
+                }
+            }
+        }
+    ]
+}
+```
+- Set the CORS policy to the following:
+```
+[
+    {
+        "AllowedHeaders": [
+            "*"
+        ],
+        "AllowedMethods": [
+            "HEAD",
+            "POST",
+            "GET",
+            "PUT",
+            "DELETE"
+        ],
+        "AllowedOrigins": [
+            "*"
+        ],
+        "ExposeHeaders": [
+            "ETag",
+            "Content-Length",
+            "Content-Type",
+            "Connection",
+            "Date",
+            "Server",
+            "x-amz-delete-marker",
+            "x-amz-id-2",
+            "x-amz-request-id",
+            "x-amz-version-id"
+        ]
+    }
+]
+```
+
+### User Group
+
+In order to manage the access permissions of you admin users, you must create a user group. Here you will give your users access to a folder that matched their username into which they can upload images.
+
+- Go to the AWS IAM web console
+- Select 'user groups' on the left-hand menu
+- Click 'create group'
+- Give your user group a useful name, and save it for later
+- Select 'create policy'
+- Select the JSON editor and enter the following, replacing 'bucketName' with your bucket name:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowFolderAccess",
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "Resource": "arn:aws:s3:::bucketName/${aws:username}/*"
+        },
+        {
+            "Sid": "AllowBucketListing",
+            "Effect": "Allow",
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::bucketName",
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": "${aws:username}/*"
+                }
+            }
+        }
+    ]
+}
+```
+- Click next (add tags)
+- Give the policy a useful name
+- Click create policy
+- Return to your user group creation
+- Search for and select the policy you just created and click 'create group'
+
 ## System Email Support
 
 In order for users to be added, or for them to be able to reset their passwords etc. you need an email functionality set up. If you have your own email server, you can simply set the MAIL_SERVER, MAIL_PORT, MAIL_USE_TLS, MAIL_USERNAME, and MAIL_PASSWORD variables in the config file.
@@ -213,7 +326,10 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - WORKER_NAME:              The worker name for the local worker - set to traptagger_worker for your server instance.
 - MAIN_GIT_REPO:            The repository for the main application.
 - MONITORED_EMAIL_ADDRESS:  A monitored email address for user enquiries and questions.
+- BUCKET:                   The name of your bucket that you created for your images to be stored.
+- BRANCH:                   The branch of the repository that you would like to use (master).
 - DB_CLUSTER_NAME:          The name of your aurora db instance.
+- IAM_ADMIN_GROUP:          The name of the user group you created.
 
 ### SSL Certificate
 

@@ -293,7 +293,7 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
 
 def create_full_path(path,filename):
     '''Helper function for create_task_dataframe that returns the concatonated input.'''
-    return path+'/'+filename
+    return '/'.join(path.split('/')[1:])+'/'+filename
 
 
 def drop_nones(label_set):
@@ -434,7 +434,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     df = df.astype({"capture": int})
 
     #Add unique capture ID for labels
-    df['unique_capture'] = df.apply(lambda x: create_full_path(str(x.camera), str(x.capture)), axis=1)
+    df['unique_capture'] = df.apply(lambda x: str(x.camera) + '/' + str(x.capture), axis=1)
 
     #Species counts
     animal_exclusions = ['None','Nothing','Vehicles/Humans/Livestock','Knocked Down']

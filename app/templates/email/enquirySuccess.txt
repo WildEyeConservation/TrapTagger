@@ -7,7 +7,7 @@ You can follow this link to the login page: {{ url2 }}
 If you would like to change your password, please follow this link: {{ url2 }}
 
 Additionally, you have separate credentials to access our cloud storage directly. These are as follows:
-Bucket: {{ bucket_name }}
+Folder: {{ bucket_name }}
 Access key ID: {{ s3UserName }}
 Secret access key: {{ s3Password }}
 
@@ -19,7 +19,7 @@ CyberDuck (https://cyberduck.io/) as it has both Windows and Mac versions. The s
     -Fill in your Access Key ID
     -Fill in your Secret Access Key
     -Click on the 'More Options' arrow
-    -Set the path to your bucket name
+    -Set the path to traptagger/{{ bucket_name }}
     -Close the form
     -Open the bookmark by double clicking on it
     -Upload a folder by dragging it into the application
