@@ -384,7 +384,7 @@ class IndSimilarity(db.Model):
 
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    contents = db.Column(db.String(1024), index=False)
+    contents = db.Column(db.String(2048), index=False)
     expires = db.Column(db.DateTime, default=None, index=True)
     users = db.relationship('User', secondary=userNotifications, lazy='subquery', backref=db.backref('notifications', lazy=True))
 
