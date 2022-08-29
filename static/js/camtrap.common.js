@@ -989,7 +989,7 @@ function updateDebugInfo(mapID = 'map1') {
             
         } else {
             if (!isClassCheck) {
-                document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url;
+                document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
             } else {
                 var temp =''
                 for (i=0;i<clusters[mapID][clusterIndex[mapID]].classification.length;i++) {
