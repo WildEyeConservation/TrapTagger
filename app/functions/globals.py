@@ -1687,7 +1687,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                 with open(temp_file.name, 'wb') as handler:
                     handler.write(response.content)
             else:
-                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=source+'/'+image.camera.path+'/'+image.filename, Filename=temp_file.name)
+                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
             print('Success')
 
             print('Opening image...')
