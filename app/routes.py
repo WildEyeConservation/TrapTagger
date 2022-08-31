@@ -3150,7 +3150,7 @@ def login_page():
                 next_page = url_for('jobs', _external=True)
         return redirect(next_page)
 
-    return render_template('html/login.html', title='Sign In', form=form, helpFile='login', bucket=Config.Bucket)
+    return render_template('html/login.html', title='Sign In', form=form, helpFile='login', bucket=Config.BUCKET)
 
 @app.route('/load_login/<user_id>', methods=['GET', 'POST'])
 def load_login(user_id):
