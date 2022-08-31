@@ -2333,7 +2333,7 @@ def surveys():
 
         newSurveyForm = NewSurveyForm()
 
-        return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home', bucket=Config.BUCKET)
+        return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/sightings', methods=['GET', 'POST'])
 @login_required
@@ -3106,15 +3106,17 @@ def exploreKnockdowns():
                 else:
                     return redirect(url_for('index'))
 
-@app.route('/js/<path:path>')
+@app.route('/js/<path>')
 def send_js(path):
-    '''Serves all JavaScript files.'''
-    return send_from_directory('../static/js', path)
+    '''Serves all JavaScript files after removing their version numbers.'''
+    path = path.split('.')
+    del path[-2]
+    return send_from_directory('../static/js', '.'.join(path))
 
-@app.route('/images/<path:path>')
-def send_im(path):
-    '''Serves all image files.'''
-    return send_from_directory('../static/images', path)
+# @app.route('/images/<path:path>')
+# def send_im(path):
+#     '''Serves all image files.'''
+#     return send_from_directory('../static/images', path)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
