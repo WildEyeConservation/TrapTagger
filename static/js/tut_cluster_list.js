@@ -23,7 +23,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1371185,
-                    url: "Sinamatella2019/08-19/23-08/SN09-V10-2308/I_00430b.JPG",
+                    url: "tutorial/08-19/23-08/SN09-V10-2308/I_00430b.JPG",
                     rating: 0.28660199999999997,
                     detections: [
                         {
@@ -40,7 +40,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1371186,
-                    url: "Sinamatella2019/08-19/23-08/SN09-V10-2308/I_00431a.JPG",
+                    url: "tutorial/08-19/23-08/SN09-V10-2308/I_00431a.JPG",
                     rating: 0.15027499999999994,
                     detections: [
                         {
@@ -57,7 +57,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1371187,
-                    url: "Sinamatella2019/08-19/23-08/SN09-V10-2308/I_00431b.JPG",
+                    url: "tutorial/08-19/23-08/SN09-V10-2308/I_00431b.JPG",
                     rating: 0.131255,
                     detections: [
                         {
@@ -74,7 +74,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1371184,
-                    url: "Sinamatella2019/08-19/23-08/SN09-V10-2308/I_00430a.JPG",
+                    url: "tutorial/08-19/23-08/SN09-V10-2308/I_00430a.JPG",
                     rating: -0.18347599999999997,
                     detections: [
                         {
@@ -112,7 +112,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1333243,
-                    url: "Sinamatella2019/08-19/22-08/SN18-J14-2208/I_00040a.JPG",
+                    url: "tutorial/08-19/22-08/SN18-J14-2208/I_00040a.JPG",
                     rating: 0.28977,
                     detections: [
                         {
@@ -129,7 +129,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1333248,
-                    url: "Sinamatella2019/08-19/22-08/SN18-J14-2208/I_00042b.JPG",
+                    url: "tutorial/08-19/22-08/SN18-J14-2208/I_00042b.JPG",
                     rating: 0.272946,
                     detections: [
                         {
@@ -146,7 +146,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1333245,
-                    url: "Sinamatella2019/08-19/22-08/SN18-J14-2208/I_00041a.JPG",
+                    url: "tutorial/08-19/22-08/SN18-J14-2208/I_00041a.JPG",
                     rating: 0.25944,
                     detections: [
                         {
@@ -163,7 +163,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1333244,
-                    url: "Sinamatella2019/08-19/22-08/SN18-J14-2208/I_00040b.JPG",
+                    url: "tutorial/08-19/22-08/SN18-J14-2208/I_00040b.JPG",
                     rating: 0.253462,
                     detections: [
                         {
@@ -180,7 +180,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1333246,
-                    url: "Sinamatella2019/08-19/22-08/SN18-J14-2208/I_00041b.JPG",
+                    url: "tutorial/08-19/22-08/SN18-J14-2208/I_00041b.JPG",
                     rating: 0.19866160000000002,
                     detections: [
                         {
@@ -218,7 +218,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1303670,
-                    url: "Sinamatella2019/08-19/20-08/SN48-V18-2008/I_00344a.JPG",
+                    url: "tutorial/08-19/20-08/SN48-V18-2008/I_00344a.JPG",
                     rating: 0.7561169999999998,
                     detections: [
                         {
@@ -255,7 +255,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1303671,
-                    url: "Sinamatella2019/08-19/20-08/SN48-V18-2008/I_00344b.JPG",
+                    url: "tutorial/08-19/20-08/SN48-V18-2008/I_00344b.JPG",
                     rating: 0.6033977,
                     detections: [
                         {
@@ -312,7 +312,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1303668,
-                    url: "Sinamatella2019/08-19/20-08/SN48-V18-2008/I_00343a.JPG",
+                    url: "tutorial/08-19/20-08/SN48-V18-2008/I_00343a.JPG",
                     rating: 0.4006886999999999,
                     detections: [
                         {
@@ -339,7 +339,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1303669,
-                    url: "Sinamatella2019/08-19/20-08/SN48-V18-2008/I_00343b.JPG",
+                    url: "tutorial/08-19/20-08/SN48-V18-2008/I_00343b.JPG",
                     rating: 0.28106499999999995,
                     detections: [
                         {
@@ -366,7 +366,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1303666,
-                    url: "Sinamatella2019/08-19/20-08/SN48-V18-2008/I_00342a.JPG",
+                    url: "tutorial/08-19/20-08/SN48-V18-2008/I_00342a.JPG",
                     rating: -0.13599399999999995,
                     detections: [
                         {
@@ -404,13 +404,13 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1311720,
-                    url: "Sinamatella2019/08-19/21-08/SN25-J27-2108/I_00079b.JPG",
+                    url: "tutorial/08-19/21-08/SN25-J27-2108/I_00079b.JPG",
                     rating: -1000,
                     detections: []
                 },
                 {
                     id: 1311719,
-                    url: "Sinamatella2019/08-19/21-08/SN25-J27-2108/I_00079a.JPG",
+                    url: "tutorial/08-19/21-08/SN25-J27-2108/I_00079a.JPG",
                     rating: 0.32976700000000003,
                     detections: [
                         {
@@ -427,7 +427,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1311254,
-                    url: "Sinamatella2019/08-19/21-08/SN25-12Z-2108/Cdy00068.JPG",
+                    url: "tutorial/08-19/21-08/SN25-12Z-2108/Cdy00068.JPG",
                     rating: -0.044605000000000006,
                     detections: [
                         {
@@ -444,7 +444,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1311255,
-                    url: "Sinamatella2019/08-19/21-08/SN25-12Z-2108/Cdy00069.JPG",
+                    url: "tutorial/08-19/21-08/SN25-12Z-2108/Cdy00069.JPG",
                     rating: -0.12060799999999999,
                     detections: [
                         {
@@ -482,7 +482,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1354314,
-                    url: "Sinamatella2019/08-19/23-08/SN03-J34-2308/I_00818b.JPG",
+                    url: "tutorial/08-19/23-08/SN03-J34-2308/I_00818b.JPG",
                     rating: 0.447781,
                     detections: [
                         {
@@ -509,7 +509,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1354312,
-                    url: "Sinamatella2019/08-19/23-08/SN03-J34-2308/I_00817b.JPG",
+                    url: "tutorial/08-19/23-08/SN03-J34-2308/I_00817b.JPG",
                     rating: 0.23008700000000004,
                     detections: [
                         {
@@ -526,7 +526,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1354311,
-                    url: "Sinamatella2019/08-19/23-08/SN03-J34-2308/I_00817a.JPG",
+                    url: "tutorial/08-19/23-08/SN03-J34-2308/I_00817a.JPG",
                     rating: 0.214932,
                     detections: [
                         {
@@ -543,7 +543,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1354313,
-                    url: "Sinamatella2019/08-19/23-08/SN03-J34-2308/I_00818a.JPG",
+                    url: "tutorial/08-19/23-08/SN03-J34-2308/I_00818a.JPG",
                     rating: -1000,
                     detections: []
                 }
@@ -570,13 +570,13 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1288579,
-                    url: "Sinamatella2019/08-19/15-08/SN39-18Z-1508/CDY_0184.JPG",
+                    url: "tutorial/08-19/15-08/SN39-18Z-1508/CDY_0184.JPG",
                     rating: -1000,
                     detections: []
                 },
                 {
                     id: 1288580,
-                    url: "Sinamatella2019/08-19/15-08/SN39-18Z-1508/CDY_0185.JPG",
+                    url: "tutorial/08-19/15-08/SN39-18Z-1508/CDY_0185.JPG",
                     rating: -0.41914399999999996,
                     detections: [
                         {
@@ -593,7 +593,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1288577,
-                    url: "Sinamatella2019/08-19/15-08/SN39-18Z-1508/CDY_0182.JPG",
+                    url: "tutorial/08-19/15-08/SN39-18Z-1508/CDY_0182.JPG",
                     rating: 0.355236,
                     detections: [
                         {
@@ -610,7 +610,7 @@ var tut_cluster_list = [
                 },
                 {
                     id: 1288578,
-                    url: "Sinamatella2019/08-19/15-08/SN39-18Z-1508/CDY_0183.JPG",
+                    url: "tutorial/08-19/15-08/SN39-18Z-1508/CDY_0183.JPG",
                     rating: 0.36585199999999996,
                     detections: [
                         {
@@ -648,7 +648,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1311473,
-                    url: "Sinamatella2019/08-19/21-08/SN24-13Z-2108/Cdy00084.JPG",
+                    url: "tutorial/08-19/21-08/SN24-13Z-2108/Cdy00084.JPG",
                     rating: 0.6558930000000001,
                     detections: [
                         {
@@ -686,7 +686,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1304834,
-                    url: "Sinamatella2019/08-19/20-08/SN48-V18-2008/I__00708.JPG",
+                    url: "tutorial/08-19/20-08/SN48-V18-2008/I__00708.JPG",
                     rating: 0.27812499999999996,
                     detections: [
                         {
@@ -734,7 +734,7 @@ var tut_cluster_list = [
             images: [
                 {
                     id: 1301819,
-                    url: "Sinamatella2019/08-19/20-08/SN47-V02-2008/I__00101.JPG",
+                    url: "tutorial/08-19/20-08/SN47-V02-2008/I__00101.JPG",
                     rating: 0.07829900000000001,
                     detections: [
                         {
@@ -769,7 +769,7 @@ var tut_cluster_list = [
     //         images: [
     //             {
     //                 id: 1374605,
-    //                 url: "Sinamatella2019/08-19/23-08/SN09-V09-2308/I__01539.JPG",
+    //                 url: "tutorial/08-19/23-08/SN09-V09-2308/I__01539.JPG",
     //                 rating: 0.22144800000000003,
     //                 detections: [
     //                     {
@@ -796,7 +796,7 @@ var tut_cluster_list = [
     //             },
     //             {
     //                 id: 1374607,
-    //                 url: "Sinamatella2019/08-19/23-08/SN09-V09-2308/I__01541.JPG",
+    //                 url: "tutorial/08-19/23-08/SN09-V09-2308/I__01541.JPG",
     //                 rating: 0.21696799999999997,
     //                 detections: [
     //                     {
@@ -823,7 +823,7 @@ var tut_cluster_list = [
     //             },
     //             {
     //                 id: 1374606,
-    //                 url: "Sinamatella2019/08-19/23-08/SN09-V09-2308/I__01540.JPG",
+    //                 url: "tutorial/08-19/23-08/SN09-V09-2308/I__01540.JPG",
     //                 rating: 0.17869999999999997,
     //                 detections: [
     //                     {
@@ -850,7 +850,7 @@ var tut_cluster_list = [
     //             },
     //             {
     //                 id: 1374601,
-    //                 url: "Sinamatella2019/08-19/23-08/SN09-V09-2308/I__01535.JPG",
+    //                 url: "tutorial/08-19/23-08/SN09-V09-2308/I__01535.JPG",
     //                 rating: 0.13599499999999998,
     //                 detections: [
     //                     {
@@ -867,7 +867,7 @@ var tut_cluster_list = [
     //             },
     //             {
     //                 id: 1374604,
-    //                 url: "Sinamatella2019/08-19/23-08/SN09-V09-2308/I__01538.JPG",
+    //                 url: "tutorial/08-19/23-08/SN09-V09-2308/I__01538.JPG",
     //                 rating: 0.12993900000000003,
     //                 detections: [
     //                     {
@@ -902,31 +902,31 @@ var tut_cluster_list = [
             images: [
                 // {
                 //     id: 1283867,
-                //     url: "Sinamatella2019/07-19/18-07/SN37-19X-1807/Cdy00042.JPG",
+                //     url: "tutorial/07-19/18-07/SN37-19X-1807/Cdy00042.JPG",
                 //     rating: -1000,
                 //     detections: []
                 // },
                 // {
                 //     id: 1283868,
-                //     url: "Sinamatella2019/07-19/18-07/SN37-19X-1807/Cdy00043.JPG",
+                //     url: "tutorial/07-19/18-07/SN37-19X-1807/Cdy00043.JPG",
                 //     rating: -1000,
                 //     detections: []
                 // },
                 // {
                 //     id: 1283869,
-                //     url: "Sinamatella2019/07-19/18-07/SN37-19X-1807/Cdy00044.JPG",
+                //     url: "tutorial/07-19/18-07/SN37-19X-1807/Cdy00044.JPG",
                 //     rating: -1000,
                 //     detections: []
                 // },
                 // {
                 //     id: 1283870,
-                //     url: "Sinamatella2019/07-19/18-07/SN37-19X-1807/Cdy00045.JPG",
+                //     url: "tutorial/07-19/18-07/SN37-19X-1807/Cdy00045.JPG",
                 //     rating: -1000,
                 //     detections: []
                 // },
                 {
                     id: 1283871,
-                    url: "Sinamatella2019/07-19/18-07/SN37-19X-1807/Cdy00046.JPG",
+                    url: "tutorial/07-19/18-07/SN37-19X-1807/Cdy00046.JPG",
                     rating: -1000,
                     detections: []
                 }
