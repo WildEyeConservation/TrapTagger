@@ -1623,7 +1623,7 @@ def grantQualification(token):
         requestee = db.session.query(User).get(int(info['requestee']))
         requestee.workers.append(requester)
         db.session.commit()
-        return render_template("html/block.html",text="Qualification granted.", helpFile='block', version=Config.VERSION, version=Config.VERSION)
+        return render_template("html/block.html",text="Qualification granted.", helpFile='block', version=Config.VERSION)
     else:
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
