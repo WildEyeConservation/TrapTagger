@@ -54,19 +54,19 @@ GLOBALS.lock = Lock()
 def check_for_maintenance():
     '''Checks if site is in maintenance mode and returns a message accordingly.'''
     if Config.MAINTENANCE:
-        return render_template("html/block.html",text="Platform undergoing maintenance. Please try again later.", helpFile='block'), 503
+        return render_template("html/block.html",text="Platform undergoing maintenance. Please try again later.", helpFile='block', version=Config.VERSION), 503
 
 @app.errorhandler(404)
 def not_found_error(error):
     '''Handles users requesting non-existent endpoints.'''
-    return render_template("html/block.html",text="Page not found.", helpFile='block'), 404
+    return render_template("html/block.html",text="Page not found.", helpFile='block', version=Config.VERSION), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     '''Handles server errors.'''
     # db.session.rollback()
     db.session.remove()
-    return render_template("html/block.html",text="An unexpected error has occurred.", helpFile='block'), 500
+    return render_template("html/block.html",text="An unexpected error has occurred.", helpFile='block', version=Config.VERSION), 500
 
 @app.route('/getUniqueName')
 @login_required
@@ -1062,7 +1062,7 @@ def imageViewer():
             check = db.session.query(Survey).get(comparisonsurvey)
 
         if (len(reqImages) == 0) or (comparisonsurvey and ((check.user!=current_user) and (current_user.id!=admin.id))):
-            return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block')
+            return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
                 'url': image.camera.path + '/' + image.filename,
@@ -1097,10 +1097,10 @@ def imageViewer():
 
         result = json.dumps([{'id': '-444','classification': ['None'],'required': [], 'images': images, 'label': ['None'], 'tags': ['None'], 'groundTruth': [], 'trapGroup': 'None'}])
 
-        return render_template('html/imageViewer.html', title='Image Viewer', clusters=result, helpFile='image_viewer', bucket=Config.BUCKET)
+        return render_template('html/imageViewer.html', title='Image Viewer', clusters=result, helpFile='image_viewer', bucket=Config.BUCKET, version=Config.VERSION)
 
     except:
-        return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block')
+        return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
 @app.route('/createNewSurvey/<surveyName>/<newSurveyDescription>/<newSurveyTGCode>/<newSurveyS3Folder>/<checkbox>/<correctTimestamps>', methods=['POST'])
 @login_required
@@ -1583,7 +1583,7 @@ def signup():
 
             flash('A verification email has been sent to you.')
             return redirect(url_for('login_page', _external=True))
-        return render_template('html/signup.html', title='Sign Up', form=form, helpFile='worker_signup')
+        return render_template('html/signup.html', title='Sign Up', form=form, helpFile='worker_signup', version=Config.VERSION)
 
 @app.route('/newWorkerAccount/<token>')
 def newWorkerAccount(token):
@@ -1592,7 +1592,7 @@ def newWorkerAccount(token):
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
-        return render_template("html/block.html",text="Error.", helpFile='block')
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
     if 'username' in info.keys():
         username = info['username']
@@ -1607,7 +1607,7 @@ def newWorkerAccount(token):
         login_user(user, remember=False)
         return redirect(url_for('jobs', _external=True))
     else:
-        return render_template("html/block.html",text="Error.", helpFile='block')
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/grantQualification/<token>')
 def grantQualification(token):
@@ -1623,9 +1623,9 @@ def grantQualification(token):
         requestee = db.session.query(User).get(int(info['requestee']))
         requestee.workers.append(requester)
         db.session.commit()
-        return render_template("html/block.html",text="Qualification granted.", helpFile='block')
+        return render_template("html/block.html",text="Qualification granted.", helpFile='block', version=Config.VERSION, version=Config.VERSION)
     else:
-        return render_template("html/block.html",text="Error.", helpFile='block')
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/')
 def redir():
@@ -2023,7 +2023,7 @@ def dotask(username):
         else:
             return redirect(url_for('index'))
     else:
-        return render_template("html/block.html",text="Invalid URL.", helpFile='block')
+        return render_template("html/block.html",text="Invalid URL.", helpFile='block', version=Config.VERSION)
 
 @app.route('/createAccount/<token>')
 def createAccount(token):
@@ -2032,7 +2032,7 @@ def createAccount(token):
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
-        return render_template("html/block.html",text="Error.", helpFile='block')
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
     if 'organisation' in info.keys():
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
@@ -2069,11 +2069,11 @@ def createAccount(token):
                 html_body=render_template('email/enquirySuccess.html',
                     organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=folder, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS))
 
-            return render_template("html/block.html",text="Account successfully created.", helpFile='block')
+            return render_template("html/block.html",text="Account successfully created.", helpFile='block', version=Config.VERSION)
         else:
-            return render_template("html/block.html",text="Account already exists.", helpFile='block')
+            return render_template("html/block.html",text="Account already exists.", helpFile='block', version=Config.VERSION)
     else:
-        return render_template("html/block.html",text="Error.", helpFile='block')
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/changePassword/<token>', methods=['GET', 'POST'])
 def changePassword(token):
@@ -2112,7 +2112,7 @@ def changePassword(token):
             except:
                 pass
             return redirect(url_for('login_page'))
-        return render_template("html/changePassword.html", resetPasswordForm=resetPasswordForm, helpFile='reset_password')
+        return render_template("html/changePassword.html", resetPasswordForm=resetPasswordForm, helpFile='reset_password', version=Config.VERSION)
 
 @app.route('/requestPasswordChange', methods=['GET', 'POST'])
 def requestPasswordChange():
@@ -2157,7 +2157,7 @@ def requestPasswordChange():
             flash('Request submitted.')
             return redirect(url_for('login_page'))
 
-        return render_template("html/requestPasswordChange.html", requestPasswordChangeForm=requestPasswordChangeForm, helpFile='request_password_change')
+        return render_template("html/requestPasswordChange.html", requestPasswordChangeForm=requestPasswordChangeForm, helpFile='request_password_change', version=Config.VERSION)
 
 @app.route('/tutorial')
 def tutorial():
@@ -2175,7 +2175,7 @@ def tutorial():
         else:
             return redirect(url_for('index'))
     else:
-        return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET)
+        return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/index')
 def index():
@@ -2196,7 +2196,7 @@ def index():
     else:
         if current_user.passed in ['cTrue', 'cFalse', 'true', 'false']:
                 return redirect(url_for('done'))
-        return render_template('html/index.html', title='TrapTagger', helpFile='annotation', bucket=Config.BUCKET)
+        return render_template('html/index.html', title='TrapTagger', helpFile='annotation', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/jobs')
 def jobs():
@@ -2214,7 +2214,7 @@ def jobs():
         else:
             return redirect(url_for('index'))
     else:
-        return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page')
+        return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -2262,7 +2262,7 @@ def register():
             else:
                 flash('Enquiry (not) submitted.')
                 return redirect(url_for('register'))
-        return render_template("html/register.html", enquiryForm=enquiryForm, helpFile='registration_page')
+        return render_template("html/register.html", enquiryForm=enquiryForm, helpFile='registration_page', version=Config.VERSION)
 
 @app.route('/dataPipeline')
 @login_required
@@ -2274,7 +2274,7 @@ def dataPipeline():
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
-            return render_template('html/dataPipeline.html', title='Data Pipeline', helpFile='data_pipeline')
+            return render_template('html/dataPipeline.html', title='Data Pipeline', helpFile='data_pipeline', version=Config.VERSION)
         else:
             return redirect(url_for('index'))
 
@@ -2292,7 +2292,7 @@ def trainingCSV():
             users = db.session.query(User).filter(User.admin==True).order_by(User.username).distinct().all()
             for user in users:
                 user_data.append({'id': str(user.id), 'username': user.username})
-            return render_template('html/trainingCSV.html', title='Training CSV', user_data=user_data, helpFile='training_csv')
+            return render_template('html/trainingCSV.html', title='Training CSV', user_data=user_data, helpFile='training_csv', version=Config.VERSION)
         else:
             return redirect(url_for('index'))
 
@@ -2306,7 +2306,7 @@ def labelSpec():
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
-            return render_template('html/labelSpec.html', title='Label Spec Generator', helpFile='lebel_spec')
+            return render_template('html/labelSpec.html', title='Label Spec Generator', helpFile='lebel_spec', version=Config.VERSION)
         else:
             return redirect(url_for('index'))
 
@@ -2353,7 +2353,7 @@ def sightings():
     elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings', bucket=Config.BUCKET)
+        return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/individualID', methods=['GET', 'POST'])
 @login_required
@@ -2371,7 +2371,7 @@ def individualID():
     elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('clusterID'))
     else:
-        return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id', bucket=Config.BUCKET)
+        return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/clusterID', methods=['GET', 'POST'])
 @login_required
@@ -2389,7 +2389,7 @@ def clusterID():
     elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id', bucket=Config.BUCKET)
+        return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id', bucket=Config.BUCKET, version=Config.VERSION)
 
 # @app.route('/workerStats')
 # @login_required
@@ -2412,7 +2412,7 @@ def clusterID():
 #                 else:
 #                     return redirect(url_for('index'))
 
-#         return render_template('html/workerStats.html', title='Worker Statistics', helpFile='worker_statistics')
+#         return render_template('html/workerStats.html', title='Worker Statistics', helpFile='worker_statistics', version=Config.VERSION)
 
 @app.route('/workers')
 @login_required
@@ -2435,7 +2435,7 @@ def workers():
                 else:
                     return redirect(url_for('index'))
 
-        return render_template('html/workers.html', title='Workers', helpFile='workers')
+        return render_template('html/workers.html', title='Workers', helpFile='workers', version=Config.VERSION)
 
 @app.route('/getTaskCompletionStatus/<task_id>')
 @login_required
@@ -2800,9 +2800,9 @@ def acceptInvitation(token):
         db.session.commit()
 
     except:
-        return render_template("html/block.html",text="Error.", helpFile='block')
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
-    return render_template("html/block.html",text="Invitation accepted.", helpFile='block')
+    return render_template("html/block.html",text="Invitation accepted.", helpFile='block', version=Config.VERSION)
 
 @app.route('/reClassify/<survey>')
 @login_required
@@ -3063,7 +3063,7 @@ def explore():
                 if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
                     task.tagging_level = '-1'
                     db.session.commit()
-                    return render_template('html/explore.html', title='Explore', helpFile='explore', bucket=Config.BUCKET)
+                    return render_template('html/explore.html', title='Explore', helpFile='explore', bucket=Config.BUCKET, version=Config.VERSION)
             return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
@@ -3090,7 +3090,7 @@ def exploreKnockdowns():
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
             if task and (task.survey.user==current_user):
-                return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET)
+                return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
         else:
@@ -3109,14 +3109,16 @@ def exploreKnockdowns():
 @app.route('/js/<path>')
 def send_js(path):
     '''Serves all JavaScript files after removing their version numbers.'''
-    path = path.split('.')
-    del path[-2]
-    return send_from_directory('../static/js', '.'.join(path))
+    if 'camtrap' in path:
+        path = path.split('.')
+        del path[-2]
+        path = '.'.join(path)
+    return send_from_directory('../static/js', path)
 
-# @app.route('/images/<path:path>')
-# def send_im(path):
-#     '''Serves all image files.'''
-#     return send_from_directory('../static/images', path)
+@app.route('/images/<path:path>')
+def send_im(path):
+    '''Serves all image files.'''
+    return send_from_directory('../static/images', path)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
@@ -3152,7 +3154,7 @@ def login_page():
                 next_page = url_for('jobs', _external=True)
         return redirect(next_page)
 
-    return render_template('html/login.html', title='Sign In', form=form, helpFile='login')
+    return render_template('html/login.html', title='Sign In', form=form, helpFile='login', version=Config.VERSION)
 
 @app.route('/load_login/<user_id>', methods=['GET', 'POST'])
 def load_login(user_id):
@@ -5380,9 +5382,9 @@ def comparison():
                         unknown_percentage=unknown_percentage,species_names=species_names,species_recalls=species_recalls,
                         species_precisions=species_precisions,MegaDetectorFailures=MegaDetectorFailures,EmptyClustered=EmptyClustered,
                         MegaDetectorFailures_percentage=MegaDetectorFailures_percentage,EmptyClustered_percentage=EmptyClustered_percentage,
-                        image_count=image_count, helpFile='comparison_page', bucket=Config.BUCKET)
+                        image_count=image_count, helpFile='comparison_page', bucket=Config.BUCKET, version=Config.VERSION)
             else:
-                return render_template("html/block.html",text="Your comparison session has expired. Please request a new comparison.", helpFile='block')
+                return render_template("html/block.html",text="Your comparison session has expired. Please request a new comparison.", helpFile='block', version=Config.VERSION)
     
 @app.route('/getConfusionMatrix')
 @login_required
