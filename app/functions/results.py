@@ -1395,7 +1395,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
     try:
         app.logger.info('prepare_exif started for task {}'.format(task_id))
         task = db.session.query(Task).get(task_id)
-        results['mdv5']['animal_missed'].status = 'Processing'
+        task.survey.status = 'Processing'
         db.session.commit()
         surveyName = task.survey.name
 
