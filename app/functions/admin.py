@@ -1131,7 +1131,7 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
         # isjpeg = re.compile('\.jpe?g$', re.I)
         tgCode = re.compile(tgCode)
         allTags = []
-        for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder):
+        for dirpath, folders, filenames in s3traverse(Config.BUCKET, folder+'/'+db.session.query(User).get(user_id).folder):
             # jpegs = list(filter(isjpeg.search, filenames))
             # if len(jpegs):
             tags = tgCode.findall(dirpath)
