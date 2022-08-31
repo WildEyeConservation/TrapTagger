@@ -1097,7 +1097,7 @@ def imageViewer():
 
         result = json.dumps([{'id': '-444','classification': ['None'],'required': [], 'images': images, 'label': ['None'], 'tags': ['None'], 'groundTruth': [], 'trapGroup': 'None'}])
 
-        return render_template('html/imageViewer.html', title='Image Viewer', clusters=result, helpFile='image_viewer')
+        return render_template('html/imageViewer.html', title='Image Viewer', clusters=result, helpFile='image_viewer', bucket=Config.BUCKET)
 
     except:
         return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block')
@@ -2175,7 +2175,7 @@ def tutorial():
         else:
             return redirect(url_for('index'))
     else:
-        return render_template('html/tutorial.html', helpFile='tutorial')
+        return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET)
 
 @app.route('/index')
 def index():
@@ -2196,7 +2196,7 @@ def index():
     else:
         if current_user.passed in ['cTrue', 'cFalse', 'true', 'false']:
                 return redirect(url_for('done'))
-        return render_template('html/index.html', title='TrapTagger', helpFile='annotation')
+        return render_template('html/index.html', title='TrapTagger', helpFile='annotation', bucket=Config.BUCKET)
 
 @app.route('/jobs')
 def jobs():
@@ -2333,7 +2333,7 @@ def surveys():
 
         newSurveyForm = NewSurveyForm()
 
-        return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home')
+        return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home', bucket=Config.BUCKET)
 
 @app.route('/sightings', methods=['GET', 'POST'])
 @login_required
@@ -2353,7 +2353,7 @@ def sightings():
     elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings')
+        return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings', bucket=Config.BUCKET)
 
 @app.route('/individualID', methods=['GET', 'POST'])
 @login_required
@@ -2371,7 +2371,7 @@ def individualID():
     elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('clusterID'))
     else:
-        return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id')
+        return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id', bucket=Config.BUCKET)
 
 @app.route('/clusterID', methods=['GET', 'POST'])
 @login_required
@@ -2389,7 +2389,7 @@ def clusterID():
     elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id')
+        return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id', bucket=Config.BUCKET)
 
 # @app.route('/workerStats')
 # @login_required
@@ -3063,7 +3063,7 @@ def explore():
                 if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
                     task.tagging_level = '-1'
                     db.session.commit()
-                    return render_template('html/explore.html', title='Explore', helpFile='explore')
+                    return render_template('html/explore.html', title='Explore', helpFile='explore', bucket=Config.BUCKET)
             return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
@@ -3090,7 +3090,7 @@ def exploreKnockdowns():
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
             if task and (task.survey.user==current_user):
-                return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis')
+                return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET)
             else:
                 return redirect(url_for('surveys'))
         else:
@@ -5378,7 +5378,7 @@ def comparison():
                         unknown_percentage=unknown_percentage,species_names=species_names,species_recalls=species_recalls,
                         species_precisions=species_precisions,MegaDetectorFailures=MegaDetectorFailures,EmptyClustered=EmptyClustered,
                         MegaDetectorFailures_percentage=MegaDetectorFailures_percentage,EmptyClustered_percentage=EmptyClustered_percentage,
-                        image_count=image_count, helpFile='comparison_page')
+                        image_count=image_count, helpFile='comparison_page', bucket=Config.BUCKET)
             else:
                 return render_template("html/block.html",text="Your comparison session has expired. Please request a new comparison.", helpFile='block')
     
