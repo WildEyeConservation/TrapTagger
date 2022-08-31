@@ -486,16 +486,6 @@ function openIndividualsModal() {
     /** Clears and opens the individuals modal. */
 
     var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            bucketName = JSON.parse(this.responseText).bucketName
-        }
-    }
-    xhttp.open("GET", '/get_s3_info');
-    xhttp.send();
-
-    var xhttp = new XMLHttpRequest();
     xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/individualID');
     xhttp.onreadystatechange =
     function(){

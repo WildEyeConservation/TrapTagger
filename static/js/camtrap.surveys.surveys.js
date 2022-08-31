@@ -70,7 +70,6 @@ var speciesDisabled
 var legalTags
 var tagIdTranslate
 var deletedTags
-var bucketName = null
 var individualSplide = null
 var individualImages
 var mapReady = null
@@ -97,7 +96,6 @@ var next_camera_url = null
 var prev_camera_url = null
 var global_corrected_timestamps = {}
 
-var bucketName
 var s3 = null
 var stopFlag = true
 var files

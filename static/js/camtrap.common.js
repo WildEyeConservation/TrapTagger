@@ -35,7 +35,6 @@ var multipleStatus = false
 var Progress
 var waitModalID = 0
 var timerWaitModal
-var bucketName = null
 var batchComplete = false
 var knockedTG = null
 var knockWait = false
@@ -1881,21 +1880,10 @@ function onload (){
         prepareTable()
     }
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 278) {
-            window.location.replace(JSON.parse(this.responseText)['redirect'])
-        } else if (this.readyState == 4 && this.status == 200) {
-            bucketName = JSON.parse(this.responseText).bucketName
-            if (isViewing) {
-                clusters['map1'] = sentClusters
-                update()
-            }
-        }
+    if (isViewing) {
+        clusters['map1'] = sentClusters
+        update()
     }
-    xhttp.open("GET", '/get_s3_info');
-    xhttp.send();
 
     if (isTagging||isBounding) {
         emptyCount = 0

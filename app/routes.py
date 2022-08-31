@@ -846,18 +846,6 @@ def stopTask(task_id):
 
     return json.dumps('error')
 
-@app.route('/get_s3_info')
-@login_required
-def get_s3_info():
-    '''Returns all S3 info pertaining to the requester: region, and bucket name.'''
-
-    # if current_user.admin:
-    #     folder_name = current_user.folder
-    # else:
-    #     folder_name = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.survey.user.folder
-    return json.dumps({'region': Config.AWS_REGION,
-                   'bucketName': Config.BUCKET})
-
 @app.route('/deleteTask/<task_id>')
 @login_required
 def deleteTask(task_id):
