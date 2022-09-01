@@ -1730,7 +1730,7 @@ def generate_label_spec(self,sourceBucket,translations):
                         label_spec[label]['dataset_labels'][dataset].append(translation)
 
         with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
-            temp_file.write(json.dumps(label_spec))
+            temp_file.write(json.dumps(label_spec).encode())
             GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=temp_file)
 
         # Generate accompanying label index
@@ -1741,7 +1741,7 @@ def generate_label_spec(self,sourceBucket,translations):
             index += 1
 
         with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
-            temp_file.write(json.dumps(label_index))
+            temp_file.write(json.dumps(label_index).encode())
             GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=temp_file)
 
     except Exception as exc:

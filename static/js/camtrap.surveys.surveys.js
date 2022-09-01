@@ -806,9 +806,9 @@ function checkTrapgroupCode() {
                             tgCheckID = response.data
                             if (tgCheckTimer != null) {
                                 clearInterval(tgCheckTimer)
-                                tgCheckTimer = setInterval(pingTgCheck, 1000)
+                                tgCheckTimer = setInterval(pingTgCheck, 5000)
                             } else {
-                                tgCheckTimer = setInterval(pingTgCheck, 1000)
+                                tgCheckTimer = setInterval(pingTgCheck, 5000)
                             }
                         }
                     }
