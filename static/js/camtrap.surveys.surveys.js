@@ -89,12 +89,15 @@ var individual_next = null
 var individual_prev = null
 var surveyClassifications = null
 var tgCheckID = null
+var tgCheckFolder = null
+var tgCheckCode = null
 var tgCheckTimer = null
 var hierarchicalLabels=null
 var detailledStatusCount = 0
 var next_camera_url = null
 var prev_camera_url = null
 var global_corrected_timestamps = {}
+var checkingTrapgroupCode = false
 
 var s3 = null
 var stopFlag = true
@@ -714,28 +717,66 @@ function buildBrowserUpload(divID) {
 }
 
 function pingTgCheck() {
-    var formData = new FormData()
-    formData.append("task_id", tgCheckID)
+    if (!checkingTrapgroupCode) {
+        checkingTrapgroupCode = true
+        folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            S3FolderInput = document.getElementById('S3FolderInput')
-            s3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
-            if (s3Folder!='') {
-                response = JSON.parse(this.responseText)
-                if (response.status=='SUCCESS') {
-                    infoDiv.innerHTML = response.data
-                    clearInterval(tgCheckTimer)
-                } else if (response.status=='FAILURE') {
-                    clearInterval(tgCheckTimer)
-                }
+        if (document.getElementById('addImagesTGCode')!=null) {
+            tgCode = document.getElementById('addImagesTGCode').value
+        } else {
+            tgCode = document.getElementById('newSurveyTGCode').value
+        }
+
+        if (document.getElementById('addImagesTGCode')!=null) {
+            if (!document.getElementById('addImagesCheckbox').checked) {
+                tgCode+='[0-9]+'
+            }
+        } else {
+            if (!document.getElementById('newSurveyCheckbox').checked) {
+                tgCode+='[0-9]+'
             }
         }
+
+        var formData = new FormData()
+        if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
+            // Still the same - just checking status
+            formData.append("task_id", tgCheckID)
+        } else {
+            // changed - revoke old task
+            formData.append("revoke_id", tgCheckID)
+            formData.append("task_id", 'none')
+            formData.append("tgCode", tgCode)
+            formData.append("folder", folder)
+            tgCheckFolder = folder
+            tgCheckCode = tgCode
+        }
+    
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                S3FolderInput = document.getElementById('S3FolderInput')
+                s3Folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+                if (s3Folder!='') {
+                    response = JSON.parse(this.responseText)
+                    tgCheckID = response.task_id
+                    if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
+                        if (response.status=='SUCCESS') {
+                            infoDiv.innerHTML = response.data
+                            clearInterval(tgCheckTimer)
+                            tgCheckTimer=null
+                        } else if (response.status=='FAILURE') {
+                            clearInterval(tgCheckTimer)
+                            tgCheckTimer=null
+                        }
+                    }
+                }
+                checkingTrapgroupCode = false
+            }
+        }
+        xhttp.open("POST", '/checkTrapgroupCode');
+        xhttp.send(formData);
     }
-    xhttp.open("POST", '/checkTrapgroupCode');
-    xhttp.send(formData);
 }
 
 function checkTrapgroupCode() {
@@ -786,36 +827,42 @@ function checkTrapgroupCode() {
         S3FolderInput = document.getElementById('S3FolderInput')
         folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
     
-        if (((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
+        if ((tgCheckTimer == null)&&!checkingTrapgroupCode&&((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
+            tgCheckTimer = setInterval(pingTgCheck, 2500)
+            // checkingTrapgroupCode = true
+            // tgCheckFolder = folder
+            // tgCheckCode = tgCode
     
-            var formData = new FormData()
-            formData.append("tgCode", tgCode)
-            formData.append("folder", folder)
-            formData.append("task_id", 'none')
+            // var formData = new FormData()
+            // formData.append("tgCode", tgCode)
+            // formData.append("folder", folder)
+            // formData.append("task_id", 'none')
         
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    S3FolderInput = document.getElementById('S3FolderInput')
-                    folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
-                    if (folder!='') {
-                        response = JSON.parse(this.responseText)
-                        if (response.status == 'PENDING') {
-                            tgCheckID = response.data
-                            if (tgCheckTimer != null) {
-                                clearInterval(tgCheckTimer)
-                                tgCheckTimer = setInterval(pingTgCheck, 5000)
-                            } else {
-                                tgCheckTimer = setInterval(pingTgCheck, 5000)
-                            }
-                        }
-                    }
-                }
-            }
-            xhttp.open("POST", '/checkTrapgroupCode');
-            xhttp.send(formData);
+            // var xhttp = new XMLHttpRequest();
+            // xhttp.onreadystatechange =
+            // function(){
+            //     if (this.readyState == 4 && this.status == 200) {
+            //         S3FolderInput = document.getElementById('S3FolderInput')
+            //         folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+            //         if (folder!='') {
+            //             response = JSON.parse(this.responseText)
+            //             if (response.status == 'PENDING') {
+            //                 tgCheckID = response.data
+            //                 tgCheckTimer = setInterval(pingTgCheck, 5000)
+            //                 if (tgCheckTimer != null) {
+            //                     clearInterval(tgCheckTimer)
+            //                     tgCheckTimer = setInterval(pingTgCheck, 5000)
+            //                 } else {
+            //                     tgCheckTimer = setInterval(pingTgCheck, 5000)
+            //                 }
+            //             }
+            //         }
+            //         checkingTrapgroupCode = false
+            //     }
+            // }
+            // xhttp.open("POST", '/checkTrapgroupCode');
+            // xhttp.send(formData);
         }
     }
 }

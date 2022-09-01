@@ -1346,12 +1346,19 @@ def checkTrapgroupCode():
     status = 'FAILURE'
     reply = None
     task_id = request.form['task_id']
+
     if current_user.is_authenticated and current_user.admin:
+        if 'revoke_id' in request.form:
+            try:
+                celery.control.revoke(request.form['revoke_id'], terminate=True)
+            except:
+                pass
+
         if task_id == 'none':
             tgCode = request.form['tgCode']
             folder = request.form['folder']
-            task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id}, queue='priority', priority=0)
-            reply = task.id
+            task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id})
+            task_id = task.id
             status = 'PENDING'
         else:
             task = findTrapgroupTags.AsyncResult(task_id)
@@ -1360,7 +1367,7 @@ def checkTrapgroupCode():
                 reply = task.result
                 task.forget()
 
-    return json.dumps({'status':status,'data':reply})
+    return json.dumps({'status':status,'data':reply,'task_id':task_id})
 
 @app.route('/getFolders')
 @login_required
