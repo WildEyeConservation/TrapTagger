@@ -1733,8 +1733,8 @@ def generate_label_spec(self,sourceBucket,translations):
         #     json.dump(label_spec, temp_file)
 
         data = io.BytesIO()
-        with open(data, 'w') as f:
-            json.dump(label_spec, f)
+        with data as f:
+            f.write(json.dumps(label_spec).encode())
         data.seek(0)
         GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=data)
 
@@ -1749,8 +1749,8 @@ def generate_label_spec(self,sourceBucket,translations):
         #     json.dump(label_index, temp_file)
 
         data = io.BytesIO()
-        with open(data, 'w') as f:
-            json.dump(label_index, f)
+        with data as f:
+            f.write(json.dumps(label_index).encode())
         data.seek(0)
         GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=temp_file)
 
