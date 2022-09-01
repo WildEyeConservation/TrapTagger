@@ -1345,7 +1345,11 @@ def checkTrapgroupCode():
 
     status = 'FAILURE'
     reply = None
-    task_id = request.form['task_id']
+
+    if 'task_id' in request.form:
+        task_id = request.form['task_id']
+    else:
+        task_id = None
 
     if current_user.is_authenticated and current_user.admin:
         if 'revoke_id' in request.form:
@@ -1354,18 +1358,19 @@ def checkTrapgroupCode():
             except:
                 pass
 
-        if task_id == 'none':
-            tgCode = request.form['tgCode']
-            folder = request.form['folder']
-            task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id})
-            task_id = task.id
-            status = 'PENDING'
-        else:
-            task = findTrapgroupTags.AsyncResult(task_id)
-            status = task.state
-            if status == 'SUCCESS':
-                reply = task.result
-                task.forget()
+        if task_id:
+            if task_id == 'none':
+                tgCode = request.form['tgCode']
+                folder = request.form['folder']
+                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id})
+                task_id = task.id
+                status = 'PENDING'
+            else:
+                task = findTrapgroupTags.AsyncResult(task_id)
+                status = task.state
+                if status == 'SUCCESS':
+                    reply = task.result
+                    task.forget()
 
     return json.dumps({'status':status,'data':reply,'task_id':task_id})
 

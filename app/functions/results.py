@@ -1717,23 +1717,26 @@ def generate_label_spec(self,sourceBucket,translations):
             GLOBALS.s3client.download_file(Bucket=sourceBucket, Key='classification_ds/classification_ds.csv', Filename=temp_file.name)
             df = pd.read_csv(temp_file.name)
 
+        #Generate dictionary of dataset labels
+        dataset_labels = {}
+        datasets = df['dataset'].unique()
+        for dataset in datasets:
+            dataset_labels[dataset] = df[df['dataset']==dataset]['label'].unique()
+
         # Generate Label Spec
         label_spec = {}
         for label in translations:
             label_spec[label] = {'dataset_labels':{}}
-            for dataset in df['dataset'].unique():
+            for dataset in datasets:
                 label_spec[label]['dataset_labels'][dataset] = []
-                labels = df[df['dataset']==dataset]['label'].unique()
-
                 for translation in translations[label]:
-                    if translation in labels:
+                    if translation in dataset_labels[dataset]:
                         label_spec[label]['dataset_labels'][dataset].append(translation)
 
-        data = io.BytesIO()
-        with data as f:
+        with io.BytesIO() as f:
             f.write(json.dumps(label_spec).encode())
-            data.seek(0)
-            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=data)
+            f.seek(0)
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=f)
 
         # Generate accompanying label index
         index = 0
@@ -1742,11 +1745,10 @@ def generate_label_spec(self,sourceBucket,translations):
             label_index[index] = label
             index += 1
 
-        data = io.BytesIO()
-        with data as f:
+        with io.BytesIO() as f:
             f.write(json.dumps(label_index).encode())
-            data.seek(0)
-            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=data)
+            f.seek(0)
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=f)
 
     except Exception as exc:
         app.logger.info(' ')
