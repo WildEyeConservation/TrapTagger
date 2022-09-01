@@ -1735,7 +1735,8 @@ def generate_label_spec(self,sourceBucket,translations):
         data = io.BytesIO()
         with data as f:
             f.write(json.dumps(label_spec).encode())
-        GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=data)
+            data.seek(0)
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_spec.json',Body=data)
 
         # Generate accompanying label index
         index = 0
@@ -1750,7 +1751,8 @@ def generate_label_spec(self,sourceBucket,translations):
         data = io.BytesIO()
         with data as f:
             f.write(json.dumps(label_index).encode())
-        GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=temp_file)
+            data.seek(0)
+            GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
