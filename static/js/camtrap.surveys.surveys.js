@@ -731,15 +731,17 @@ function pingTgCheck() {
         if ((tgCode=='')||(folder=='')) {
             infoDiv.innerHTML = ''
             clearInterval(tgCheckTimer)
-            tgCheckTimer=null
-            tgCheckFolder = null
-            tgCheckCode = null
 
             var formData = new FormData()
             formData.append("revoke_id", tgCheckID)
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/checkTrapgroupCode');
             xhttp.send(formData);
+
+            tgCheckTimer=null
+            tgCheckFolder = null
+            tgCheckCode = null
+            checkingTrapgroupCode = false
             
         } else {
 
