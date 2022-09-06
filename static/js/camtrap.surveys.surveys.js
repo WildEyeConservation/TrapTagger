@@ -731,6 +731,9 @@ function pingTgCheck() {
         if ((tgCode=='')||(folder=='')) {
             infoDiv.innerHTML = ''
             clearInterval(tgCheckTimer)
+            tgCheckTimer=null
+            tgCheckFolder = null
+            tgCheckCode = null
 
             var formData = new FormData()
             formData.append("revoke_id", tgCheckID)
@@ -738,9 +741,6 @@ function pingTgCheck() {
             xhttp.open("POST", '/checkTrapgroupCode');
             xhttp.send(formData);
             
-            tgCheckTimer=null
-            tgCheckFolder = null
-            tgCheckCode = null
         } else {
 
             if (document.getElementById('addImagesTGCode')!=null) {
@@ -844,10 +844,15 @@ function checkTrapgroupCode() {
     } else if (folderChecked) {
         S3FolderInput = document.getElementById('S3FolderInput')
         folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
-        infoDiv.innerHTML = 'Checking...'
     
-        if ((tgCheckTimer == null)&&((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
-            tgCheckTimer = setInterval(pingTgCheck, 2500)
+        if (((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
+            infoDiv.innerHTML = 'Checking...'
+
+            if (tgCheckTimer == null) {
+                pingTgCheck()
+                tgCheckTimer = setInterval(pingTgCheck, 2500)
+            }
+            
             // checkingTrapgroupCode = true
             // tgCheckFolder = folder
             // tgCheckCode = tgCode
