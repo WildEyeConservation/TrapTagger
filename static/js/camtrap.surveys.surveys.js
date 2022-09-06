@@ -717,85 +717,100 @@ function buildBrowserUpload(divID) {
 }
 
 function pingTgCheck() {
-    if (!checkingTrapgroupCode) {
-        checkingTrapgroupCode = true
-        S3FolderInput = document.getElementById('S3FolderInput')
-        folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
-
-        if (document.getElementById('addImagesTGCode')!=null) {
-            tgCode = document.getElementById('addImagesTGCode').value
-        } else {
-            tgCode = document.getElementById('newSurveyTGCode').value
-        }
-
-        if ((tgCode=='')||(folder=='')) {
-            infoDiv.innerHTML = ''
-            clearInterval(tgCheckTimer)
-
-            var formData = new FormData()
-            formData.append("revoke_id", tgCheckID)
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkTrapgroupCode');
-            xhttp.send(formData);
-
-            tgCheckTimer=null
-            tgCheckFolder = null
-            tgCheckCode = null
-            checkingTrapgroupCode = false
-            
-        } else {
+    if (modalNewSurvey.is(':visible')||modalAddImages.is(':visible')) {
+        if (!checkingTrapgroupCode) {
+            checkingTrapgroupCode = true
+            S3FolderInput = document.getElementById('S3FolderInput')
+            folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
 
             if (document.getElementById('addImagesTGCode')!=null) {
-                if (!document.getElementById('addImagesCheckbox').checked) {
-                    tgCode+='[0-9]+'
-                }
+                tgCode = document.getElementById('addImagesTGCode').value
             } else {
-                if (!document.getElementById('newSurveyCheckbox').checked) {
-                    tgCode+='[0-9]+'
-                }
+                tgCode = document.getElementById('newSurveyTGCode').value
             }
-    
-            var formData = new FormData()
-            if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
-                // Still the same - just checking status
-                formData.append("task_id", tgCheckID)
-            } else {
-                // changed - revoke old task
+
+            if ((tgCode=='')||(folder=='')) {
+                infoDiv.innerHTML = ''
+                clearInterval(tgCheckTimer)
+
+                var formData = new FormData()
                 formData.append("revoke_id", tgCheckID)
-                formData.append("task_id", 'none')
-                formData.append("tgCode", tgCode)
-                formData.append("folder", folder)
-                tgCheckFolder = folder
-                tgCheckCode = tgCode
-            }
-        
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    response = JSON.parse(this.responseText)
-                    tgCheckID = response.task_id
-                    if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
-                        if (response.status=='SUCCESS') {
-                            infoDiv.innerHTML = response.data
-                            clearInterval(tgCheckTimer)
-                            tgCheckTimer=null
-                            tgCheckFolder = null
-                            tgCheckCode = null
-                        } else if (response.status=='FAILURE') {
-                            infoDiv.innerHTML = 'Check failed.'
-                            clearInterval(tgCheckTimer)
-                            tgCheckTimer=null
-                            tgCheckFolder = null
-                            tgCheckCode = null
-                        }
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkTrapgroupCode');
+                xhttp.send(formData);
+
+                tgCheckTimer=null
+                tgCheckFolder = null
+                tgCheckCode = null
+                checkingTrapgroupCode = false
+                
+            } else {
+
+                if (document.getElementById('addImagesTGCode')!=null) {
+                    if (!document.getElementById('addImagesCheckbox').checked) {
+                        tgCode+='[0-9]+'
                     }
-                    checkingTrapgroupCode = false
+                } else {
+                    if (!document.getElementById('newSurveyCheckbox').checked) {
+                        tgCode+='[0-9]+'
+                    }
                 }
+
+                var formData = new FormData()
+                if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
+                    // Still the same - just checking status
+                    formData.append("task_id", tgCheckID)
+                } else {
+                    // changed - revoke old task
+                    formData.append("revoke_id", tgCheckID)
+                    formData.append("task_id", 'none')
+                    formData.append("tgCode", tgCode)
+                    formData.append("folder", folder)
+                    tgCheckFolder = folder
+                    tgCheckCode = tgCode
+                }
+            
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        response = JSON.parse(this.responseText)
+                        tgCheckID = response.task_id
+                        if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
+                            if (response.status=='SUCCESS') {
+                                infoDiv.innerHTML = response.data
+                                clearInterval(tgCheckTimer)
+                                tgCheckTimer=null
+                                tgCheckFolder = null
+                                tgCheckCode = null
+                            } else if (response.status=='FAILURE') {
+                                infoDiv.innerHTML = 'Check failed.'
+                                clearInterval(tgCheckTimer)
+                                tgCheckTimer=null
+                                tgCheckFolder = null
+                                tgCheckCode = null
+                            }
+                        }
+                        checkingTrapgroupCode = false
+                    }
+                }
+                xhttp.open("POST", '/checkTrapgroupCode');
+                xhttp.send(formData);
             }
-            xhttp.open("POST", '/checkTrapgroupCode');
-            xhttp.send(formData);
         }
+    } else {
+        clearInterval(tgCheckTimer)
+
+        var formData = new FormData()
+        formData.append("revoke_id", tgCheckID)
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/checkTrapgroupCode');
+        xhttp.send(formData);
+
+        tgCheckTimer=null
+        tgCheckFolder = null
+        tgCheckCode = null
+        checkingTrapgroupCode = false
     }
 }
 
