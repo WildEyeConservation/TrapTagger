@@ -844,9 +844,9 @@ function checkTrapgroupCode() {
     } else if (folderChecked) {
         S3FolderInput = document.getElementById('S3FolderInput')
         folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
+        infoDiv.innerHTML = 'Checking...'
     
         if ((tgCheckTimer == null)&&((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
-            infoDiv.innerHTML = 'Checking...'
             tgCheckTimer = setInterval(pingTgCheck, 2500)
             // checkingTrapgroupCode = true
             // tgCheckFolder = folder
