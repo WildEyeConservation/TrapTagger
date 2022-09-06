@@ -2217,7 +2217,7 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        if ((typeof modalNote == 'undefined') || (!modalNote.is(':visible')) || ((typeof modalNewIndividual != 'undefined')&&(!modalNewIndividual.is(':visible')))) {
+        if (((typeof modalNote != 'undefined') && (!modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(!modalNewIndividual.is(':visible')))) {
             event.preventDefault()
         }
     }
