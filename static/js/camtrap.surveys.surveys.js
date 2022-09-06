@@ -867,7 +867,7 @@ function checkTrapgroupCode() {
 
             if (tgCheckTimer == null) {
                 pingTgCheck()
-                tgCheckTimer = setInterval(pingTgCheck, 2500)
+                tgCheckTimer = setInterval(pingTgCheck, 3000)
             }
             
             // checkingTrapgroupCode = true
