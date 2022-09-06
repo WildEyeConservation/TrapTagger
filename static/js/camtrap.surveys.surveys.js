@@ -747,11 +747,11 @@ function pingTgCheck() {
             } else {
 
                 if (document.getElementById('addImagesTGCode')!=null) {
-                    if (!document.getElementById('addImagesCheckbox').checked) {
+                    if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
                         tgCode+='[0-9]+'
                     }
                 } else {
-                    if (!document.getElementById('newSurveyCheckbox').checked) {
+                    if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
                         tgCode+='[0-9]+'
                     }
                 }
@@ -830,11 +830,11 @@ function checkTrapgroupCode() {
     }
 
     if (document.getElementById('addImagesTGCode')!=null) {
-        if (!document.getElementById('addImagesCheckbox').checked) {
+        if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
             tgCode+='[0-9]+'
         }
     } else {
-        if (!document.getElementById('newSurveyCheckbox').checked) {
+        if ((!document.getElementById('newSurveyCheckbox').checked)&&(tgCode!='')) {
             tgCode+='[0-9]+'
         }
     }
@@ -862,7 +862,7 @@ function checkTrapgroupCode() {
         S3FolderInput = document.getElementById('S3FolderInput')
         folder = S3FolderInput.options[S3FolderInput.selectedIndex].text
     
-        if (((document.getElementById('newSurveyTGCode').value!='')||(document.getElementById('addImagesTGCode').value!=''))&&(folder!='')) {
+        if ((tgCode!='')&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
 
             if (tgCheckTimer == null) {
