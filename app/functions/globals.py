@@ -1733,7 +1733,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
 
                 # Extract exif labels
                 print('Extracting Labels')
-                if False:
+                if label_source:
                     try:
                         cluster = Cluster(task_id=task_id)
                         db.session.add(cluster)
