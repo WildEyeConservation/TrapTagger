@@ -1755,16 +1755,17 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                                 cluster.labels.append(label)
                                 print('label added')
                         elif label_source=='path':
-                            description = image.camera.path.split('/')[-2]
-                            print('Handling label: {}'.format(description))
-                            label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
-                            if not label:
-                                print('Creating label')
-                                label = Label(description=description,task_id=task_id)
-                                db.session.add(label)
-                                db.session.commit()
-                            cluster.labels.append(label)
-                            print('label added')
+                            descriptions = [image.camera.path.split('/')[-1],image.camera.path.split('/')[-1]]
+                            for description in descriptions:
+                                print('Handling label: {}'.format(description))
+                                label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
+                                if not label:
+                                    print('Creating label')
+                                    label = Label(description=description,task_id=task_id)
+                                    db.session.add(label)
+                                    db.session.commit()
+                                cluster.labels.append(label)
+                                print('label added')
                         db.session.commit()
                         print('Success')
                     except:
