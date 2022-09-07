@@ -1730,7 +1730,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
 
                 # Extract exif labels
                 print('Extracting Labels')
-                if False: #label_source:
+                if label_source:
                     try:
                         cluster = Cluster(task_id=task_id)
                         db.session.add(cluster)
@@ -1751,6 +1751,17 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                                     db.session.commit()
                                 cluster.labels.append(label)
                                 print('label added')
+                        elif label_source=='path':
+                            description = image.camera.path.split('/')[-2]
+                            print('Handling label: {}'.format(description))
+                            label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
+                            if not label:
+                                print('Creating label')
+                                label = Label(description=description,task_id=task_id)
+                                db.session.add(label)
+                                db.session.commit()
+                            cluster.labels.append(label)
+                            print('label added')
                         db.session.commit()
                         print('Success')
                     except:
