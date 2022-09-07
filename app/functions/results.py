@@ -1631,7 +1631,7 @@ def crop_survey_images(self,task_id,min_area,destBucket):
 
         results = []
         for chunk in chunker(df['image_id'].unique(),10000):
-            results.append(batch_crops.apply_async(kwargs={'image_ids':[int(r) for r in chunk],'source':task.survey.user.folder,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False},queue='default'))
+            results.append(batch_crops.apply_async(kwargs={'image_ids':[int(r) for r in chunk],'source':None,'min_area':min_area,'destBucket':destBucket,'external':False,'update_image_info':False},queue='default'))
 
         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
         # See https://github.com/celery/celery/issues/4480

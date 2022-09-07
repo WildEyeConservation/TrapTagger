@@ -1655,7 +1655,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
 
         Parameters:
             image_id (int): The image being processed
-            source (str): The image source - S3 user folder, or root URL if external
+            source (str): The image source - S3 bucket, or root URL if external
             min_area (float): The minimum area of a detection gor it to be cropped
             destBucket (str): The bucket where the crops must be saved
             external (bool): Whether the image is stored outside of S3
@@ -1687,7 +1687,10 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                 with open(temp_file.name, 'wb') as handler:
                     handler.write(response.content)
             else:
-                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+                if source:
+                    GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+                else:
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
             print('Success')
 
             print('Opening image...')
