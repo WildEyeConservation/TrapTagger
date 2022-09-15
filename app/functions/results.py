@@ -1524,37 +1524,38 @@ def generate_training_csv(self,tasks,destBucket,min_area):
             # Drop detections
             df = df.drop_duplicates(subset=['detection_id'], keep=False)
 
-            # Build crop names
-            df['path'] = df.apply(lambda x: x.dirpath+'/'+x.filename[:-4]+'_'+str(x.detection_id)+'.jpg', axis=1)
+            if len(df):
+                # Build crop names
+                df['path'] = df.apply(lambda x: x.dirpath+'/'+x.filename[:-4]+'_'+str(x.detection_id)+'.jpg', axis=1)
 
-            # Set the dataset_class to the label value
-            df['dataset_class'] = df['label']
+                # Set the dataset_class to the label value
+                df['dataset_class'] = df['label']
 
-            # Check if you need to crop the images
-            try:              
-                key = df.iloc[0]['path']
-                check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
-            
-            except:
-                # Crop does not exist - must crop the images
-                crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
-                task.survey.images_processing = len(df)
-                # task.survey.status='Processing'
-                db.session.commit()
+                # Check if you need to crop the images
+                try:              
+                    key = df.iloc[0]['path']
+                    check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                
+                except:
+                    # Crop does not exist - must crop the images
+                    crop_survey_images.apply_async(kwargs={'task_id':task_id,'min_area':min_area,'destBucket':destBucket},queue='parallel')
+                    task.survey.images_processing = len(df)
+                    # task.survey.status='Processing'
+                    db.session.commit()
 
-            # Order columns and remove superfluous ones
-            df = df[['path','dataset','location','dataset_class','confidence','label']]
+                # Order columns and remove superfluous ones
+                df = df[['path','dataset','location','dataset_class','confidence','label']]
 
-            # convert all labels to lower case
-            df['label'] = df.apply(lambda x: x.label.lower(), axis=1)
-            df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower(), axis=1)
+                # convert all labels to lower case
+                df['label'] = df.apply(lambda x: x.label.lower(), axis=1)
+                df['dataset_class'] = df.apply(lambda x: x.dataset_class.lower(), axis=1)
 
-            # Add to output
-            if outputDF is not None:
-                outputDF = pd.concat([outputDF, df], ignore_index=True)
-                outputDF.fillna(0, inplace=True)
-            else:
-                outputDF = df
+                # Add to output
+                if outputDF is not None:
+                    outputDF = pd.concat([outputDF, df], ignore_index=True)
+                    outputDF.fillna(0, inplace=True)
+                else:
+                    outputDF = df
 
         # Write output to S3
         user = task.survey.user.username
