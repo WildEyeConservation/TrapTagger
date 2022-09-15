@@ -1717,7 +1717,7 @@ def getBarData(task_id, species_id, baseUnit, axis):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
         elif baseUnit == '2':
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup)
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup).filter(Cluster.task_id==int(task_id))
         elif baseUnit == '3':
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
         baseQuery = baseQuery.join(Camera).join(Trapgroup).filter(Labelgroup.task_id==task_id).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden']))
