@@ -880,7 +880,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
         #Prep bacthes
         GLOBALS.results_queue = []
         pool = Pool(processes=4)
-        isjpeg = re.compile('[\.]|[_]jpe?g$', re.I)
+        isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
         print('Received importImages task with {} batches.'.format(len(batch)))
         for item in batch:
             sourceBucket = item['sourceBucket']
@@ -1288,7 +1288,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
             label_source (str): Exif field where labels should be extracted from
     '''
     
-    isjpeg = re.compile('[\.]|[_]jpe?g$', re.I)
+    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
     localsession=db.session()
     survey = Survey.get_or_create(localsession,name=name,user_id=user_id,trapgroup_code=tag)
     survey.status = 'Importing'
