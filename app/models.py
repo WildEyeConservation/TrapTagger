@@ -319,6 +319,7 @@ class Cluster(db.Model):
     def __repr__(self):
         return '<Cluster {}>'.format(self.id)
 
+
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256), index=False, unique=False)
@@ -329,6 +330,7 @@ class Task(db.Model):
     status = db.Column(db.String(32), index=False)
     tagging_time = db.Column(db.Integer, index=False)
     complete = db.Column(db.Boolean, default=False, index=False)
+    init_complete = db.Column(db.Boolean, default=False, index=True)
     is_bounding = db.Column(db.Boolean, default=False, index=True)
     parent_classification = db.Column(db.Boolean, default=False, index=False)
     jobs_finished = db.Column(db.Integer, default=0, index=False)
@@ -390,3 +392,14 @@ class Notification(db.Model):
 
     def __repr__(self):
         return '<Notification: {}>'.format(self.contents)
+
+
+class Statistic(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    user_count = db.Column(db.Integer, index=False)
+    active_user_count = db.Column(db.Integer, index=False)
+    image_count = db.Column(db.Integer, index=False)
+
+    def __repr__(self):
+        return '<Statistic for {}>'.format(self.timestamp)

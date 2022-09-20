@@ -734,6 +734,11 @@ def setupDatabase():
         user = User(username = 'Admin', passed = 'pending', admin=True)
         user.set_password(Config.SECRET_KEY)
         db.session.add(user)
+
+    if db.session.query(User).filter(User.username=='Dashboard').first()==None:
+        user = User(username = 'Dashboard', passed = 'pending', admin=True)
+        user.set_password(Config.SECRET_KEY)
+        db.session.add(user)
     
     if db.session.query(Label).filter(Label.description=='Nothing').first()==None:
         nothing = Label(description='Nothing', hotkey='n')

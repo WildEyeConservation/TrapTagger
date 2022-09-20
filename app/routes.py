@@ -1608,18 +1608,18 @@ def newWorkerAccount(token):
 
     if 'username' in info.keys():
         username = info['username']
-        email = info['email']
-        password = info['password']
-        user = User(username=username, email=email, admin=False)
-        user.set_password(password)
-        db.session.add(user)
-        turkcode = Turkcode(user_id=username, active=False, tagging_time=0)
-        db.session.add(turkcode)
-        db.session.commit()
-        login_user(user, remember=False)
-        return redirect(url_for('jobs', _external=True))
-    else:
-        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
+        if username.lower() not in Config.DISALLOWED_USERNAMES:
+            email = info['email']
+            password = info['password']
+            user = User(username=username, email=email, admin=False)
+            user.set_password(password)
+            db.session.add(user)
+            turkcode = Turkcode(user_id=username, active=False, tagging_time=0)
+            db.session.add(turkcode)
+            db.session.commit()
+            login_user(user, remember=False)
+            return redirect(url_for('jobs', _external=True))
+    return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/grantQualification/<token>')
 def grantQualification(token):
@@ -2010,7 +2010,7 @@ def dotask(username):
     '''Allocates the specified job to the current user, logging them into a tmp user profile to perform the work.'''
 
     turkcode = db.session.query(Turkcode).filter(Turkcode.user_id==username).first()
-    if turkcode and ((current_user in turkcode.task.survey.user.workers) or (current_user == turkcode.task.survey.user)):
+    if turkcode and (username.lower() not in Config.DISALLOWED_USERNAMES) and ((current_user in turkcode.task.survey.user.workers) or (current_user == turkcode.task.survey.user)):
         user = db.session.query(User).filter(User.username==username).first()
         
         if user is None:
@@ -2046,7 +2046,7 @@ def createAccount(token):
     except:
         return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
-    if 'organisation' in info.keys():
+    if ('organisation' in info.keys()) and (info['organisation'].lower() not in Config.DISALLOWED_USERNAMES):
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
         check = db.session.query(User).filter(or_(
             func.lower(User.username)==info['organisation'].lower(),
@@ -6158,3 +6158,53 @@ def checkNotifications():
             return json.dumps({'status':'success','content':notification.contents})
     
     return json.dumps({'status':'error'})
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    '''Renders dashboard where the stats of the platform can be explored.'''
+    
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if current_user.username=='Dashboard':
+            users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+            image_count=0
+            for user in users:
+                for survey in user.surveys:
+                    image_count+=survey.image_count
+            sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
+            active_users = db.session.query(User)\
+                                    .join(Survey)\
+                                    .join(Task)\
+                                    .join(sq,sq.c.user_id==User.id)\
+                                    .filter(Task.init_complete==True)\
+                                    .filter(sq.c.count>10000)\
+                                    .distinct().count()
+            latest_statistic = db.session.query(Statistic).order_by(Statistic.timestamp.desc()).first()
+            users_added_this_month = len(users)-latest_statistic.user_count
+            images_imported_this_month = image_count-latest_statistic.image_count
+            active_users_this_month = active_users-latest_statistic.active_user_count
+            return render_template('html/dashboard.html', title='Dashboard', helpFile='dashboard',
+                        version=Config.VERSION,
+                        user_count = len(users),
+                        image_count = image_count,
+                        users_added_this_month = users_added_this_month,
+                        images_imported_this_month = images_imported_this_month,
+                        active_users_this_month = active_users_this_month,
+                        active_users = active_users)
+        else:
+            if current_user.admin:
+                redirect(url_for('surveys'))
+            else:
+                if current_user.parent_id == None:
+                    return redirect(url_for('jobs'))
+                else:
+                    if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                        return redirect(url_for('sightings'))
+                    elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                        return redirect(url_for('clusterID'))
+                    elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                        return redirect(url_for('individualID'))
+                    else:
+                        return redirect(url_for('index'))

@@ -426,6 +426,7 @@ def updateTaskCompletionStatus(task_id):
     '''
 
     complete = True
+    task = db.session.query(Task).get(task_id)
     
     # Check if there init level is complete
     check = db.session.query(Cluster)\
@@ -439,6 +440,8 @@ def updateTaskCompletionStatus(task_id):
                     .first()
     if check:
         complete = False
+
+    task.init_complete = complete
 
     # Check if parent categories are complete
     parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
@@ -454,7 +457,7 @@ def updateTaskCompletionStatus(task_id):
             complete = False
             break
     
-    db.session.query(Task).get(task_id).complete = complete
+    task.complete = complete
     db.session.commit()
 
     return True

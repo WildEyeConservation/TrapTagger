@@ -24,6 +24,7 @@ from config import Config
 import os
 import os.path
 from celery import Celery
+from celery.schedules import crontab
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
@@ -83,6 +84,13 @@ def make_celery(flask_app):
     celery.conf.task_default_exchange_type = 'topic'
     celery.conf.task_default_routing_key = 'task.default'
     ####
+
+    celery.conf.beat_schedule = {
+        'updateStatistics': {
+            'task': 'functions.admin.updateStatistics',
+            'schedule': crontab(0, 0, day_of_month='1'), # Execute on the first day of every month.
+        },
+    }
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):

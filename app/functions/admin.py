@@ -21,6 +21,7 @@ from app.functions.individualID import calculate_individual_similarities, cleanU
 from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_
+from sqlalchemy import desc, extract
 from datetime import datetime
 import re
 import ast
@@ -1269,6 +1270,49 @@ def maskSky(self,survey_id,sky_masked,edge):
         else:
             survey.sky_masked = False
         db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def updateStatistics(self):
+    '''Updates the site statistics in the database for dashboard reference purposes.'''
+
+    try:
+        check = db.session.query(Statistic)\
+                        .filter(extract('year',Statistic.timestamp)==datetime.utcnow().year)\
+                        .filter(extract('month',Statistic.timestamp)==datetime.utcnow().month)\
+                        .first()
+
+        if not check:
+            users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+            image_count=0
+            for user in users:
+                for survey in user.surveys:
+                    image_count+=survey.image_count
+
+            sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
+            active_user_count = db.session.query(User)\
+                                    .join(Survey)\
+                                    .join(Task)\
+                                    .join(sq,sq.c.user_id==User.id)\
+                                    .filter(Task.init_complete==True)\
+                                    .filter(sq.c.count>10000)\
+                                    .distinct().count()
+
+            statistic = Statistic(timestamp=datetime.utcnow(),user_count=len(users),active_user_count=active_user_count,image_count=image_count)
+            db.session.add(statistic)
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

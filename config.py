@@ -43,6 +43,8 @@ class Config(object):
         'user': 0.9
     }
 
+    DISALLOWED_USERNAMES = ['admin','dashboard']
+
     # SQLAlchemy Config
     SECRET_KEY = os.environ.get('SECRET_KEY')
     SQLALCHEMY_DATABASE_SERVER =  os.environ.get('DATABASE_SERVER')
