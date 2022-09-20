@@ -85,10 +85,11 @@ def make_celery(flask_app):
     celery.conf.task_default_routing_key = 'task.default'
     ####
 
+    # Store site stats on the first of the month
     celery.conf.beat_schedule = {
         'updateStatistics': {
-            'task': 'functions.admin.updateStatistics',
-            'schedule': crontab(0, 0, day_of_month='1'), # Execute on the first day of every month.
+            'task': 'app.functions.admin.updateStatistics',
+            'schedule': crontab(0, 0, day_of_month='1'),
         },
     }
 
