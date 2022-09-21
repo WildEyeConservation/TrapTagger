@@ -1565,7 +1565,9 @@ def signup():
     '''Returns the form for worker signup, and handles its submission.'''
 
     if current_user.is_authenticated:
-        if current_user.admin:
+        if current_user.username=='Dashboard':
+            return redirect(url_for('dashboard'))
+        elif current_user.admin:
             return redirect(url_for('surveys'))
         elif current_user.parent_id == None:
             return redirect(url_for('jobs'))
@@ -2186,6 +2188,11 @@ def tutorial():
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
+    elif current_user.admin:
+        if current_user.username=='Dashboard':
+            return redirect(url_for('dashboard'))
+        else:
+            return redirect(url_for('surveys'))
     else:
         return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET, version=Config.VERSION)
 
@@ -2196,7 +2203,10 @@ def index():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.admin:
-        return redirect(url_for('surveys'))
+        if current_user.username=='Dashboard':
+            return redirect(url_for('dashboard'))
+        else:
+            return redirect(url_for('surveys'))
     elif current_user.parent_id == None:
         return redirect(url_for('jobs'))
     elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
@@ -2226,6 +2236,7 @@ def jobs():
         else:
             return redirect(url_for('index'))
     else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -2234,7 +2245,10 @@ def register():
     
     if current_user.is_authenticated:
         if current_user.admin:
-            return redirect(url_for('surveys'))
+            if current_user.username=='Dashboard':
+                return redirect(url_for('dashboard'))
+            else:
+                return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
@@ -2343,6 +2357,8 @@ def surveys():
                 else:
                     return redirect(url_for('index'))
 
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+
         newSurveyForm = NewSurveyForm()
 
         return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home', bucket=Config.BUCKET, version=Config.VERSION)
@@ -2355,7 +2371,10 @@ def sightings():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.admin:
-        return redirect(url_for('surveys'))
+        if current_user.username=='Dashboard':
+            return redirect(url_for('dashboard'))
+        else:
+            return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
         return redirect(url_for('jobs'))
     elif not db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
@@ -2375,7 +2394,10 @@ def individualID():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.admin:
-        return redirect(url_for('surveys'))
+        if current_user.username=='Dashboard':
+            return redirect(url_for('dashboard'))
+        else:
+            return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
         return redirect(url_for('jobs'))
     elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
@@ -2393,7 +2415,10 @@ def clusterID():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.admin:
-        return redirect(url_for('surveys'))
+        if current_user.username=='Dashboard':
+            return redirect(url_for('dashboard'))
+        else:
+            return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
         return redirect(url_for('jobs'))
     elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
@@ -2446,6 +2471,8 @@ def workers():
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
+
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
 
         return render_template('html/workers.html', title='Workers', helpFile='workers', version=Config.VERSION)
 
@@ -2581,7 +2608,6 @@ def getHomeSurveys():
             survey_dict['numTrapgroups'] = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey.id).count()
             if survey.image_count == None:
                 survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
-                db.session.commit()
             survey_dict['numImages'] = survey.image_count
 
             
@@ -2613,6 +2639,9 @@ def getHomeSurveys():
 
         next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order) if surveys.has_next else None
         prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order) if surveys.has_prev else None
+
+        current_user.last_ping = datetime.utcnow()
+        db.session.commit()
 
         return json.dumps({'surveys': survey_list, 'next_url':next_url, 'prev_url':prev_url})
     
@@ -3069,6 +3098,7 @@ def explore():
         return redirect(url_for('login_page'))
     else:
         if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
             task_id = request.args.get('task', None)
             if task_id:
                 task = db.session.query(Task).get(task_id)
@@ -3099,6 +3129,7 @@ def exploreKnockdowns():
         return redirect(url_for('login_page'))
     else:
         if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
             if task and (task.survey.user==current_user):
@@ -3138,7 +3169,10 @@ def login_page():
 
     if current_user.is_authenticated:
         if current_user.admin:
-            return redirect(url_for('surveys'))
+            if current_user.username=='Dashboard':
+                return redirect(url_for('dashboard'))
+            else:
+                return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
                 return redirect(url_for('jobs', _external=True))
@@ -5300,6 +5334,8 @@ def comparison():
                 else:
                     return redirect(url_for('index'))
         else:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+
             if str(current_user.id) in GLOBALS.confusions.keys():
 
                 # Generate some stats
