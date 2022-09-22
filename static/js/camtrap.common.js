@@ -2056,10 +2056,11 @@ function submitLabels(mapID = 'map1') {
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
                                 clisterIdList = []
-                            }
-                            if (modalWait2.is(':visible')) {
-                                modalWait2Hide = true
-                                modalWait2.modal('hide');
+                            } else {
+                                if (modalWait2.is(':visible')) {
+                                    modalWait2Hide = true
+                                    modalWait2.modal('hide');
+                                }
                             }
                             nextCluster(mapID)
                         }               

@@ -1931,3 +1931,12 @@ def scaleDbCapacity(required_capacity):
     
     else:
         return 'error'
+
+def all_equal(iterator):
+    '''Efficient methos for checking if all items in an iterator are equal.'''
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return True
+    return all(first == x for x in iterator)

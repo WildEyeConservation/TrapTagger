@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
-from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask
+from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask, all_equal
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
@@ -257,12 +257,45 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                 .filter(Cluster.task_id==task_id)\
                 .group_by(Cluster.id)\
                 .subquery()
+
+    if reClusters==None:
+        # Handle already-labelled clusters
+        clusters = db.session.query(Cluster)\
+                    .join(subq,subq.c.clusterID==Cluster.id)\
+                    .filter(Cluster.task_id==task_id)\
+                    .filter(subq.c.imCount>50)\
+                    .filter(~Cluster.labels.contains(downLabel))\
+                    .filter(Cluster.labels.any())
+
+        for cluster in clusters:
+            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
+            
+            for n in range(math.ceil(len(images)/50)):
+                newCluster = Cluster(task_id=task_id)
+                db.session.add(newCluster)
+                newCluster.labels=cluster.labels
+                start_index = (n)*50
+                
+                if n==math.ceil(len(images)/50)-1:
+                    newCluster.images = images[start_index:]
+                else:
+                    end_index = (n+1)*50
+                    newCluster.images = images[start_index:end_index]
+
+                if updateClassifications:
+                    newCluster.classification = single_cluster_classification(newCluster)
+
+            cluster.images = []
+            db.session.delete(cluster)
+            db.session.commit()
+        
+        db.session.commit()
                 
     clusters = db.session.query(Cluster)\
                 .join(subq,subq.c.clusterID==Cluster.id)\
                 .filter(Cluster.task_id==task_id)\
                 .filter(subq.c.imCount>50)\
-                .filter(~Cluster.labels.contains(downLabel))
+                .filter(~Cluster.labels.any())
 
     if reClusters != None:
         clusters = clusters.filter(Cluster.id.in_(reClusters))
@@ -418,28 +451,41 @@ def cluster_trapgroup(self,trapgroup_id):
                                                     .filter(Image.corrected_timestamp<=image.corrected_timestamp+timedelta(seconds=60)) \
                                                     .all()
                                 
-                                potentialClusters[0].images.append(image)
-                                for cluster in potentialClusters[1:]:
-                                    potentialClusters[0].images.extend(cluster.images)
-                                    for label in cluster.labels:
-                                        if label not in potentialClusters[0].labels[:]:
-                                            potentialClusters[0].labels.append(label)
-                                    for tag in cluster.tags:
-                                        if tag not in potentialClusters[0].tags[:]:
-                                            potentialClusters[0].tags.append(tag)
-                                    db.session.delete(cluster)
-                                potentialClusters[0].timestamp = datetime.utcnow()
+                                if all_equal([cluster.labels[:] for cluster in potentialClusters]):
+                                    # Only combine clusters if they have the same labels - prevents issues caused by timelapses
+                                    potentialClusters[0].images.append(image)
+                                    for cluster in potentialClusters[1:]:
+                                        potentialClusters[0].images.extend(cluster.images)
+                                        for label in cluster.labels:
+                                            if label not in potentialClusters[0].labels[:]:
+                                                potentialClusters[0].labels.append(label)
+                                        for tag in cluster.tags:
+                                            if tag not in potentialClusters[0].tags[:]:
+                                                potentialClusters[0].tags.append(tag)
+                                        db.session.delete(cluster)
+                                    potentialClusters[0].timestamp = datetime.utcnow()
 
-                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                for detection in detections:
-                                    labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                                    db.session.add(labelgroup)
+                                    detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                                    for detection in detections:
+                                        labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                                        db.session.add(labelgroup)
 
-                                for im in potentialClusters[0].images:
-                                    labelgroups = db.session.query(Labelgroup).join(Detection).filter(Detection.image_id==im.id).filter(Labelgroup.task_id==task.id).all()
-                                    for labelgroup in labelgroups:
-                                        labelgroup.labels = potentialClusters[0].labels
-                                        labelgroup.tags = potentialClusters[0].tags
+                                    for im in potentialClusters[0].images:
+                                        labelgroups = db.session.query(Labelgroup).join(Detection).filter(Detection.image_id==im.id).filter(Labelgroup.task_id==task.id).all()
+                                        for labelgroup in labelgroups:
+                                            labelgroup.labels = potentialClusters[0].labels
+                                            labelgroup.tags = potentialClusters[0].tags
+
+                                else:
+                                    cluster = Cluster(task_id=task.id)
+                                    db.session.add(cluster)
+                                    image.clusters.append(cluster)
+
+                                    detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                                    for detection in detections:
+                                        labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                                        db.session.add(labelgroup)
+
                     db.session.commit()
 
         else:
@@ -2372,7 +2418,8 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Re-Clustering'
         db.session.commit()
-        recluster_large_clusters(task_id,True)
+        for task in survey.tasks:
+            recluster_large_clusters(task.id,True)
         survey.status='Calculating Scores'
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
