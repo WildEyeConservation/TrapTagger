@@ -2056,6 +2056,7 @@ function submitLabels(mapID = 'map1') {
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
                                 clisterIdList = []
+                                PlsWaitCountDown = 30
                             } else {
                                 if (modalWait2.is(':visible')) {
                                     modalWait2Hide = true
