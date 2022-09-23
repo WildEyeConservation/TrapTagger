@@ -2418,8 +2418,8 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Re-Clustering'
         db.session.commit()
-        for task in survey.tasks:
-            recluster_large_clusters(task.id,True)
+        # for task in survey.tasks:
+        #     recluster_large_clusters(task.id,True)
         survey.status='Calculating Scores'
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
