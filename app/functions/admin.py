@@ -22,13 +22,14 @@ from app.functions.imports import cluster_survey, classifyTrapgroup, classifySur
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_
 from sqlalchemy import desc, extract
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import ast
 from multiprocessing.pool import ThreadPool as Pool
 import traceback
 from config import Config
 import json
+import boto3
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def delete_task(self,task_id):
@@ -1284,6 +1285,42 @@ def maskSky(self,survey_id,sky_masked,edge):
 
     return True
 
+def get_AWS_costs(startDate,endDate):
+    '''Returns the AWS cost stats for the specied period in USD.'''
+    
+    costExplorer = boto3.client('ce')
+    timePeriod = {'Start': startDate.strftime("%Y-%m-%d"), 'End': endDate.strftime("%Y-%m-%d")}
+    services = ['Amazon Elastic Compute Cloud - Compute','Amazon Simple Storage Service','Amazon Relational Database Service','Total']
+    filter = {
+        'And': [
+            {'Dimensions': {
+                'Key': 'SERVICE',
+                'Values': []
+            }},
+            {'Dimensions': {
+                'Key': 'REGION',
+                'Values': [Config.AWS_REGION]
+            }}
+        ]
+    }
+
+    costs = {}
+    for service in services:
+        
+        if service=='Total':
+            filter = filter['And'][1]
+        else:
+            filter['And'][0]['Dimensions']['Values']=[service]
+        
+        costs[service] = round(float(costExplorer.get_cost_and_usage(
+            TimePeriod=timePeriod,
+            Granularity='MONTHLY',
+            Filter = filter,
+            Metrics=['UnblendedCost']
+        )['ResultsByTime'][0]['Total']['UnblendedCost']['Amount'])*Config.VAT,2)
+
+    return costs
+
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def updateStatistics(self):
     '''Updates the site statistics in the database for dashboard reference purposes.'''
@@ -1310,7 +1347,21 @@ def updateStatistics(self):
                                     .filter(sq.c.count>10000)\
                                     .distinct().count()
 
-            statistic = Statistic(timestamp=datetime.utcnow(),user_count=len(users),active_user_count=active_user_count,image_count=image_count)
+            # AWS Costs
+            startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1)
+            endDate = datetime.utcnow().replace(day=1)
+            costs = get_AWS_costs(startDate,endDate)
+
+            statistic = Statistic(
+                timestamp=datetime.utcnow(),
+                user_count=len(users),
+                active_user_count=active_user_count,
+                image_count=image_count,
+                server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
+                storage_cost=costs['Amazon Simple Storage Service'],
+                db_cost=costs['Amazon Relational Database Service'],
+                total_cost=costs['Total']
+            )
             db.session.add(statistic)
             db.session.commit()
 

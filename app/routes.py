@@ -6209,6 +6209,7 @@ def dashboard():
             for user in users:
                 for survey in user.surveys:
                     image_count+=survey.image_count
+            
             sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
             active_users = db.session.query(User)\
                                     .join(Survey)\
@@ -6217,10 +6218,16 @@ def dashboard():
                                     .filter(Task.init_complete==True)\
                                     .filter(sq.c.count>10000)\
                                     .distinct().count()
+            
             latest_statistic = db.session.query(Statistic).order_by(Statistic.timestamp.desc()).first()
             users_added_this_month = len(users)-latest_statistic.user_count
             images_imported_this_month = image_count-latest_statistic.image_count
             active_users_this_month = active_users-latest_statistic.active_user_count
+            
+            startDate = datetime.utcnow().replace(day=1)
+            endDate = datetime.utcnow()
+            costs = get_AWS_costs(startDate,endDate)
+            
             return render_template('html/dashboard.html', title='Dashboard', helpFile='dashboard',
                         version=Config.VERSION,
                         user_count = len(users),
@@ -6228,7 +6235,16 @@ def dashboard():
                         users_added_this_month = users_added_this_month,
                         images_imported_this_month = images_imported_this_month,
                         active_users_this_month = active_users_this_month,
-                        active_users = active_users)
+                        active_users = active_users,
+                        last_months_server_cost = latest_statistic.server_cost,
+                        last_months_storage_cost = latest_statistic.storage_cost,
+                        last_months_db_cost = latest_statistic.db_cost,
+                        last_months_total_cost = latest_statistic.total_cost,
+                        server_cost_this_month = costs['Amazon Elastic Compute Cloud - Compute'],
+                        storage_cost_this_month = costs['Amazon Simple Storage Service'],
+                        db_cost_this_month = costs['Amazon Relational Database Service'],
+                        total_cost_this_month = costs['Total'],
+            )
         else:
             if current_user.admin:
                 redirect(url_for('surveys'))

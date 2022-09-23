@@ -659,7 +659,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
                     ) AS sq1
             WHERE
                 area1 < 0.1
-                    AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.7 GROUP BY id1
+                    AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.5 GROUP BY id1
         """
 
         detections = [r.id for r in db.session.query(Detection)\

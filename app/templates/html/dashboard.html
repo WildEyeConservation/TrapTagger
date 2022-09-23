@@ -63,6 +63,33 @@ limitations under the License. -->
             <div class="col-lg-2">{{ image_count }}</div>
             <div class="col-lg-2">{{ images_imported_this_month }}</div>
           </div>
+
+          <h4>AWS Costs</h4>
+          <div class="row">
+            <div class="col-lg-4"></div>
+            <div class="col-lg-2">Last Month</div>
+            <div class="col-lg-2">This Month</div>
+          </div>
+          <div class="row">
+            <div class="col-lg-4">Server(s):</div>
+            <div class="col-lg-2">{{ last_months_server_cost }}</div>
+            <div class="col-lg-2">{{ server_cost_this_month }}</div>
+          </div>
+          <div class="row">
+            <div class="col-lg-4">Image Storage:</div>
+            <div class="col-lg-2">{{ last_months_storage_cost }}</div>
+            <div class="col-lg-2">{{ storage_cost_this_month }}</div>
+          </div>
+          <div class="row">
+            <div class="col-lg-4">Database:</div>
+            <div class="col-lg-2">{{ last_months_db_cost }}</div>
+            <div class="col-lg-2">{{ db_cost_this_month }}</div>
+          </div>
+          <div class="row">
+            <div class="col-lg-4">Total:</div>
+            <div class="col-lg-2">{{ last_months_total_cost }}</div>
+            <div class="col-lg-2">{{ total_cost_this_month }}</div>
+          </div>
         </div>
 
         <div class="card-footer">

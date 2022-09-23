@@ -33,6 +33,7 @@ class Config(object):
     SKIP_ID = -117
     SKY_CONST = 0.33
     DETECTOR = 'MDv5b'
+    VAT=1.15
 
     DETECTOR_THRESHOLDS = {
         'MDv4': 0.8,
