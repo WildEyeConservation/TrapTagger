@@ -400,6 +400,10 @@ class Statistic(db.Model):
     user_count = db.Column(db.Integer, index=False)
     active_user_count = db.Column(db.Integer, index=False)
     image_count = db.Column(db.Integer, index=False)
+    server_cost = db.Column(db.Float, index=False)
+    storage_cost = db.Column(db.Float, index=False)
+    db_cost = db.Column(db.Float, index=False)
+    total_cost = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Statistic for {}>'.format(self.timestamp)
