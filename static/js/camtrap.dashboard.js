@@ -17,8 +17,10 @@ var chart
 function updateChart() {
     /** Updates the dashboard trend graph based on the selected parameters */
     trendSelect = document.getElementById('trendSelect')
+    trendSelect.disabled=true
     trend = trendSelect.options[trendSelect.selectedIndex].value
     periodSelect = document.getElementById('periodSelect')
+    periodSelect.disabled=true
     period = periodSelect.options[periodSelect.selectedIndex].value
 
     if (period=='year') {
@@ -43,7 +45,12 @@ function updateChart() {
                         data: reply.data,
                     }]
                 }
+
+                chart.config.options.scales.yAxes[0].scaleLabel.labelString=reply.axis_label
+                
                 chart.update()
+                trendSelect.disabled=false
+                periodSelect.disabled=false
             }
         }
     }
@@ -53,6 +60,7 @@ function updateChart() {
 
 function initChart() {
     /** Initialises the trand graph */
+    
     config = {
         type: 'line',
         data: {},
@@ -67,13 +75,16 @@ function initChart() {
             }
         }
     }
+
+    Chart.defaults.global.defaultFontColor = "#fff";
+    Chart.defaults.global.defaultFontSize=16
     
     chart = new Chart(
         document.getElementById('trendChart'),
         config
     )
 
-    Chart.defaults.global.defaultFontColor = "#fff";
+    chart.config.options.scales.yAxes[0].scaleLabel.display=true
 
     updateChart()
 }

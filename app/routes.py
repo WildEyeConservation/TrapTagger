@@ -6278,6 +6278,13 @@ def getDashboardTrends():
         data = [getattr(statistic,trend) for statistic in statistics]
         labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics]
 
-        return json.dumps({'status':'success','data':data,'labels':labels})
+        if 'cost' in trend:
+            axis_label='Cost (USD)'
+        elif trend=='image_count':
+            axis_label='Count (millions)'
+        else:
+            axis_label='Count'
+
+        return json.dumps({'status':'success','data':data,'labels':labels,'axis_label':axis_label})
     
     return json.dumps({'status':'error'})
