@@ -6275,13 +6275,14 @@ def getDashboardTrends():
             statistics = statistics.limit(int(period))
 
         statistics=list(reversed(statistics.all()))
-        data = [getattr(statistic,trend) for statistic in statistics]
+        data = [getattr(statistic,trend) for statistic in statistics if getattr(statistic,trend)!=None]
         labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics]
 
         if 'cost' in trend:
             axis_label='Cost (USD)'
         elif trend=='image_count':
             axis_label='Count (millions)'
+            data = [item/1000000 for item in data]
         else:
             axis_label='Count'
 
