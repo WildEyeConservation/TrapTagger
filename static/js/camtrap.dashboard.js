@@ -26,8 +26,8 @@ function updateChart() {
     }
 
     var formData = new FormData()
-    formData.append("trend", JSON.stringify(trend))
-    formData.append("period", JSON.stringify(period))
+    formData.append("trend", trend)
+    formData.append("period", period)
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -64,6 +64,8 @@ function initChart() {
         document.getElementById('trendChart'),
         config
     );
+
+    updateChart()
 }
 
 $("#trendSelect").change( function() {

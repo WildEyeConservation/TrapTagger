@@ -6271,12 +6271,10 @@ def getDashboardTrends():
         period = request.form['period']
 
         statistics = db.session.query(Statistic).order_by(Statistic.timestamp.desc())
-        if period=='max':
-            statistics = statistics.all()
-        else:
+        if period!='max':
             statistics = statistics.limit(int(period))
 
-        statistics=list(reversed(statistics))
+        statistics=list(reversed(statistics.all()))
         data = [getattr(statistic,trend) for statistic in statistics]
         labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics]
 
