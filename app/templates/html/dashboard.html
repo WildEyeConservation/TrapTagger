@@ -64,6 +64,9 @@ limitations under the License. -->
             <div class="col-lg-2">{{ images_imported_this_month }}</div>
           </div>
 
+          <br>
+          <br>
+
           <h4>AWS Costs</h4>
           <div class="row">
             <div class="col-lg-4"></div>
@@ -91,6 +94,25 @@ limitations under the License. -->
             <div class="col-lg-2">{{ total_cost_this_month }}</div>
           </div>
         </div>
+
+        <br>
+        <br>
+
+        <h4>Trends</h4>
+        <select id="trendSelect">
+          <option value="active_users">Active Users</option>
+          <option value="users">Users</option>
+          <option value="images">Images</option>
+          <option value="total_cost">Total Cost</option>
+          <option value="server_cost">Server Cost</option>
+          <option value="image_storage_cost">Image Storage Cost</option>
+          <option value="database_cost">Database Cost</option>
+        </select>
+        <select id="periodSelect">
+          <option value="max">Maximum</option>
+          <option value="year">Last Year</option>
+        </select>
+        <canvas id="trendChart"></canvas>
 
         <div class="card-footer">
           <!-- <div class="row">
@@ -146,6 +168,7 @@ limitations under the License. -->
 {% endblock %}
 
 {% block page_scripts %}
-<!-- <script src="js/camtrap.jobs.v{{ version }}.js"></script> -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
+<script src="js/camtrap.dashboard.v{{ version }}.js"></script>
 {% endblock %}
 
