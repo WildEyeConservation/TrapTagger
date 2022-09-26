@@ -38,9 +38,8 @@ function updateChart() {
                 chart.data = {
                     labels: reply.labels,
                     datasets: [{
-                        label: 'dataset',
-                        backgroundColor: 'rgb(255, 99, 132)',
-                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgb(223,105,26)',
+                        borderColor: 'rgb(223,105,26)',
                         data: reply.data,
                     }]
                 }
@@ -57,13 +56,24 @@ function initChart() {
     config = {
         type: 'line',
         data: {},
-        options: {}
-    };
+        options: {
+            legend: {
+                display: false
+            },
+            elements: {
+                line: {
+                    tension: 0
+                }
+            }
+        }
+    }
     
     chart = new Chart(
         document.getElementById('trendChart'),
         config
-    );
+    )
+
+    Chart.defaults.global.defaultFontColor = "#fff";
 
     updateChart()
 }
