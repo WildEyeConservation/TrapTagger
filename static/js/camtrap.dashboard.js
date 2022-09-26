@@ -12,33 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const labels = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-];
+var chart
 
-const data = {
-labels: labels,
-datasets: [{
-    label: 'My First dataset',
-    backgroundColor: 'rgb(255, 99, 132)',
-    borderColor: 'rgb(255, 99, 132)',
-    data: [0, 10, 5, 2, 20, 30, 45],
-}]
-};
+function updateChart() {
+    /** Updates the dashboard trend graph based on the selected parameters */
+    trendSelect = document.getElementById('trendSelect')
+    trend = trendSelect.options[trendSelect.selectedIndex].value
+    periodSelect = document.getElementById('periodSelect')
+    period = periodSelect.options[periodSelect.selectedIndex].value
 
-const config = {
-    type: 'line',
-    data: data,
-    options: {}
-};
+    if (period=='year') {
+        period=12
+    }
 
-const myChart = new Chart(
-    document.getElementById('myChart'),
-    config
-);
+    var formData = new FormData()
+    formData.append("trend", JSON.stringify(trend))
+    formData.append("period", JSON.stringify(period))
 
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            if (reply.status=='success') {
+                chart.data = {
+                    labels: reply.labels,
+                    datasets: [{
+                        label: 'dataset',
+                        backgroundColor: 'rgb(255, 99, 132)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        data: reply.data,
+                    }]
+                }
+                chart.update()
+            }
+        }
+    }
+    xhttp.open("POST", '/getDashboardTrends');
+    xhttp.send(formData);
+}
+
+function initChart() {
+    /** Initialises the trand graph */
+    config = {
+        type: 'line',
+        data: {},
+        options: {}
+    };
+    
+    chart = new Chart(
+        document.getElementById('trendChart'),
+        config
+    );
+}
+
+$("#trendSelect").change( function() {
+    /** updates the trand chart when the trend selection changes */
+    updateChart()
+})
+
+$("#periodSelect").change( function() {
+    /** updates the trand chart when the period selection changes */
+    updateChart()
+})
+
+window.addEventListener('load', initChart, false);

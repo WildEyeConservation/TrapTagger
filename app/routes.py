@@ -6260,3 +6260,26 @@ def dashboard():
                         return redirect(url_for('individualID'))
                     else:
                         return redirect(url_for('index'))
+
+@app.route('/getDashboardTrends', methods=['POST'])
+@login_required
+def getDashboardTrends():
+    '''Returns the requested dashboard trends.'''
+    
+    if current_user.username=='Dashboard':
+        trend = request.form['trend']
+        period = request.form['period']
+
+        statistics = db.session.query(Statistic).order_by(Statistic.timestamp.desc())
+        if period=='max':
+            statistics = statistics.all()
+        else:
+            statistics = statistics.limit(int(period))
+
+        statistics=list(reversed(statistics))
+        data = [getattr(statistic,trend) for statistic in statistics]
+        labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics]
+
+        return json.dumps({'status':'success','data':data,'labels':labels})
+    
+    return json.dumps({'status':'error'})
