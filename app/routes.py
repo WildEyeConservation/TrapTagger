@@ -6321,7 +6321,7 @@ def getActiveUserData():
                 'affiliation':  user.affiliation,
                 'surveys':      len(user.surveys[:]),
                 'images':       int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0]),
-                'Regions':      []
+                'regions':      user.regions
             })
 
         return json.dumps({'status':'success','data':reply})

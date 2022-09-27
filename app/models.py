@@ -215,6 +215,7 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True)
     affiliation = db.Column(db.String(64))
+    regions = db.Column(db.String(128))
     folder = db.Column(db.String(64), index=True, unique=True)
     email = db.Column(db.String(64), index=False, unique=True)
     passwordHash = db.Column(db.String(128), index=False, unique=False)
