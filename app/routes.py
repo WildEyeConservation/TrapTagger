@@ -6334,7 +6334,12 @@ def getAllSites():
     '''Returns the coordinates of all teh sites for the dashboard.'''
     
     if current_user.username=='Dashboard':
-        sites = db.session.query(Trapgroup).filter(Trapgroup.latitude!=None).filter(Trapgroup.longitude!=None).distinct().all()
+        sites = db.session.query(Trapgroup)\
+                    .filter(Trapgroup.latitude!=None)\
+                    .filter(Trapgroup.longitude!=None)\
+                    .filter(Trapgroup.latitude!=0)\
+                    .filter(Trapgroup.longitude!=0)\
+                    .distinct().all()
 
         reply = []
         for site in sites:
