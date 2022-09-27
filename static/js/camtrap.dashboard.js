@@ -142,7 +142,7 @@ function initMap() {
     gSat = L.gridLayer.googleMutant({type: 'satellite'})
     map = new L.map('mapDiv', {
         layers: [gSat]
-    }).setView([0, 0], 2)
+    }).setView([0, 0], 3)
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
