@@ -98,7 +98,7 @@ function getUserInfo() {
             reply = JSON.parse(this.responseText);
             if (reply.status=='success') {
                 userInfoTableBody=document.getElementById('userInfoTableBody')
-                for (uii=0;uii<reply.data.length;ui++) {
+                for (uii=0;uii<reply.data.length;uii++) {
                     tr=document.createElement('tr')
 
                     th=document.createElement('th')

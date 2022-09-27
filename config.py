@@ -34,6 +34,7 @@ class Config(object):
     SKY_CONST = 0.33
     DETECTOR = 'MDv5b'
     VAT=1.15
+    ADMIN_USERS = ['Admin','WildEye','Dashboard']
 
     DETECTOR_THRESHOLDS = {
         'MDv4': 0.8,

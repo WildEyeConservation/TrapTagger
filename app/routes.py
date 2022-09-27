@@ -6205,7 +6205,7 @@ def dashboard():
         return redirect(url_for('login_page'))
     else:
         if current_user.username=='Dashboard':
-            users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+            users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
             image_count=0
             for user in users:
                 for survey in user.surveys:
@@ -6218,6 +6218,7 @@ def dashboard():
                                     .join(sq,sq.c.user_id==User.id)\
                                     .filter(Task.init_complete==True)\
                                     .filter(sq.c.count>10000)\
+                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
                                     .distinct().count()
             
             latest_statistic = db.session.query(Statistic).order_by(Statistic.timestamp.desc()).first()
@@ -6309,6 +6310,7 @@ def getActiveUserData():
                                 .join(sq,sq.c.user_id==User.id)\
                                 .filter(Task.init_complete==True)\
                                 .filter(sq.c.count>10000)\
+                                .filter(~User.username.in_(Config.ADMIN_USERS))\
                                 .order_by(sq.c.count.desc())\
                                 .distinct().all()
 
