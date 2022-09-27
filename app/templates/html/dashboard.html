@@ -67,74 +67,83 @@ limitations under the License. -->
         </div>
 
         <div class="card-body">
-          <h4>Headline Statistics</h4>
-          <table style="width:100%; table-layout:fixed" class="table table-bordered">
-            <thead>
-              <tr>
-                <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
-                <th scope="col" style="border-bottom: 1px solid white">Total</th>
-                <th scope="col" style="border-bottom: 1px solid white">This Month</th>
-              </tr>
-            </thead>
-            <tbody class="table-matrix stripe">
-              <tr>
-                <th scope="row">Users</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ user_count }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ users_added_this_month }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Active Users</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ active_users }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ active_users_this_month }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Images Processed</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ image_count }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ images_imported_this_month }}</td>
-              </tr>
-            </tbody>
-          </table>
+
+          <div class="row">
+            <div class="col-lg-6">
+              <h4>Headline Statistics</h4>
+              <table style="width:100%; table-layout:fixed" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Total</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month</th>
+                  </tr>
+                </thead>
+                <tbody class="table-matrix stripe">
+                  <tr>
+                    <th scope="row">Users</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ user_count }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ users_added_this_month }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Active Users</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ active_users }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ active_users_this_month }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Images Processed</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ image_count }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ images_imported_this_month }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <br>
           <br>
 
-          <h4>AWS Costs (USD, including 15% SA VAT)</h4>
-          <table style="width:100%; table-layout:fixed" class="table table-bordered">
-            <thead>
-              <tr>
-                <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
-                <th scope="col" style="border-bottom: 1px solid white">Last Month</th>
-                <th scope="col" style="border-bottom: 1px solid white">This Month (To Date)</th>
-                <th scope="col" style="border-bottom: 1px solid white">This Month (Estimated)</th>
-              </tr>
-            </thead>
-            <tbody class="table-matrix stripe">
-              <tr>
-                <th scope="row">Server(s)</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_server_cost }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ server_cost_this_month }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ server_estimate }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Image Storage</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_storage_cost }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ storage_cost_this_month }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ storage_estimate }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Database</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_db_cost }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ db_cost_this_month }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ db_estimate }}</td>
-              </tr>
-              <tr>
-                <th scope="row">Total</th>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_total_cost }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ total_cost_this_month }}</td>
-                <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ total_estimate }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="row">
+            <div class="col-lg-8">
+              <h4>AWS Costs (USD, including 15% SA VAT)</h4>
+              <table style="width:100%; table-layout:fixed" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Last Month</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month (To Date)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month (Estimated)</th>
+                  </tr>
+                </thead>
+                <tbody class="table-matrix stripe">
+                  <tr>
+                    <th scope="row">Server(s)</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_server_cost }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ server_cost_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ server_estimate }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Image Storage</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_storage_cost }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ storage_cost_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ storage_estimate }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Database</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_db_cost }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ db_cost_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ db_estimate }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Total</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ last_months_total_cost }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ total_cost_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ total_estimate }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <br>
           <br>

@@ -6247,10 +6247,10 @@ def dashboard():
                         storage_cost_this_month = costs['Amazon Simple Storage Service'],
                         db_cost_this_month = costs['Amazon Relational Database Service'],
                         total_cost_this_month = costs['Total'],
-                        server_estimate = factor*costs['Amazon Elastic Compute Cloud - Compute'],
-                        storage_estimate = factor*costs['Amazon Simple Storage Service'],
-                        db_estimate = factor*costs['Amazon Relational Database Service'],
-                        total_estimate = factor*costs['Total'],
+                        server_estimate = round(factor*costs['Amazon Elastic Compute Cloud - Compute'],2),
+                        storage_estimate = round(factor*costs['Amazon Simple Storage Service'],2),
+                        db_estimate = round(factor*costs['Amazon Relational Database Service'],2),
+                        total_estimate = round(factor*costs['Total'],2),
             )
         else:
             if current_user.admin:
