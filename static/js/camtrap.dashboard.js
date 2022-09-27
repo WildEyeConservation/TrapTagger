@@ -162,6 +162,7 @@ function initPage() {
     /** Initialises the page info */
     initChart()
     getUserInfo()
+    initMap()
 }
 
 window.addEventListener('load', initPage, false);
