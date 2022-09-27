@@ -46,6 +46,7 @@ import tempfile
 from multiprocessing import Lock
 from megadetectorworker.megaDetector import inferAndClassify
 from flask_cors import cross_origin
+from calendar import monthrange
 
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.lock = Lock()
@@ -6227,6 +6228,8 @@ def dashboard():
             startDate = datetime.utcnow().replace(day=1)
             endDate = datetime.utcnow()
             costs = get_AWS_costs(startDate,endDate)
+
+            factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
             return render_template('html/dashboard.html', title='Dashboard', helpFile='dashboard',
                         version=Config.VERSION,
@@ -6244,6 +6247,10 @@ def dashboard():
                         storage_cost_this_month = costs['Amazon Simple Storage Service'],
                         db_cost_this_month = costs['Amazon Relational Database Service'],
                         total_cost_this_month = costs['Total'],
+                        server_estimate = factor*costs['Amazon Elastic Compute Cloud - Compute'],
+                        storage_estimate = factor*costs['Amazon Simple Storage Service'],
+                        db_estimate = factor*costs['Amazon Relational Database Service'],
+                        total_estimate = factor*costs['Total'],
             )
         else:
             if current_user.admin:
