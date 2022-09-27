@@ -13,6 +13,7 @@
 // limitations under the License.
 
 var chart
+var map
 
 function updateChart() {
     /** Updates the dashboard trend graph based on the selected parameters */
@@ -137,10 +138,28 @@ function getUserInfo() {
 
 function initMap() {
     /** Initalises the trap site map */
+
     gSat = L.gridLayer.googleMutant({type: 'satellite'})
     map = new L.map('mapDiv', {
         layers: [gSat]
     }).setView([0, 0], 2)
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            if (reply.status=='success') {
+                var markers = L.markerClusterGroup();
+                for (i=0;i<reply.data.length;i++) {
+                    markers.addLayer(L.marker(reply.data[i]));
+                }
+                map.addLayer(markers)
+            }
+        }
+    }
+    xhttp.open("POST", '/getAllSites');
+    xhttp.send();
 }
 
 $("#trendSelect").change( function() {

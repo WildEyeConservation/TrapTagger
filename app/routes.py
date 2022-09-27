@@ -6327,3 +6327,19 @@ def getActiveUserData():
         return json.dumps({'status':'success','data':reply})
     
     return json.dumps({'status':'error'})
+
+@app.route('/getAllSites', methods=['POST'])
+@login_required
+def getAllSites():
+    '''Returns the coordinates of all teh sites for the dashboard.'''
+    
+    if current_user.username=='Dashboard':
+        sites = db.session.query(Trapgroup).filter(Trapgroup.latitude!=None).filter(Trapgroup.longitude!=None).distinct().all()
+
+        reply = []
+        for site in sites:
+            reply.append([site.latitude,site.longitude])
+
+        return json.dumps({'status':'success','data':reply})
+    
+    return json.dumps({'status':'error'})
