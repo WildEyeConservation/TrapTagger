@@ -41,7 +41,7 @@ function updateChart() {
                     labels: reply.labels,
                     datasets: [{
                         backgroundColor: 'rgb(223,105,26)',
-                        borderColor: 'rgb(223,105,26)',
+                        borderColor: 'rgb(20,25,30)',
                         data: reply.data,
                     }]
                 }
