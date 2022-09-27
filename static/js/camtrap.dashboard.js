@@ -103,12 +103,8 @@ function getUserInfo() {
 
                     th=document.createElement('th')
                     th.setAttribute('scope','row')
+                    th.innerHTML = reply.data[uii]['account']
                     tr.appendChild(th)
-
-                    td=document.createElement('td')
-                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-                    td.innerHTML = reply.data[uii]['account']
-                    tr.appendChild(td)
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
