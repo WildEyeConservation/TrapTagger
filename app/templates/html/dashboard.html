@@ -69,6 +69,7 @@ limitations under the License. -->
         <div class="card-body">
 
           <div class="row">
+            <div class="col-lg-3"></div>
             <div class="col-lg-6">
               <h4>Headline Statistics</h4>
               <table style="width:100%; table-layout:fixed" class="table table-bordered">
@@ -98,12 +99,14 @@ limitations under the License. -->
                 </tbody>
               </table>
             </div>
+            <div class="col-lg-3"></div>
           </div>
 
           <br>
           <br>
 
           <div class="row">
+            <div class="col-lg-2"></div>
             <div class="col-lg-8">
               <h4>AWS Costs (USD, including 15% SA VAT)</h4>
               <table style="width:100%; table-layout:fixed" class="table table-bordered">
@@ -143,27 +146,7 @@ limitations under the License. -->
                 </tbody>
               </table>
             </div>
-          </div>
-
-          <br>
-          <br>
-
-          <div class="row">
-            <div class="col-lg-10">
-              <h4>Active Users</h4>
-              <table style="width:100%; table-layout:fixed" class="table table-bordered">
-                <thead>
-                  <tr>
-                    <th scope="col" style="border-bottom: 1px solid white">Account</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Affiliation</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Surveys</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Images</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Regions</th>
-                  </tr>
-                </thead>
-                <tbody class="table-matrix stripe" id="userInfoTableBody"></tbody>
-              </table>
-            </div>
+            <div class="col-lg-2"></div>
           </div>
 
           <br>
@@ -193,6 +176,31 @@ limitations under the License. -->
           <br>
   
           <canvas id="trendChart"></canvas>
+
+          <br>
+          <br>
+
+          <div class="row">
+            <div class="col-lg-1"></div>
+            <div class="col-lg-10">
+              <h4>Active Users</h4>
+              <table style="width:100%; table-layout:fixed" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th scope="col" style="border-bottom: 1px solid white">Account</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Affiliation</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Surveys</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Images</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Regions</th>
+                  </tr>
+                </thead>
+                <tbody class="table-matrix stripe" id="userInfoTableBody"></tbody>
+              </table>
+            </div>
+            <div class="col-lg-1"></div>
+          </div>
+
+          <div id="mapDiv" style="height: 800px"></div>
 
         </div>
 
@@ -252,5 +260,12 @@ limitations under the License. -->
 {% block page_scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
 <script src="js/camtrap.dashboard.v{{ version }}.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<!-- <script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script> -->
 {% endblock %}
 

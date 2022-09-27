@@ -135,6 +135,19 @@ function getUserInfo() {
     xhttp.send();
 }
 
+function initMap() {
+    /** Initalises the trap site map */
+    var map = L.map('mapDiv').setView([0, 0], 1);
+    osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: 'mapbox/satellite-v9',
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+    })
+}
+
 $("#trendSelect").change( function() {
     /** updates the trand chart when the trend selection changes */
     updateChart()
