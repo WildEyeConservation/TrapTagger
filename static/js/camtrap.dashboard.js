@@ -145,7 +145,7 @@ function initMap() {
         tileSize: 512,
         zoomOffset: -1,
         accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-    })
+    }).addTo(map)
 }
 
 $("#trendSelect").change( function() {
