@@ -137,8 +137,11 @@ function getUserInfo() {
 
 function initMap() {
     /** Initalises the trap site map */
-    var map = L.map('mapDiv').setView([0, 0], 1);
-    L.gridLayer.googleMutant({type: 'satellite'}).addTo(map)
+    // var map = L.map('mapDiv').setView([0, 0], 1);
+    gSat = L.gridLayer.googleMutant({type: 'satellite'})
+    map = new L.map('mapDiv', {
+        layers: [gSat]
+    });
     // osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
     //     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
     //     maxZoom: 18,
@@ -163,7 +166,7 @@ function initPage() {
     /** Initialises the page info */
     initChart()
     getUserInfo()
-    initMap()
+    // initMap()
 }
 
 window.addEventListener('load', initPage, false);
