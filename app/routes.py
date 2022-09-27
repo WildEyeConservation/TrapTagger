@@ -6277,11 +6277,10 @@ def getDashboardTrends():
         trend = request.form['trend']
         period = request.form['period']
 
-        statistics = db.session.query(Statistic).order_by(Statistic.timestamp.desc())
-        if period!='max':
-            statistics = statistics.limit(int(period))
+        if period=='max':
+            period = 60
 
-        statistics=list(reversed(statistics.all()))
+        statistics=list(reversed(db.session.query(Statistic).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
         data = [getattr(statistic,trend) for statistic in statistics if getattr(statistic,trend)!=None]
         labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics]
 
@@ -6294,5 +6293,35 @@ def getDashboardTrends():
             axis_label='Count'
 
         return json.dumps({'status':'success','data':data,'labels':labels,'axis_label':axis_label})
+    
+    return json.dumps({'status':'error'})
+
+@app.route('/getActiveUserData', methods=['POST'])
+@login_required
+def getActiveUserData():
+    '''Returns the requested dashboard trends.'''
+    
+    if current_user.username=='Dashboard':
+        sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
+        active_users = db.session.query(User)\
+                                .join(Survey)\
+                                .join(Task)\
+                                .join(sq,sq.c.user_id==User.id)\
+                                .filter(Task.init_complete==True)\
+                                .filter(sq.c.count>10000)\
+                                .order_by(sq.c.count.desc())\
+                                .distinct().all()
+
+        reply = []
+        for user in active_users:
+            reply.append({
+                'account':      user.username,
+                'affiliation':  user.affiliation,
+                'surveys':      len(user.surveys[:]),
+                'images':       int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0]),
+                'Regions':      []
+            })
+
+        return json.dumps({'status':'success','data':reply})
     
     return json.dumps({'status':'error'})

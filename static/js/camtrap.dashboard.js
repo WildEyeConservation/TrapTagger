@@ -89,6 +89,56 @@ function initChart() {
     updateChart()
 }
 
+function getUserInfo() {
+    /** Fetches and populates the user info table. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            if (reply.status=='success') {
+                userInfoTableBody=document.getElementById('userInfoTableBody')
+                for (uii=0;uii<reply.data.length;ui++) {
+                    tr=document.createElement('tr')
+
+                    th=document.createElement('th')
+                    th.setAttribute('scope','row')
+                    tr.appendChild(th)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[uii]['account']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[uii]['affiliation']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[uii]['surveys']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[uii]['images']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[uii]['regions']
+                    tr.appendChild(td)
+
+                    userInfoTableBody.appendChild(tr)
+                }
+            }
+        }
+    }
+    xhttp.open("POST", '/getActiveUserData');
+    xhttp.send();
+}
+
 $("#trendSelect").change( function() {
     /** updates the trand chart when the trend selection changes */
     updateChart()
@@ -99,4 +149,10 @@ $("#periodSelect").change( function() {
     updateChart()
 })
 
-window.addEventListener('load', initChart, false);
+function initPage() {
+    /** Initialises the page info */
+    initChart()
+    getUserInfo()
+}
+
+window.addEventListener('load', initPage, false);
