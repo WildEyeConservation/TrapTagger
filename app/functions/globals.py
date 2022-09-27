@@ -564,7 +564,7 @@ def removeFalseDetections(self,cluster_id,undo):
                             ) as sq1
                         WHERE
                             area2 < 0.1
-                            AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.6
+                            AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.65
                     """
 
                     resultproxy = db.session.execute(query.format(str(detection.id),'OR'.join([ ' (det2.source = "{}" AND det2.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS])))
