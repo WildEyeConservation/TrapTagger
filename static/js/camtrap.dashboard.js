@@ -86,6 +86,7 @@ function initChart() {
     )
 
     chart.config.options.scales.yAxes[0].scaleLabel.display=true
+    chart.options.scales.xAxes[0].type='time'
 
     updateChart()
 }

@@ -6283,7 +6283,7 @@ def getDashboardTrends():
 
         statistics=list(reversed(db.session.query(Statistic).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
         data = [getattr(statistic,trend) for statistic in statistics if getattr(statistic,trend)!=None]
-        labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics]
+        labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics if getattr(statistic,trend)!=None]
 
         if 'cost' in trend:
             axis_label='Cost (USD)'
