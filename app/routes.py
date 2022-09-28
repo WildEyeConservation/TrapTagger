@@ -6343,7 +6343,8 @@ def getAllSites():
 
         reply = []
         for site in sites:
-            reply.append([site.latitude,site.longitude])
+            if [site.latitude,site.longitude] not in reply:
+                reply.append([site.latitude,site.longitude])
 
         return json.dumps({'status':'success','data':reply})
     
