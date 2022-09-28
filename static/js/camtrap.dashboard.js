@@ -86,7 +86,16 @@ function initChart() {
     )
 
     chart.config.options.scales.yAxes[0].scaleLabel.display=true
-    chart.options.scales.xAxes[0].type='time'
+    chart.options.scales.xAxes[0] = {
+        type: 'time',
+        position: 'bottom',
+        time: {
+            parser: 'YYYY/MM/DD',
+            displayFormats: {'day': 'MM/YY'},
+            tooltipFormat: 'YY/MM/DD',
+            unit: 'month',
+        }
+    }
 
     updateChart()
 }
