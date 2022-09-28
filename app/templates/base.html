@@ -59,7 +59,7 @@ limitations under the License. -->
                 <ul class="navbar-nav navbar-right">
                     {% if current_user.is_anonymous %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('login_page') }}">Login</a></li>
-                    {% else %}
+                    {% elif current_user.username != 'Dashboard' %}
                         <button type="button" class="btn btn-link btn-sm" align="right" value="help" onclick="helpOpen('{{ helpFile }}')"> Help </button>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
                     {% endif %}
