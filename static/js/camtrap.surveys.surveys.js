@@ -2565,16 +2565,23 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             reader.readAsText(kmlFileUpload.files[0])
         } else {
             var formData = new FormData()
-            submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox.checked.toString(),'false')
+            formData.append("surveyName", surveyName)
+            formData.append("newSurveyDescription", newSurveyDescription)
+            formData.append("newSurveyTGCode", newSurveyTGCode)
+            formData.append("newSurveyS3Folder", newSurveyS3Folder)
+            formData.append("checkbox", newSurveyCheckbox.checked.toString())
+            formData.append("correctTimestamps", 'false')
+
+            submitNewSurvey(formData)
         }
     }
 });
 
-function submitNewSurvey(formData,surveyName,newSurveyDescription,newSurveyTGCode,newSurveyS3Folder,newSurveyCheckbox,correctTimestamps) {
+function submitNewSurvey(formData) {
     /** Submits the new survey info to the server. Begins the browser uploaded if necessary. */
     
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/createNewSurvey/'+surveyName+'/'+newSurveyDescription+'/'+newSurveyTGCode+'/'+newSurveyS3Folder+'/'+newSurveyCheckbox+'/'+correctTimestamps);
+    xhttp.open("POST", '/createNewSurvey');
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
@@ -2729,8 +2736,12 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         if (document.getElementById('addImagesAddCoordinates').checked) {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 var formData = new FormData()
+                formData.append("surveyName", surveyName)
+                formData.append("newSurveyTGCode", addImagesTGCode)
+                formData.append("newSurveyS3Folder", addImagesS3Folder)
+                formData.append("checkbox", addImagesCheckboxChecked.toString())
                 formData.append("coordData", JSON.stringify(coordData))                
-                addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                addImagesSendRequest(formData)
             } else {
                 var reader = new FileReader()
                 reader.addEventListener('load', (event) => {
@@ -2745,13 +2756,17 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                 regex = JSON.parse(this.responseText);                      
                                 if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                                     var formData = new FormData()
+                                    formData.append("surveyName", surveyName)
+                                    formData.append("newSurveyTGCode", addImagesTGCode)
+                                    formData.append("newSurveyS3Folder", addImagesS3Folder)
+                                    formData.append("checkbox", addImagesCheckboxChecked.toString())
                                     formData.append("kml", kmlFileUpload.files[0])
 
                                     if (document.getElementById('addImagesEditTimestamps').checked) {
                                         formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
                                     }
 
-                                    addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                                    addImagesSendRequest(formData)
                                 } else {
                                     document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
                                     document.getElementById('btnAddImages').disabled = false
@@ -2768,13 +2783,17 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                         }
                         if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                             var formData = new FormData()
+                            formData.append("surveyName", surveyName)
+                            formData.append("newSurveyTGCode", addImagesTGCode)
+                            formData.append("newSurveyS3Folder", addImagesS3Folder)
+                            formData.append("checkbox", addImagesCheckboxChecked.toString())
                             formData.append("kml", kmlFileUpload.files[0])
                             
                             if (document.getElementById('addImagesEditTimestamps').checked) {
                                 formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
                             }
 
-                            addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+                            addImagesSendRequest(formData)
                         } else {
                             document.getElementById('addImagesErrors').innerHTML = 'There is an error in the format of your .kml file.'
                             document.getElementById('btnAddImages').disabled = false
@@ -2785,17 +2804,21 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             }
         } else {
             var formData = new FormData()
+            formData.append("surveyName", surveyName)
+            formData.append("newSurveyTGCode", addImagesTGCode)
+            formData.append("newSurveyS3Folder", addImagesS3Folder)
+            formData.append("checkbox", addImagesCheckboxChecked.toString())
 
             if (document.getElementById('addImagesEditTimestamps').checked) {
                 formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
             }                
 
-            addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckboxChecked.toString())
+            addImagesSendRequest(formData)
         }
     }
 });
 
-function addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Folder,addImagesCheckbox) {
+function addImagesSendRequest(formData) {
     /** Submits the add-images request to the server, and begins the browser upload if necessary. */
 
     ignore_small_detections= 'none'
@@ -2805,8 +2828,11 @@ function addImagesSendRequest(formData,surveyName,addImagesTGCode,addImagesS3Fol
         sky_masked = document.getElementById('skyMaskCheckbox').checked.toString()
     }
 
+    formData.append("ignore_small_detections", ignore_small_detections)
+    formData.append("sky_masked", sky_masked)
+
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/editSurvey/'+surveyName+'/'+addImagesTGCode+'/'+addImagesS3Folder+'/'+addImagesCheckbox+'/'+ignore_small_detections+'/'+sky_masked);
+    xhttp.open("POST", '/editSurvey');
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {

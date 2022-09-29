@@ -1103,9 +1103,9 @@ def imageViewer():
     except:
         return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
-@app.route('/createNewSurvey/<surveyName>/<newSurveyDescription>/<newSurveyTGCode>/<newSurveyS3Folder>/<checkbox>/<correctTimestamps>', methods=['POST'])
+@app.route('/createNewSurvey', methods=['POST'])
 @login_required
-def createNewSurvey(surveyName, newSurveyDescription, newSurveyTGCode, newSurveyS3Folder, checkbox, correctTimestamps):
+def createNewSurvey():
     '''
     Creates a new survey for the current user with the specified parameters. Begins the import immediately if a bucket upload, otherwise waits until browser upload is complete. 
     Returns a success/error status and associated message.
@@ -1124,6 +1124,13 @@ def createNewSurvey(surveyName, newSurveyDescription, newSurveyTGCode, newSurvey
     message = ''
 
     if current_user.admin:
+        surveyName = request.form['surveyName']
+        newSurveyDescription = request.form['newSurveyDescription']
+        newSurveyTGCode = request.form['newSurveyTGCode']
+        newSurveyS3Folder = request.form['newSurveyS3Folder']
+        checkbox = request.form['checkbox']
+        correctTimestamps = request.form['correctTimestamps']
+
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
             fileAttached = True
@@ -1468,9 +1475,9 @@ def getSurveyTGcode(surveyName):
     else:
         return json.dumps('error')
 
-@app.route('/editSurvey/<surveyName>/<newSurveyTGCode>/<newSurveyS3Folder>/<checkbox>/<ignore_small_detections>/<sky_masked>', methods=['POST'])
+@app.route('/editSurvey', methods=['POST'])
 @login_required
-def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox, ignore_small_detections, sky_masked):
+def editSurvey():
     '''
     Edits the specified survey by doing one of the following: adds images, edit timestamps, or import kml. Returns success/error status and associated message.
     
@@ -1489,11 +1496,17 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox, ignore_
     status = 'success'
     message = ''
 
-    if ignore_small_detections!='none':
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
-        
-        if survey and (survey.user==current_user):
+    surveyName = request.form['surveyName']
+    newSurveyTGCode = request.form['newSurveyTGCode']
+    newSurveyS3Folder = request.form['newSurveyS3Folder']
+    checkbox = request.form['checkbox']
+    ignore_small_detections = request.form['ignore_small_detections']
+    sky_masked = request.form['sky_masked']
 
+    survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
+
+    if survey and (survey.user==current_user):
+        if ignore_small_detections!='none':
             # Checks for the case that you switch both off
             edge='false'
             if (ignore_small_detections=='false') and (sky_masked=='false'):
@@ -1506,58 +1519,53 @@ def editSurvey(surveyName, newSurveyTGCode, newSurveyS3Folder, checkbox, ignore_
             if str(survey.sky_masked).lower() != sky_masked:
                 maskSky.delay(survey_id=survey.id,sky_masked=sky_masked,edge=edge)
 
-    elif 'timestamps' in request.form:
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
-        if survey and (survey.user==current_user):
+        elif 'timestamps' in request.form:
             survey.status = 'Processing'
             db.session.commit()
             timestamps = ast.literal_eval(request.form['timestamps'])
             changeTimestamps.delay(survey_id=survey.id,timestamps=timestamps)
-    elif 'coordData' in request.form:
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
-        if survey and (survey.user==current_user):
+        
+        elif 'coordData' in request.form:
             coordData = ast.literal_eval(request.form['coordData'])
             updateCoords.delay(survey_id=survey.id,coordData=coordData)
-    else:
-        if 'kml' in request.files:
-            uploaded_file = request.files['kml']
-            fileAttached = True
+        
         else:
-            fileAttached = False
-
-        if fileAttached:
-            if uploaded_file.filename != '':
-                if os.path.splitext(uploaded_file.filename)[1].lower() == '.kml':
-                    pass  
-                else:
-                    status = 'error'
-                    message = 'Coordinates file must be a kml file.' 
+            if 'kml' in request.files:
+                uploaded_file = request.files['kml']
+                fileAttached = True
             else:
-                status = 'error'
-                message = 'Coordinates file must have a name.' 
-
-        if status == 'success':
+                fileAttached = False
 
             if fileAttached:
-                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
-                    uploaded_file.save(temp_file.name)
-                    GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
+                if uploaded_file.filename != '':
+                    if os.path.splitext(uploaded_file.filename)[1].lower() == '.kml':
+                        pass  
+                    else:
+                        status = 'error'
+                        message = 'Coordinates file must be a kml file.' 
+                else:
+                    status = 'error'
+                    message = 'Coordinates file must have a name.' 
 
-            if newSurveyTGCode!=' ':
-                if checkbox=='false':
-                    newSurveyTGCode = newSurveyTGCode+'[0-9]+'
-
-                survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
-                survey.trapgroup_code=newSurveyTGCode
-                db.session.commit()
-                
-                if newSurveyS3Folder!='none':
-                    import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps)
-            else:
+            if status == 'success':
                 if fileAttached:
-                    survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
-                    importKML(survey.id)
+                    key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
+                        uploaded_file.save(temp_file.name)
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
+
+                if newSurveyTGCode!=' ':
+                    if checkbox=='false':
+                        newSurveyTGCode = newSurveyTGCode+'[0-9]+'
+
+                    survey.trapgroup_code=newSurveyTGCode
+                    db.session.commit()
+                    
+                    if newSurveyS3Folder!='none':
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps)
+                else:
+                    if fileAttached:
+                        importKML(survey.id)
 
     return json.dumps({'status': status, 'message': message})
 
