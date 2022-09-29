@@ -6325,15 +6325,18 @@ def getActiveUserData():
                                 .filter(sq.c.count>10000)\
                                 .filter(~User.username.in_(Config.ADMIN_USERS))\
                                 .order_by(sq.c.count.desc())\
-                                .distinct().paginate(page, 5, False)
+                                .distinct().paginate(page, 20, False)
 
         reply = []
         for user in active_users.items:
+            image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
+            if image_count>=1000000:
+                image_count = str(round((image_count/1000000),2))+'M'
             reply.append({
                 'account':      user.username,
                 'affiliation':  user.affiliation,
                 'surveys':      len(user.surveys[:]),
-                'images':       int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0]),
+                'images':       image_count,
                 'regions':      user.regions
             })
 
