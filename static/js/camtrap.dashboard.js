@@ -14,6 +14,10 @@
 
 var chart
 var map
+const btnNextUsers = document.querySelector('#btnNextUsers');
+const btnPrevUsers = document.querySelector('#btnPrevUsers');
+var next_url
+var prev_url
 
 function updateChart() {
     /** Updates the dashboard trend graph based on the selected parameters */
@@ -100,8 +104,18 @@ function initChart() {
     updateChart()
 }
 
-function getUserInfo() {
+function getUserInfo(url=null) {
     /** Fetches and populates the user info table. */
+
+    userInfoTableBody=document.getElementById('userInfoTableBody')
+    while(userInfoTableBody.firstChild){
+        userInfoTableBody.removeChild(userInfoTableBody.firstChild);
+    }
+
+    if (url==null) {
+        url = '/getActiveUserData'
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
@@ -139,10 +153,24 @@ function getUserInfo() {
 
                     userInfoTableBody.appendChild(tr)
                 }
+
+                if (reply.next_url==null) {
+                    btnNextUsers.style.visibility = 'hidden'
+                } else {
+                    btnNextUsers.style.visibility = 'visible'
+                    next_url = reply.next_url
+                }
+    
+                if (reply.prev_url==null) {
+                    btnPrevUsers.style.visibility = 'hidden'
+                } else {
+                    btnPrevUsers.style.visibility = 'visible'
+                    prev_url = reply.prev_url
+                }
             }
         }
     }
-    xhttp.open("POST", '/getActiveUserData');
+    xhttp.open("POST", url);
     xhttp.send();
 }
 

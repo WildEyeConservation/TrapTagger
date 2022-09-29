@@ -6233,6 +6233,9 @@ def dashboard():
             users_added_this_month = len(users)-latest_statistic.user_count
             images_imported_this_month = image_count-latest_statistic.image_count
             active_users_this_month = active_users-latest_statistic.active_user_count
+
+            image_count = str(round((image_count/1000000),2))+'M'
+            images_imported_this_month = str(round((images_imported_this_month/1000000),2))+'M'
             
             startDate = datetime.utcnow().replace(day=1)
             endDate = datetime.utcnow()
@@ -6311,6 +6314,8 @@ def getActiveUserData():
     '''Returns the requested dashboard trends.'''
     
     if current_user.username=='Dashboard':
+        page = request.args.get('page', 1, type=int)
+
         sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
         active_users = db.session.query(User)\
                                 .join(Survey)\
@@ -6320,10 +6325,10 @@ def getActiveUserData():
                                 .filter(sq.c.count>10000)\
                                 .filter(~User.username.in_(Config.ADMIN_USERS))\
                                 .order_by(sq.c.count.desc())\
-                                .distinct().all()
+                                .distinct().paginate(page, 50, False)
 
         reply = []
-        for user in active_users:
+        for user in active_users.items:
             reply.append({
                 'account':      user.username,
                 'affiliation':  user.affiliation,
@@ -6332,7 +6337,10 @@ def getActiveUserData():
                 'regions':      user.regions
             })
 
-        return json.dumps({'status':'success','data':reply})
+        next_url = url_for('getActiveUserData', page=active_users.next_num) if active_users.has_next else None
+        prev_url = url_for('getActiveUserData', page=active_users.prev_num) if active_users.has_prev else None
+
+        return json.dumps({'status':'success','data':reply,'next_url':next_url,'prev_url':prev_url})
     
     return json.dumps({'status':'error'})
 
