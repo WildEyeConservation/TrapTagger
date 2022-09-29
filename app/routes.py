@@ -6332,6 +6332,8 @@ def getActiveUserData():
             image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
             if image_count>=1000000:
                 image_count = str(round((image_count/1000000),2))+'M'
+            elif image_count>100000:
+                image_count = str(image_count)[:3]+' '+str(image_count)[3:]
             reply.append({
                 'account':      user.username,
                 'affiliation':  user.affiliation,
