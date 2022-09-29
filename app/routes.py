@@ -6333,7 +6333,7 @@ def getActiveUserData():
             if image_count>=1000000:
                 image_count = str(round((image_count/1000000),2))+'M'
             else:
-                image_count = str(image_count)[:3]+' '+str(image_count)[3:]
+                image_count = str(image_count)[:-3]+' '+str(image_count)[-3:]
             reply.append({
                 'account':      user.username,
                 'affiliation':  user.affiliation,
