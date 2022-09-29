@@ -6325,7 +6325,7 @@ def getActiveUserData():
                                 .filter(sq.c.count>10000)\
                                 .filter(~User.username.in_(Config.ADMIN_USERS))\
                                 .order_by(sq.c.count.desc())\
-                                .distinct().paginate(page, 50, False)
+                                .distinct().paginate(page, 5, False)
 
         reply = []
         for user in active_users.items:
