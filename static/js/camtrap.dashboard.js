@@ -107,11 +107,6 @@ function initChart() {
 function getUserInfo(url=null) {
     /** Fetches and populates the user info table. */
 
-    userInfoTableBody=document.getElementById('userInfoTableBody')
-    while(userInfoTableBody.firstChild){
-        userInfoTableBody.removeChild(userInfoTableBody.firstChild);
-    }
-
     if (url==null) {
         url = '/getActiveUserData'
     }
@@ -123,6 +118,10 @@ function getUserInfo(url=null) {
             reply = JSON.parse(this.responseText);
             if (reply.status=='success') {
                 userInfoTableBody=document.getElementById('userInfoTableBody')
+                while(userInfoTableBody.firstChild){
+                    userInfoTableBody.removeChild(userInfoTableBody.firstChild);
+                }
+                
                 for (uii=0;uii<reply.data.length;uii++) {
                     tr=document.createElement('tr')
 
