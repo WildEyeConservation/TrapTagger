@@ -167,36 +167,7 @@ def launchTask(self,task_id):
         if task.jobs_finished == None:
             task.jobs_finished = 0
 
-        if taggingLevel == '-3':
-            for cluster in task.clusters:
-                cluster.classification_checked = False
-
-            correct_clusters = db.session.query(Cluster)\
-                                        .join(Label, Cluster.labels)\
-                                        .join(Translation)\
-                                        .filter(Cluster.task_id==task_id)\
-                                        .filter(Translation.task_id==task_id)\
-                                        .filter(Cluster.classification==Translation.classification)\
-                                        .distinct(Cluster.id).all()
-
-            correct_clusters.extend(
-                db.session.query(Cluster)\
-                            .join(Translation,Translation.classification==Cluster.classification)\
-                            .filter(Cluster.task_id==task_id)\
-                            .filter(Translation.task_id==task_id)\
-                            .filter(Translation.label_id==GLOBALS.nothing_id)\
-                            .distinct().all()
-            )
-
-            correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
-            downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-            correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(downLabel)).all())
-
-            for cluster in correct_clusters:
-                cluster.classification_checked = True
-
-            db.session.commit()
-        elif ',' in taggingLevel:
+        if ',' in taggingLevel:
             tL = re.split(',',taggingLevel)
             label = db.session.query(Label).get(int(tL[1]))
 
@@ -697,6 +668,8 @@ def manageTasks():
                         if incompleteIndividuals == 0:
                             task.survey.status = 'Ready'
                             db.session.commit()
+                    elif '-3' in task.tagging_level:
+                        task.ai_check_complete = True
 
                     #Accounts for individual ID background processing
                     if 'processing' not in task.survey.status:

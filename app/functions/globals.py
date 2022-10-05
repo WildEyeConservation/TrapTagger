@@ -1525,7 +1525,28 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                 # .filter(~Cluster.labels.contains(db.session.query(Label).get(GLOBALS.vhl_id))) \
     elif (taggingLevel == '-3'):
         # Classifier checking
-        sq = sq.filter(Cluster.classification_checked==False)
+        correct_clusters = db.session.query(Cluster)\
+                                    .join(Label, Cluster.labels)\
+                                    .join(Translation)\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .filter(Translation.task_id==task_id)\
+                                    .filter(Cluster.classification==Translation.classification)\
+                                    .distinct(Cluster.id).all()
+
+        correct_clusters.extend(
+            db.session.query(Cluster)\
+                        .join(Translation,Translation.classification==Cluster.classification)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Translation.task_id==task_id)\
+                        .filter(Translation.label_id==GLOBALS.nothing_id)\
+                        .distinct().all()
+        )
+
+        correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+        correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(downLabel)).all())
+        
+        sq = sq.filter(~Cluster.id.in_([cluster.id for cluster in correct_clusters]))
     else:
         # Specific label levels
         if ',' in taggingLevel:

@@ -954,17 +954,6 @@ def re_classify_survey(self,survey_id):
         survey.images_processing = 0
         db.session.commit()
 
-        clusters = db.session.query(Cluster)\
-                            .join(Image,Cluster.images)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(Cluster.classification_checked==True)\
-                            .distinct().all()
-
-        for cluster in clusters:
-            cluster.classification_checked = False
-
         for task in survey.tasks:
             translations = db.session.query(Translation).filter(Translation.task_id==task.id).all()
 

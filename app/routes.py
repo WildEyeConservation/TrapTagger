@@ -1874,47 +1874,41 @@ def getDetailedTaskStatus(task_id):
                     reply['Informational Tagging']['Tagged'] = 'No'
 
                 # AI Check
-                correct_clusters = db.session.query(Cluster)\
-                                            .join(Label, Cluster.labels)\
-                                            .join(Translation)\
-                                            .filter(Cluster.task_id==task_id)\
-                                            .filter(Translation.task_id==task_id)\
-                                            .filter(Cluster.classification==Translation.classification)\
-                                            .distinct().all()
+                # correct_clusters = db.session.query(Cluster)\
+                #                             .join(Label, Cluster.labels)\
+                #                             .join(Translation)\
+                #                             .filter(Cluster.task_id==task_id)\
+                #                             .filter(Translation.task_id==task_id)\
+                #                             .filter(Cluster.classification==Translation.classification)\
+                #                             .distinct().all()
 
-                correct_clusters.extend(
-                    db.session.query(Cluster)\
-                                .join(Translation,Translation.classification==Cluster.classification)\
-                                .filter(Cluster.task_id==task_id)\
-                                .filter(Translation.task_id==task_id)\
-                                .filter(Translation.label_id==GLOBALS.nothing_id)\
-                                .distinct().all()
-                )
+                # correct_clusters.extend(
+                #     db.session.query(Cluster)\
+                #                 .join(Translation,Translation.classification==Cluster.classification)\
+                #                 .filter(Cluster.task_id==task_id)\
+                #                 .filter(Translation.task_id==task_id)\
+                #                 .filter(Translation.label_id==GLOBALS.nothing_id)\
+                #                 .distinct().all()
+                # )
 
-                correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
-                correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(db.session.query(Label).get(GLOBALS.knocked_id))).all())
-                correct_clusters = [r.id for r in correct_clusters]
+                # correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
+                # correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(db.session.query(Label).get(GLOBALS.knocked_id))).all())
+                # correct_clusters = [r.id for r in correct_clusters]
                 ids.append(label.id)
 
-                status = db.session.query(Cluster)\
-                                    .join(Label,Cluster.labels)\
-                                    .filter(Cluster.task==task)\
-                                    .filter(Cluster.classification_checked==True)\
-                                    .filter(~Cluster.id.in_(correct_clusters))\
-                                    .first()
-
-                if status:
+                if task.ai_check_complete:
                     reply['AI Check']['Status'] = 'Checked'
                 else:
                     reply['AI Check']['Status'] = 'Not Checked'
 
-                reply['AI Check']['Potential Clusters'] = db.session.query(Cluster)\
-                                                                .join(Translation,Cluster.classification==Translation.classification)\
-                                                                .filter(Translation.label_id==label_id)\
-                                                                .filter(Cluster.task==task)\
-                                                                .filter(Cluster.classification_checked==False)\
-                                                                .filter(~Cluster.id.in_(correct_clusters))\
-                                                                .distinct().count() 
+                sq = db.session.query(Cluster)\
+                                .join(Translation,Cluster.classification==Translation.classification)\
+                                .filter(Translation.label_id==label_id)\
+                                .filter(Cluster.task==task)
+
+                sq = taggingLevelSQ(sq,'-3',False,task_id)
+
+                reply['AI Check']['Potential Clusters'] = sq.distinct().count() 
 
                 # Individual ID
                 identified = db.session.query(Detection)\
@@ -5034,9 +5028,6 @@ def assignLabel(clusterID):
                     cluster.examined = True
                     cluster.timestamp = datetime.utcnow()
 
-                    if taggingLevel == '-3':
-                        cluster.classification_checked = True
-
                     # Copy labels over to labelgroups
                     labelgroups = db.session.query(Labelgroup) \
                                             .join(Detection) \
@@ -5248,7 +5239,7 @@ def acceptClassification(status,cluster_id,additional):
                                 labelgroup.labels = [translation.label]
                                 labelgroup.checked = False
 
-                    cluster.classification_checked = True
+                    cluster.examined = True
                     cluster.user_id == current_user.id
                     db.session.commit()
 
