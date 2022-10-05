@@ -557,7 +557,7 @@ def manageTasks():
                                 .join(Image) \
                                 .join(Cluster, Image.clusters) \
                                 .filter(Cluster.task_id == task_id) \
-                                .filer(Cluster.examined==False)\
+                                .filter(Cluster.examined==False)\
                                 .filter(Trapgroup.active == True) \
                                 .filter(Trapgroup.processing == False) \
                                 .filter(Trapgroup.queueing == False) \
