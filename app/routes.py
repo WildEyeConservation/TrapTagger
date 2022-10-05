@@ -4974,8 +4974,6 @@ def assignLabel(clusterID):
                                         tgs_available = db.session.query(Trapgroup)\
                                                                 .filter(Trapgroup.survey==task.survey)\
                                                                 .filter(Trapgroup.user_id==None)\
-                                                                .filter(Trapgroup.processing==False)\
-                                                                .filter(Trapgroup.queueing==False)\
                                                                 .filter(Trapgroup.active==True)\
                                                                 .distinct().count()
 

@@ -224,11 +224,6 @@ def stop_task(self,task_id):
                                 .filter(Turkcode.task_id==int(task_id)) \
                                 .all()
 
-            for job in abandoned_jobs:
-                user = db.session.query(User).filter(User.username==job.user_id).first()
-                user.passed = 'cFalse'
-            db.session.commit()
-
             resolve_abandoned_jobs(abandoned_jobs)
 
             if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):

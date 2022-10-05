@@ -242,7 +242,7 @@ def launchTask(self,task_id):
 
             elif tL[0] == '-5':
 
-                #extact threshold
+                #extract threshold
                 threshold = tL[2]
                 if threshold=='-1':
                     tL[2] = str(Config.SIMILARITY_SCORE)
@@ -417,8 +417,8 @@ def manageTasks():
             if not populateMutex(int(task_id)): continue
 
             #Look for abandoned jobs
-            inactiveUsers = db.session.query(User)\
-                                    .join(Turkcode,User.username==Turkcode.user_id)\
+            abandoned_jobs = db.session.query(Turkcode)\
+                                    .join(User,User.username==Turkcode.user_id)\
                                     .filter(User.parent_id!=None)\
                                     .filter(~User.passed.in_(['cTrue','cFalse']))\
                                     .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
@@ -426,13 +426,7 @@ def manageTasks():
                                     .filter(Turkcode.active==False)\
                                     .all()
 
-            abandoned_jobs = []
-            for user in inactiveUsers:
-                turkcode = db.session.query(Turkcode).filter(Turkcode.user_id==user.username).first()
-                abandoned_jobs.append(turkcode)
-                # user.passed = 'cFalse'
-                # db.session.commit()
-            if abandoned_jobs!=[]:
+            if abandoned_jobs:
                 resolve_abandoned_jobs(abandoned_jobs)
 
             # Ensure there are no locked-out individuals
@@ -467,16 +461,6 @@ def manageTasks():
             for trapgroup in trapgroups:
                 trapgroup.user_id = None
                 db.session.commit()
-            
-            task_jobs = db.session.query(Turkcode) \
-                                .join(User, User.username==Turkcode.user_id) \
-                                .filter(User.parent_id!=None) \
-                                .filter(~User.passed.in_(['cTrue','cFalse'])) \
-                                .filter(Turkcode.task_id==task_id) \
-                                .filter(Turkcode.active==False) \
-                                .all()
-
-            task_jobs.extend(db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).all())
 
             #Manage number of workers
             if '-5' in taggingLevel:
@@ -530,9 +514,30 @@ def manageTasks():
                                 .filter(Cluster.task_id == task_id) \
                                 .filter(Cluster.examined==False)\
                                 .filter(Trapgroup.active == True) \
-                                .filter(Trapgroup.processing == False) \
-                                .filter(Trapgroup.queueing == False) \
                                 .distinct().count()
+
+            if max_workers_possible != 1:
+                max_workers_possible = math.floor(max_workers_possible * 0.9)
+            else:
+                max_workers_possible = 1
+
+            #Check job count
+            task_jobs = db.session.query(Turkcode) \
+                                .join(User, User.username==Turkcode.user_id) \
+                                .filter(User.parent_id!=None) \
+                                .filter(~User.passed.in_(['cTrue','cFalse'])) \
+                                .filter(Turkcode.task_id==task_id) \
+                                .filter(Turkcode.active==False) \
+                                .all()
+
+            task_jobs.extend(db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).all())
+
+            if len(task_jobs) < max_workers_possible:
+                app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
+                createTurkcodes(max_workers_possible - len(task_jobs), task_id)
+            elif (len(task_jobs) > max_workers_possible):
+                app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
+                deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id)
 
             #Check if finished:
             if '-5' in taggingLevel:
@@ -566,7 +571,7 @@ def manageTasks():
                                 .group_by(Individual.id)\
                                 .subquery()
 
-                num_clusters = db.session.query(Individual)\
+                clusters_remaining = db.session.query(Individual)\
                                 .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                                 .outerjoin(sq2,sq2.c.indID2==Individual.id)\
                                 .filter(Individual.active==True)\
@@ -576,27 +581,14 @@ def manageTasks():
                                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
                                 .first()
             else:
-                num_clusters = db.session.query(Cluster)\
+                clusters_remaining = db.session.query(Cluster)\
                                 .filter(Cluster.task_id == task_id)\
                                 .filter(Cluster.examined==False)\
                                 .first()
 
-            if max_workers_possible != 1:
-                max_workers_possible = math.floor(max_workers_possible * 0.9)
-            else:
-                max_workers_possible = 1
-
-            #Check job count
-            if len(task_jobs) < max_workers_possible:
-                app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
-                createTurkcodes(max_workers_possible - len(task_jobs), task_id)
-            elif (len(task_jobs) > max_workers_possible):
-                app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
-                deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id)
-
-            if not num_clusters:
-                processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.processing==True).count()
-                queueing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.queueing==True).count()
+            if not clusters_remaining:
+                processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.processing==True).first()
+                queueing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.queueing==True).first()
 
                 active_jobs = db.session.query(Turkcode) \
                                     .join(User, User.username==Turkcode.user_id) \
@@ -604,9 +596,9 @@ def manageTasks():
                                     .filter(~User.passed.in_(['cTrue','cFalse'])) \
                                     .filter(Turkcode.task_id==task_id) \
                                     .filter(Turkcode.active==False) \
-                                    .count()
+                                    .first()
 
-                if (processing==0) and (queueing==0) and (active_jobs==0):
+                if (not processing) and (not queueing) and (not active_jobs):
                     app.logger.info('Task finished.')
 
                     GLOBALS.mutex[int(task_id)]['job'].acquire()
@@ -772,7 +764,7 @@ def manageTasks():
                                                     .order_by(Cluster.timestamp.desc()) \
                                                     .first()
 
-                        if most_recent != None:
+                        if most_recent:
                             most_recent_time = most_recent.timestamp
                             if (datetime.utcnow() - most_recent_time) > timedelta(minutes=2):
                                 trapgroup.active = True
@@ -781,23 +773,12 @@ def manageTasks():
                             trapgroup.active = True
                             db.session.commit()
 
-                    additional = db.session.query(Trapgroup)\
-                                        .join(User)\
-                                        .filter(Trapgroup.survey_id==survey_id)\
-                                        .filter(User.passed.in_(['cTrue','cFalse']))\
-                                        .distinct().all()
-
-                    for trapgroup in additional:
-                        trapgroup.user_id = None
-                        db.session.commit()
-
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-        # self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
         db.session.remove()
@@ -889,8 +870,6 @@ def allocate_new_trapgroup(task_id,user_id):
                         .filter(Individual.name!='unidentifiable')\
                         .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
                         .filter(Trapgroup.active == True) \
-                        .filter(Trapgroup.processing == False) \
-                        .filter(Trapgroup.queueing == False) \
                         .filter(Trapgroup.user_id == None)\
                         .order_by(desc(sq4.c.count4))\
                         .first()
@@ -902,8 +881,6 @@ def allocate_new_trapgroup(task_id,user_id):
                         .join(Cluster,Image.clusters)\
                         .filter(Trapgroup.survey_id==survey_id) \
                         .filter(Trapgroup.active == True) \
-                        .filter(Trapgroup.processing == False) \
-                        .filter(Trapgroup.queueing == False) \
                         .filter(Trapgroup.user_id == None) \
                         .group_by(Trapgroup.id) \
                         .order_by(func.count(distinct(Cluster.id)).desc()) \
@@ -1051,8 +1028,6 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .filter(Individual.name!='unidentifiable')\
                                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
                                 .filter(Trapgroup.active == True) \
-                                .filter(Trapgroup.processing == False) \
-                                .filter(Trapgroup.queueing == False) \
                                 .filter(Trapgroup.user_id == None)\
                                 .order_by(desc(sq4.c.count4))\
                                 .first()
@@ -1063,8 +1038,6 @@ def allocate_new_trapgroup(task_id,user_id):
                         .join(Cluster,Image.clusters)\
                         .filter(Trapgroup.survey_id==survey_id) \
                         .filter(Trapgroup.active == True) \
-                        .filter(Trapgroup.processing == False) \
-                        .filter(Trapgroup.queueing == False) \
                         .filter(Trapgroup.user_id == None) \
                         .group_by(Trapgroup.id) \
                         .order_by(func.count(distinct(Cluster.id)).desc()) \

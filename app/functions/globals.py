@@ -766,12 +766,12 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
 
         #Reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
-        trapgroup.active = True
 
         if trapgroup.queueing:
             trapgroup.queueing = False
             unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
         else:
+            trapgroup.active = True
             trapgroup.processing = False
         db.session.commit()
 
@@ -946,12 +946,12 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
         #reactivate trapgroup
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
-        trapgroup.active = True
         
         if trapgroup.queueing:
             trapgroup.queueing = False
             finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':user_id})
         else:
+            trapgroup.active = True
             trapgroup.processing = False
         db.session.commit()
 
