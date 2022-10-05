@@ -766,14 +766,11 @@ def manageTasks():
                                         .join(Camera) \
                                         .join(Image) \
                                         .join(Cluster, Image.clusters) \
-                                        .join(Detection) \
                                         .filter(Cluster.task_id == task_id) \
                                         .filter(Trapgroup.active == False) \
                                         .filter(Trapgroup.processing == False) \
                                         .filter(Trapgroup.queueing == False)\
                                         .filter(Cluster.examined==False)\
-                                        .group_by(Trapgroup.id) \
-                                        .order_by(func.count(distinct(Cluster.id)).desc()) \
                                         .all()
 
                     app.logger.info('{} inactive trapgroups identified: {}'.format(len(trapgroups),trapgroups))
@@ -927,6 +924,9 @@ def allocate_new_trapgroup(task_id,user_id):
 
     else:
         trapgroup = db.session.query(Trapgroup) \
+                        .join(Camera)\
+                        .join(Image)\
+                        .join(Cluster,Image.clusters)\
                         .filter(Trapgroup.survey_id==survey_id) \
                         .filter(Trapgroup.active == True) \
                         .filter(Trapgroup.processing == False) \
@@ -993,14 +993,11 @@ def allocate_new_trapgroup(task_id,user_id):
                             .join(Camera) \
                             .join(Image) \
                             .join(Cluster, Image.clusters) \
-                            .join(Detection) \
                             .filter(Cluster.task_id == task_id) \
                             .filter(Trapgroup.active == False) \
                             .filter(Trapgroup.queueing == False) \
                             .filter(Trapgroup.processing == False) \
                             .filter(Cluster.examined==False)\
-                            .group_by(Trapgroup.id) \
-                            .order_by(func.count(distinct(Cluster.id)).desc()) \
                             .distinct().all()
 
         #looking at most recent cluster by trapgroup
@@ -1088,6 +1085,9 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .first()
             else:
                 trapgroup = db.session.query(Trapgroup) \
+                        .join(Camera)\
+                        .join(Image)\
+                        .join(Cluster,Image.clusters)\
                         .filter(Trapgroup.survey_id==survey_id) \
                         .filter(Trapgroup.active == True) \
                         .filter(Trapgroup.processing == False) \
