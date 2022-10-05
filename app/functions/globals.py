@@ -1530,14 +1530,31 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         # Specific label levels
         if ',' in taggingLevel:
             tL = re.split(',',taggingLevel)
+            label = db.session.query(Label).get(int(tL[1]))
             
             if tL[0] == '-4':
                 # Cluster-level individual ID
-                sq = sq.filter(Cluster.examined==False)
+                # sq = sq.filter(Cluster.examined==False)
+                identified = db.session.query(Detection)\
+                                    .join(Labelgroup)\
+                                    .join(Individual, Detection.individuals)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(Individual.label_id==label.id)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Individual.task_id==task_id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .distinct().all()
+
+                sq = sq.join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(label))\
+                        .filter(~Detection.id.in_([r.id for r in identified]))\
+                        .filter(Cluster.labels.contains(label))
 
             elif tL[0] == '-2':
                 # Species-level informational tagging
-                label = db.session.query(Label).get(int(tL[1]))
                 sq = sq.filter(Cluster.labels.contains(label)).filter(Cluster.skipped==False)
 
         # Species-level labelling

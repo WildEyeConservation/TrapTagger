@@ -2499,9 +2499,6 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     if (newSurveyTGCode == '') {
         legalTGCode = false
         document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
-    } else if ((newSurveyTGCode.includes('/'))||(newSurveyTGCode.includes('\\'))) {
-        legalTGCode = false
-        document.getElementById('newSurveyErrors').innerHTML = 'The site identifier code cannot contain slashes.'
     }
     
     legalInput = false

@@ -136,42 +136,13 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
             cluster.skipped = False
         db.session.commit()
 
-        if any(level in taggingLevel for level in ['-4','-5']):
+        if int(taskSize) > 10000:
+            taskSize = 10000
+
+        if '-5' in taggingLevel:
             tL = re.split(',',taggingLevel)
             label = db.session.query(Label).get(int(tL[1]))
-
-            if int(taskSize) > 10000:
-                taskSize = 10000
-
-            if tL[0] == '-4':
-                identified = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Individual, Detection.individuals)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.label_id==label.id)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Individual.task_id==task_id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
-
-                cluster_count = db.session.query(Cluster)\
-                                    .join(Image,Cluster.images)\
-                                    .join(Detection)\
-                                    .join(Labelgroup)\
-                                    .filter(Cluster.task_id==task_id)\
-                                    .filter(Cluster.labels.contains(label))\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(~Detection.id.in_([r.id for r in identified]))\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().count()
-
-            elif tL[0] == '-5':
-                cluster_count = checkForIdWork(task_id,label,tL[2])
+            cluster_count = checkForIdWork(task_id,label,tL[2])
 
         else:
             sq = db.session.query(Cluster) \
@@ -368,19 +339,10 @@ def updateTaskProgressBar(tskd):
             else:
                 total = db.session.query(Cluster).filter(Cluster.task_id==task_id).count()
 
-            sq = db.session.query(Cluster) \
-                .join(Image, Cluster.images) \
-                .join(Detection)
-
-            isBounding = db.session.query(Task).get(task_id).is_bounding
-
-            sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-            remaining = sq.filter(Cluster.task_id == task_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct(Cluster.id).count()
+            remaining = db.session.query(Cluster)\
+                            .filter(Cluster.task_id == task_id)\
+                            .filter(Cluster.examined==False)\
+                            .distinct().count()
 
         completed = total-remaining
 
@@ -5015,22 +4977,30 @@ def assignLabel(clusterID):
                                         #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
                                         #                         .distinct().count()
 
-                                        sq = db.session.query(Trapgroup)\
-                                                                .join(Camera)\
-                                                                .join(Image)\
-                                                                .join(Detection)\
-                                                                .join(Cluster,Image.clusters)
-
-                                        sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
-
-                                        tgs_available = sq.filter(Cluster.task_id == cluster.task_id) \
-                                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                                                .filter(Detection.static == False) \
-                                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        tgs_available = db.session.query(Trapgroup)\
+                                                                .filter(Trapgroup.survey==task.survey)\
                                                                 .filter(Trapgroup.user_id==None)\
                                                                 .filter(Trapgroup.processing==False)\
                                                                 .filter(Trapgroup.queueing==False)\
+                                                                .filter(Trapgroup.active==True)\
                                                                 .distinct().count()
+
+                                        # sq = db.session.query(Trapgroup)\
+                                        #                         .join(Camera)\
+                                        #                         .join(Image)\
+                                        #                         .join(Detection)\
+                                        #                         .join(Cluster,Image.clusters)
+
+                                        # sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
+
+                                        # tgs_available = sq.filter(Cluster.task_id == cluster.task_id) \
+                                        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                        #                         .filter(Detection.static == False) \
+                                        #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        #                         .filter(Trapgroup.user_id==None)\
+                                        #                         .filter(Trapgroup.processing==False)\
+                                        #                         .filter(Trapgroup.queueing==False)\
+                                        #                         .distinct().count()
 
                                         if (tgs_available>=1) and (not explore):
                                             reAllocated = True
@@ -5061,6 +5031,7 @@ def assignLabel(clusterID):
                         if Config.DEBUGGING: app.logger.info('Cluster labels: {}'.format([r.description for r in cluster.labels]))
 
                     cluster.user_id = current_user.id
+                    cluster.examined = True
                     cluster.timestamp = datetime.utcnow()
 
                     if taggingLevel == '-3':
@@ -5689,6 +5660,7 @@ def editSightings(image_id,task_id):
                                             
                     cluster.labels = detectionLabels
                     cluster.user_id = current_user.id
+                    cluster.examined = True
                     cluster.timestamp = datetime.utcnow()
                     db.session.commit()
 

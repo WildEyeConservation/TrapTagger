@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
-                                    updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime
+                                    updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
@@ -85,19 +85,10 @@ def prep_required_images(task_id):
     taggingLevel = task.tagging_level
     isBounding = task.is_bounding
 
-    sq = db.session.query(Cluster) \
-        .join(Image, Cluster.images) \
-        .join(Camera) \
-        .join(Trapgroup) \
-        .join(Detection)
-
-    sq = taggingLevelSQ(sq,taggingLevel,isBounding,int(task_id))
-
-    clusters = sq.filter(Cluster.task_id == int(task_id)) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
+    clusters = db.session.query(Cluster)\
+                    .filter(Cluster.task_id == task_id)\
+                    .filter(Cluster.examined==False)\
+                    .distinct().all()
 
     if len(clusters) != 0:
         if (',' in taggingLevel) or isBounding:
@@ -175,8 +166,6 @@ def launchTask(self,task_id):
 
         if task.jobs_finished == None:
             task.jobs_finished = 0
-
-        prep_required_images(task_id)
 
         if taggingLevel == '-3':
             for cluster in task.clusters:
@@ -269,38 +258,6 @@ def launchTask(self,task_id):
 
                     db.session.commit()
 
-                for cluster in task.clusters:
-                    cluster.examined = True
-
-                identified = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Individual, Detection.individuals)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.label_id==label.id)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Individual.task_id==task_id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
-
-                unidentified = db.session.query(Cluster)\
-                                    .join(Image,Cluster.images)\
-                                    .join(Detection)\
-                                    .join(Labelgroup)\
-                                    .filter(Cluster.task_id==task_id)\
-                                    .filter(Cluster.labels.contains(label))\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(~Detection.id.in_([r.id for r in identified]))\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
-
-                for cluster in unidentified:
-                    cluster.examined = False
-
                 unidentifiable = db.session.query(Individual).filter(Individual.task_id==task_id).filter(Individual.label_id==label.id).filter(Individual.name=='unidentifiable').first()
                 if unidentifiable == None:
                     unidentifiable = Individual(
@@ -353,9 +310,35 @@ def launchTask(self,task_id):
                     allocated.allocation_timestamp = None
 
                 db.session.commit()
+        
+        if '-5' not in taggingLevel:
+            for cluster in task.clusters:
+                cluster.examined = True
 
-        trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-        for trapgroup in trapgroups:
+            sq = db.session.query(Cluster) \
+                .join(Image, Cluster.images) \
+                .join(Camera) \
+                .join(Trapgroup) \
+                .join(Detection)
+
+            sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
+
+            clusters = sq.filter(Trapgroup.id == trapgroup.id) \
+                                    .filter(Cluster.task_id == task_id) \
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                    .filter(Detection.static == False) \
+                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .distinct().all()
+
+            for chunk in chunker(clusters,2500):
+                for cluster in chunk:
+                    cluster.examined = False
+                db.session.commit()
+
+        if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
+            prep_required_images(task_id)
+
+        for trapgroup in task.survey.trapgroups:
 
             if '-5' in taggingLevel:
                 tL = re.split(',',taggingLevel)
@@ -402,27 +385,20 @@ def launchTask(self,task_id):
                                 .filter(Individual.name!='unidentifiable')\
                                 .filter(Camera.trapgroup_id==trapgroup.id)\
                                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                                .distinct().count()
+                                .first()
             else:
-                sq = db.session.query(Cluster) \
-                    .join(Image, Cluster.images) \
-                    .join(Camera) \
-                    .join(Trapgroup) \
-                    .join(Detection)
+                clusterCount = db.session.query(Cluster)\
+                            .join(Image,Cluster.images)\
+                            .join(Camera)\
+                            .filter(Camera.trapgroup==trapgroup)\
+                            .filter(Cluster.task_id == task_id)\
+                            .filter(Cluster.examined==False)\
+                            .first()
 
-                sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-                clusterCount = sq.filter(Trapgroup.id == trapgroup.id) \
-                                        .filter(Cluster.task_id == task_id) \
-                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                        .filter(Detection.static == False) \
-                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .distinct().count()
-
-            if clusterCount == 0:
-                trapgroup.active = False
-            else:
+            if clusterCount:
                 trapgroup.active = True
+            else:
+                trapgroup.active = False
             trapgroup.processing = False
             trapgroup.queueing = False
             trapgroup.user_id = None
@@ -579,22 +555,16 @@ def manageTasks():
                                 .distinct().count()
 
             else:
-                sq = db.session.query(Trapgroup) \
+                max_workers_possible = db.session.query(Trapgroup) \
                                 .join(Camera) \
                                 .join(Image) \
                                 .join(Cluster, Image.clusters) \
-                                .join(Detection) \
                                 .filter(Cluster.task_id == task_id) \
+                                .filer(Cluster.examined==False)\
                                 .filter(Trapgroup.active == True) \
-                                .filter(Trapgroup.processing == False)
-
-                sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-                max_workers_possible = sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                .group_by(Trapgroup.id) \
-                                .count()
+                                .filter(Trapgroup.processing == False) \
+                                .filter(Trapgroup.queueing == False) \
+                                .distinct().count()
 
             #Check if finished:
             if '-5' in taggingLevel:
@@ -636,19 +606,12 @@ def manageTasks():
                                 .filter(Individual.label_id==label.id)\
                                 .filter(Individual.name!='unidentifiable')\
                                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                                .distinct().count()
+                                .first()
             else:
-                sq = db.session.query(Cluster) \
-                                .join(Image, Cluster.images) \
-                                .join(Detection)
-
-                sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-                num_clusters = sq.filter(Cluster.task_id == task_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                .distinct(Cluster.id).count()
+                num_clusters = db.session.query(Cluster)\
+                                .filter(Cluster.task_id == task_id)\
+                                .filter(Cluster.examined==False)\
+                                .first()
 
             if max_workers_possible != 1:
                 max_workers_possible = math.floor(max_workers_possible * 0.9)
@@ -663,7 +626,7 @@ def manageTasks():
                 app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
                 deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id)
 
-            if num_clusters == 0:
+            if not num_clusters:
                 processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.processing==True).count()
                 queueing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.queueing==True).count()
 
@@ -802,24 +765,19 @@ def manageTasks():
                                         .distinct().all()
 
                     else:
-                        sq = db.session.query(Trapgroup) \
-                            .join(Camera) \
-                            .join(Image) \
-                            .join(Cluster, Image.clusters) \
-                            .join(Detection) \
-                            .filter(Cluster.task_id == task_id) \
-                            .filter(Trapgroup.active == False) \
-                            .filter(Trapgroup.processing == False) \
-                            .filter(Trapgroup.queueing == False)
-
-                        sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-                        trapgroups = sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .group_by(Trapgroup.id) \
-                            .order_by(func.count(distinct(Cluster.id)).desc()) \
-                            .all()
+                        trapgroups = db.session.query(Trapgroup) \
+                                        .join(Camera) \
+                                        .join(Image) \
+                                        .join(Cluster, Image.clusters) \
+                                        .join(Detection) \
+                                        .filter(Cluster.task_id == task_id) \
+                                        .filter(Trapgroup.active == False) \
+                                        .filter(Trapgroup.processing == False) \
+                                        .filter(Trapgroup.queueing == False)\
+                                        .filter(Cluster.examined==False)\
+                                        .group_by(Trapgroup.id) \
+                                        .order_by(func.count(distinct(Cluster.id)).desc()) \
+                                        .all()
 
                     app.logger.info('{} inactive trapgroups identified: {}'.format(len(trapgroups),trapgroups))
 
@@ -885,9 +843,10 @@ def manageTasks():
 def allocate_new_trapgroup(task_id,user_id):
     '''Allocates a new trapgroup to the specified user for the given task. Attempts to free up trapgroups if none are available. Returns the allocate trapgroup.'''
 
-    taggingLevel = db.session.query(Task).get(task_id).tagging_level
-    isBounding = db.session.query(Task).get(task_id).is_bounding
-    survey_id = db.session.query(Task).get(task_id).survey_id
+    task = db.session.query(Task).get(task_id)
+    taggingLevel = task.tagging_level
+    isBounding = task.is_bounding
+    survey_id = task.survey_id
     #Allocate the trapgroup with the most remaining clusters to maximise efficiency
     if '-5' in taggingLevel:
         tL = re.split(',',taggingLevel)
@@ -970,22 +929,12 @@ def allocate_new_trapgroup(task_id,user_id):
                         .first()
 
     else:
-        sq = db.session.query(Trapgroup) \
-                        .join(Camera) \
-                        .join(Image) \
-                        .join(Cluster, Image.clusters) \
-                        .join(Detection) \
-                        .filter(Cluster.task_id == task_id) \
+        trapgroup = db.session.query(Trapgroup) \
+                        .filter(Trapgroup.survey_id==survey_id) \
                         .filter(Trapgroup.active == True) \
                         .filter(Trapgroup.processing == False) \
                         .filter(Trapgroup.queueing == False) \
-                        .filter(Trapgroup.user_id == None)
-
-        sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-        trapgroup = sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                        .filter(Detection.static == False) \
-                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                        .filter(Trapgroup.user_id == None) \
                         .group_by(Trapgroup.id) \
                         .order_by(func.count(distinct(Cluster.id)).desc()) \
                         .first()
@@ -1043,24 +992,19 @@ def allocate_new_trapgroup(task_id,user_id):
                             .filter(Trapgroup.queueing == False) \
                             .all()
         else:
-            sq = db.session.query(Trapgroup) \
-                .join(Camera) \
-                .join(Image) \
-                .join(Cluster, Image.clusters) \
-                .join(Detection) \
-                .filter(Cluster.task_id == task_id) \
-                .filter(Trapgroup.active == False) \
-                .filter(Trapgroup.queueing == False) \
-                .filter(Trapgroup.processing == False)
-
-            sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-            trapgroups = sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                .filter(Detection.static == False) \
-                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                .group_by(Trapgroup.id) \
-                .order_by(func.count(distinct(Cluster.id)).desc()) \
-                .all()
+            trapgroups = db.session.query(Trapgroup) \
+                            .join(Camera) \
+                            .join(Image) \
+                            .join(Cluster, Image.clusters) \
+                            .join(Detection) \
+                            .filter(Cluster.task_id == task_id) \
+                            .filter(Trapgroup.active == False) \
+                            .filter(Trapgroup.queueing == False) \
+                            .filter(Trapgroup.processing == False) \
+                            .filter(Cluster.examined==False)\
+                            .group_by(Trapgroup.id) \
+                            .order_by(func.count(distinct(Cluster.id)).desc()) \
+                            .distinct().all()
 
         #looking at most recent cluster by trapgroup
         for trapgroup in trapgroups:
@@ -1146,25 +1090,15 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .order_by(desc(sq4.c.count4))\
                                 .first()
             else:
-                sq = db.session.query(Trapgroup) \
-                            .join(Camera) \
-                            .join(Image) \
-                            .join(Cluster, Image.clusters) \
-                            .join(Detection) \
-                            .filter(Cluster.task_id == task_id) \
-                            .filter(Trapgroup.active == True) \
-                            .filter(Trapgroup.processing == False) \
-                            .filter(Trapgroup.queueing == False) \
-                            .filter(Trapgroup.user_id == None)
-
-                sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-                trapgroup = sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .group_by(Trapgroup.id) \
-                            .order_by(func.count(distinct(Cluster.id)).desc()) \
-                            .first()
+                trapgroup = db.session.query(Trapgroup) \
+                        .filter(Trapgroup.survey_id==survey_id) \
+                        .filter(Trapgroup.active == True) \
+                        .filter(Trapgroup.processing == False) \
+                        .filter(Trapgroup.queueing == False) \
+                        .filter(Trapgroup.user_id == None) \
+                        .group_by(Trapgroup.id) \
+                        .order_by(func.count(distinct(Cluster.id)).desc()) \
+                        .first()
 
     if trapgroup != None:
         trapgroup.user_id = user_id
@@ -1246,21 +1180,14 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
 
         clusters = [cluster]
     else:
-        sq = db.session.query(Cluster) \
-            .join(Image, Cluster.images) \
-            .join(Camera) \
-            .join(Trapgroup) \
-            .join(Detection)
-
-        sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
-
-        clusters = sq.filter(Trapgroup.id == trapgroup_id) \
-                                .filter(Cluster.task_id == task_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp)) \
-                                .distinct().limit(limit).all()
+        clusters = db.session.query(Cluster) \
+                        .join(Image, Cluster.images) \
+                        .join(Camera) \
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(Cluster.task_id == task_id) \
+                        .filter(Cluster.examined==False)\
+                        .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp)) \
+                        .distinct().limit(limit).all()
 
     return clusters
 
