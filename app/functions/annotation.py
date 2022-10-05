@@ -317,18 +317,15 @@ def launchTask(self,task_id):
 
             sq = db.session.query(Cluster) \
                 .join(Image, Cluster.images) \
-                .join(Camera) \
-                .join(Trapgroup) \
                 .join(Detection)
 
             sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
 
-            clusters = sq.filter(Trapgroup.id == trapgroup.id) \
-                                    .filter(Cluster.task_id == task_id) \
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
+            clusters = sq.filter(Cluster.task_id == task_id) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                            .distinct().all()
 
             for chunk in chunker(clusters,2500):
                 for cluster in chunk:
