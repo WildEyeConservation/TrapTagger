@@ -27,6 +27,7 @@ import re
 import math
 from config import Config
 import traceback
+import time
 
 def required_images(cluster,relevent_classifications,transDict):
     '''
@@ -1187,3 +1188,184 @@ def genInitKeys(taggingLevel,task_id):
         names[0] = 'Skip'
 
     return (hotkeys, names)
+
+def image_digest(image,detections):
+    '''Returns an image and detection dictionary for the given image and detections'''
+    return {'id': image.id,
+            'url': image.camera.path + '/' + image.filename,
+            'timestamp': (image.corrected_timestamp-datetime(1970,1,1)).total_seconds(),
+            'camera': image.camera_id,
+            'rating': image.detection_rating,
+            'detections': [{'id': detection.id,
+                            'top': detection.top,
+                            'bottom': detection.bottom,
+                            'left': detection.left,
+                            'right': detection.right,
+                            'category': detection.category,
+                            'individual': '-1',
+                            'static': detection.static}
+                            for detection in detections]
+    }
+
+def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
+    '''Outputs a cluster dictionary for consumption by the client's browser.'''
+
+    startTime = time.time()
+
+    if '-5' in taggingLevel:
+        bufferCount = db.session.query(Individual).filter(Individual.allocated==user.id).count()
+        if bufferCount >= 5:
+            remInds = db.session.query(Individual)\
+                            .filter(Individual.allocated==user.id)\
+                            .order_by(Individual.allocation_timestamp).limit(bufferCount-4).all()
+            for remInd in remInds:
+                remInd.allocated = None
+                remInd.allocation_timestamp = None
+
+        cluster.allocated = user.id
+        cluster.allocation_timestamp = datetime.utcnow()
+        db.session.commit()
+
+        sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(cluster)).order_by(Image.corrected_timestamp).all()
+
+        images = []
+        for image in sortedImages:
+            output = {'id': image.id,
+                    'url': image.camera.path + '/' + image.filename,
+                    'timestamp': (image.corrected_timestamp-datetime(1970,1,1)).total_seconds(),
+                    'camera': image.camera_id,
+                    'rating': image.detection_rating,
+                    'latitude': image.camera.trapgroup.latitude,
+                    'longitude': image.camera.trapgroup.longitude,
+                    'detections': []}
+
+            detection = db.session.query(Detection)\
+                                .filter(Detection.image_id==image.id)\
+                                .filter(Detection.individuals.contains(cluster))\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(Detection.static==False)\
+                                .first()
+
+            output['detections'].append({'id': detection.id,
+                                        'top': detection.top,
+                                        'bottom': detection.bottom,
+                                        'left': detection.left,
+                                        'right': detection.right,
+                                        'category': detection.category,
+                                        'individual': '-1',
+                                        'static': detection.static})
+
+            images.append(output)
+
+        reply = {'id': cluster.id,'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None'}
+    
+    else:
+
+        if (id is not None) or isBounding:
+            sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
+            required = []
+        elif '-4' in taggingLevel:
+            # If its for individual ID, send entire cluster, and order the images chronologically
+            sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp,Image.filename).all()
+            required = []
+        else:
+            sortedImages = db.session.query(Image).filter(Image.required_for.contains(cluster)).all()
+            required = [n for n in range(len(sortedImages))]
+            if len(sortedImages) < 5:
+                images = db.session.query(Image)\
+                            .filter(Image.clusters.contains(cluster))\
+                            .filter(~Image.id.in_([r.id for r in sortedImages]))\
+                            .order_by(desc(Image.detection_rating))\
+                            .limit(5-len(sortedImages))\
+                            .all()
+                sortedImages.extend(images)
+            
+        endTime = time.time()
+        print("getImages query completed in {}".format(endTime - startTime))
+
+        if '-4' in taggingLevel:
+            tL = re.split(',',taggingLevel)
+            label = db.session.query(Label).get(int(tL[1]))
+            images = []
+            for image in sortedImages:
+                exclude  = db.session.query(Detection)\
+                                    .join(Labelgroup)\
+                                    .join(Individual,Detection.individuals)\
+                                    .filter(Detection.image_id==image.id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(Detection.static==False)\
+                                    .filter(Labelgroup.task_id==cluster.task_id)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(Individual.task_id==cluster.task_id)\
+                                    .filter(Individual.label==label)\
+                                    .distinct().all()
+
+                detections = db.session.query(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Detection.image_id==image.id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(Detection.static==False)\
+                                    .filter(Labelgroup.task_id==cluster.task_id)\
+                                    .filter(Labelgroup.labels.contains(label))\
+                                    .filter(~Detection.id.in_([r.id for r in exclude]))\
+                                    .distinct().all()
+                images.append(image_digest(image,detections))
+        else:
+            images = [image_digest(
+                        image,
+                        [detection for detection in image.detections if (
+                            (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
+                            (detection.status not in ['deleted','hidden']) and 
+                            (detection.static == False)
+                        )]
+                    ) for image in sortedImages]
+
+        if isBounding:
+            for image in images:
+                for detection in image['detections']:
+                    labelgroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==cluster.task_id).filter(Labelgroup.detection_id==detection['id']).first()
+                    if labelgroup.labels != []:
+                        detection['label'] = labelgroup.labels[0].description
+                    else:
+                        detection['label'] = ''
+
+        cluster_labels = []
+        cluster_label_ids = []
+        if cluster.labels == []:
+            cluster_labels.append('None')
+            cluster_label_ids.append('0')
+        else:
+            if (',' in taggingLevel) or isBounding or (int(taggingLevel) <= 0):
+                for label in cluster.labels:
+                    cluster_labels.append(label.description)
+                    cluster_label_ids.append(str(label.id))
+            else:
+                for label in cluster.labels:
+                    if label.id != int(taggingLevel):
+                        cluster_labels.append(label.description)
+                        cluster_label_ids.append(str(label.id))
+
+        tags = []
+        tag_ids = []
+        if cluster.tags == []:
+            tags.append('None')
+            tag_ids.append('0')
+        else:
+            for tag in cluster.tags:
+                tags.append(tag.description)
+                tag_ids.append(str(tag.id))
+
+        groundTruth = []
+        classification = [cluster.classification]
+
+        if len(sortedImages) > 0:
+            trapGroup = sortedImages[0].camera.trapgroup_id
+        else:
+            trapGroup = 'None'
+
+        reply = {'id': cluster.id,'classification': classification,'required': required, 'images': images, 'label': cluster_labels, 'label_ids': cluster_label_ids, 'tags': tags, 'tag_ids': tag_ids, 'groundTruth': groundTruth, 'trapGroup': trapGroup}
+
+    return reply

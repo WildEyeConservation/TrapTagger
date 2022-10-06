@@ -2055,13 +2055,12 @@ function submitLabels(mapID = 'map1') {
                             if (reply.reAllocated==true) {
                                 clusterRequests[mapID] = [];
                                 clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+                                clusters[mapID].push(...reply.newClusters)
                                 clisterIdList = []
-                                PlsWaitCountDown = 30
-                            } else {
-                                if (modalWait2.is(':visible')) {
-                                    modalWait2Hide = true
-                                    modalWait2.modal('hide');
-                                }
+                            }
+                            if (modalWait2.is(':visible')) {
+                                modalWait2Hide = true
+                                modalWait2.modal('hide');
                             }
                             nextCluster(mapID)
                         }               
