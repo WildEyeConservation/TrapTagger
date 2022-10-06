@@ -1115,18 +1115,23 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
     try:
         reply = None
         # isjpeg = re.compile('\.jpe?g$', re.I)
-        tgCode = re.compile(tgCode)
-        allTags = []
-        for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder+'/'+folder):
-            # jpegs = list(filter(isjpeg.search, filenames))
-            # if len(jpegs):
-            tags = tgCode.findall(dirpath)
-            if len(tags) > 0:
-                tag = tags[0]
-                if tag not in allTags:
-                    allTags.append(tag)
 
-        reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+        try:
+            tgCode = re.compile(tgCode)
+            allTags = []
+            for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder+'/'+folder):
+                # jpegs = list(filter(isjpeg.search, filenames))
+                # if len(jpegs):
+                tags = tgCode.findall(dirpath)
+                if len(tags) > 0:
+                    tag = tags[0]
+                    if tag not in allTags:
+                        allTags.append(tag)
+
+            reply = str(len(allTags)) + ' sites found: ' + ', '.join([str(tag) for tag in sorted(allTags)])
+
+        except:
+            reply = 'Malformed expression. Please try again.'
 
     except Exception as exc:
         app.logger.info(' ')

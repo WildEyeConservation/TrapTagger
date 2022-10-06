@@ -1581,17 +1581,21 @@ def newWorkerAccount(token):
 
     if 'username' in info.keys():
         username = info['username']
+        email = info['email']
+
         if username.lower() not in Config.DISALLOWED_USERNAMES:
-            email = info['email']
-            password = info['password']
-            user = User(username=username, email=email, admin=False)
-            user.set_password(password)
-            db.session.add(user)
-            turkcode = Turkcode(user_id=username, active=False, tagging_time=0)
-            db.session.add(turkcode)
-            db.session.commit()
-            login_user(user, remember=False)
-            return redirect(url_for('jobs', _external=True))
+            check = db.session.query(User).filter(or_(User.username==username,User.email==email)).first()
+
+            if check==None:
+                password = info['password']
+                user = User(username=username, email=email, admin=False)
+                user.set_password(password)
+                db.session.add(user)
+                turkcode = Turkcode(user_id=username, active=False, tagging_time=0)
+                db.session.add(turkcode)
+                db.session.commit()
+                login_user(user, remember=False)
+                return redirect(url_for('jobs', _external=True))
     return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/grantQualification/<token>')

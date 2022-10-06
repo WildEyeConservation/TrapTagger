@@ -1467,7 +1467,9 @@ function updateClassificationBoxes() {
 
 modalAddTask3.on('shown.bs.modal', function(){
     /** Updates the auto-classification form when the modal is opened. */
+    document.getElementById('btnCreateTask2').disabled = true
     updateClassificationBoxes()
+    document.getElementById('btnCreateTask2').disabled = false
 });
 
 function buildClassificationCheckBoxes() {
@@ -1507,6 +1509,7 @@ modalAddTask2.on('shown.bs.modal', function(){
         buildClassificationCheckBoxes()
         updateTranslationMatrix()
     } else {
+        document.getElementById('btnCreateTask2').disabled = true
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getSurveyClassifications/'+selectedSurvey);
         xhttp.onreadystatechange =
@@ -1515,6 +1518,7 @@ modalAddTask2.on('shown.bs.modal', function(){
                 surveyClassifications = JSON.parse(this.responseText);
                 buildClassificationCheckBoxes()
                 updateTranslationMatrix()
+                document.getElementById('btnCreateTask2').disabled = false
             }
         }
         xhttp.send();
