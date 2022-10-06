@@ -4784,6 +4784,8 @@ def assignLabel(clusterID):
                                 else:
                                     if newLabel.id == GLOBALS.nothing_id:
 
+                                        app.logger.info('Nothing Label!!!!!!!!!!!!!!')
+
                                         # sq = db.session.query(Cluster) \
                                         #     .join(Image, Cluster.images) \
                                         #     .join(Detection)
@@ -4802,6 +4804,8 @@ def assignLabel(clusterID):
                                                                 .filter(Trapgroup.active==True)\
                                                                 .first()
 
+                                        app.logger.info('{} tgs available'.format(tgs_available))
+
                                         sq = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
                                                                 .join(Image) \
                                                                 .filter(Image.clusters.contains(cluster))\
@@ -4816,6 +4820,8 @@ def assignLabel(clusterID):
                                                                 .filter(Detection.static==False)\
                                                                 .filter(sq.c.area<0.1)\
                                                                 .first()
+
+                                        app.logger.info('{} removable detections'.format(removable_detections))
 
                                         # sq = db.session.query(Trapgroup)\
                                         #                         .join(Camera)\
@@ -4835,6 +4841,7 @@ def assignLabel(clusterID):
                                         #                         .distinct().count()
 
                                         if tgs_available and (not explore) and removable_detections:
+                                            app.logger.info('reallocating!!!!!!')
                                             reAllocated = True
                                             trapgroup = cluster.images[0].camera.trapgroup
                                             trapgroup.processing = True
@@ -4844,6 +4851,7 @@ def assignLabel(clusterID):
                                             db.session.commit()
                                             removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
                                             newClusters = get_clusters()['info']
+                                            app.logger.info('{} new clusters'.format(newClusters))
 
                                     if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
                                         newLabels.append(newLabel)
