@@ -4784,8 +4784,6 @@ def assignLabel(clusterID):
                                 else:
                                     if newLabel.id == GLOBALS.nothing_id:
 
-                                        app.logger.info('Nothing Label!!!!!!!!!!!!!!')
-
                                         # sq = db.session.query(Cluster) \
                                         #     .join(Image, Cluster.images) \
                                         #     .join(Detection)
@@ -4804,8 +4802,6 @@ def assignLabel(clusterID):
                                                                 .filter(Trapgroup.active==True)\
                                                                 .first()
 
-                                        app.logger.info('{} tgs available'.format(tgs_available))
-
                                         sq = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
                                                                 .join(Image) \
                                                                 .filter(Image.clusters.contains(cluster))\
@@ -4820,8 +4816,6 @@ def assignLabel(clusterID):
                                                                 .filter(Detection.static==False)\
                                                                 .filter(sq.c.area<0.1)\
                                                                 .first()
-
-                                        app.logger.info('{} removable detections'.format(removable_detections))
 
                                         # sq = db.session.query(Trapgroup)\
                                         #                         .join(Camera)\
@@ -4841,7 +4835,6 @@ def assignLabel(clusterID):
                                         #                         .distinct().count()
 
                                         if tgs_available and (not explore) and removable_detections:
-                                            app.logger.info('reallocating!!!!!!')
                                             reAllocated = True
                                             trapgroup = cluster.images[0].camera.trapgroup
                                             trapgroup.processing = True
@@ -4850,8 +4843,35 @@ def assignLabel(clusterID):
                                             current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                                             db.session.commit()
                                             removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
-                                            newClusters = get_clusters()['info']
-                                            app.logger.info('{} new clusters'.format(newClusters))
+
+                                            # Get a new batch of clusters
+                                            GLOBALS.mutex[task.id]['global'].acquire()
+                                            db.session.commit()
+                                            trapgroup = allocate_new_trapgroup(task.id,current_user.id)
+                                            GLOBALS.mutex[task.id]['global'].release()
+
+                                            if trapgroup == None:
+                                                clusters = []
+                                            else:
+                                                GLOBALS.mutex[task.id]['user'][current_user.id].acquire()
+                                                limit = task.size - current_user.clusters_allocated
+                                                clusters = fetch_clusters(taggingLevel,task.id,isBounding,trapgroup.id,limit)
+                                                current_user.clusters_allocated += len(clusters)
+                                                db.session.commit()
+                                                GLOBALS.mutex[task.id]['user'][current_user.id].release()
+                                            
+                                            if clusters == []:
+                                                current_user.trapgroup = []
+                                                db.session.commit()
+                                                newClusters = [Config.FINISHED_CLUSTER]
+
+                                            else:
+                                                newClusters = []
+                                                for cluster in clusters:
+                                                    newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user))
+
+                                                if current_user.clusters_allocated >= task.size:
+                                                    newClusters.append(Config.FINISHED_CLUSTER)
 
                                     if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
                                         newLabels.append(newLabel)
