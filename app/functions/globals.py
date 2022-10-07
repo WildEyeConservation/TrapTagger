@@ -589,8 +589,11 @@ def removeFalseDetections(self,cluster_id,undo):
                 image.detection_rating = detection_rating(image)
             db.session.commit()
 
-            cluster.images[0].camera.trapgroup.processing = False
-            cluster.images[0].camera.trapgroup.active = True
+            trapgroup = cluster.images[0].camera.trapgroup
+            re_evaluate_trapgroup_examined(trapgroup.id,cluster.task_id)
+
+            trapgroup.processing = False
+            trapgroup.active = True
             db.session.commit()
 
     except Exception as exc:
@@ -771,6 +774,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
             trapgroup.queueing = False
             unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
         else:
+            re_evaluate_trapgroup_examined(trapgroup_id,task_id)
             trapgroup.active = True
             trapgroup.processing = False
         db.session.commit()
@@ -951,6 +955,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             trapgroup.queueing = False
             finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':user_id})
         else:
+            re_evaluate_trapgroup_examined(trapgroup_id,task_id)
             trapgroup.active = True
             trapgroup.processing = False
         db.session.commit()
@@ -1978,3 +1983,40 @@ def all_equal(iterator):
     except StopIteration:
         return True
     return all(first == x for x in iterator)
+
+def re_evaluate_trapgroup_examined(trapgroup_id,task_id):
+    '''Re-evaluates the examined status of a trapgroup's clusters.'''
+
+    task = db.session.query(Task).get(task_id)
+
+    clusters = db.session.query(Cluster)\
+                        .join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Cluster.examined==False)\
+                        .distinct().all()
+
+    for cluster in clusters:
+        cluster.examined = True
+
+    sq = db.session.query(Cluster) \
+                .join(Image, Cluster.images) \
+                .join(Detection)\
+                .join(Camera)\
+                .filter(Camera.trapgroup_id==trapgroup_id)
+
+    sq = taggingLevelSQ(sq,task.tagging_level,task.is_bounding,task_id)
+
+    clusters = sq.filter(Cluster.task_id == task_id) \
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                    .filter(Detection.static == False) \
+                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                    .distinct().all()
+
+    for chunk in chunker(clusters,2500):
+        for cluster in chunk:
+            cluster.examined = False
+        db.session.commit()
+
+    return True
