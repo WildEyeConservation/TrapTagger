@@ -1131,7 +1131,14 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(Cluster.task_id == task_id) \
                         .filter(Cluster.examined==False)\
                         .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp)) \
-                        .distinct().limit(limit).all()
+                        .distinct().limit(limit+1).all()
+
+        if len(clusters) < (limit+1):
+            trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
+            trapgroup.active = False
+            db.session.commit()
+        else:
+            clusters = clusters[:limit]
 
     return clusters
 
