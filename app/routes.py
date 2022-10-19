@@ -5483,7 +5483,6 @@ def editSightings(image_id,task_id):
                                 detection.right = detectionsDict[detID]['right']
                                 detection.source='user'
                                 detection.status = 'edited'
-                                detection.score = 1
                                 labelgroup = db.session.query(Labelgroup).filter(Labelgroup.detection_id==int(detID)).filter(Labelgroup.task_id==int(task_id)).first()
                                 labelgroup.labels = [label]
                                 labelgroup.checked = True
