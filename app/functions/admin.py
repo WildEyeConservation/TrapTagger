@@ -934,7 +934,7 @@ def changeTimestamps(self,survey_id,timestamps):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def re_classify_survey(self,survey_id):
+def re_classify_survey(self,survey_id,classifier):
     '''Celery task for reclassifying the specified survey.'''
     
     try:
@@ -943,7 +943,7 @@ def re_classify_survey(self,survey_id):
         survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
         db.session.commit()
 
-        classifySurvey(survey_id=survey_id,sourceBucket=survey.user.folder+'-comp')
+        classifySurvey(survey_id=survey_id,sourceBucket=survey.user.folder+'-comp',classifier=classifier)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.images_processing = 0

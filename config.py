@@ -93,7 +93,6 @@ class Config(object):
     DET_RATIO = 0.5
     DET_AREA = 0.005
     CLASS_SCORE = 0.99
-    LATEST_CLASSIFIER = 'v2.1'
 
     # Individual ID Config
     SIMILARITY_SCORE = 0.05

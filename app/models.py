@@ -134,6 +134,7 @@ class Survey(db.Model):
     correct_timestamps = db.Column(db.Boolean, default=False, index=False)
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy='dynamic')
     tasks = db.relationship('Task', backref='survey', lazy='dynamic')
+    classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -409,3 +410,16 @@ class Statistic(db.Model):
 
     def __repr__(self):
         return '<Statistic for {}>'.format(self.timestamp)
+
+
+class Classifier(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ami_id = db.Column(db.String(32), index=False)
+    name = db.Column(db.String(64), index=True, unique=True)
+    source = db.Column(db.String(64), index=True)
+    description = db.Column(db.String(512), index=False)
+    region = db.Column(db.String(64), index=True)
+    surveys = db.relationship('Survey', backref='classifier', lazy='dynamic')
+
+    def __repr__(self):
+        return '<Classifier {}>'.format(self.name)

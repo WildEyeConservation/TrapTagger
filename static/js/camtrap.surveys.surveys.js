@@ -596,6 +596,11 @@ function resetNewSurveyPage() {
 
     document.getElementById('newSurveyTGInfo').innerHTML = ''
 
+    speciesClassifierDiv = document.querySelector('#speciesClassifierDiv')
+    while(speciesClassifierDiv.firstChild){
+        speciesClassifierDiv.removeChild(speciesClassifierDiv.firstChild);
+    }
+
     newSurveyFormDiv = document.querySelector('#newSurveyFormDiv')
     while(newSurveyFormDiv.firstChild){
         newSurveyFormDiv.removeChild(newSurveyFormDiv.firstChild);
@@ -2347,6 +2352,126 @@ modalNewSurvey.on('hidden.bs.modal', function(){
     }
 });
 
+function updateClassifierTable(page=null) {
+    /** fetches and updates the classifier selection table*/
+
+    url='/getClassifierInfo'
+    if (page) {
+        url += '?page='+page
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", url);
+    xhttp.onreadystatechange =
+    function(wrapSelectedTask){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                data = reply.data
+                classifierSelectionTableInfo = document.getElementById('classifierSelectionTableInfo')
+                for (row=0;row<data.length;row++) {
+                    datum = data[row]
+                    tr = document.createElement('tr')
+
+                    td = document.createElement('td')
+                    div = document.createElement('div')
+                    div.setAttribute('class',"custom-control custom-radio custom-control-inline")
+                    input = document.createElement('input')
+                    input.setAttribute('type','radio')
+                    input.setAttribute('class','custom-control-input')
+                    input.setAttribute('id',datum.name)
+                    input.setAttribute('name','classifierSelection')
+                    input.setAttribute('value','customEx')
+                    label = document.createElement('label')
+                    label.setAttribute('class','custom-control-label')
+                    label.setAttribute('for','datum.name')
+                    div.appendChild(input)
+                    div.appendChild(label)
+                    td.appendChild(div)
+                    tr.appendChild(td)
+
+                    td = document.createElement('td')
+                    td.innerHTML = datum.name
+                    tr.appendChild(td)
+
+                    td = document.createElement('td')
+                    td.innerHTML = datum.source
+                    tr.appendChild(td)
+
+                    td = document.createElement('td')
+                    td.innerHTML = datum.region
+                    tr.appendChild(td)
+
+                    td = document.createElement('td')
+                    td.innerHTML = datum.description
+                    tr.appendChild(td)
+
+                    classifierSelectionTableInfo.appendChild(tr)
+                }
+            }
+        }
+    }();
+    xhttp.send();
+}
+
+function buildClassifierSelectTable(speciesClassifierDiv) {
+    /** Populates the classifier selection table in the specified div */
+
+    table = document.createElement('table')
+    table.setAttribute('id','classifierSelectionTable')
+    table.setAttribute('class','table table-responsive table-striped table-bordered table-sm')
+    table.setAttribute('cellspacing','0')
+    table.setAttribute('width','100%')
+    table.setAttribute('style','max-height:300px')
+    speciesClassifierDiv.appendChild(table)
+
+    thead = document.createElement('thead')
+    table.appendChild(thead)
+
+    tr = document.createElement('tr')
+    thead.appendChild(tr)
+
+    th = document.createElement('th')
+    th.classList.add(th-sm)
+    th.innerHTML=''
+    tr.appendChild(th)
+
+    th = document.createElement('th')
+    th.classList.add(th-sm)
+    th.innerHTML='Name'
+    tr.appendChild(th)
+    
+    th = document.createElement('th')
+    th.classList.add(th-sm)
+    th.innerHTML='Source'
+    tr.appendChild(th)
+
+    th = document.createElement('th')
+    th.classList.add(th-sm)
+    th.innerHTML='Region'
+    tr.appendChild(th)
+
+    th = document.createElement('th')
+    th.classList.add(th-sm)
+    th.innerHTML='Description'
+    tr.appendChild(th)
+
+    tbody = document.createElement(tbody)
+    tbody.setAttribute('id','classifierSelectionTableInfo')
+    table.appendChild(tbody)
+
+    updateClassifierTable()
+}
+
+modalNewSurvey.on('shown.bs.modal', function(){
+    /** Populates the new survey modal when opened. */
+    
+    if (!helpReturn) {
+        speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
+        buildClassifierSelectTable(speciesClassifierDiv)
+    }
+});
+
 modalAddImages.on('shown.bs.modal', function(){
     /** Initialises the edit-survey modal when opened. */
 
@@ -2472,6 +2597,11 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyTGCode = document.getElementById('newSurveyTGCode').value
     newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
 
+    classifier = document.querySelector('input[name="classifierSelection"]:checked').id
+    if (!classifier) {
+        document.getElementById('newSurveyErrors').innerHTML = 'You must select a classifier.'
+    }
+
     while(document.getElementById('newSurveyErrors').firstChild){
         document.getElementById('newSurveyErrors').removeChild(document.getElementById('newSurveyErrors').firstChild);
     }
@@ -2539,7 +2669,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
     }
 
-    if (legalName&&legalDescription&&legalTGCode&&legalInput&&TGCheckReady) {
+    if (legalName&&legalDescription&&legalTGCode&&legalInput&&TGCheckReady&&classifier) {
         document.getElementById('btnSaveSurvey').disabled = true
         if (false) {
             var reader = new FileReader()

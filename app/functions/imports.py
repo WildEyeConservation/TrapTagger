@@ -1068,7 +1068,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 
     return True
 
-def classifier_batching(chunk,sourceBucket):
+def classifier_batching(chunk,sourceBucket,classifier):
     ''' Helper function for runClassifier that batches images and queues them for the classifier. '''
 
     try:
@@ -1119,7 +1119,7 @@ def classifier_batching(chunk,sourceBucket):
 
         if len(batch['images'].keys()) >= 0:
             GLOBALS.lock.acquire()
-            GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue='celery', routing_key='classification.classify'))
+            GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
             GLOBALS.lock.release()
 
     except Exception:
@@ -1135,7 +1135,7 @@ def classifier_batching(chunk,sourceBucket):
     return True
 
 @celery.task(bind=True,max_retries=29)
-def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id):
+def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier):
     '''
     Run species classification on a trapgroup.
 
@@ -1161,7 +1161,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
         GLOBALS.results_queue = []
         pool = Pool(processes=4)
         for chunk in chunker(batch,batch_size):
-            pool.apply_async(classifier_batching,(chunk,sourceBucket))
+            pool.apply_async(classifier_batching,(chunk,sourceBucket,classifier))
         pool.close()
         pool.join()
         print('{} results to fetch'.format(len(GLOBALS.results_queue)))
@@ -1726,7 +1726,7 @@ def updateSurveyDetectionRatings(survey_id):
 
     return True
 
-def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
+def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4):
     '''
     Runs the classifier on the survey, and then updates cluster classifications.
 
@@ -1734,6 +1734,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
             survey_id (int): Survey to process
             sourceBucket (str): AWS S3 Bucket where images are located
             batch_size (int): Optional batch size to use for species classifier. Default is 200.
+            classifier (str): The name of the classifier to use
             processes (int): Optional number of threads to use. Default is 4.
     '''
 
@@ -1742,6 +1743,9 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
     # survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
     survey.processing_initialised = True
     db.session.commit()
+
+    if classifier == None:
+        classifier = survey.classifier.name
 
     images = db.session.query(Image)\
                         .join(Detection)\
@@ -1758,7 +1762,7 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
 
     # for chunk in chunker(images,round(Config.QUEUES['parallel']['bin_size']/2)):
     for n in range(number_of_chunks):
-        results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'survey_id':survey_id},queue='parallel'))
+        results.append(runClassifier.apply_async(kwargs={'lower_index':n*chunk_size,'upper_index':(n+1)*chunk_size,'sourceBucket':sourceBucket,'batch_size':batch_size,'survey_id':survey_id,'classifier':classifier},queue='parallel'))
 
     survey.processing_initialised = False
     db.session.commit()
@@ -1823,7 +1827,8 @@ def classifySurvey(survey_id,sourceBucket,batch_size=200,processes=4):
     GLOBALS.lock.release()
 
     survey = db.session.query(Survey).get(survey_id)
-    survey.classifier_version = Config.LATEST_CLASSIFIER
+    classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+    survey.classifier = classifier
     db.session.commit()
     return True
 
@@ -2363,7 +2368,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,processes=4):
+def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classifier,processes=4):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -2373,6 +2378,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
             tag (str): The trapgroup regular expression code used to identify trapgroups in the folder structure
             user_id (int): The user to which the survey will belong
             correctTimestamps (bool): Whether or not the system should attempt to correct the relative timestamps of the cameras in each trapgroup
+            classifier (str): The name of the classifier model to use
             processes (int): Optional number of threads to use. Default is 4
     '''
     
@@ -2415,7 +2421,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,process
         importKML(survey.id)
         survey.status='Classifying'
         db.session.commit()
-        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET)
+        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Re-Clustering'
         db.session.commit()

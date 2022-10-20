@@ -36,20 +36,20 @@ from celery.signals import celeryd_after_setup
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
 REDIS_ADDRESS = 'redis://'+REDIS_IP+':6379/0'
 
-task_routes = {
-        'megadetectorworker.megaDetector.infer': {
-            'queue': 'celery',
-            'routing_key': 'celery.infer',
-        },
-        # 'megadetectorworker.megaDetector.classify': {
-        #     'queue': 'classification',
-        #     'routing_key': 'classification.classify',
-        # },
-        'megadetectorworker.megaDetector.inferAndClassify': {
-            'queue': 'local',
-            'routing_key': 'local.inferAndClassify',
-        },
-}
+# task_routes = {
+#         'megadetectorworker.megaDetector.infer': {
+#             'queue': 'celery',
+#             'routing_key': 'celery.infer',
+#         },
+#         # 'megadetectorworker.megaDetector.classify': {
+#         #     'queue': 'classification',
+#         #     'routing_key': 'classification.classify',
+#         # },
+#         'megadetectorworker.megaDetector.inferAndClassify': {
+#             'queue': 'local',
+#             'routing_key': 'local.inferAndClassify',
+#         },
+# }
 
 def make_celery(flask_app):
     celery = Celery(
@@ -68,11 +68,7 @@ def make_celery(flask_app):
     # task_acks_on_failure_or_timeout=False,
     celery.conf.update(flask_app.config)
 
-    ####
-    celery.conf.task_acks_late = True
-    celery.conf.worker_prefetch_multiplier = 1
-    celery.conf.task_default_queue = 'default'
-    celery.conf.task_queues = (
+    task_queues = (
         Queue('default',    routing_key='task.#'),
         Queue('celery',     routing_key='celery.#'),
         # Queue('classification',     routing_key='classification.#'),
@@ -80,6 +76,15 @@ def make_celery(flask_app):
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
     )
+
+    for classifier in db.session.query(Classifier).all():
+        task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
+
+    ####
+    celery.conf.task_acks_late = True
+    celery.conf.worker_prefetch_multiplier = 1
+    celery.conf.task_default_queue = 'default'
+    celery.conf.task_queues = task_queues
     celery.conf.task_default_exchange = 'tasks'
     celery.conf.task_default_exchange_type = 'topic'
     celery.conf.task_default_routing_key = 'task.default'

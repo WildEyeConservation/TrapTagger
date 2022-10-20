@@ -895,7 +895,7 @@ def updateSurveyStatus(surveyName, status):
         survey.status = status
         db.session.commit()
         if status == 'Complete':
-            import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,user_id=current_user.id,correctTimestamps=survey.correct_timestamps)
+            import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
     return json.dumps('')
 
 @app.route('/checkSightingEditStatus/<task_id>/<species>')
@@ -1092,6 +1092,7 @@ def createNewSurvey():
         newSurveyS3Folder = request.form['newSurveyS3Folder']
         checkbox = request.form['checkbox']
         correctTimestamps = request.form['correctTimestamps']
+        classifier = request.form['classifier']
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1140,11 +1141,12 @@ def createNewSurvey():
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
             if newSurveyS3Folder=='none':
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='uploading', correct_timestamps=correctTimestamps)
+                classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
                 db.session.commit()
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=correctTimestamps)
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=correctTimestamps,classifier=classifier)
 
         return json.dumps({'status': status, 'message': message})
 
@@ -1524,7 +1526,7 @@ def editSurvey():
                     db.session.commit()
                     
                     if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps)
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=None)
                 else:
                     if fileAttached:
                         importKML(survey.id)
@@ -2817,8 +2819,9 @@ def reClassify(survey):
     '''Initiates the reclassification of the specified survey.'''
     
     survey = db.session.query(Survey).get(int(survey))
-    if survey and (survey.user==current_user) and (survey.classifier_version != Config.LATEST_CLASSIFIER):
-        re_classify_survey.delay(survey_id=survey.id)
+    classifier = request.form['classifier']
+    if survey and (survey.user==current_user) and (survey.classifier.name != classifier):
+        re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
     return json.dumps('Success')
 
 @app.route('/classifySpecies', methods=['POST'])
@@ -2852,16 +2855,11 @@ def classifySpecies():
 def getSurveyClassificationLevel(survey):
     '''Returns whether there is an update available for the species classifier used on the specified survey.'''
 
-    update_available = 'error'
-    classifier_version = 'error'
+    classifier = 'error'
     survey = db.session.query(Survey).get(int(survey))
     if survey and (survey.user == current_user):
-        classifier_version = survey.classifier_version
-        if survey.classifier_version == Config.LATEST_CLASSIFIER:
-            update_available = 'false'
-        else:
-            update_available = 'true'
-    return json.dumps({'classifier_version': classifier_version, 'update_available': update_available})
+        classifier = survey.classifier.name
+    return json.dumps({'classifier': classifier})
 
 @app.route('/RequestExif', methods=['POST'])
 @login_required
@@ -6200,3 +6198,21 @@ def getAllSites():
         return json.dumps({'status':'success','data':reply})
     
     return json.dumps({'status':'error'})
+
+@app.route('/getClassifierInfo', methods=['POST'])
+@login_required
+def getClassifierInfo():
+    '''Returns info on all available classifiers.'''
+    
+    data = []
+    if current_user.admin:
+        classifiers = db.session.query(Classifier).all()
+        for classifier in classifiers:
+            data.append({
+                'name':classifier.name,
+                'source':classifier.source,
+                'region':classifier.region,
+                'description':classifier.description
+            })
+    
+    return json.dumps({'data':data})
