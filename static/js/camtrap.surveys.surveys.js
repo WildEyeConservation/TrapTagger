@@ -2432,27 +2432,27 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     thead.appendChild(tr)
 
     th = document.createElement('th')
-    th.classList.add(th-sm)
+    th.classList.add('th-sm')
     th.innerHTML=''
     tr.appendChild(th)
 
     th = document.createElement('th')
-    th.classList.add(th-sm)
+    th.classList.add('th-sm')
     th.innerHTML='Name'
     tr.appendChild(th)
     
     th = document.createElement('th')
-    th.classList.add(th-sm)
+    th.classList.add('th-sm')
     th.innerHTML='Source'
     tr.appendChild(th)
 
     th = document.createElement('th')
-    th.classList.add(th-sm)
+    th.classList.add('th-sm')
     th.innerHTML='Region'
     tr.appendChild(th)
 
     th = document.createElement('th')
-    th.classList.add(th-sm)
+    th.classList.add('th-sm')
     th.innerHTML='Description'
     tr.appendChild(th)
 
