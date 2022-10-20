@@ -2456,7 +2456,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     th.innerHTML='Description'
     tr.appendChild(th)
 
-    tbody = document.createElement(tbody)
+    tbody = document.createElement('tbody')
     tbody.setAttribute('id','classifierSelectionTableInfo')
     table.appendChild(tbody)
 
