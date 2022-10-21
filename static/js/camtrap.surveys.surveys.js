@@ -2363,54 +2363,49 @@ function updateClassifierTable(page=null) {
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", url);
     xhttp.onreadystatechange =
-    function(wrapSelectedTask){
-        return function() {
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                data = reply.data
-                classifierSelectionTableInfo = document.getElementById('classifierSelectionTableInfo')
-                for (row=0;row<data.length;row++) {
-                    datum = data[row]
-                    tr = document.createElement('tr')
+    function() {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            data = reply.data
+            classifierSelectionTableInfo = document.getElementById('classifierSelectionTableInfo')
+            for (row=0;row<data.length;row++) {
+                datum = data[row]
+                tr = document.createElement('tr')
 
-                    td = document.createElement('td')
-                    div = document.createElement('div')
-                    div.setAttribute('class',"custom-control custom-radio custom-control-inline")
-                    input = document.createElement('input')
-                    input.setAttribute('type','radio')
-                    input.setAttribute('class','custom-control-input')
-                    input.setAttribute('id',datum.name)
-                    input.setAttribute('name','classifierSelection')
-                    input.setAttribute('value','customEx')
-                    label = document.createElement('label')
-                    label.setAttribute('class','custom-control-label')
-                    label.setAttribute('for',datum.name)
-                    div.appendChild(input)
-                    div.appendChild(label)
-                    td.appendChild(div)
-                    tr.appendChild(td)
+                td = document.createElement('td')
+                div = document.createElement('div')
+                div.setAttribute('class',"custom-control custom-radio custom-control-inline")
+                input = document.createElement('input')
+                input.setAttribute('type','radio')
+                input.setAttribute('class','custom-control-input')
+                input.setAttribute('id',datum.name)
+                input.setAttribute('name','classifierSelection')
+                input.setAttribute('value','customEx')
+                label = document.createElement('label')
+                label.setAttribute('class','custom-control-label')
+                label.setAttribute('for',datum.name)
+                label.innerHTML = datum.name
+                div.appendChild(input)
+                div.appendChild(label)
+                td.appendChild(div)
+                tr.appendChild(td)
 
-                    td = document.createElement('td')
-                    td.innerHTML = datum.name
-                    tr.appendChild(td)
+                td = document.createElement('td')
+                td.innerHTML = datum.source
+                tr.appendChild(td)
 
-                    td = document.createElement('td')
-                    td.innerHTML = datum.source
-                    tr.appendChild(td)
+                td = document.createElement('td')
+                td.innerHTML = datum.region
+                tr.appendChild(td)
 
-                    td = document.createElement('td')
-                    td.innerHTML = datum.region
-                    tr.appendChild(td)
+                td = document.createElement('td')
+                td.innerHTML = datum.description
+                tr.appendChild(td)
 
-                    td = document.createElement('td')
-                    td.innerHTML = datum.description
-                    tr.appendChild(td)
-
-                    classifierSelectionTableInfo.appendChild(tr)
-                }
+                classifierSelectionTableInfo.appendChild(tr)
             }
         }
-    }();
+    }
     xhttp.send();
 }
 
@@ -2419,7 +2414,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 
     table = document.createElement('table')
     table.setAttribute('id','classifierSelectionTable')
-    table.setAttribute('class','table table-responsive table-striped table-bordered table-sm')
+    table.setAttribute('class','table table-striped table-bordered table-sm')
     table.setAttribute('cellspacing','0')
     table.setAttribute('width','100%')
     table.setAttribute('style','max-height:300px')
@@ -2430,11 +2425,6 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 
     tr = document.createElement('tr')
     thead.appendChild(tr)
-
-    th = document.createElement('th')
-    th.classList.add('th-sm')
-    th.innerHTML=''
-    tr.appendChild(th)
 
     th = document.createElement('th')
     th.classList.add('th-sm')
