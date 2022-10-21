@@ -121,7 +121,7 @@ const btnAddTag = document.querySelector('#btnAddTag');
 const modalTags = $('#modalTags');
 const modalEditTranslations = $('#modalEditTranslations');
 const btnSubmitTranslaions = document.querySelector('#btnSubmitTranslaions');
-const btnReClassify = document.querySelector('#btnReClassify');
+// const btnReClassify = document.querySelector('#btnReClassify');
 const btnModalAddTaskBack = document.querySelector('#btnModalAddTaskBack');
 const btnModalAddTaskBack2 = document.querySelector('#btnModalAddTaskBack2');
 const btnCreateTask2 = document.querySelector('#btnCreateTask2');
@@ -618,7 +618,7 @@ function resetEditSurveyModal() {
     /** Clears the edit survey modal. */
 
     document.getElementById('classifierVersion').value = ''
-    document.getElementById('btnReClassify').disabled = true
+    // document.getElementById('btnReClassify').disabled = true
     document.getElementById('addImagesAddImages').checked = false
     document.getElementById('addImagesAddCoordinates').checked = false
     document.getElementById('addImagesEditTimestamps').checked = false
@@ -2093,23 +2093,23 @@ $("#kmlFileUpload2").change( function() {
     }
 })
 
-btnReClassify.addEventListener('click', ()=>{
-    /** Listener that initiates the re-classification of the selected surey when the button is pressed. */
+// btnReClassify.addEventListener('click', ()=>{
+//     /** Listener that initiates the re-classification of the selected surey when the button is pressed. */
     
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/reClassify/'+selectedSurvey);
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
-            if (reply=='Success') {
-                modalAddImages.modal('hide')
-                updatePage(current_page)
-            }
-        }
-    }
-    xhttp.send();
-});
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("GET", '/reClassify/'+selectedSurvey);
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);  
+//             if (reply=='Success') {
+//                 modalAddImages.modal('hide')
+//                 updatePage(current_page)
+//             }
+//         }
+//     }
+//     xhttp.send();
+// });
 
 btnNextSurveys.addEventListener('click', ()=>{
     /** Loads the next set of paginated surveys. */
@@ -2572,21 +2572,21 @@ modalAddImages.on('shown.bs.modal', function(){
     /** Initialises the edit-survey modal when opened. */
 
     if (!helpReturn) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/getSurveyClassificationLevel/'+selectedSurvey);
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
+        // var xhttp = new XMLHttpRequest();
+        // xhttp.open("GET", '/getSurveyClassificationLevel/'+selectedSurvey);
+        // xhttp.onreadystatechange =
+        // function(){
+        //     if (this.readyState == 4 && this.status == 200) {
+        //         reply = JSON.parse(this.responseText);
 
-                document.getElementById('classifierVersion').value = reply.classifier_version
+        //         document.getElementById('classifierVersion').value = reply.classifier_version
 
-                if (reply.update_available == 'true') {
-                    document.getElementById('btnReClassify').disabled = false
-                }
-            }
-        }
-        xhttp.send();
+        //         if (reply.update_available == 'true') {
+        //             document.getElementById('btnReClassify').disabled = false
+        //         }
+        //     }
+        // }
+        // xhttp.send();
     }
 });
 

@@ -2854,16 +2854,16 @@ def classifySpecies():
         return json.dumps('error')
 
 
-@app.route('/getSurveyClassificationLevel/<survey>')
-@login_required
-def getSurveyClassificationLevel(survey):
-    '''Returns whether there is an update available for the species classifier used on the specified survey.'''
+# @app.route('/getSurveyClassificationLevel/<survey>')
+# @login_required
+# def getSurveyClassificationLevel(survey):
+#     '''Returns whether there is an update available for the species classifier used on the specified survey.'''
 
-    classifier = 'error'
-    survey = db.session.query(Survey).get(int(survey))
-    if survey and (survey.user == current_user):
-        classifier = survey.classifier.name
-    return json.dumps({'classifier': classifier})
+#     classifier = 'error'
+#     survey = db.session.query(Survey).get(int(survey))
+#     if survey and (survey.user == current_user):
+#         classifier = survey.classifier.name
+#     return json.dumps({'classifier': classifier})
 
 @app.route('/RequestExif', methods=['POST'])
 @login_required
