@@ -2373,6 +2373,7 @@ function updateClassifierTable(page=null) {
                 tr = document.createElement('tr')
 
                 td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
                 div = document.createElement('div')
                 div.setAttribute('class',"custom-control custom-radio custom-control-inline")
                 input = document.createElement('input')
@@ -2391,14 +2392,17 @@ function updateClassifierTable(page=null) {
                 tr.appendChild(td)
 
                 td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
                 td.innerHTML = datum.source
                 tr.appendChild(td)
 
                 td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
                 td.innerHTML = datum.region
                 tr.appendChild(td)
 
                 td = document.createElement('td')
+                td.setAttribute('style','text-align:left')
                 td.innerHTML = datum.description
                 tr.appendChild(td)
 
