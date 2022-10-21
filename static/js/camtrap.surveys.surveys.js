@@ -2361,11 +2361,6 @@ function updateClassifierTable(url=null) {
         url='/getClassifierInfo'
     }
 
-    classifierSelectionTableInfo = document.querySelector('#classifierSelectionTableInfo')
-    while(classifierSelectionTableInfo.firstChild){
-        classifierSelectionTableInfo.removeChild(classifierSelectionTableInfo.firstChild);
-    }
-
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", url);
     xhttp.onreadystatechange =
@@ -2373,7 +2368,12 @@ function updateClassifierTable(url=null) {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             data = reply.data
+
             classifierSelectionTableInfo = document.getElementById('classifierSelectionTableInfo')
+            while(classifierSelectionTableInfo.firstChild){
+                classifierSelectionTableInfo.removeChild(classifierSelectionTableInfo.firstChild);
+            }
+
             for (row=0;row<data.length;row++) {
                 datum = data[row]
                 tr = document.createElement('tr')
@@ -2471,25 +2471,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 
     th = document.createElement('th')
     th.classList.add('th-sm')
-    row = document.createElement('div')
-    row.classList.add('row')
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-6')
-    col1.innerHTML='Description'
-    col2 = document.createElement('div')
-    col2.classList.add('col-lg-5')
-    input = document.createElement('input')
-    input.setAttribute('type','text')
-    input.setAttribute('class','form-control')
-    input.setAttribute('placeholder','Search')
-    input.setAttribute('id','classifierSearch')
-    col2.appendChild(input)
-    col3 = document.createElement('div')
-    col3.classList.add('col-lg-1')
-    row.appendChild(col1)
-    row.appendChild(col2)
-    row.appendChild(col3)
-    th.appendChild(row)
+    th.innerHTML='Description'
     tr.appendChild(th)
 
     tbody = document.createElement('tbody')
@@ -2499,7 +2481,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     row = document.createElement('div')
     row.classList.add('row')
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-3')
+    col1.classList.add('col-lg-2')
     btn = document.createElement('btn')
     btn.setAttribute('class','btn btn-primary btn-block')
     btn.setAttribute('id','classifierBtnPrev')
@@ -2508,9 +2490,9 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     btn.innerHTML='Previous'
     col1.appendChild(btn)
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-6')
+    col2.classList.add('col-lg-8')
     col3 = document.createElement('div')
-    col3.classList.add('col-lg-3')
+    col3.classList.add('col-lg-2')
     btn = document.createElement('btn')
     btn.setAttribute('class','btn btn-primary btn-block')
     btn.setAttribute('id','classifierBtnNext')
@@ -2522,6 +2504,19 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     row.appendChild(col2)
     row.appendChild(col3)
     speciesClassifierDiv.appendChild(row)
+
+    input = document.createElement('input')
+    input.setAttribute('type','text')
+    input.setAttribute('class','form-control')
+    input.setAttribute('placeholder','Search')
+    input.setAttribute('id','classifierSearch')
+    col2.appendChild(input)
+
+    $('#classifierSearch').change( function() {
+        search = document.getElementById('classifierSearch').value
+        url = '/getClassifierInfo?search='+search
+        updateClassifierTable(url)
+    });
 
     updateClassifierTable()
 }
