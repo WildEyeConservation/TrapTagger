@@ -2384,7 +2384,7 @@ function updateClassifierTable(page=null) {
                     input.setAttribute('value','customEx')
                     label = document.createElement('label')
                     label.setAttribute('class','custom-control-label')
-                    label.setAttribute('for','datum.name')
+                    label.setAttribute('for',datum.name)
                     div.appendChild(input)
                     div.appendChild(label)
                     td.appendChild(div)
