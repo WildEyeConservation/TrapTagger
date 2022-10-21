@@ -6219,7 +6219,7 @@ def getClassifierInfo():
                                                 Classifier.region.contains(search),
                                                 Classifier.description.contains(search)))
 
-        classifiers = classifiers.distinct().order_by(Classifier.name).paginate(page, 2, False)
+        classifiers = classifiers.distinct().order_by(Classifier.name).paginate(page, 10, False)
         
         for classifier in classifiers.items:
             data.append({
