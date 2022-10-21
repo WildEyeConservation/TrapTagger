@@ -68,15 +68,16 @@ def make_celery(flask_app):
     # task_acks_on_failure_or_timeout=False,
     celery.conf.update(flask_app.config)
 
-    task_queues = (
+    task_queues = [
         Queue('default',    routing_key='task.#'),
         Queue('celery',     routing_key='celery.#'),
         # Queue('classification',     routing_key='classification.#'),
         Queue('local',     routing_key='local.#'),
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
-    )
+    ]
 
+    from app.models import Classifier
     for classifier in db.session.query(Classifier).all():
         task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
 
