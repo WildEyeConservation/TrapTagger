@@ -1470,7 +1470,11 @@ def editSurvey():
     survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==current_user.id).first()
 
     if survey and (survey.user==current_user):
-        if ignore_small_detections!='none':
+        if 'classifier' in request.form:
+            classifier = request.form['classifier']
+            re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
+
+        elif ignore_small_detections!='none':
             # Checks for the case that you switch both off
             edge='false'
             if (ignore_small_detections=='false') and (sky_masked=='false'):
@@ -2813,16 +2817,16 @@ def acceptInvitation(token):
 
     return render_template("html/block.html",text="Invitation accepted.", helpFile='block', version=Config.VERSION)
 
-@app.route('/reClassify/<survey>')
-@login_required
-def reClassify(survey):
-    '''Initiates the reclassification of the specified survey.'''
+# @app.route('/reClassify/<survey>')
+# @login_required
+# def reClassify(survey):
+#     '''Initiates the reclassification of the specified survey.'''
     
-    survey = db.session.query(Survey).get(int(survey))
-    classifier = request.form['classifier']
-    if survey and (survey.user==current_user) and (survey.classifier.name != classifier):
-        re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
-    return json.dumps('Success')
+#     survey = db.session.query(Survey).get(int(survey))
+#     classifier = request.form['classifier']
+#     if survey and (survey.user==current_user) and (survey.classifier.name != classifier):
+#         re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
+#     return json.dumps('Success')
 
 @app.route('/classifySpecies', methods=['POST'])
 @cross_origin()

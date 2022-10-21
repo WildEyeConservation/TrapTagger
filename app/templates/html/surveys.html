@@ -257,18 +257,6 @@ limitations under the License. -->
                 <div class='form-group'>
                     <div id="addImagesErrors" style="font-size: 80%; color: #DF691A"></div>
 
-                    <h5 style="margin-bottom: 2px">Classifier Version</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Have your survey re-classified with the latest model to improve future auto-classifications.</i></div>
-                    <div class="row">
-                        <div class='col-lg-2'>
-                            <input style="background-color:white" type="text" id="classifierVersion" class="form-control" disabled="">
-                        </div>
-                        <div class='col-lg-2'>
-                            <button id="btnReClassify" type='button' class='btn btn-primary btn-block' disabled="">Update</button>
-                        </div>
-                    </div>
-                    <br>
-
                     <div style="font-size: 80%; margin-bottom: 2px"><i>What would you like to edit?</i></div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesAddImages" name="editSelection" value="customEx">
@@ -283,6 +271,10 @@ limitations under the License. -->
                         <label class="custom-control-label" for="addImagesEditTimestamps">Camera Timestamps</label>
                     </div>
                     <div class="custom-control custom-radio custom-control-inline">
+                        <input type="radio" class="custom-control-input" id="addImagesEditClassifier" name="editSelection" value="customEx">
+                        <label class="custom-control-label" for="addImagesEditClassifier">Species Classifier</label>
+                    </div>
+                    <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesAdvanced" name="editSelection" value="customEx">
                         <label class="custom-control-label" for="addImagesAdvanced">Advanced Options</label>
                     </div>
@@ -290,6 +282,7 @@ limitations under the License. -->
                     <div id="addImagesAddImsDiv"></div>
                     <div id="addImagesAddCoordsDiv"></div>
                     <div id="addImagesEditTimestampsDiv"></div>
+                    <div id="addImagesEditClassifierDiv"></div>
                     <div id="addImagesAdvancedDiv"></div>
 
                 </div>

@@ -622,10 +622,12 @@ function resetEditSurveyModal() {
     document.getElementById('addImagesAddImages').checked = false
     document.getElementById('addImagesAddCoordinates').checked = false
     document.getElementById('addImagesEditTimestamps').checked = false
+    document.getElementById('addImagesEditClassifier').checked = false
     document.getElementById('addImagesAdvanced').checked = false
     document.getElementById('addImagesAddImages').disabled = false
     document.getElementById('addImagesAddCoordinates').disabled = false
     document.getElementById('addImagesEditTimestamps').disabled = false
+    document.getElementById('addImagesEditClassifier').disabled = false
     document.getElementById('addImagesAdvanced').disabled = false
 
     clearEditSurveyModal()
@@ -1453,6 +1455,7 @@ function buildCameras(camera_url='/getCameraStamps') {
                 document.getElementById('addImagesAddImages').disabled = false
                 document.getElementById('addImagesAddCoordinates').disabled = false
                 document.getElementById('addImagesEditTimestamps').disabled = false
+                document.getElementById('addImagesEditClassifier').disabled = false
                 document.getElementById('addImagesAdvanced').disabled = false
                 addImagesCamerasDiv.appendChild(document.createElement('br'))
             
@@ -1576,6 +1579,7 @@ function buildEditTimestamp() {
     document.getElementById('addImagesAddImages').disabled = true
     document.getElementById('addImagesAddCoordinates').disabled = true
     document.getElementById('addImagesEditTimestamps').disabled = true
+    document.getElementById('addImagesEditClassifier').disabled = true
     document.getElementById('addImagesAdvanced').disabled = true
 
     global_corrected_timestamps = {}
@@ -1878,6 +1882,11 @@ function clearEditSurveyModal() {
         addImagesEditTimestampsDiv.removeChild(addImagesEditTimestampsDiv.firstChild);
     }
 
+    addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
+    while(addImagesEditClassifierDiv.firstChild){
+        addImagesEditClassifierDiv.removeChild(addImagesEditClassifierDiv.firstChild);
+    }
+
     addImagesAddCoordsDiv = document.getElementById('addImagesAddCoordsDiv')
     while(addImagesAddCoordsDiv.firstChild){
         addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
@@ -2005,6 +2014,16 @@ $("#addImagesEditTimestamps").change( function() {
     if (addImagesEditTimestamps.checked) {
         clearEditSurveyModal()
         buildEditTimestamp()
+    }
+})
+
+$("#addImagesEditClassifier").change( function() {
+    /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
+
+    addImagesEditClassifier = document.getElementById('addImagesEditClassifier')
+    if (addImagesEditClassifier.checked) {
+        addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
+        buildClassifierSelectTable(addImagesEditClassifierDiv)
     }
 })
 
@@ -2922,9 +2941,23 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         document.getElementById('addImagesErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
     }
 
-    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady) {
+    legalClassifier = true
+    if (document.getElementById('addImagesEditClassifier').checked) {
+        classifier = document.querySelector('input[name="classifierSelection"]:checked').id
+        if (!classifier) {
+            document.getElementById('addImagesErrors').innerHTML = 'You must select a classifier.'
+            legalClassifier = false
+        }
+    }
+
+    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier) {
         document.getElementById('btnAddImages').disabled = true
-        if (document.getElementById('addImagesAddCoordinates').checked) {
+        if (document.getElementById('addImagesEditClassifier').checked) {
+            var formData = new FormData()
+            formData.append("surveyName", surveyName)
+            formData.append("classifier", classifier)               
+            addImagesSendRequest(formData)
+        } else if (document.getElementById('addImagesAddCoordinates').checked) {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 var formData = new FormData()
                 formData.append("surveyName", surveyName)
@@ -3072,6 +3105,8 @@ function addImagesSendRequest(formData) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
                     } else if (document.getElementById('addImagesEditTimestamps').checked) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
+                    } else if (document.getElementById('addImagesEditClassifier').checked) {
+                        document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
                     } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
