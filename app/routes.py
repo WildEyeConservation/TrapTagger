@@ -6214,6 +6214,7 @@ def getClassifierInfo():
     if current_user.admin:
         page = request.args.get('page', 1, type=int)
         search = request.args.get('search', '', type=str)
+        showCurrent = request.args.get('showCurrent', False, type=str)
         classifiers = db.session.query(Classifier)
         
         searches = re.split('[ ,]',search)
@@ -6224,14 +6225,27 @@ def getClassifierInfo():
                                                 Classifier.description.contains(search)))
 
         classifiers = classifiers.distinct().order_by(Classifier.name).paginate(page, 10, False)
+
+        if showCurrent:
+            survey = db.session.query(Survey).get(showCurrent)
+            if survey.classifier:
+                data.append({
+                    'name':survey.classifier.name,
+                    'source':survey.classifier.source,
+                    'region':survey.classifier.region,
+                    'description':survey.classifier.description,
+                    'active': True
+                })
         
         for classifier in classifiers.items:
-            data.append({
-                'name':classifier.name,
-                'source':classifier.source,
-                'region':classifier.region,
-                'description':classifier.description
-            })
+            if (not showCurrent) or (classifier!=survey.classifier):
+                data.append({
+                    'name':classifier.name,
+                    'source':classifier.source,
+                    'region':classifier.region,
+                    'description':classifier.description,
+                    'active': False
+                })
 
         next_url = url_for('getClassifierInfo', page=classifiers.next_num, search=search) if classifiers.has_next else None
         prev_url = url_for('getClassifierInfo', page=classifiers.prev_num, search=search) if classifiers.has_prev else None

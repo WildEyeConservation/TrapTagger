@@ -2022,8 +2022,11 @@ $("#addImagesEditClassifier").change( function() {
 
     addImagesEditClassifier = document.getElementById('addImagesEditClassifier')
     if (addImagesEditClassifier.checked) {
+        clearEditSurveyModal()
         addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
+        addImagesEditClassifierDiv.appendChild(document.createElement('br'))
         buildClassifierSelectTable(addImagesEditClassifierDiv)
+        addImagesEditClassifierDiv.appendChild(document.createElement('br'))
     }
 })
 
@@ -2380,6 +2383,13 @@ function updateClassifierTable(url=null) {
         url='/getClassifierInfo'
     }
 
+    if (modalAddImages.is(':visible')) {
+        if (!url.includes('?')) {
+            url += '?'
+        }
+        url += '&showCurrent=' + selectedSurvey.toString()
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", url);
     xhttp.onreadystatechange =
@@ -2407,6 +2417,9 @@ function updateClassifierTable(url=null) {
                 input.setAttribute('id',datum.name)
                 input.setAttribute('name','classifierSelection')
                 input.setAttribute('value','customEx')
+                if (datum.active) {
+                    input.checked = true
+                }
                 label = document.createElement('label')
                 label.setAttribute('class','custom-control-label')
                 label.setAttribute('for',datum.name)
