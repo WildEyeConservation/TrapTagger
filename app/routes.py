@@ -6229,8 +6229,8 @@ def getClassifierInfo():
                 'description':classifier.description
             })
 
-        next_url = url_for('getClassifierInfo', page=classifiers.next_num) if classifiers.has_next else None
-        prev_url = url_for('getClassifierInfo', page=classifiers.prev_num) if classifiers.has_prev else None
+        next_url = url_for('getClassifierInfo', page=classifiers.next_num, search=search) if classifiers.has_next else None
+        prev_url = url_for('getClassifierInfo', page=classifiers.prev_num, search=search) if classifiers.has_prev else None
 
     return json.dumps({'data': data, 'next_url':next_url, 'prev_url':prev_url})
 
