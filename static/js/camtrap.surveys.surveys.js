@@ -98,6 +98,8 @@ var next_camera_url = null
 var prev_camera_url = null
 var global_corrected_timestamps = {}
 var checkingTrapgroupCode = false
+var next_classifier_url
+var prev_classifier_url
 
 var s3 = null
 var stopFlag = true
@@ -2352,12 +2354,11 @@ modalNewSurvey.on('hidden.bs.modal', function(){
     }
 });
 
-function updateClassifierTable(page=null) {
+function updateClassifierTable(url=null) {
     /** fetches and updates the classifier selection table*/
 
-    url='/getClassifierInfo'
-    if (page) {
-        url += '?page='+page
+    if (!url) {
+        url='/getClassifierInfo'
     }
 
     var xhttp = new XMLHttpRequest();
@@ -2408,6 +2409,20 @@ function updateClassifierTable(page=null) {
 
                 classifierSelectionTableInfo.appendChild(tr)
             }
+
+            if (reply.next_url==null) {
+                document.getElementById('classifierBtnNext').style.visibility = 'hidden'
+            } else {
+                document.getElementById('classifierBtnNext').style.visibility = 'visible'
+                next_classifier_url = reply.next_url
+            }
+
+            if (reply.prev_url==null) {
+                document.getElementById('classifierBtnPrev').style.visibility = 'hidden'
+            } else {
+                document.getElementById('classifierBtnPrev').style.visibility = 'visible'
+                prev_classifier_url = reply.prev_url
+            }
         }
     }
     xhttp.send();
@@ -2421,7 +2436,6 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     table.setAttribute('class','table table-striped table-bordered table-sm')
     table.setAttribute('cellspacing','0')
     table.setAttribute('width','100%')
-    table.setAttribute('style','max-height:300px')
     speciesClassifierDiv.appendChild(table)
 
     thead = document.createElement('thead')
@@ -2447,12 +2461,54 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 
     th = document.createElement('th')
     th.classList.add('th-sm')
-    th.innerHTML='Description'
+    row = document.createElement('div')
+    row.classList.add('row')
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-6')
+    col1.innerHTML='Description'
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-6')
+    input = document.createElement('input')
+    input.setAttribute('type','text')
+    input.setAttribute('class','form-control')
+    input.setAttribute('placeholder','Search')
+    input.setAttribute('id','classifierSearch')
+    col2.appendChild(input)
+    row.appendChild(col1)
+    row.appendChild(col2)
+    th.appendChild(row)
     tr.appendChild(th)
 
     tbody = document.createElement('tbody')
     tbody.setAttribute('id','classifierSelectionTableInfo')
     table.appendChild(tbody)
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-3')
+    btn = document.createElement('btn')
+    btn.setAttribute('class','btn btn-primary btn-block')
+    btn.setAttribute('id','classifierBtnPrev')
+    btn.setAttribute('style','visibility: hidden')
+    btn.setAttribute('onclick','updateClassifierTable(prev_classifier_url)')
+    btn.innerHTML='Previous'
+    col1.appendChild(btn)
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-6')
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    btn = document.createElement('btn')
+    btn.setAttribute('class','btn btn-primary btn-block')
+    btn.setAttribute('id','classifierBtnNext')
+    btn.setAttribute('style','visibility: hidden')
+    btn.setAttribute('onclick','updateClassifierTable(next_classifier_url)')
+    btn.innerHTML='Next'
+    col3.appendChild(btn)
+    row.appendChild(col1)
+    row.appendChild(col2)
+    row.appendChild(col3)
+    speciesClassifierDiv.appendChild(row)
 
     updateClassifierTable()
 }

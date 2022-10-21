@@ -6205,14 +6205,32 @@ def getClassifierInfo():
     '''Returns info on all available classifiers.'''
     
     data = []
+    next_url = None
+    prev_url = None
     if current_user.admin:
-        classifiers = db.session.query(Classifier).all()
-        for classifier in classifiers:
+        page = request.args.get('page', 1, type=int)
+        search = request.args.get('search', '', type=str)
+        classifiers = db.session.query(Classifier)
+        
+        searches = re.split('[ ,]',search)
+        for search in searches:
+            classifiers = classifiers.filter(or_(Classifier.name.contains(search),
+                                                Classifier.source.contains(search),
+                                                Classifier.region.contains(search),
+                                                Classifier.description.contains(search)))
+
+        classifiers = classifiers.distinct().order_by(Classifier.name).paginate(page, 2, False)
+        
+        for classifier in classifiers.items:
             data.append({
                 'name':classifier.name,
                 'source':classifier.source,
                 'region':classifier.region,
                 'description':classifier.description
             })
-    
-    return json.dumps({'data':data})
+
+        next_url = url_for('getClassifierInfo', page=classifiers.next_num) if classifiers.has_next else None
+        prev_url = url_for('getClassifierInfo', page=classifiers.prev_num) if classifiers.has_prev else None
+
+    return json.dumps({'data': data, 'next_url':next_url, 'prev_url':prev_url})
+
