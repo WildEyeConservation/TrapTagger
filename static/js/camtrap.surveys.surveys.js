@@ -2361,6 +2361,11 @@ function updateClassifierTable(url=null) {
         url='/getClassifierInfo'
     }
 
+    classifierSelectionTableInfo = document.querySelector('#classifierSelectionTableInfo')
+    while(classifierSelectionTableInfo.firstChild){
+        classifierSelectionTableInfo.removeChild(classifierSelectionTableInfo.firstChild);
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.open("POST", url);
     xhttp.onreadystatechange =
@@ -2431,12 +2436,17 @@ function updateClassifierTable(url=null) {
 function buildClassifierSelectTable(speciesClassifierDiv) {
     /** Populates the classifier selection table in the specified div */
 
+    tableDiv = document.createElement('div')
+    tableDiv.setAttribute('class','table-responsive')
+    tableDiv.setAttribute('style','max-height:300px')
+    speciesClassifierDiv.appendChild(tableDiv)
+
     table = document.createElement('table')
     table.setAttribute('id','classifierSelectionTable')
     table.setAttribute('class','table table-striped table-bordered table-sm')
     table.setAttribute('cellspacing','0')
     table.setAttribute('width','100%')
-    speciesClassifierDiv.appendChild(table)
+    tableDiv.appendChild(table)
 
     thead = document.createElement('thead')
     table.appendChild(thead)
@@ -2467,15 +2477,18 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     col1.classList.add('col-lg-6')
     col1.innerHTML='Description'
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-6')
+    col2.classList.add('col-lg-5')
     input = document.createElement('input')
     input.setAttribute('type','text')
     input.setAttribute('class','form-control')
     input.setAttribute('placeholder','Search')
     input.setAttribute('id','classifierSearch')
     col2.appendChild(input)
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
     row.appendChild(col1)
     row.appendChild(col2)
+    row.appendChild(col3)
     th.appendChild(row)
     tr.appendChild(th)
 
