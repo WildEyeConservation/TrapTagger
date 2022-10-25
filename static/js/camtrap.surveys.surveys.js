@@ -2794,6 +2794,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             formData.append("newSurveyS3Folder", newSurveyS3Folder)
             formData.append("checkbox", newSurveyCheckbox.checked.toString())
             formData.append("correctTimestamps", 'false')
+            formData.append("classifier", classifier)
 
             submitNewSurvey(formData)
         }
