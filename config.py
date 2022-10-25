@@ -108,7 +108,7 @@ class Config(object):
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {
         'celery': '300',
-        # 'classification': '300',
+        'classification': '300',
         'parallel': '300',
         'default': '300'
     }
