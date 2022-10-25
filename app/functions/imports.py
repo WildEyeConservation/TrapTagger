@@ -1740,12 +1740,15 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
 
     results = []
     survey = db.session.query(Survey).get(survey_id)
-    # survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-    survey.processing_initialised = True
-    db.session.commit()
 
     if classifier == None:
         classifier = survey.classifier.name
+
+    # survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+    classifier_object = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+    survey.classifier = classifier_object
+    survey.processing_initialised = True
+    db.session.commit()
 
     images = db.session.query(Image)\
                         .join(Detection)\
@@ -1826,10 +1829,10 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
             result.forget()
     GLOBALS.lock.release()
 
-    survey = db.session.query(Survey).get(survey_id)
-    classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-    survey.classifier = classifier
-    db.session.commit()
+    # survey = db.session.query(Survey).get(survey_id)
+    # classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
+    # survey.classifier = classifier
+    # db.session.commit()
     return True
 
 def findValue(dictionary,minMax):

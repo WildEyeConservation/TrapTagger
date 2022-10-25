@@ -76,14 +76,14 @@ class Config(object):
     CPU_INSTANCE_TYPES = ['t2.medium', 't3a.medium']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
-        # 'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
+        'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
         'parallel':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
         'default':         {'t2.medium': 1000, 't3a.medium': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     SUBNET_ID = os.environ.get('SUBNET_ID')
     MAX_INFER = 25
-    # MAX_CLASSIFICATION = 18
+    MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 50
     MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
@@ -121,7 +121,7 @@ class Config(object):
     # How many multiples of 5 seconds a worker is checked for idleness
     IDLE_MULTIPLIER = {
         'celery': 12,
-        # 'classification': 12,
+        'classification': 12,
         'parallel': 48,
         'default': 12
     }
@@ -140,7 +140,7 @@ class Config(object):
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_PARALLEL,
             'launch_delay': 180,
-            'bin_size': 2695,
+            'rate': 2695,
             'queue_type': 'time',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -180,7 +180,7 @@ class Config(object):
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_DEFAULT,
             'launch_delay': 180,
-            'bin_size': 3,
+            'rate': 3,
             'queue_type': 'local',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -220,7 +220,7 @@ class Config(object):
             'instances': GPU_INSTANCE_TYPES,
             'max_instances': MAX_INFER,
             'launch_delay': 600,
-            'bin_size': 35,
+            'rate': 35,
             'init_size': 0.5,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
@@ -242,7 +242,7 @@ class Config(object):
         #     'instances': GPU_INSTANCE_TYPES,
         #     'max_instances': MAX_CLASSIFICATION,
         #     'launch_delay': 600,
-        #     'bin_size': 4,
+        #     'rate': 4,
         #     'init_size': 2,
         #     'queue_type': 'rate',
         #     'repo': os.environ.get('MAIN_GIT_REPO'),
@@ -258,6 +258,25 @@ class Config(object):
         #         os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
         #         '-l info'
         # },
+    }
+
+    # General classifier settings
+    CLASSIFIER = {
+        'launch_delay': 600,
+        'queue_type': 'rate',
+        'init_size': 2,
+        'max_instances': MAX_CLASSIFICATION,
+        'rate': 4,
+        'user_data':
+            'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
+            'classification_worker_{}' + ' ' + 
+            HOST_IP + ' ' + 
+            'classification ' + 
+            SETUP_PERIOD['classification'] + " " + 
+            'IDLE_MULTIPLIER' + " '" +
+            os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+            os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
+            '-l info'
     }
 
     # csv options

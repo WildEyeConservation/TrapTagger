@@ -172,123 +172,260 @@ def get_price(region, instance, os):
     except:
         return None
 
+def getQueueLengths(redisClient):
+    '''Returns a dictionary of all Redis queues and their length.'''
+    queues = {}
+    for queue in Config.QUEUES:
+        queueLength = redisClient.llen(queue)
+        print('{} queue length: {}'.format(queue,queueLength))
+        if queueLength: queues[queue] = queueLength
+
+    for classifier in db.session.query(Classifier).all():
+        queue = classifier.name
+        queueLength = redisClient.llen(queue)
+        print('{} queue length: {}'.format(queue,queueLength))
+        if queueLength: queues[queue] = queueLength
+
+    return queues
+
+def getImagesProcessing():
+    '''Gets the quantities of images being processed'''
+    images_processing = {'total': 0, 'celery': 0}
+    surveys = db.session.query(Survey).filter(Survey.images_processing!=0).distinct().all()
+    for survey in surveys:
+        images_processing['total'] += survey.images_processing
+        if not survey.processing_initialised:
+            if survey.status == 'Importing':
+                images_processing['celery'] += survey.images_processing
+            elif survey.status == 'Classifying':
+                if survey.classifier.name not in images_processing.keys(): images_processing[survey.classifier.name] = 0
+                images_processing[survey.classifier.name] += survey.images_processing
+            survey.processing_initialised = True
+            db.session.commit()
+    return images_processing
+
+def getInstanceCount(client,queue,ami,host_ip,instance_types):
+    '''Returns the count of running instances for the given queue'''
+    instance_count = 0
+
+    response = client.describe_instances(
+        Filters=[
+            {
+                'Name': 'instance-type',
+                'Values': instance_types
+            },
+            {
+                'Name': 'image-id',
+                'Values': [ami]
+            },          
+            {
+                'Name': 'tag:queue',
+                'Values': [queue]
+            },
+            {
+                'Name': 'tag:host',
+                'Values': [str(host_ip)]
+            }      
+        ],
+        MaxResults=100
+    )    
+
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            if (instance['State']['Name'] == 'running') or (instance['State']['Name'] == 'pending'):
+                instance_count += 1
+
+    print('EC2 instances active for {}: {}'.format(queue,instance_count))
+
+    return instance_count
+
+def getInstancesRequired(current_instances,queue_type,queue_length,total_images_processing,last_launch,rate,launch_delay,max_instances):
+    '''Returns the number of instances required for a particular queue'''
+
+    instances_required = 0
+
+    # Parallel queue workers are limited to aim for an ~hour-long inference process
+    if queue_type == 'time':
+        instances_required = total_images_processing/rate
+
+        if current_instances == 0:
+            instances_required = math.ceil(instances_required)
+        else:
+            instances_required = round(instances_required)-current_instances
+
+    # Workers are scaled according to the work available
+    elif queue_type == 'rate':
+        if (current_instances == 0) or ((round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()) - last_launch) > launch_delay):
+            instances_required = queue_length/rate
+
+            if current_instances == 0:
+                instances_required = math.ceil(instances_required)
+            else:
+                instances_required = math.floor(instances_required)-1
+
+    # Jobs that have a local queue should only scale up if the server is overwhelmed
+    elif queue_type == 'local':
+        if ((round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()) - last_launch) > launch_delay):
+            instances_required = math.ceil(queue_length/rate)-1
+
+    if instances_required > max_instances: instances_required = max_instances
+    if instances_required < 0: instances_required = 0
+
+    return instances_required
+
+def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,instance_rates):
+    '''Launches the required EC2 instances'''
+
+    kwargs = {
+        'ImageId':ami,
+        'KeyName':Config.KEY_NAME,
+        'MaxCount':1,
+        'MinCount':1,
+        'Monitoring':{'Enabled': True},
+        'SecurityGroupIds':[Config.SG_ID],
+        'SubnetId':Config.SUBNET_ID,
+        'DisableApiTermination':False,
+        'DryRun':False,
+        'EbsOptimized':False,
+        'InstanceInitiatedShutdownBehavior':'terminate',
+        'TagSpecifications':[
+            {
+                'ResourceType': 'instance',
+                'Tags': [
+                    {
+                        'Key': 'queue',
+                        'Value': queue
+                    },
+                    {
+                        'Key': 'host',
+                        'Value': str(Config.HOST_IP)
+                    }
+                ]
+            },
+        ]
+    }
+
+    # Command to be sent to the image
+    userData  = 'cd /home/ubuntu/TrapTagger;'
+    userData += ' chown -R root /home/ubuntu/TrapTagger;'
+    userData += ' git fetch --all;'
+    userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
+    userData += ' git pull;'
+    userData += ' cd /home/ubuntu; '
+    userData += user_data
+
+    #Determine the cheapest option by calculating th cost per image of all instance types
+    # Add spot instance pricing
+    costPerImage = {}
+    # for instance in instances:
+    #     prices = client.describe_spot_price_history(
+    #         InstanceTypes=[instance],
+    #         MaxResults=1,
+    #         ProductDescriptions=['Linux/UNIX']
+    #     )
+
+    #     if len(prices['SpotPriceHistory']) > 0:
+    #         costPerImage[instance+',spot'] = float(prices['SpotPriceHistory'][0]['SpotPrice'])/instance_rates[instance]
+
+    # Add on-demand prices to list
+    for instance in instances:
+        price = get_price('us-east-1', instance, 'Linux')
+        if price: costPerImage[instance+',demand'] = float(price)/instance_rates[instance]
+
+    # cheapestInstance = min(costPerImage, key=costPerImage.get)
+    orderedInstances = {k: v for k, v in sorted(costPerImage.items(), key=lambda item: item[1])}
+        
+    #Launch instances - try launch cheapest, if no capacity, launch the next cheapest
+    for n in range(round(instances_required)):
+        #jitter idle check so that a whole bunch of instances down shutdown together
+        kwargs['UserData'] = '#!/bin/bash\n { ' + userData.format(randomString()).replace('IDLE_MULTIPLIER',str(round(idle_multiplier*random.uniform(0.5, 1.5)))) + ';} > /home/ubuntu/launch.log 2>&1'
+        for item in orderedInstances:
+            pieces = re.split(',',item)
+            kwargs['InstanceType'] = pieces[0]
+            if pieces[1] == 'spot':
+                kwargs['InstanceMarketOptions'] = {
+                    'MarketType': 'spot',
+                    'SpotOptions': {
+                        'SpotInstanceType': 'one-time',
+                        'InstanceInterruptionBehavior': 'terminate'
+                    }
+                }
+            
+            else:
+                try:
+                    del kwargs['InstanceMarketOptions']
+                except:
+                    pass
+
+            try:
+                ec2.create_instances(**kwargs)
+                app.logger.info('Launched {} {} instance for {} queue.'.format(pieces[1],kwargs['InstanceType'],queue))
+                redisClient.set(queue+'_last_launch',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+                break
+
+            except ClientError:
+                # Handle insufficient capacity
+                pass
+
+    return True
+
 @celery.task(ignore_result=True)
 def importMonitor():
     '''Periodic Celery task that monitors the length of the celery queues, and fires up EC2 instances as needed.'''
     
     try:
         startTime = datetime.utcnow()
-        pricing_region = 'us-east-1' #Pricing API only available in a few regions
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        queues = getQueueLengths(redisClient)
 
-        queues = {}
-        for queue in Config.QUEUES:
-            queueLength = redisClient.llen(queue)
-            print('{} queue length: {}'.format(queue,queueLength))
-            queues[queue] = queueLength
-
-        if len(queues) > 0:
+        if queues:
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
             client = boto3.client('ec2',region_name=Config.AWS_REGION)
+            images_processing = getImagesProcessing()
+            print('Images being imported: {}'.format(images_processing))
 
-            total_images = {'total': 0, 'celery': 0} #, 'classification': 0}
-            surveys = db.session.query(Survey).filter(Survey.images_processing!=0).distinct().all()
-            for survey in surveys:
-                total_images['total'] += survey.images_processing
-                if not survey.processing_initialised:
-                    if survey.status in ['Importing','Classifying']:
-                        total_images['celery'] += survey.images_processing
-                    # elif survey.status=='Classifying':
-                    #     total_images['classification'] += survey.images_processing
-                    survey.processing_initialised = True
-                    db.session.commit()
-            print('Images being imported: {}'.format(total_images))
-
+            current_instances = {}
             instances_required = {}
             for queue in queues:
-                instances_required[queue]=0
+                if queue in Config.QUEUES.keys():
+                    ami = Config.QUEUES[queue]['ami']
+                    instances = Config.QUEUES[queue]['instances']
+                    rate = Config.QUEUES[queue]['rate']
+                    launch_delay = Config.QUEUES[queue]['launch_delay']
+                    queue_type = Config.QUEUES[queue]['queue_type']
+                    max_instances = Config.QUEUES[queue]['max_instances']
+                else:
+                    classifier = db.session.query(Cluster).filter(Classifier.name==queue).first()
+                    ami = classifier.ami_id
+                    instances = Config.GPU_INSTANCE_TYPES
+                    rate = Config.CLASSIFIER['rate']
+                    launch_delay = Config.CLASSIFIER['launch_delay']
+                    queue_type = Config.CLASSIFIER['queue_type']
+                    init_size = Config.CLASSIFIER['init_size']
+                    max_instances = Config.CLASSIFIER['max_instances']
 
-            instances = {}
-            for queue in queues:
-                instances[queue] = 0
-
-                response = client.describe_instances(
-                    Filters=[
-                        {
-                            'Name': 'instance-type',
-                            'Values': Config.QUEUES[queue]['instances']
-                        },
-                        {
-                            'Name': 'image-id',
-                            'Values': [Config.QUEUES[queue]['ami']]
-                        },          
-                        {
-                            'Name': 'tag:queue',
-                            'Values': [queue]
-                        },
-                        {
-                            'Name': 'tag:host',
-                            'Values': [str(Config.HOST_IP)]
-                        }      
-                    ],
-                    MaxResults=100
-                )    
-
-                for reservation in response['Reservations']:
-                    for instance in reservation['Instances']:
-                        if (instance['State']['Name'] == 'running') or (instance['State']['Name'] == 'pending'):
-                            instances[queue] += 1
-
-                print('EC2 instances active for {}: {}'.format(queue,instances[queue]))
+                current_instances[queue] = getInstanceCount(client,queue,ami,Config.HOST_IP,instances)
 
                 if not redisClient.get(queue+'_last_launch'):
                     redisClient.set(queue+'_last_launch',0)
-                  
-                # Parallel queue workers are limited to aim for an ~hour-long inference process
-                if Config.QUEUES[queue]['queue_type'] == 'time':
-                    if queues[queue] > 0:
-                        ins_req = total_images['total']/Config.QUEUES[queue]['bin_size']
 
-                        if instances[queue] == 0:
-                            ins_req = math.ceil(ins_req)
-                        else:
-                            ins_req = round(ins_req)-instances[queue]
+                instances_required[queue] = getInstancesRequired(current_instances[queue],
+                                                                queue_type,
+                                                                queues[queue],
+                                                                images_processing['total'],
+                                                                int(redisClient.get(queue+'_last_launch').decode()),
+                                                                rate,
+                                                                launch_delay,
+                                                                max_instances)
 
-                        instances_required[queue] += ins_req
-
-                # Workers are scaled according to the work available
-                elif Config.QUEUES[queue]['queue_type'] == 'rate':
-                    if (instances[queue] == 0) or ((round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()) - int(redisClient.get(queue+'_last_launch').decode())) > Config.QUEUES[queue]['launch_delay']):
-                        ins_req = queues[queue]/Config.QUEUES[queue]['bin_size']
-
-                        if instances[queue] == 0:
-                            ins_req = math.ceil(ins_req)
-                        else:
-                            ins_req = math.floor(ins_req)-1
-
-                        # # Prevent it from launching 50 instances in one go
-                        # maxincrease = round(total_images['total']/Config.QUEUES['parallel']['bin_size'])*4
-                        # if ins_req > maxincrease: ins_req=maxincrease
-
-                        instances_required[queue] += ins_req
-
-                # Jobs that have a local queue should only scale up if the server is overwhelmed
-                elif Config.QUEUES[queue]['queue_type'] == 'local':
-                    if ((round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()) - int(redisClient.get(queue+'_last_launch').decode())) > Config.QUEUES[queue]['launch_delay']):
-                        instances_required[queue] += math.ceil(queues[queue]/Config.QUEUES[queue]['bin_size'])-1
-
-            # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
-            instances_required['celery'] += round(total_images['celery']/Config.QUEUES['parallel']['bin_size'])*Config.QUEUES['celery']['init_size']
-            # instances_required['classification'] += round(total_images['classification']/Config.QUEUES['parallel']['bin_size'])*Config.QUEUES['classification']['init_size']
+                # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
+                if queue=='celery': instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*Config.QUEUES[queue]['init_size']
+                if queue not in Config.QUEUES.keys(): instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*init_size
 
             print('Instances required: {}'.format(instances_required))
 
             # Check database capacity requirement (parallel & default)
-            parallel_req = total_images['total']/Config.QUEUES['parallel']['bin_size']
-            if parallel_req > Config.QUEUES['parallel']['max_instances']: parallel_req = Config.QUEUES['parallel']['max_instances']
-            default_req = math.ceil(queues['default']/Config.QUEUES['default']['bin_size']) - 1 + instances['default']
-            if default_req > Config.QUEUES['default']['max_instances']: default_req = Config.QUEUES['default']['max_instances']
-            required_capacity = 1.5*(default_req + parallel_req)
+            required_capacity = 1.5*(instances_required['default'] + instances_required['parallel'])
             current_capacity = scaleDbCapacity(required_capacity)
 
             # Get time since last db scaling request
@@ -302,104 +439,22 @@ def importMonitor():
             if (current_capacity >= required_capacity) or (aurora_request_count >= 2):
                 redisClient.set('aurora_request_count',0)
                 for queue in queues:
-                    max_allowed = Config.QUEUES[queue]['max_instances']-instances[queue]
-                    if instances_required[queue] > max_allowed: instances_required[queue]=max_allowed
-
-                    if instances_required[queue] > 0:
-                        kwargs = {
-                            'ImageId':Config.QUEUES[queue]['ami'],
-                            'KeyName':Config.KEY_NAME,
-                            'MaxCount':1,
-                            'MinCount':1,
-                            'Monitoring':{'Enabled': True},
-                            'SecurityGroupIds':[Config.SG_ID],
-                            'SubnetId':Config.SUBNET_ID,
-                            'DisableApiTermination':False,
-                            'DryRun':False,
-                            'EbsOptimized':False,
-                            'InstanceInitiatedShutdownBehavior':'terminate',
-                            'TagSpecifications':[
-                                {
-                                    'ResourceType': 'instance',
-                                    'Tags': [
-                                        {
-                                            'Key': 'queue',
-                                            'Value': queue
-                                        },
-                                        {
-                                            'Key': 'host',
-                                            'Value': str(Config.HOST_IP)
-                                        }
-                                    ]
-                                },
-                            ]
-                        }
-
-                        # Command to be sent to the image
-                        userData  = 'cd /home/ubuntu/TrapTagger;'
-                        userData += ' chown -R root /home/ubuntu/TrapTagger;'
-                        userData += ' git fetch --all;'
-                        userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
-                        userData += ' git pull;'
-                        userData += ' cd /home/ubuntu; '
-                        userData += Config.QUEUES[queue]['user_data']
-
-                        #Determine the cheapest option by calculating th cost per image of all instance types
-                        # Add spot instance pricing
-                        costPerImage = {}
-                        # for instance in Config.QUEUES[queue]['instances']:
-                        #     prices = client.describe_spot_price_history(
-                        #         InstanceTypes=[instance],
-                        #         MaxResults=1,
-                        #         ProductDescriptions=['Linux/UNIX']
-                        #     )
-
-                        #     if len(prices['SpotPriceHistory']) > 0:
-                        #         costPerImage[instance+',spot'] = float(prices['SpotPriceHistory'][0]['SpotPrice'])/Config.INSTANCE_RATES[queue][instance]
-
-                        # Add on-demand prices to list
-                        for instance in Config.QUEUES[queue]['instances']:
-                            price = get_price(pricing_region, instance, 'Linux')
-                            if price: costPerImage[instance+',demand'] = float(price)/Config.INSTANCE_RATES[queue][instance]
-
-                        # cheapestInstance = min(costPerImage, key=costPerImage.get)
-                        orderedInstances = {k: v for k, v in sorted(costPerImage.items(), key=lambda item: item[1])}
-                            
-                        #Launch instances - try launch cheapest, if no capacity, launch the next cheapest
-                        for n in range(round(instances_required[queue])):
-                            #jitter idle check so that a whole bunch of instances down shutdown together
-                            idle_multiplier = round(Config.IDLE_MULTIPLIER[queue]*random.uniform(0.5, 1.5))
-                            kwargs['UserData'] = '#!/bin/bash\n { ' + userData.format(randomString()).replace('IDLE_MULTIPLIER',str(idle_multiplier)) + ';} > /home/ubuntu/launch.log 2>&1'
-                            for item in orderedInstances:
-                                pieces = re.split(',',item)
-                                kwargs['InstanceType'] = pieces[0]
-                                if pieces[1] == 'spot':
-                                    kwargs['InstanceMarketOptions'] = {
-                                        'MarketType': 'spot',
-                                        'SpotOptions': {
-                                            # 'MaxPrice': 'string',
-                                            'SpotInstanceType': 'one-time',
-                                            # 'BlockDurationMinutes': 123,
-                                            # 'ValidUntil': datetime(2015, 1, 1),
-                                            'InstanceInterruptionBehavior': 'terminate'
-                                        }
-                                    }
-                                
-                                else:
-                                    try:
-                                        del kwargs['InstanceMarketOptions']
-                                    except:
-                                        pass
-
-                                try:
-                                    ec2.create_instances(**kwargs)
-                                    app.logger.info('Launched {} {} instance for {} queue.'.format(pieces[1],kwargs['InstanceType'],queue))
-                                    redisClient.set(queue+'_last_launch',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
-                                    break
-
-                                except ClientError:
-                                    # Handle insufficient capacity
-                                    pass
+                    instance_count = instances_required[queue]-current_instances[queue]
+                    if instance_count > 0:
+                        if queue in Config.QUEUES.keys():
+                            ami = Config.QUEUES[queue]['ami']
+                            instances = Config.QUEUES[queue]['instances']
+                            user_data = Config.QUEUES[queue]['user_data']
+                            idle_multiplier = Config.IDLE_MULTIPLIER[queue]
+                            instance_rates = Config.INSTANCE_RATES[queue]
+                        else:
+                            classifier = db.session.query(Cluster).filter(Classifier.name==queue).first()
+                            ami = classifier.ami_id
+                            instances = Config.GPU_INSTANCE_TYPES
+                            user_data = Config.CLASSIFIER['user_data']
+                            idle_multiplier = Config.IDLE_MULTIPLIER['classification']
+                            instance_rates = Config.INSTANCE_RATES['classification']
+                        launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates)
 
     except Exception as exc:
         app.logger.info(' ')
