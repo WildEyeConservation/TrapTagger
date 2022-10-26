@@ -78,7 +78,7 @@ def make_celery(flask_app):
     ]
 
     from app.models import Classifier
-    for classifier in db.session.query(Classifier).all():
+    for classifier in db.session.query(Classifier).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').all():
         task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
 
     ####

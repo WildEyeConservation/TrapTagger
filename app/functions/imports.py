@@ -302,7 +302,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
         clusters = clusters.filter(Cluster.id.in_(reClusters))
 
     clusters = clusters.all()
-    classifier = db.session.query(Task).get(task_id).survey.classifer
+    classifier = db.session.query(Task).get(task_id).survey.classifier
     removedClusters = [cluster.id for cluster in clusters]
     newClusters = []
 
