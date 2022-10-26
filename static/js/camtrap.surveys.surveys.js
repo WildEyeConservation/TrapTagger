@@ -617,7 +617,7 @@ function resetNewSurveyPage() {
 function resetEditSurveyModal() {
     /** Clears the edit survey modal. */
 
-    document.getElementById('classifierVersion').value = ''
+    // document.getElementById('classifierVersion').value = ''
     // document.getElementById('btnReClassify').disabled = true
     document.getElementById('addImagesAddImages').checked = false
     document.getElementById('addImagesAddCoordinates').checked = false
