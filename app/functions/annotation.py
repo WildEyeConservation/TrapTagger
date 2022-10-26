@@ -43,11 +43,15 @@ def required_images(cluster,relevent_classifications,transDict):
 
     species = db.session.query(Detection.classification)\
                         .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Classifier)\
                         .filter(Image.clusters.contains(cluster))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .filter(Detection.class_score>Config.CLASS_SCORE)\
+                        .filter(Detection.class_score>Classifier.threshold)\
                         .filter(Detection.classification!=None)\
                         .filter(Detection.classification.in_(relevent_classifications))\
                         .distinct().all()
@@ -58,14 +62,19 @@ def required_images(cluster,relevent_classifications,transDict):
     coveredSpecies = set()
     for image in sortedImages:
         imageSpecies = db.session.query(Detection.classification)\
-                    .filter(Detection.image_id==image.id)\
-                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                    .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                    .filter(Detection.class_score>Config.CLASS_SCORE)\
-                    .filter(Detection.classification!=None)\
-                    .filter(Detection.classification.in_(relevent_classifications))\
-                    .distinct().all()
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Classifier)\
+                        .filter(Detection.image_id==image.id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Detection.class_score>Classifier.threshold)\
+                        .filter(Detection.classification!=None)\
+                        .filter(Detection.classification.in_(relevent_classifications))\
+                        .distinct().all()
 
         imageSpecies = [transDict[r[0]] for r in imageSpecies]
 

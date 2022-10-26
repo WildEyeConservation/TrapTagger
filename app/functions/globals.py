@@ -273,7 +273,7 @@ def getInstancesRequired(current_instances,queue_type,queue_length,total_images_
 
     return instances_required
 
-def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,instance_rates):
+def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,git_pull):
     '''Launches the required EC2 instances'''
 
     kwargs = {
@@ -306,12 +306,14 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
     }
 
     # Command to be sent to the image
-    userData  = 'cd /home/ubuntu/TrapTagger;'
-    userData += ' chown -R root /home/ubuntu/TrapTagger;'
-    userData += ' git fetch --all;'
-    userData += ' git checkout {};'.format(Config.QUEUES[queue]['branch'])
-    userData += ' git pull;'
-    userData += ' cd /home/ubuntu; '
+    userData = ''
+    if git_pull:
+        userData += 'cd /home/ubuntu/TrapTagger;'
+        userData += ' chown -R root /home/ubuntu/TrapTagger;'
+        userData += ' git fetch --all;'
+        userData += ' git checkout {};'.format(Config.BRANCH)
+        userData += ' git pull; '
+    userData += 'cd /home/ubuntu; '
     userData += user_data
 
     #Determine the cheapest option by calculating th cost per image of all instance types
@@ -338,7 +340,7 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
     #Launch instances - try launch cheapest, if no capacity, launch the next cheapest
     for n in range(round(instances_required)):
         #jitter idle check so that a whole bunch of instances down shutdown together
-        kwargs['UserData'] = '#!/bin/bash\n { ' + userData.format(randomString()).replace('IDLE_MULTIPLIER',str(round(idle_multiplier*random.uniform(0.5, 1.5)))) + ';} > /home/ubuntu/launch.log 2>&1'
+        kwargs['UserData'] = '#!/bin/bash\n { ' + userData.format(randomString(),queue).replace('IDLE_MULTIPLIER',str(round(idle_multiplier*random.uniform(0.5, 1.5)))) + ';} > /home/ubuntu/launch.log 2>&1'
         for item in orderedInstances:
             pieces = re.split(',',item)
             kwargs['InstanceType'] = pieces[0]
@@ -385,7 +387,7 @@ def importMonitor():
             print('Images being imported: {}'.format(images_processing))
 
             current_instances = {}
-            instances_required = {}
+            instances_required = {'default':0,'parallel':0}
             for queue in queues:
                 if queue in Config.QUEUES.keys():
                     ami = Config.QUEUES[queue]['ami']
@@ -395,7 +397,7 @@ def importMonitor():
                     queue_type = Config.QUEUES[queue]['queue_type']
                     max_instances = Config.QUEUES[queue]['max_instances']
                 else:
-                    classifier = db.session.query(Cluster).filter(Classifier.name==queue).first()
+                    classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
                     ami = classifier.ami_id
                     instances = Config.GPU_INSTANCE_TYPES
                     rate = Config.CLASSIFIER['rate']
@@ -425,7 +427,7 @@ def importMonitor():
             print('Instances required: {}'.format(instances_required))
 
             # Check database capacity requirement (parallel & default)
-            required_capacity = 1.5*(instances_required['default'] + instances_required['parallel'])
+            required_capacity = 1*(instances_required['default'] + instances_required['parallel'])
             current_capacity = scaleDbCapacity(required_capacity)
 
             # Get time since last db scaling request
@@ -447,14 +449,16 @@ def importMonitor():
                             user_data = Config.QUEUES[queue]['user_data']
                             idle_multiplier = Config.IDLE_MULTIPLIER[queue]
                             instance_rates = Config.INSTANCE_RATES[queue]
+                            git_pull = True
                         else:
-                            classifier = db.session.query(Cluster).filter(Classifier.name==queue).first()
+                            classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
                             ami = classifier.ami_id
                             instances = Config.GPU_INSTANCE_TYPES
                             user_data = Config.CLASSIFIER['user_data']
                             idle_multiplier = Config.IDLE_MULTIPLIER['classification']
                             instance_rates = Config.INSTANCE_RATES['classification']
-                        launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates)
+                            git_pull = False
+                        launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1047,8 +1051,10 @@ def classifyTask(task_id,reClusters = None):
                                 .join(Image) \
                                 .join(Camera) \
                                 .join(Trapgroup) \
+                                .join(Survey)\
+                                .join(Classifier)\
                                 .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(Detection.class_score>Config.CLASS_SCORE) \
+                                .filter(Detection.class_score>Classifier.threshold) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1056,9 +1062,13 @@ def classifyTask(task_id,reClusters = None):
 
         totalDetSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCountTotal')) \
                                 .join(Image, Cluster.images) \
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Survey)\
+                                .join(Classifier)\
                                 .join(Detection) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
-                                .filter(Detection.class_score>Config.CLASS_SCORE) \
+                                .filter(Detection.class_score>Classifier.threshold) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1086,9 +1096,13 @@ def classifyTask(task_id,reClusters = None):
 
             detCountSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCount')) \
                                 .join(Image, Cluster.images) \
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Survey)\
+                                .join(Classifier)\
                                 .join(Detection) \
                                 .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
-                                .filter(Detection.class_score>Config.CLASS_SCORE) \
+                                .filter(Detection.class_score>Classifier.threshold) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \

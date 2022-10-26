@@ -302,7 +302,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
         clusters = clusters.filter(Cluster.id.in_(reClusters))
 
     clusters = clusters.all()
-
+    classifier = db.session.query(Task).get(task_id).survey.classifer
     removedClusters = [cluster.id for cluster in clusters]
     newClusters = []
 
@@ -328,7 +328,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             else:
                 species = []
                 for detection in detections:
-                    if (detection.class_score > Config.CLASS_SCORE) and (detection.classification != 'nothing'):
+                    if (detection.class_score > classifier.threshold) and (detection.classification != 'nothing'):
                         species.append(detection.classification)
                     else:
                         species.append('unknown')
@@ -807,6 +807,15 @@ def setupDatabase():
         vehicles = Label(description='Vehicles/Humans/Livestock', hotkey='v')
         db.session.add(vehicles)
 
+    if db.session.query(Classifier).filter(Classifier.name=='MegaDetector').first()==None:
+        classifier = Classifier(name='MegaDetector',
+                                source='Microsoft',
+                                region='Global',
+                                active=True,
+                                threshold=0.5,
+                                description='Basic classification of vehicles, humans, and animals. The default choice for biomes without a dedicated classifier.')
+        db.session.add(classifier)
+
     db.session.commit()
 
 def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external):
@@ -1072,55 +1081,73 @@ def classifier_batching(chunk,sourceBucket,classifier):
     ''' Helper function for runClassifier that batches images and queues them for the classifier. '''
 
     try:
-        batch = {'bucket': sourceBucket, 'detection_ids': [], 'detections': {}, 'images': {}}
-        for image_id in chunk:
 
-            try:
-                detections = db.session.query(Detection)\
-                                    .filter(Detection.image_id==int(image_id))\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                                    .filter(Detection.left!=Detection.right)\
-                                    .filter(Detection.top!=Detection.bottom)\
-                                    .all()
+        if classifier=='MegaDetector':
+            detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .filter(Image.id.in_(chunk))\
+                                    .distinct().all()
 
-                ######################Blob approach
-                # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                #     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(detections[0].image.camera.path, detections[0].image.filename), Filename=temp_file.name)
+            for detection in detections:
+                if detection.category==1:
+                    detection.classification = 'animal'
+                elif detection.category==2:
+                    detection.classification = 'human'
+                elif detection.category==3:
+                    detection.classification = 'vehicle'
+                detection.class_score = detection.score
+            db.session.commit()
 
-                #     try:
-                #         with open(temp_file.name, "rb") as f:
-                #             bio = BytesIO(f.read())
-                #         b64blob=base64.b64encode(bio.getvalue()).decode()
-                #     except:
-                #         continue
+        else:
+            batch = {'bucket': sourceBucket, 'detection_ids': [], 'detections': {}, 'images': {}}
+            for image_id in chunk:
 
-                # batch['images'][str(image_id)] = b64blob
+                try:
+                    detections = db.session.query(Detection)\
+                                        .filter(Detection.image_id==int(image_id))\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(Detection.static==False)\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                                        .filter(Detection.left!=Detection.right)\
+                                        .filter(Detection.top!=Detection.bottom)\
+                                        .all()
 
-                ######################Download on worker approach
-                if len(detections) > 0:
-                    splits = detections[0].image.camera.path.split('/')
-                    splits[0] = splits[0]+'-comp'
-                    newpath = '/'.join(splits)
-                    batch['images'][str(image_id)] = os.path.join(newpath, detections[0].image.filename)
+                    ######################Blob approach
+                    # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    #     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(detections[0].image.camera.path, detections[0].image.filename), Filename=temp_file.name)
 
-                for detection in detections:
-                    detection_id = str(detection.id)
-                    batch['detection_ids'].append(detection_id)
-                    batch['detections'][detection_id] = {'image_id': str(image_id), 'left': detection.left, 'right': detection.right, 'top': detection.top, 'bottom': detection.bottom}
+                    #     try:
+                    #         with open(temp_file.name, "rb") as f:
+                    #             bio = BytesIO(f.read())
+                    #         b64blob=base64.b64encode(bio.getvalue()).decode()
+                    #     except:
+                    #         continue
 
-            except:
-                app.logger.info(' ')
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(traceback.format_exc())
-                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                app.logger.info(' ')
+                    # batch['images'][str(image_id)] = b64blob
 
-        if len(batch['images'].keys()) >= 0:
-            GLOBALS.lock.acquire()
-            GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
-            GLOBALS.lock.release()
+                    ######################Download on worker approach
+                    if len(detections) > 0:
+                        splits = detections[0].image.camera.path.split('/')
+                        splits[0] = splits[0]+'-comp'
+                        newpath = '/'.join(splits)
+                        batch['images'][str(image_id)] = os.path.join(newpath, detections[0].image.filename)
+
+                    for detection in detections:
+                        detection_id = str(detection.id)
+                        batch['detection_ids'].append(detection_id)
+                        batch['detections'][detection_id] = {'image_id': str(image_id), 'left': detection.left, 'right': detection.right, 'top': detection.top, 'bottom': detection.bottom}
+
+                except:
+                    app.logger.info(' ')
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(traceback.format_exc())
+                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    app.logger.info(' ')
+
+            if len(batch['images'].keys()) >= 0:
+                GLOBALS.lock.acquire()
+                GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
+                GLOBALS.lock.release()
 
     except Exception:
         app.logger.info(' ')
@@ -1561,9 +1588,13 @@ def classifyCluster(cluster,classifications,dimensionSQ):
     for classification in classifications:
         detectionCount = db.session.query(Detection) \
                             .join(Image) \
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .join(Survey)\
+                            .join(Classifier)\
                             .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
                             .filter(Image.clusters.contains(cluster)) \
-                            .filter(Detection.class_score>Config.CLASS_SCORE) \
+                            .filter(Detection.class_score>Classifier.threshold) \
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1603,7 +1634,11 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
             for cluster in chunk:
                 classifications = db.session.query(Detection.classification)\
                                             .join(Image)\
-                                            .filter(Detection.class_score>Config.CLASS_SCORE) \
+                                            .join(Camera)\
+                                            .join(Trapgroup)\
+                                            .join(Survey)\
+                                            .join(Classifier)\
+                                            .filter(Detection.class_score>Classifier.threshold) \
                                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                             .filter(Detection.static == False) \
                                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1631,7 +1666,11 @@ def single_cluster_classification(cluster):
 
     classifications = db.session.query(Detection.classification)\
                                 .join(Image)\
-                                .filter(Detection.class_score>Config.CLASS_SCORE) \
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Survey)\
+                                .join(Classifier)\
+                                .filter(Detection.class_score>Classifier.threshold) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \

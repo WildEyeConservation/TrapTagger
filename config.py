@@ -92,7 +92,6 @@ class Config(object):
     CLUSTER_DET_COUNT = 1
     DET_RATIO = 0.5
     DET_AREA = 0.005
-    CLASS_SCORE = 0.99
 
     # Individual ID Config
     SIMILARITY_SCORE = 0.05
@@ -271,7 +270,7 @@ class Config(object):
             'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
             'classification_worker_{}' + ' ' + 
             HOST_IP + ' ' + 
-            'classification ' + 
+            '{} ' + 
             SETUP_PERIOD['classification'] + " " + 
             'IDLE_MULTIPLIER' + " '" +
             os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 

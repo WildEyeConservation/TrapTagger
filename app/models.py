@@ -419,6 +419,8 @@ class Classifier(db.Model):
     source = db.Column(db.String(64), index=True)
     description = db.Column(db.String(512), index=False)
     region = db.Column(db.String(64), index=True)
+    active = db.Column(db.Boolean, default=True, index=True)
+    threshold = db.Column(db.Integer, index=False)
     surveys = db.relationship('Survey', backref='classifier', lazy='dynamic')
 
     def __repr__(self):

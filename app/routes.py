@@ -1472,7 +1472,8 @@ def editSurvey():
     if survey and (survey.user==current_user):
         if 'classifier' in request.form:
             classifier = request.form['classifier']
-            re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
+            if survey.classifier.name != classifier:
+                re_classify_survey.delay(survey_id=survey.id,classifier=classifier)
 
         elif ignore_small_detections!='none':
             # Checks for the case that you switch both off
@@ -6215,7 +6216,7 @@ def getClassifierInfo():
         page = request.args.get('page', 1, type=int)
         search = request.args.get('search', '', type=str)
         showCurrent = request.args.get('showCurrent', False, type=str)
-        classifiers = db.session.query(Classifier)
+        classifiers = db.session.query(Classifier).filter(Classifier.active==True)
         
         searches = re.split('[ ,]',search)
         for search in searches:
