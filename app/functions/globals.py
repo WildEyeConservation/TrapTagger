@@ -273,7 +273,7 @@ def getInstancesRequired(current_instances,queue_type,queue_length,total_images_
 
     return instances_required
 
-def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,git_pull):
+def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull):
     '''Launches the required EC2 instances'''
 
     kwargs = {
