@@ -103,6 +103,46 @@ Once your server has launched:
 
 - Save rules
 
+### Virtual Private Cloud (VPC)
+
+For security reasons, one wants to ensure that third-party classifiers do not have access to the internet. This is achived using your VPC by creating two different subnets - a private one without internet access and a public one with access. Begin by creating a new subnet:
+
+- Open the AWS VPC console
+- Select the subnets option in the side tab
+- Click the create subnet button
+- Select the VPC where you launched your server above
+- Give this private subnet a useful name
+- Choose a IPv4 CIDR block (that uses a variation of the IP address of your VPC)
+- Click create subnet
+- Save the name and ID of this subnet for later
+
+You now need to control what access those subnets have. This is done with route tables. Your default route table should (by default) route your default subnet to the VPC's internet gateway. This means you need to create a new route table for your private subnet that does not route it to the internet:
+
+- Navigate to the route tables in the VPC console
+- Click create new route table
+- Give this new private route table a useful name
+- Select the VPC where you launched the server
+- Click create
+- Select your new private route table you created
+- Select the subnet associations tab
+- Click edit subnet associations
+- Find and select your private subnet and save the association
+- Select your default route table (it should be the only other one associated with your VPC)
+- Open the subnet associations tab and click on the edit associations button
+- Find and select your default subnet where you created your server
+- Save this association
+
+Lastly, your instances typically connect to other AWS services through the internet, so in order for your classifiers in your private subnet to access your images in S3, you need to set up a private gateway to S3:
+
+- Navigate to the Endpoints section in your VPC console
+- Click create endpoint
+- Give this enpoint a useful name
+- Select the 'AWS services' service category
+- Search for the S3 service and select the only gateway option
+- Select your VPC
+- Select your private route table and a 'full access' policy
+- Create endpoint
+
 ### Database
 
 Open the RDS service on your AWS console, and create a new database. Use the following settings:
@@ -139,6 +179,19 @@ service on the web console and do the following:
 
 - Create record
 
+### S3-only IAM User
+
+In order to prevent third-party classifier images from causing harm, these should be restricted to only be able to get objects from S3 (images to classify) and nothing else. This is achieved by creating an IAM user and associated credentials with those permissions that are then shared with the classifier instances. This is done as follows:
+
+- Go to the IAM User console
+- Select users in the side tab
+- Select add users
+- Give your S3-only user a useful name
+- Select the 'Access key - programmatic access' checkbox
+- Click next on each page until you get to the review stage
+- It will warn you that this user has no permissions - that's intentional. The user's permissions will be set up in the next step
+- Click create user and save the access key and secret access key for later
+
 ### Bucket
 
 TrapTagger uses an AWS S3 bucket to store user data. Each user will get two folders in this bucket - one that they can access with the same name as their account, and one that contains all the compressed versions of their images. In order to set up your bucket:
@@ -148,7 +201,12 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
 - Give that bucket a useful name and save it for later
 - Select your desired AWS region and click 'create bucket'
 - Select your newly created bucket and select the permissions tab
-- Set the bucket policy to the following, replacing both yourDomain and bucketName with your site domain and bucket name respectively:
+- Set the bucket policy to the following, replacing:
+
+    - yourDomain with your site domain
+    - bucketName with your bucket name
+    - rootUserARN with the user ARN of your root user
+    - S3UserARN with the user ARN of your S3-only user
 ```
 {
     "Version": "2012-10-17",
@@ -157,7 +215,7 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
             "Sid": "Root Permissions",
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::275736403632:root"
+                "AWS": "rootUserARN"
             },
             "Action": "s3:*",
             "Resource": "arn:aws:s3:::bucketName/*"
@@ -175,6 +233,15 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
                     ]
                 }
             }
+        },
+        {
+            "Sid": "Classifier Worker Permissions",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "S3UserARN"
+            },
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::bucketName/*"
         }
     ]
 }
@@ -319,7 +386,8 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - BRANCH:                   The branch of the code you want used on the parallel instances. Default is master.
 - PARALLEL_AMI:             The AMI ID for the Parallel Worker image - use our publically available one (ami-090a06cd750f6c797)
 - SG_ID:                    The ID of your security group.
-- SUBNET_ID:                The subnet in which you are hosting your site.
+- PUBLIC_SUBNET_ID:         The ID of your public subnet
+- PRIVATE_SUBNET_ID:        The ID of your private subnet
 - TOKEN:                    A secret token key.
 - KEY_NAME:                 The name of the private key file you use on your EC2 instances. (without the .pem)
 - QUEUE:                    The queue name for the local worker - set to default for your server instance.
@@ -330,6 +398,8 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - BRANCH:                   The branch of the repository that you would like to use (master).
 - DB_CLUSTER_NAME:          The name of your aurora db instance.
 - IAM_ADMIN_GROUP:          The name of the user group you created.
+- AWS_S3_ACCESS_KEY_ID:     The AWS ID of your S3-only IAM user
+- AWS_S3_SECRET_ACCESS_KEY: The AWS secret access key for your S3-only IAM user
 
 ### SSL Certificate
 
