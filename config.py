@@ -81,7 +81,8 @@ class Config(object):
         'default':         {'t2.medium': 1000, 't3a.medium': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
-    SUBNET_ID = os.environ.get('SUBNET_ID')
+    PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
+    PRIVATE_SUBNET_ID = os.environ.get('PRIVATE_SUBNET_ID')
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 50
@@ -273,8 +274,8 @@ class Config(object):
             '{} ' + 
             SETUP_PERIOD['classification'] + " " + 
             'IDLE_MULTIPLIER' + " '" +
-            os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
-            os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
+            os.environ.get('AWS_S3_ACCESS_KEY_ID') + "' '" + 
+            os.environ.get('AWS_S3_SECRET_ACCESS_KEY') + "' " + 
             '-l info'
     }
 

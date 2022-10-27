@@ -273,7 +273,7 @@ def getInstancesRequired(current_instances,queue_type,queue_length,total_images_
 
     return instances_required
 
-def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull):
+def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet):
     '''Launches the required EC2 instances'''
 
     kwargs = {
@@ -283,7 +283,7 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
         'MinCount':1,
         'Monitoring':{'Enabled': True},
         'SecurityGroupIds':[Config.SG_ID],
-        'SubnetId':Config.SUBNET_ID,
+        'SubnetId':subnet,
         'DisableApiTermination':False,
         'DryRun':False,
         'EbsOptimized':False,
@@ -450,6 +450,7 @@ def importMonitor():
                             idle_multiplier = Config.IDLE_MULTIPLIER[queue]
                             instance_rates = Config.INSTANCE_RATES[queue]
                             git_pull = True
+                            subnet = Config.PUBLIC_SUBNET_ID
                         else:
                             classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
                             ami = classifier.ami_id
@@ -458,7 +459,8 @@ def importMonitor():
                             idle_multiplier = Config.IDLE_MULTIPLIER['classification']
                             instance_rates = Config.INSTANCE_RATES['classification']
                             git_pull = False
-                        launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull)
+                            subnet = Config.PRIVATE_SUBNET_ID
+                        launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet)
 
     except Exception as exc:
         app.logger.info(' ')
