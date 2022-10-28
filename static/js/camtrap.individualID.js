@@ -354,76 +354,78 @@ function getSuggestions(prevID = null) {
 
 function loadNewCluster(mapID = 'map1') {
     /** Loads new individuals for the left-hand panel. Treats an individual as a cluster of images. */
-    waitingForClusters[mapID] = true
-    console.log(mapID)
-    var newID = Math.floor(Math.random() * 100000) + 1;
-    clusterRequests[mapID].push(newID)
+    if (!waitingForClusters[mapID]) {
+        waitingForClusters[mapID] = true
+        console.log(mapID)
+        var newID = Math.floor(Math.random() * 100000) + 1;
+        clusterRequests[mapID].push(newID)
 
-    if (!batchComplete) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-            function (wrapMapID) {
-                return function() {
-                    if (this.readyState == 4 && this.status == 278) {
-                        window.location.replace(JSON.parse(this.responseText)['redirect'])
-                    } else if (this.readyState == 4 && this.status == 200) {
-                        waitingForClusters[wrapMapID] = false
-                        info = JSON.parse(this.responseText);
-        
-                        if (clusterRequests[wrapMapID].includes(parseInt(info.id))) {
-                            for (nc=0;nc<info.info.length;nc++) {
-                                newcluster = info.info[nc];
+        if (!batchComplete) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+                function (wrapMapID) {
+                    return function() {
+                        if (this.readyState == 4 && this.status == 278) {
+                            window.location.replace(JSON.parse(this.responseText)['redirect'])
+                        } else if (this.readyState == 4 && this.status == 200) {
+                            waitingForClusters[wrapMapID] = false
+                            info = JSON.parse(this.responseText);
+            
+                            if (clusterRequests[wrapMapID].includes(parseInt(info.id))) {
+                                for (nc=0;nc<info.info.length;nc++) {
+                                    newcluster = info.info[nc];
 
-                                if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
-                                    knockedTG=null
-                                }
-                                
-                                if (knockedTG==null) {
-                                    if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                        clisterIdList.push(newcluster.id)
+                                    if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
+                                        knockedTG=null
+                                    }
+                                    
+                                    if (knockedTG==null) {
+                                        if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                                            clisterIdList.push(newcluster.id)
 
-                                        if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
-                                            clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)
-                                        } else {
-                                            clusters[wrapMapID].push(newcluster)
-                                        }
-                                        
-                                        if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
-                                            update(wrapMapID)
-
-                                            if ((mapID == 'map1')&&(mapdiv2 != null)) {
-                                                getSuggestions()
-                                            }
-                                
-                                            if (document.getElementById('btnSendToBack')!=null) {
-                                                individuals = [{}]
-                                                individualIndex = 0
-                                                for (colour in colours) {
-                                                    colours[colour] = false
-                                                }
-                                                buildIndividualsObject()
+                                            if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
+                                                clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)
                                             } else {
-                                                updateProgress()
+                                                clusters[wrapMapID].push(newcluster)
                                             }
+                                            
+                                            if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
+                                                update(wrapMapID)
 
-                                        } else if (knockWait == true) {
-                                            if (modalWait2.is(':visible')) {
-                                                modalWait2Hide = true
-                                                modalWait2.modal('hide');
+                                                if ((mapID == 'map1')&&(mapdiv2 != null)) {
+                                                    getSuggestions()
+                                                }
+                                    
+                                                if (document.getElementById('btnSendToBack')!=null) {
+                                                    individuals = [{}]
+                                                    individualIndex = 0
+                                                    for (colour in colours) {
+                                                        colours[colour] = false
+                                                    }
+                                                    buildIndividualsObject()
+                                                } else {
+                                                    updateProgress()
+                                                }
+
+                                            } else if (knockWait == true) {
+                                                if (modalWait2.is(':visible')) {
+                                                    modalWait2Hide = true
+                                                    modalWait2.modal('hide');
+                                                }
+                                                nextCluster(wrapMapID)
                                             }
-                                            nextCluster(wrapMapID)
+                                            preload(wrapMapID)
+                                            knockWait = false
                                         }
-                                        preload(wrapMapID)
-                                        knockWait = false
                                     }
                                 }
-                            }
-                        }                
+                            }                
+                        }
                     }
-                }
-            }(mapID);
-        xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
-        xhttp.send();
+                }(mapID);
+            xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
+            xhttp.send();
+        }
     }
 }
 
