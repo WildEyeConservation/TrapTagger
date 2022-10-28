@@ -161,7 +161,7 @@ class Config(object):
                 MAIL_PASSWORD + "' '" + 
                 BRANCH + "' '" + 
                 SG_ID + "' '" + 
-                SUBNET_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
                 TOKEN + "' '" + 
                 PARALLEL_AMI + "' '" + 
                 KEY_NAME + "' '" + 
@@ -201,7 +201,7 @@ class Config(object):
                 MAIL_PASSWORD + "' '" + 
                 BRANCH + "' '" + 
                 SG_ID + "' '" + 
-                SUBNET_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
                 TOKEN + "' '" + 
                 PARALLEL_AMI + "' '" + 
                 KEY_NAME + "' '" + 
