@@ -43,6 +43,7 @@ function getKnock(KnockedStatus, mapID = 'map1') {
         }
     
         waitModalID = clusters[mapID][clusterIndex[mapID]]
+        waitModalMap = mapID
         modalWait2.modal({backdrop: 'static', keyboard: false});
     
         if (clusters[mapID][clusterIndex[mapID]] != null) {

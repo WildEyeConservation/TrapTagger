@@ -89,6 +89,7 @@ function acceptSuggestion() {
         xhttp.send();
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
             waitModalID = clusters['map2'][clusterIndex['map2']]
+            waitModalMap = 'map2'
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
@@ -122,6 +123,7 @@ function suggestionUnidentifiable() {
         xhttp.send();
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
             waitModalID = clusters['map2'][clusterIndex['map2']]
+            waitModalMap = 'map2'
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
@@ -151,6 +153,7 @@ function rejectSuggestion() {
         xhttp.send();
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
             waitModalID = clusters['map2'][clusterIndex['map2']]
+            waitModalMap = 'map2'
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
@@ -180,6 +183,7 @@ function skipSuggestion() {
         xhttp.send();
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
             waitModalID = clusters['map2'][clusterIndex['map2']]
+            waitModalMap = 'map2'
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
@@ -229,6 +233,7 @@ function undoPreviousSuggestion() {
 
             if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
                 waitModalID = clusters['map2'][clusterIndex['map2']]
+                waitModalMap = 'map2'
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
@@ -269,6 +274,7 @@ function undoPreviousSuggestion() {
 
             if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
                 waitModalID = clusters['map2'][clusterIndex['map2']]
+                waitModalMap = 'map2'
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
@@ -1034,6 +1040,7 @@ function submitIndividuals() {
             clusters['map1'][clusterIndex['map1']].ready = false
             if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
                 waitModalID = clusters['map2'][clusterIndex['map2']]
+                waitModalMap = 'map2'
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
@@ -1150,6 +1157,7 @@ function dissociateDetection(detID,mapID="map1") {
         
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
             waitModalID = clusters['map2'][clusterIndex['map2']]
+            waitModalMap = 'map2'
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }

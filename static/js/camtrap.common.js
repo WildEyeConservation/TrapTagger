@@ -83,6 +83,7 @@ const nextImageBtn = document.querySelector('#nextImage');
 const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
+var waitModalMap = null
 
 var clusters = {"map1": []}
 var clusterIndex = {"map1": 0}
@@ -572,6 +573,7 @@ function updateCanvas(mapID = 'map1') {
             doneWait = true
             if (!modalWait2.is(':visible')) {
                 waitModalID = clusters[mapID][clusterIndex[mapID]]
+                waitModalMap = mapID
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
@@ -585,6 +587,7 @@ function updateCanvas(mapID = 'map1') {
     
             if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
                 waitModalID = clusters[mapID][clusterIndex[mapID]]
+                waitModalMap = mapID
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
@@ -744,7 +747,7 @@ function updateCanvas(mapID = 'map1') {
                     }
                 }
                 
-                if (modalWait2.is(':visible')) {
+                if (modalWait2.is(':visible')&&((mapID==waitModalMap)||(waitModalMap==null))) {
                     modalWait2Hide = true
                     modalWait2.modal('hide');
                 }
@@ -1196,6 +1199,7 @@ function nextCluster(mapID = 'map1') {
             if (clusterIndex[mapID] >= clusters[mapID].length-1) {
                 if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
                     waitModalID = clusters[mapID][clusterIndex[mapID]]
+                    waitModalMap = mapID
                     modalWait2Hide = false
                     modalWait2.modal({backdrop: 'static', keyboard: false});
                 }
@@ -2033,6 +2037,7 @@ function submitLabels(mapID = 'map1') {
         nothingStatus = true
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
             waitModalID = clusters[mapID][clusterIndex[mapID]]
+            waitModalMap = mapID
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
         }
@@ -2474,6 +2479,7 @@ function checkWaitModal(mapID = 'map1') {
                 modalWait2.modal('hide');
             }
         } else if (waitModalID!=undefined) {
+            mapID = waitModalMap
             if (isKnockdown) {
                 if (clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id != waitModalID.images[imageIndex[mapID]].id) {
                     if (modalWait2.is(':visible')) {
