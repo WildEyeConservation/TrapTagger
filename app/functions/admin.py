@@ -943,7 +943,7 @@ def re_classify_survey(self,survey_id,classifier):
         survey.images_processing = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
         db.session.commit()
 
-        classifySurvey(survey_id=survey_id,sourceBucket=survey.user.folder+'-comp',classifier=classifier)
+        classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.images_processing = 0

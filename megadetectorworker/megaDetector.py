@@ -513,7 +513,7 @@ class SimpleDataset(torch.utils.data.Dataset):
         detection_id = self.detection_ids[index]
         image_id = self.detections[detection_id]['image_id']
 
-        print('fetching {}'.format(self.images[image_id]))
+        print('fetching {} from {}'.format(self.images[image_id],self.bucket))
 
         ###########Local Download appoach
         if image_id not in self.ims.keys():
