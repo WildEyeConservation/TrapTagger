@@ -171,7 +171,8 @@ class Config(object):
                 str(CONCURRENCY['parallel']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
                 BUCKET + "' '" + 
-                IAM_ADMIN_GROUP + "'" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "'" + 
                 ' -l info'
         },
         'default': {
@@ -211,7 +212,8 @@ class Config(object):
                 str(CONCURRENCY['default']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
                 BUCKET + "' '" + 
-                IAM_ADMIN_GROUP + "'" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "'" + 
                 ' -l info'
         },
         'celery': {

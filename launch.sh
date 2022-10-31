@@ -34,7 +34,7 @@ export MAIL_USERNAME=${12}
 export MAIL_PASSWORD=${13}
 export BRANCH=${14}
 export SG_ID=${15}
-export SUBNET_ID=${16}
+export PUBLIC_SUBNET_ID=${16}
 export TOKEN=${17}
 export PARALLEL_AMI=${18}
 export KEY_NAME=${19}
@@ -45,6 +45,7 @@ export CONCURRENCY=${23}
 export MONITORED_EMAIL_ADDRESS=${24}
 export BUCKET=${25}
 export IAM_ADMIN_GROUP=${26}
+export PRIVATE_SUBNET_ID=${27}
 
 printf \
 'WORKER_NAME='$WORKER_NAME'\n'\
