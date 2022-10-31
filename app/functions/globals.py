@@ -421,8 +421,10 @@ def importMonitor():
                                                                 max_instances)
 
                 # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
-                if queue=='celery': instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*Config.QUEUES[queue]['init_size']
-                if queue not in Config.QUEUES.keys(): instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*init_size
+                if queue=='celery':
+                    instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*Config.QUEUES[queue]['init_size']
+                if (queue not in Config.QUEUES.keys()) and (queue in images_processing.keys()):
+                    instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*init_size
 
             print('Instances required: {}'.format(instances_required))
 
