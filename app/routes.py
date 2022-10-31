@@ -1459,11 +1459,7 @@ def editSurvey():
     
     status = 'success'
     message = ''
-
     surveyName = request.form['surveyName']
-    newSurveyTGCode = request.form['newSurveyTGCode']
-    newSurveyS3Folder = request.form['newSurveyS3Folder']
-    checkbox = request.form['checkbox']
     ignore_small_detections = request.form['ignore_small_detections']
     sky_masked = request.form['sky_masked']
 
@@ -1517,6 +1513,10 @@ def editSurvey():
                     message = 'Coordinates file must have a name.' 
 
             if status == 'success':
+                newSurveyTGCode = request.form['newSurveyTGCode']
+                newSurveyS3Folder = request.form['newSurveyS3Folder']
+                checkbox = request.form['checkbox']
+
                 if fileAttached:
                     key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
                     with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
