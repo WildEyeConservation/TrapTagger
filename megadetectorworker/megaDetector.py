@@ -421,14 +421,22 @@ def classify(batch):
 
     # create dataset
     if (len(batch['images'])==0) or (len(batch['detection_ids'])==0):
+        print('Received empty batch. Returning empty response.')
         return {}
     else:
-        print('Creating data loader')
+        print('Creating data loader...')
         try:
             loader = create_loader(batch,img_size,batch_size,num_workers,False)
+        except:
+            print('Failed to create data loader. Returning empty response.')
+            return {}
+
+        print('Running Classification...')
+        try:
             result = run_epoch(model, loader, device=device, categories=categories)
             return result
         except:
+            print('Failed to run classification. Returning empty response.')
             return {}
 
 def run_epoch(model, loader, device, categories):
@@ -505,14 +513,19 @@ class SimpleDataset(torch.utils.data.Dataset):
         detection_id = self.detection_ids[index]
         image_id = self.detections[detection_id]['image_id']
 
+        print('fetching {}'.format(self.images[image_id]))
+
         ###########Local Download appoach
         if image_id not in self.ims.keys():
             with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                 s3client.download_file(Bucket=self.bucket, Key=self.images[image_id], Filename=temp_file.name)
+                print('Downloaded successfuly')
                 img = Image.open(temp_file.name)
+                print('Image opened')
             self.ims[image_id] = img
         else:
             img = self.ims[image_id]
+            print('Image already exists locally.')
 
         ##########Blob approach
         # img = Image.open(BytesIO(base64.b64decode(self.images[image_id])))
@@ -523,7 +536,9 @@ class SimpleDataset(torch.utils.data.Dataset):
         bottom = self.detections[detection_id]['bottom']
 
         bbox = [left,top,(right-left),(bottom-top)]
+        print('Cropping {}'.format(bbox))
         crop = crop_image(img, bbox)
+        print('Cropped successfully!')
 
         if crop == False:
             return None,detection_id
