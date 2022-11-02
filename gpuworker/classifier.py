@@ -47,6 +47,9 @@ num_workers = 0
 batch_size = 200
 img_size = params_dict[model_name][2]
 s3client = boto3.client('s3')
+classifier_init = False
+model = None
+device = None
 
 with open('gpuworker/label_index.json', 'r') as f:
             categories = json.load(f)
