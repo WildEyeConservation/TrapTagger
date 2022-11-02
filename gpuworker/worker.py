@@ -17,8 +17,8 @@ limitations under the License.
 import os
 from celery import Celery
 from celery.signals import celeryd_after_setup
-import detector
-import classifier
+from gpuworker import detector
+from gpuworker import classifier
 
 BASE = "/data"
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
