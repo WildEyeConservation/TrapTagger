@@ -302,11 +302,11 @@ services:
         restart: always
         build:
             context: ./
-            dockerfile: megadetectorworker/Dockerfile
-        image: megadetector_worker
+            dockerfile: gpuworker/Dockerfile
+        image: gpu_worker
         container_name: traptagger_endpoint
         volumes:
-            - ./megadetectorworker:/code/megadetectorworker 
+            - ./gpuworker:/code/gpuworker 
             - ./CameraTraps/detection:/code/CameraTraps/detection 
             - ./CameraTraps/data_management:/code/CameraTraps/data_management 
             - ./CameraTraps/visualization:/code/CameraTraps/visualization 
@@ -314,7 +314,7 @@ services:
         environment:
             - CUDA_VISIBLE_DEVICES=0
             - REDIS_IP=traptagger_redis
-        command: celery -A megadetectorworker.megaDetector worker -n traptagger_endpoint -Q local -Ofair --concurrency=1 -l info
+        command: celery -A gpuworker.worker worker -n traptagger_endpoint -Q local -Ofair --concurrency=1 -l info
         networks:
             - my-network
 

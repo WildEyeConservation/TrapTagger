@@ -232,7 +232,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data': 
-                'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
+                'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
                 'celery_worker_{}' + ' ' + 
                 HOST_IP + ' ' + 
                 'celery ' + 
@@ -254,7 +254,7 @@ class Config(object):
         #     'repo': os.environ.get('MAIN_GIT_REPO'),
         #     'branch': BRANCH,
         #     'user_data': 
-        #         'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
+        #         'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
         #         'classification_worker_{}' + ' ' + 
         #         HOST_IP + ' ' + 
         #         'classification ' + 
@@ -274,7 +274,7 @@ class Config(object):
         'max_instances': MAX_CLASSIFICATION,
         'rate': 4,
         'user_data':
-            'bash /home/ubuntu/TrapTagger/megadetectorworker/launch.sh ' + 
+            'bash /home/ubuntu/TrapTagger/gpuworker/launch.sh ' + 
             'classification_worker_{}' + ' ' + 
             HOST_IP + ' ' + 
             '{} ' + 

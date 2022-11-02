@@ -44,7 +44,7 @@ import os
 import jwt
 import tempfile
 from multiprocessing import Lock
-from megadetectorworker.megaDetector import inferAndClassify
+from gpuworker.worker import detectAndClassify
 from flask_cors import cross_origin
 from calendar import monthrange
 
@@ -2839,7 +2839,7 @@ def classifySpecies():
         urls = re.split(',',request.form['urls'])
 
         if token==Config.TOKEN:
-            result = inferAndClassify.apply_async(kwargs={'batch': urls,'detector_model': Config.DETECTOR,'threshold': Config.DETECTOR_THRESHOLDS[Config.DETECTOR]}, queue='local', routing_key='local.inferAndClassify',expires=datetime.now() + timedelta(minutes=2))
+            result = detectAndClassify.apply_async(kwargs={'batch': urls,'detector_model': Config.DETECTOR,'threshold': Config.DETECTOR_THRESHOLDS[Config.DETECTOR]}, queue='local', routing_key='local.detectAndClassify',expires=datetime.now() + timedelta(minutes=2))
             GLOBALS.lock.acquire()
             with allow_join_result():
                 try:

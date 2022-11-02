@@ -37,17 +37,17 @@ REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
 REDIS_ADDRESS = 'redis://'+REDIS_IP+':6379/0'
 
 # task_routes = {
-#         'megadetectorworker.megaDetector.infer': {
+#         'gpuworker.worker.detection': {
 #             'queue': 'celery',
-#             'routing_key': 'celery.infer',
+#             'routing_key': 'celery.detection',
 #         },
-#         # 'megadetectorworker.megaDetector.classify': {
+#         # 'gpuworker.worker.classify': {
 #         #     'queue': 'classification',
 #         #     'routing_key': 'classification.classify',
 #         # },
-#         'megadetectorworker.megaDetector.inferAndClassify': {
+#         'gpuworker.worker.detectAndClassify': {
 #             'queue': 'local',
-#             'routing_key': 'local.inferAndClassify',
+#             'routing_key': 'local.detectAndClassify',
 #         },
 # }
 

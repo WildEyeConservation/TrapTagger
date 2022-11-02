@@ -19,7 +19,7 @@
 # 23 -> idle
 # 100 -> error state
 {
-  RESPONSE=$(celery -A megadetectorworker.megaDetector inspect -d celery@worker$WORKER_NUMBER@$WORKER_NAME active)
+  RESPONSE=$(celery -A gpuworker.worker inspect -d celery@worker$WORKER_NUMBER@$WORKER_NAME active)
 } || {
   exit 100
 }

@@ -130,7 +130,6 @@ class Survey(db.Model):
     ignore_small_detections = db.Column(db.Boolean, default=False, index=False)
     sky_masked = db.Column(db.Boolean, default=False, index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    classifier_version = db.Column(db.String(64), default='None', index=False)
     correct_timestamps = db.Column(db.Boolean, default=False, index=False)
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy='dynamic')
     tasks = db.relationship('Task', backref='survey', lazy='dynamic')

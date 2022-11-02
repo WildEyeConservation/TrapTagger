@@ -34,7 +34,7 @@ import warnings
 from io import BytesIO
 import pyexifinfo
 from wand.image import Image as wandImage
-from megadetectorworker.megaDetector import infer, classify
+from gpuworker.worker import detection, classify
 from celery.result import allow_join_result
 import numpy as np
 from pykml import parser as kmlparser
@@ -812,7 +812,7 @@ def setupDatabase():
                                 source='Microsoft',
                                 region='Global',
                                 active=True,
-                                threshold=0.5,
+                                threshold=0.1,
                                 description='Basic classification of vehicles, humans, and animals. The default choice for biomes without a dedicated classifier.')
         db.session.add(classifier)
 
@@ -900,7 +900,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
             print('Acquiring lock')
             GLOBALS.lock.acquire()
             print('Queueing batch')
-            GLOBALS.results_queue.append((images, infer.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.infer')))
+            GLOBALS.results_queue.append((images, detection.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.detection')))
             GLOBALS.lock.release()
             print('Lock released')
 

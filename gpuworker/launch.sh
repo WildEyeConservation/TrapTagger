@@ -35,7 +35,7 @@ printf \
 'AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'\n'
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/megadetectorworker:/code/megadetectorworker -v /home/ubuntu/TrapTagger/CameraTraps/detection:/code/CameraTraps/detection -v /home/ubuntu/TrapTagger/CameraTraps/data_management:/code/CameraTraps/data_management -v /home/ubuntu/TrapTagger/CameraTraps/visualization:/code/CameraTraps/visualization -v /home/ubuntu/TrapTagger/CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py --gpus all --ipc=host --name megadetectorworker$i megadetector_worker celery -A megadetectorworker.megaDetector worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
+  docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e REDIS_IP --hostname worker$i@$1 -e WORKER_NAME=$1 -e QUEUE -e WORKER_NUMBER=$i -e CUDA_VISIBLE_DEVICES=$i -v /home/ubuntu/TrapTagger/gpuworker:/code/gpuworker -v /home/ubuntu/TrapTagger/CameraTraps/detection:/code/CameraTraps/detection -v /home/ubuntu/TrapTagger/CameraTraps/data_management:/code/CameraTraps/data_management -v /home/ubuntu/TrapTagger/CameraTraps/visualization:/code/CameraTraps/visualization -v /home/ubuntu/TrapTagger/CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py --gpus all --ipc=host --name gpuworker$i megadetector_worker celery -A gpuworker.worker worker -Q $QUEUE -Ofair --concurrency=1 -l info > worker$i.log 2>&1 &
   echo "Docker container launched!"
 done
 
@@ -61,7 +61,7 @@ while $flag; do
     # Spot instance has been re-allocated
     echo "Spot instance re-allocated! Shutting down..."
     for ((i=0;$((i<$NUMGPUS));i++)) do
-      docker exec megadetectorworker$i python3 megadetectorworker/cleanup_worker.py || STATUS=$?
+      docker exec gpuworker$i python3 gpuworker/cleanup_worker.py || STATUS=$?
       echo "Cleanup status: "$STATUS
     done
     flag=false
@@ -71,7 +71,7 @@ while $flag; do
   if [ $(($(date -u +%s)-$LAUNCH_TIME)) -ge $SETUP_PERIOD ] && [ $((COUNT/$IDLE_MULTIPLIER)) -ge 1 ]; then
     echo "Checking idleness.."
     COUNT=0
-    docker exec megadetectorworker0 bash megadetectorworker/celery_worker_monitor.sh || STATUS=$?
+    docker exec gpuworker0 bash gpuworker/celery_worker_monitor.sh || STATUS=$?
     echo "STATUS="$STATUS
     if [ $STATUS == 23 ] || [ $STATUS == 100 ]; then
       # Worker is idle or is in an error state
@@ -82,7 +82,7 @@ while $flag; do
     if [ $IDLE_COUNT == 2 ]; then
       echo "Worker idle. Shutting down..."
       for ((i=0;$((i<$NUMGPUS));i++)) do
-        docker exec megadetectorworker$i python3 megadetectorworker/cleanup_worker.py || STATUS=$?
+        docker exec gpuworker$i python3 gpuworker/cleanup_worker.py || STATUS=$?
         echo "Cleanup status: "$STATUS
       done
       flag=false
@@ -92,7 +92,7 @@ while $flag; do
 done
 
 for ((i=0;$((i<$NUMGPUS));i++)) do
-  docker stop megadetectorworker$i
+  docker stop gpuworker$i
 done
 
 echo "Containers shut down. Goodbye."
