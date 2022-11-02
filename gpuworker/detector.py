@@ -31,15 +31,16 @@ detectors = {
     'MDv5b': {'filename':"md_v5b.0.0.pt"}
 }
 
-def infer(batch,sourceBucket,external,model,pass_images=False):
+def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
     '''
-    Runs MegaDetector on the supplied batch of images, returning all detections with a score greater than 0.05. 
+    Runs MegaDetector on the supplied batch of images, returning all detections with a score greater than the supplied threshold. 
 
         Parameters:
             batch (list): A batch of image keys to be processed.
             sourceBucket (str): The image source - base URL if external, S3 bucket otherwise.
             external (bool): Whether the images are external to S3.
             model (str): The detector to use
+            threshold (float): The minimum detection threshold to return detections for
             pass_images (bool): Whether to pass on the image objects for classification
 
         Returns:
@@ -96,7 +97,7 @@ def infer(batch,sourceBucket,external,model,pass_images=False):
                         if pass_images: images[url] = img
 
                     print('Generating detections...')
-                    result = detector.generate_detections_one_image(img, image, detection_threshold=0.05)
+                    result = detector.generate_detections_one_image(img, image, detection_threshold=threshold)
 
                     detections=[]
                     for detection in result['detections']:
@@ -188,7 +189,7 @@ def infer(batch,sourceBucket,external,model,pass_images=False):
                 print('Next image')
                 detections=[]
                 for j, scr in enumerate(score_np[i, :]):
-                    if scr < 0.05:
+                    if scr < threshold:
                         break
                     detections.append( {'top':float(box_np[i, j, 0]),
                                         'left':float(box_np[i, j, 1]),

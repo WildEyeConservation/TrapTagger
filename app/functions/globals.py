@@ -1137,7 +1137,7 @@ def classifyTask(task_id,reClusters = None):
 
             for chunk in chunker(clusters,1000):
                 for cluster in chunk:
-                    cluster.labels = [species]
+                    cluster.labels.append(species)
                     cluster.user_id = admin.id
                     cluster.timestamp = datetime.utcnow()
 

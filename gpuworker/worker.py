@@ -35,7 +35,7 @@ def setup_direct_queue(sender, instance, **kwargs):
 @app.task()
 def detection(batch,sourceBucket,external,model):
     '''
-    Runs MegaDetector on the supplied batch of images, returning all detections with a score greater than 0.05. 
+    Celery wrapper for the detector. Runs on the supplied batch of images, returning all detections with a score greater than 0.05. 
 
         Parameters:
             batch (list): A batch of image keys to be processed.
@@ -51,7 +51,7 @@ def detection(batch,sourceBucket,external,model):
 @app.task()
 def detectAndClassify(batch,model,threshold):
     '''
-    Runs both detection and classification on a batch of images for the API.
+    Celery function for running both detection and classification on a batch of image URLs for the API.
 
         Parameters:
             batch (list): List of image urls to process
@@ -63,7 +63,7 @@ def detectAndClassify(batch,model,threshold):
     '''
 
     try:
-        result, images = detector.infer(batch,'',True,model,True)
+        result, images = detector.infer(batch,'',True,model,threshold,True)
         
         index = 0
         detections = {}
@@ -101,7 +101,7 @@ def detectAndClassify(batch,model,threshold):
 @app.task()
 def classify(batch):
     '''
-    Runs species classification on the supplied batch of images. Returns a classification and associated confidence score for each detection ID.
+    Celery wrapper for running species classification on the supplied batch of images. Returns a classification and associated confidence score for each detection ID.
     
         Parameters:
             batch (dict): Dictionary consisting of image urls, and their detections for processing.
