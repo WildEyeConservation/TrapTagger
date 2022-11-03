@@ -911,6 +911,10 @@ btnSubmitTranslaions.addEventListener('click', ()=>{
         translationSelect = document.getElementById('classTranslationSelect-'+IDNum)
         translation = translationSelect.options[translationSelect.selectedIndex].text
 
+        if (translation=='nothing (ignore)') {
+            translation='nothing'
+        }
+
         translationInfo[classification] = translation
     }
     

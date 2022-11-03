@@ -231,9 +231,8 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
 
                 return json.dumps({'status': 'Success'})
             else:
-                labels = db.session.query(Label).filter(Label.task_id==int(task_id)).order_by(Label.description).all()
-                labels = [label.description for label in labels]
-                labels.extend(['Vehicles/Humans/Livestock','Nothing'])
+                labels = ['Nothing (Ignore)','Vehicles/Humans/Livestock']
+                labels.extend([label.description for label in db.session.query(Label).filter(Label.task_id==int(task_id)).order_by(Label.description).all()])
                 checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
                 return json.dumps({'status': 'untranslated','untranslated':untranslated,'labels':labels})
 
