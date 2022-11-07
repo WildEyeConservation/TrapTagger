@@ -3369,6 +3369,7 @@ def dissociateDetection(detection_id):
 
     individual_id = request.args.get('individual_id', None)
     if individual_id:
+        individual = db.session.query(Individual).get(individual_id)
         task = individual.task
     else:
         task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
@@ -3377,9 +3378,7 @@ def dissociateDetection(detection_id):
 
     if task and detection and (detection.image.camera.trapgroup.survey==task.survey) and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
 
-        if individual_id:
-            individual = db.session.query(Individual).get(individual_id)
-        else:
+        if not individual_id:
             individual = db.session.query(Individual)\
                                     .filter(Individual.task_id==task.id)\
                                     .filter(Individual.detections.contains(detection))\

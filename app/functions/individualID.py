@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import coordinateDistance, retryTime
 import GLOBALS
 import time
-from sqlalchemy.sql import or_, and_
+from sqlalchemy.sql import func, or_, and_
 from sqlalchemy.sql.expression import cast
 from sqlalchemy import desc
 import random
@@ -370,6 +370,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                 if similarity==None:
                     similarity = IndSimilarity(individual_1=individual1.id, individual_2=individual2.id)
                     db.session.add(similarity)
+                    db.session.commit()
 
                 if individual2 in family:
                     max_similarity = -1500
@@ -461,9 +462,41 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     similarity.detection_1 = max_det2
                     similarity.detection_2 = max_det1       
 
-        db.session.commit()
+                db.session.commit()
         # endTime = datetime.utcnow()
         # app.logger.info('Finished Calculating Individual Similarity in {}s'.format((endTime - startTime).total_seconds()))
+
+        #Ensure there are no duplicate indsims due to race condition
+        sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.id).label('count'))\
+                            .join(IndSimilarity, Individual.id==IndSimilarity.individual_1)\
+                            .filter(IndSimilarity.individual_2==individual1.id)\
+                            .group_by(Individual.id)\
+                            .subquery()
+		
+        sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.id).label('count'))\
+                .join(IndSimilarity, Individual.id==IndSimilarity.individual_2)\
+                .filter(IndSimilarity.individual_1==individual1.id)\
+                .group_by(Individual.id)\
+                .subquery()
+
+        duplicates = db.session.query(Individual)\
+                .outerjoin(sq1,sq1.c.indID==Individual.id)\
+                .outerjoin(sq2,sq2.c.indID==Individual.id)\
+                .filter(or_(\
+                    (sq1.c.count+sq2.c.count)>1,\
+                    sq1.c.count>1,\
+                    sq2.c.count>1))\
+                .distinct().all()
+
+        for duplicate in duplicates:
+            indsims = db.session.query(IndSimilarity)\
+                            .filter(or_(\
+                                and_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==duplicate.id),\
+                                and_(IndSimilarity.individual_1==duplicate.id,IndSimilarity.individual_2==individual1.id)))\
+                            .distinct().all()
+            for indsim in indsims[1:]:
+                db.session.delete(indsim)
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
