@@ -17,8 +17,9 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
-                                    updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
+                                    updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
+                                    getClusterClassifications
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, checkForIdWork
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -162,21 +163,20 @@ def prep_required_images(task_id):
     return len(clusters)
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def launchTask(self,task_id):
+def launch_task(self,task_id):
     '''Celery task for launching the specified task for annotation.'''
 
     try:
         app.logger.info('Started LaunchTask for task {}'.format(task_id))
 
         task = db.session.query(Task).get(task_id)
-        taskSize = task.size
         taggingLevel = task.tagging_level
-        survey_id = task.survey_id
         isBounding = task.is_bounding
 
         if task.jobs_finished == None:
             task.jobs_finished = 0
 
+        # Do some prep for individual ID tasks
         if ',' in taggingLevel:
             tL = re.split(',',taggingLevel)
             label = db.session.query(Label).get(int(tL[1]))
@@ -292,9 +292,24 @@ def launchTask(self,task_id):
 
                 db.session.commit()
         
+        # Mark clusters that need to be examined
         if '-5' not in taggingLevel:
+            cluster_count = checkForIdWork(task_id,label,tL[2])
+
+            if cluster_count == 0:
+                # Release task if the are no clusters to annotate
+                updateTaskCompletionStatus(task_id)
+                updateLabelCompletionStatus(task_id)
+                updateIndividualIdStatus(task_id)
+                task.status = 'SUCCESS'
+                task.survey.status = 'Ready'
+                db.session.commit()
+                return True
+
+        else:
             for cluster in task.clusters:
                 cluster.examined = True
+                cluster.skipped = False
 
             sq = db.session.query(Cluster) \
                 .join(Image, Cluster.images) \
@@ -308,6 +323,16 @@ def launchTask(self,task_id):
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
 
+            if len(clusters) == 0:
+                # Release task if the are no clusters to annotate
+                updateTaskCompletionStatus(task_id)
+                updateLabelCompletionStatus(task_id)
+                updateIndividualIdStatus(task_id)
+                task.status = 'SUCCESS'
+                task.survey.status = 'Ready'
+                db.session.commit()
+                return True
+
             for chunk in chunker(clusters,2500):
                 for cluster in chunk:
                     cluster.examined = False
@@ -319,8 +344,6 @@ def launchTask(self,task_id):
         for trapgroup in task.survey.trapgroups:
 
             if '-5' in taggingLevel:
-                tL = re.split(',',taggingLevel)
-                label = db.session.query(Label).get(int(tL[1]))
                 OtherIndividual = alias(Individual)
 
                 sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
@@ -363,7 +386,7 @@ def launchTask(self,task_id):
                                 .filter(Individual.name!='unidentifiable')\
                                 .filter(Camera.trapgroup_id==trapgroup.id)\
                                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                                .first()
+                                .count()
             else:
                 clusterCount = db.session.query(Cluster)\
                             .join(Image,Cluster.images)\
@@ -371,9 +394,9 @@ def launchTask(self,task_id):
                             .filter(Camera.trapgroup==trapgroup)\
                             .filter(Cluster.task_id == task_id)\
                             .filter(Cluster.examined==False)\
-                            .first()
+                            .count()
 
-            if clusterCount:
+            if clusterCount != 0:
                 trapgroup.active = True
             else:
                 trapgroup.active = False
@@ -1375,7 +1398,11 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
                 tag_ids.append(str(tag.id))
 
         groundTruth = []
-        classification = [cluster.classification]
+        
+        if taggingLevel == '-3':
+            classification = getClusterClassifications(cluster.id)
+        else:
+            classification = []
 
         if len(sortedImages) > 0:
             trapGroup = sortedImages[0].camera.trapgroup_id

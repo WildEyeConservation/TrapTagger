@@ -93,6 +93,7 @@ class Config(object):
     CLUSTER_DET_COUNT = 1
     DET_RATIO = 0.4
     DET_AREA = 0.005
+    MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
     # Individual ID Config
     SIMILARITY_SCORE = 0.05

@@ -91,9 +91,9 @@ def releaseTask(task_id):
         db.session.commit()
     return json.dumps('success')
 
-@app.route('/launchTaskMturk/<task_id>/<taskSize>/<taggingLevel>/<isBounding>', methods=['POST'])
+@app.route('/launchTask/<task_id>/<taskSize>/<taggingLevel>/<isBounding>', methods=['POST'])
 @login_required
-def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
+def launchTask(task_id, taskSize, taggingLevel, isBounding):
     '''
     Launches the specified task with the parameters provided.
 
@@ -110,131 +110,93 @@ def launchTaskMturk(task_id, taskSize, taggingLevel, isBounding):
             untranslated: There are translated labels that must be dealt with before launching
     '''
     
-    dbTask = db.session.query(Task).get(task_id)
+    task = db.session.query(Task).get(task_id)
     message = 'Task not ready to be launched.'
 
-    if (dbTask==None) or (taskSize in ['','none','null']) or (taggingLevel.lower() in ['','none','null']):
+    if (task==None) or (taskSize in ['','none','null']) or (taggingLevel.lower() in ['','none','null']):
         message = 'An unexpected error has occurred. Please check your form and try again.'
         return json.dumps({'message': message, 'status': 'Error'})
 
-    if (dbTask.status.lower() in Config.TASK_READY_STATUSES) and (dbTask.survey.user_id==current_user.id):
-        survey = dbTask.survey
-        dbTask.status = 'PENDING'
+    if (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.user_id==current_user.id):
+        survey = task.survey
+        task.status = 'PENDING'
         survey.status = 'Launched'
         db.session.commit()
 
-        app.logger.info(dbTask.survey.name + ': ' + dbTask.name + ' launched by ' + current_user.username)
+        app.logger.info(task.survey.name + ': ' + task.name + ' launched by ' + current_user.username)
 
         if isBounding=='true':
             isBounding = True
-            dbTask.test_size = 0
+            task.test_size = 0
         else:
             isBounding = False
-
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).distinct().all()
-        for cluster in clusters:
-            cluster.skipped = False
-        db.session.commit()
 
         if int(taskSize) > 10000:
             taskSize = 10000
 
-        if '-5' in taggingLevel:
-            tL = re.split(',',taggingLevel)
-            label = db.session.query(Label).get(int(tL[1]))
-            cluster_count = checkForIdWork(task_id,label,tL[2])
+        #Check if all classifications are translated, if not, prompt
+        untranslated = []
+        translations = db.session.query(Translation).filter(Translation.task_id==int(task_id)).all()
+        translations = [translation.classification for translation in translations]
 
-        else:
-            sq = db.session.query(Cluster) \
-                .join(Image, Cluster.images) \
-                .join(Camera) \
-                .join(Trapgroup) \
-                .join(Detection)
+        untranslated_prior = db.session.query(Detection.classification)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==task.survey_id)\
+                                .filter(~Detection.classification.in_(translations))\
+                                .distinct().all()
 
-            sq = taggingLevelSQ(sq,taggingLevel,isBounding,int(task_id))
+        untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
 
-            cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().count()
+        if len(untranslated_prior) != 0:
+            #Attempt to auto-translate
+            for classification in untranslated_prior:
+                if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
+                    species = db.session.query(Label).filter(Label.task_id==int(task_id)).filter(func.lower(Label.description)==func.lower(classification)).first()
+                else:
+                    species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
 
-        if cluster_count == 0:
-            message = 'There are no clusters to tag for that selection.'
-            updateTaskCompletionStatus(int(task_id))
-            updateLabelCompletionStatus(int(task_id))
-            updateIndividualIdStatus(int(task_id))
-            dbTask.status = 'SUCCESS'
-            survey.status = 'Ready'
+                if species:
+                    translation = Translation(classification=classification, label_id=species.id, task_id=int(task_id))
+                    db.session.add(translation)
+                else:
+                    untranslated.append(classification)
             db.session.commit()
 
+            if len(untranslated) != 0:
+                translations = db.session.query(Translation)\
+                                        .join(Label)\
+                                        .filter(Label.children.any())\
+                                        .filter(Label.description != 'Vehicles/Humans/Livestock')\
+                                        .filter(Label.description != 'Nothing')\
+                                        .filter(Label.description != 'Unknown')\
+                                        .filter(Translation.task_id==int(task_id)).all()
+                for translation in translations:
+                    if not checkChildTranslations(translation.label):
+                        for child in translation.label.children:
+                            createChildTranslations(translation.classification,int(task_id),child)    
+                db.session.commit()
+
+        task.size = taskSize
+        task.tagging_level = taggingLevel
+        task.is_bounding = isBounding
+        db.session.commit()
+
+        if any(level in taggingLevel for level in ['-4','-2']):
+            tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task_id==int(task_id)).order_by(Tag.description).all()
+            checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
+            return json.dumps({'status': 'tags', 'tags': tags})
+
+        elif len(untranslated) == 0:
+            launch_task.apply_async(kwargs={'task_id':task_id})
+            return json.dumps({'status': 'Success'})
+
         else:
-            #Check if all classifications are translated, if not, prompt
-            untranslated = []
-            translations = db.session.query(Translation).filter(Translation.task_id==int(task_id)).all()
-            translations = [translation.classification for translation in translations]
-
-            untranslated_prior = db.session.query(Detection.classification)\
-                                    .join(Image)\
-                                    .join(Camera)\
-                                    .join(Trapgroup)\
-                                    .filter(Trapgroup.survey_id==dbTask.survey_id)\
-                                    .filter(~Detection.classification.in_(translations))\
-                                    .distinct().all()
-
-            untranslated_prior = [r[0] for r in untranslated_prior if r[0] != None]
-
-            if len(untranslated_prior) != 0:
-                #Attempt to auto-translate
-                for classification in untranslated_prior:
-                    if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
-                        species = db.session.query(Label).filter(Label.task_id==int(task_id)).filter(func.lower(Label.description)==func.lower(classification)).first()
-                    else:
-                        species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
-
-                    if species:
-                        translation = Translation(classification=classification, label_id=species.id, task_id=int(task_id))
-                        db.session.add(translation)
-                    else:
-                        untranslated.append(classification)
-                db.session.commit()
-
-                if len(untranslated) != 0:
-                    translations = db.session.query(Translation)\
-                                            .join(Label)\
-                                            .filter(Label.children.any())\
-                                            .filter(Label.description != 'Vehicles/Humans/Livestock')\
-                                            .filter(Label.description != 'Nothing')\
-                                            .filter(Label.description != 'Unknown')\
-                                            .filter(Translation.task_id==int(task_id)).all()
-                    for translation in translations:
-                        if not checkChildTranslations(translation.label):
-                            for child in translation.label.children:
-                                createChildTranslations(translation.classification,int(task_id),child)    
-                    db.session.commit()
-
-            dbTask.size = taskSize
-            dbTask.tagging_level = taggingLevel
-            db.session.commit()
-
-            if any(level in taggingLevel for level in ['-4','-2']):
-                tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task_id==int(task_id)).order_by(Tag.description).all()
-                checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
-                return json.dumps({'status': 'tags', 'tags': tags})
-            elif len(untranslated) == 0:
-                dbTask.status = 'PENDING'
-                dbTask.is_bounding = isBounding
-                survey.status = 'Launched'
-                db.session.commit()
-
-                launchTask.apply_async(kwargs={'task_id':task_id})
-
-                return json.dumps({'status': 'Success'})
-            else:
-                labels = ['Nothing (Ignore)','Vehicles/Humans/Livestock']
-                labels.extend([label.description for label in db.session.query(Label).filter(Label.task_id==int(task_id)).order_by(Label.description).all()])
-                checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
-                return json.dumps({'status': 'untranslated','untranslated':untranslated,'labels':labels})
+            labels = ['Nothing (Ignore)','Vehicles/Humans/Livestock']
+            labels.extend([label.description for label in db.session.query(Label).filter(Label.task_id==int(task_id)).order_by(Label.description).all()])
+            checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
+            return json.dumps({'status': 'untranslated','untranslated':untranslated,'labels':labels})
 
     return json.dumps({'message': message, 'status': 'Error'})
 
@@ -3013,7 +2975,7 @@ def editTranslations(task_id):
         task.survey.status = 'Launched'
         db.session.commit()
 
-        launchTask.apply_async(kwargs={'task_id':task_id})
+        launch_task.apply_async(kwargs={'task_id':task_id})
 
     return json.dumps('success')
 
@@ -4389,7 +4351,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 task.status = 'PENDING'
                 task.survey.status = 'Launched'
                 db.session.commit()
-                launchTask.apply_async(kwargs={'task_id':task_id})
+                launch_task.apply_async(kwargs={'task_id':task_id})
                 # if task.status=='PROGRESS':
                 #     code = '-100'
                 # else:
@@ -4400,7 +4362,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 #         task.status = 'PENDING'
                 #         task.survey.status = 'Launched'
                 #         db.session.commit()
-                #         launchTask.apply_async(kwargs={'task_id':task_id})
+                #         launch_task.apply_async(kwargs={'task_id':task_id})
 
             elif (queueing==0) and (processing==0):
                 # Completely done
@@ -5040,17 +5002,9 @@ def getOtherTasks(task_id):
     else:
         return json.dumps([])
 
-@app.route('/acceptClassification/<status>/<cluster_id>/<additional>')
+@app.route('/reviewClassification')
 @login_required
-def acceptClassification(status,cluster_id,additional):
-    '''
-    Handles the classification check of the specified cluster. Returns progress numbers.
-    
-        Parameters:
-            status (str): if true, classification is accepted
-            cluster_id (int): The cluster of interest
-            additional (str): if true, label is added as an additional label. Labels are overwritten otherwise
-    '''
+def reviewClassification():
 
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
@@ -5059,57 +5013,59 @@ def acceptClassification(status,cluster_id,additional):
     turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
     num2 = turkcode.task.size + turkcode.task.test_size
 
-    if str(cluster_id)!='-99':
-        cluster = db.session.query(Cluster).get(int(cluster_id))
-        if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
-            if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
-                if (num < cluster.task.size) or (current_user.admin == True):
-                    num += 1
+    data = ast.literal_eval(request.form['data'])
+    cluster_id = data['cluster_id']
+    overwrite = data['overwrite']
+    data = data['data']
 
-                    if status == 'true':
-                        translation = db.session.query(Translation)\
-                                                .filter(Translation.task_id==cluster.task_id)\
-                                                .filter(Translation.classification==cluster.classification)\
-                                                .first()
+    cluster = db.session.query(Cluster).get(cluster_id)
+    if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
+        if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
+            if (num < cluster.task.size) or (current_user.admin == True):
+                num += 1
 
-                        labelgroups = db.session.query(Labelgroup)\
-                                                .join(Detection)\
-                                                .join(Image)\
-                                                .filter(Image.clusters.contains(cluster))\
-                                                .filter(Labelgroup.task_id==cluster.task_id)\
-                                                .all()
+                if overwrite:
+                    cluster.labels = []
 
-                        if (len(cluster.labels) > 1) and (additional != 'true'):
-                            additional = 'true'
-                            if translation.label.parent_id != None:
-                                if translation.label.parent in cluster.labels:
-                                    cluster.labels.remove(translation.label.parent)
-                                    for labelgroup in labelgroups:
-                                        if translation.label.parent in labelgroup.labels:
-                                            labelgroup.labels.remove(translation.label.parent)
-                                else:
-                                    for label in translation.label.parent.children:
-                                        if label in cluster.labels:
-                                            cluster.labels.remove(label)
-                                            for labelgroup in labelgroups:
-                                                if label in labelgroup.labels:
-                                                    labelgroup.labels.remove(label)
-                                        
-                        if additional == 'true':
-                            if translation.label not in cluster.labels:
-                                cluster.labels.append(translation.label)
-                                for labelgroup in labelgroups:
-                                    labelgroup.labels.append(translation.label)
-                                    labelgroup.checked = False
+                additional_labels = []
+                for item in data:
+                    classification = item['classification']
+                    action = item['action']
+
+                    if action=='accept':
+                        if classification in ['vehicles/humans/livestock','nothing','unknown']:
+                            label = db.session.query(Label).filter(Label.description==classification).first()
                         else:
-                            cluster.labels = [translation.label]
-                            for labelgroup in labelgroups:
-                                labelgroup.labels = [translation.label]
-                                labelgroup.checked = False
+                            label = db.session.query(Label).filter(Label.description==classification).filter(Label.task==cluster.task).first()
 
-                    cluster.examined = True
-                    cluster.user_id == current_user.id
-                    db.session.commit()
+                        if label:
+                            # Remove related labels
+                            if label.parent:
+                                family_labels = [label.parent]
+                                family_labels.extend(label.children)
+                                for family_label in family_labels:
+                                    if family_label in cluster.labels:
+                                        cluster.labels.remove(family_label)
+
+                            if (label not in additional_labels) and (label not in cluster.labels):
+                                additional_labels.append(label)
+
+                labelgroups = db.session.query(Labelgroup)\
+                                            .join(Detection)\
+                                            .join(Image)\
+                                            .filter(Image.clusters.contains(cluster))\
+                                            .filter(Labelgroup.task==cluster.task)\
+                                            .all()
+
+                cluster.labels.extend(additional_labels)
+
+                for labelgroup in labelgroups:
+                    labelgroup.labels = cluster.labels
+                    labelgroup.checked = False
+
+                cluster.examined = True
+                cluster.user_id == current_user.id
+                db.session.commit()
 
     return json.dumps((num, num2))
 
@@ -5385,8 +5341,8 @@ def submitTags(task_id):
             task.survey.status = 'Launched'
             db.session.commit()
 
-            app.logger.info('Calling launchTask for task {}'.format(task_id))
-            launchTask.apply_async(kwargs={'task_id':task_id})
+            app.logger.info('Calling launch_task for task {}'.format(task_id))
+            launch_task.apply_async(kwargs={'task_id':task_id})
 
             return json.dumps({'status': 'success'})
         except:

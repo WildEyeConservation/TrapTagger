@@ -155,19 +155,6 @@ function getKeys() {
             var newbtn = document.createElement('button');
             newbtn.classList.add('btn');
             newbtn.classList.add('btn-primary');
-            newbtn.innerHTML = 'Add as Additional (D)';
-            newbtn.setAttribute("id", 1);
-            newbtn.classList.add('btn-block');
-            newbtn.classList.add('btn-sm');
-            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-            newbtn.addEventListener('click', (evt)=>{
-                assignLabel('4');
-            });
-            divBtns.appendChild(newbtn);
-
-            var newbtn = document.createElement('button');
-            newbtn.classList.add('btn');
-            newbtn.classList.add('btn-primary');
             newbtn.innerHTML = 'Reject (R)';
             newbtn.setAttribute("id", 2);
             newbtn.classList.add('btn-block');
@@ -181,7 +168,7 @@ function getKeys() {
             var newbtn = document.createElement('button');
             newbtn.classList.add('btn');
             newbtn.classList.add('btn-primary');
-            newbtn.innerHTML = 'Other (O)';
+            newbtn.innerHTML = 'Overwrite (space)';
             newbtn.setAttribute("id", 3);
             newbtn.classList.add('btn-block');
             newbtn.classList.add('btn-sm');
@@ -191,11 +178,24 @@ function getKeys() {
             });
             divBtns.appendChild(newbtn);
 
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Other (O)';
+            newbtn.setAttribute("id", 1);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                assignLabel('4');
+            });
+            divBtns.appendChild(newbtn);
+
             hotkeys = Array(37).fill(EMPTY_HOTKEY_ID)
             hotkeys[10] = '1' //a
             hotkeys[27] = '2' //r
-            hotkeys[24] = '3' //o
-            hotkeys[13] = '4' //d
+            hotkeys[24] = '4' //o
+            hotkeys[36] = '3' //space
 
         } else {
             if (globalKeys==null) {

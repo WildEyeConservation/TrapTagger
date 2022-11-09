@@ -131,7 +131,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                 }
             }
         }
-        xhttp.open("POST", '/launchTaskMturk/'+selectedTask+'/'+taskSize+'/'+taskTaggingLevel+'/'+isBounding);
+        xhttp.open("POST", '/launchTask/'+selectedTask+'/'+taskSize+'/'+taskTaggingLevel+'/'+isBounding);
         xhttp.send();
     }
 });

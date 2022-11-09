@@ -84,6 +84,7 @@ const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
 var waitModalMap = null
+var classificationCheckData = {'overwrite':false,'data':[]}
 
 var clusters = {"map1": []}
 var clusterIndex = {"map1": 0}
@@ -993,14 +994,35 @@ function updateDebugInfo(mapID = 'map1') {
             if (!isClassCheck) {
                 document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
             } else {
+                classifierLabels = document.getElementById('classifierLabels')
+                while(classifierLabels.firstChild){
+                    classifierLabels.removeChild(classifierLabels.firstChild);
+                }
+
+                row = document.createElement('div')
+                row.classList.add('row')
+                classifierLabels.appendChild(row)
+            
+                col1 = document.createElement('div')
+                col1.classList.add('col-lg-6')
+                // col1.setAttribute('style','font-size: 100%')
+                col1.innerHTML = 'Suggestion:'
+                classifierLabels.appendChild(col1)
+
+                col2 = document.createElement('div')
+                col2.classList.add('col-lg-6')
+                classifierLabels.appendChild(col2)
+
                 var temp =''
                 for (i=0;i<clusters[mapID][clusterIndex[mapID]].classification.length;i++) {
-                    temp += clusters[mapID][clusterIndex[mapID]].classification[i]
-                    if (i != clusters[mapID][clusterIndex[mapID]].classification.length-1) {
-                        temp += ', '
+                    row = document.createElement('div')
+                    row.classList.add('row')
+                    if (i!=0) {
+                        col1.setAttribute('style','font-size: 80%')
                     }
+                    row.innerHTML = clusters[mapID][clusterIndex[mapID]].classification[i][0] + ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
+                    col2.appendChild(row)
                 }
-                document.getElementById('classifierLabels').innerHTML = "Suggestion: "+temp;
             }
             
             var temp =''
@@ -1352,97 +1374,79 @@ function assignLabel(label,mapID = 'map1'){
             }
 
             if (checkVar == 0) {
-                if (label == '1') {
-                    // accept
-                    clusters[mapID][clusterIndex[mapID]][ITEMS] = clusters[mapID][clusterIndex[mapID]].classification
-                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['-254']
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.onreadystatechange =
-                        function () {
-                            if (this.readyState == 4 && this.status == 278) {
-                                window.location.replace(JSON.parse(this.responseText)['redirect'])
-                            } else if (this.readyState == 4 && this.status == 200) {                    
-                                Progress = JSON.parse(this.responseText);
-                                if (!multipleStatus) {
-                                    updateProgBar(Progress)
-                                }
-                            }
-                        }
-                    xhttp.open("GET", '/acceptClassification/true/'+clusters[mapID][clusterIndex[mapID]].id+'/false', true);
-                    xhttp.send();
-    
-                    nextCluster(mapID)
-                } else if (label == '2') {
-                    // reject
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.onreadystatechange =
-                        function () {
-                            if (this.readyState == 4 && this.status == 278) {
-                                window.location.replace(JSON.parse(this.responseText)['redirect'])
-                            } else if (this.readyState == 4 && this.status == 200) {                    
-                                Progress = JSON.parse(this.responseText);
-                                if (!multipleStatus) {
-                                    updateProgBar(Progress)
-                                }
-                            }
-                        }
-                    xhttp.open("GET", '/acceptClassification/false/'+clusters[mapID][clusterIndex[mapID]].id+'/false', true);
-                    xhttp.send();
-    
-                    nextCluster(mapID)
-                } else if (label == '3') {
-                    // other
-                    if (divBtns != null) {
-                        orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
-                        orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
-                        clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
-                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
-                        updateDebugInfo()
 
-                        selectBtns = document.getElementById('selectBtns')
-                        multipleStatus = false
-                
-                        while(divBtns.firstChild){
-                            divBtns.removeChild(divBtns.firstChild);
+                classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
+
+                if (classification != undefined) {
+                    // Append to labels
+                    classification = classification[0]
+
+                    if (label == '1') {
+                        // accept
+                        classificationCheckData['data'].append({'label':classification,'action':'accept'})
+                    } else if (label == '2') {
+                        // reject
+                        classificationCheckData['data'].append({'label':classification,'action':'reject'})
+                    } else if (label == '3') {
+                        // overwrite
+                        classificationCheckData['overwrite'] = true
+                        classificationCheckData['data'].append({'label':classification,'action':'accept'})
+                    } else if (label == '4') {
+                        // other
+                        if (divBtns != null) {
+                            orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+                            orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+                            clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                            updateDebugInfo()
+
+                            selectBtns = document.getElementById('selectBtns')
+                            multipleStatus = false
+                    
+                            while(divBtns.firstChild){
+                                divBtns.removeChild(divBtns.firstChild);
+                            }
+                    
+                            var newbtn = document.createElement('button');
+                            newbtn.classList.add('btn');
+                            newbtn.classList.add('btn-danger');
+                            newbtn.innerHTML = 'Back';
+                            newbtn.setAttribute("id", 0);
+                            newbtn.classList.add('btn-block');
+                            newbtn.classList.add('btn-sm');
+                            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                            newbtn.addEventListener('click', (evt)=>{
+                                suggestionBack();
+                            });
+                            selectBtns.appendChild(newbtn);
+                    
+                            dropdown = document.createElement('div')
+                            dropdown.classList.add('dropdown')
+                            selectBtns.appendChild(dropdown)
+                    
+                            dropbutton = document.createElement('button')
+                            dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
+                            dropbutton.setAttribute('type','button')
+                            dropbutton.setAttribute('data-toggle','dropdown')
+                            dropbutton.innerHTML = 'Annotation Level'
+                            dropdown.appendChild(dropbutton)
+                    
+                            levelSelector = document.createElement('div')
+                            levelSelector.setAttribute('id','level-selector')
+                            levelSelector.setAttribute('class','dropdown-menu')
+                            dropdown.appendChild(levelSelector)
+                    
+                            populateLevels()
                         }
-                
-                        var newbtn = document.createElement('button');
-                        newbtn.classList.add('btn');
-                        newbtn.classList.add('btn-danger');
-                        newbtn.innerHTML = 'Back';
-                        newbtn.setAttribute("id", 0);
-                        newbtn.classList.add('btn-block');
-                        newbtn.classList.add('btn-sm');
-                        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-                        newbtn.addEventListener('click', (evt)=>{
-                            suggestionBack();
-                        });
-                        selectBtns.appendChild(newbtn);
-                
-                        dropdown = document.createElement('div')
-                        dropdown.classList.add('dropdown')
-                        selectBtns.appendChild(dropdown)
-                
-                        dropbutton = document.createElement('button')
-                        dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
-                        dropbutton.setAttribute('type','button')
-                        dropbutton.setAttribute('data-toggle','dropdown')
-                        dropbutton.innerHTML = 'Annotation Level'
-                        dropdown.appendChild(dropbutton)
-                
-                        levelSelector = document.createElement('div')
-                        levelSelector.setAttribute('id','level-selector')
-                        levelSelector.setAttribute('class','dropdown-menu')
-                        dropdown.appendChild(levelSelector)
-                
-                        populateLevels()
                     }
-                } else if (label == '4') {
-                    // accept additional
-                    if (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes(clusters[mapID][clusterIndex[mapID]].classification[0])) {
-                        clusters[mapID][clusterIndex[mapID]][ITEMS].push(clusters[mapID][clusterIndex[mapID]].classification[0])
-                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push('-254')
-                    }
+                }
+
+                if (clusters[mapID][clusterIndex[mapID]].classification.length==0) {
+                    // Finished - submit
+                    classificationCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+                    var formData = new FormData()
+                    formData.append("data", JSON.stringify(classificationCheckData))
+
                     var xhttp = new XMLHttpRequest();
                     xhttp.onreadystatechange =
                         function () {
@@ -1455,10 +1459,13 @@ function assignLabel(label,mapID = 'map1'){
                                 }
                             }
                         }
-                    xhttp.open("GET", '/acceptClassification/true/'+clusters[mapID][clusterIndex[mapID]].id+'/true', true);
-                    xhttp.send();
-    
+                    xhttp.open("POST", '/reviewClassification');
+                    xhttp.send(formData);
+
+                    classificationCheckData = {'overwrite':false,'data':[]}
                     nextCluster(mapID)
+                } else {
+                    updateDebugInfo()
                 }
             }
         
