@@ -1007,11 +1007,11 @@ function updateDebugInfo(mapID = 'map1') {
                 col1.classList.add('col-lg-6')
                 // col1.setAttribute('style','font-size: 100%')
                 col1.innerHTML = 'Suggestion:'
-                classifierLabels.appendChild(col1)
+                row.appendChild(col1)
 
                 col2 = document.createElement('div')
                 col2.classList.add('col-lg-6')
-                classifierLabels.appendChild(col2)
+                row.appendChild(col2)
 
                 var temp =''
                 for (i=0;i<clusters[mapID][clusterIndex[mapID]].classification.length;i++) {
@@ -1383,14 +1383,14 @@ function assignLabel(label,mapID = 'map1'){
 
                     if (label == '1') {
                         // accept
-                        classificationCheckData['data'].append({'label':classification,'action':'accept'})
+                        classificationCheckData['data'].push({'label':classification,'action':'accept'})
                     } else if (label == '2') {
                         // reject
-                        classificationCheckData['data'].append({'label':classification,'action':'reject'})
+                        classificationCheckData['data'].push({'label':classification,'action':'reject'})
                     } else if (label == '3') {
                         // overwrite
                         classificationCheckData['overwrite'] = true
-                        classificationCheckData['data'].append({'label':classification,'action':'accept'})
+                        classificationCheckData['data'].push({'label':classification,'action':'accept'})
                     } else if (label == '4') {
                         // other
                         if (divBtns != null) {
