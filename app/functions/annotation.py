@@ -18,8 +18,8 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, checkForIdWork
+                                    getClusterClassifications, checkForIdWork
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
