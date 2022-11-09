@@ -293,7 +293,7 @@ def launch_task(self,task_id):
                 db.session.commit()
         
         # Mark clusters that need to be examined
-        if '-5' not in taggingLevel:
+        if '-5' in taggingLevel:
             cluster_count = checkForIdWork(task_id,label,tL[2])
 
             if cluster_count == 0:
