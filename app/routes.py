@@ -5014,7 +5014,7 @@ def reviewClassification():
 
                 additional_labels = []
                 for item in data:
-                    classification = item['classification']
+                    classification = item['label']
                     action = item['action']
 
                     if action=='accept':
