@@ -4998,13 +4998,10 @@ def reviewClassification():
     cluster_label_ids = []
     classifications = []
 
-    data = ast.literal_eval(request.form['data'])
+    data = json.loads(request.form['data'])
     cluster_id = data['cluster_id']
     overwrite = data['overwrite']
     data = data['data']
-
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('overwrite: {}, {}'.format(overwrite,type(overwrite)))
 
     cluster = db.session.query(Cluster).get(cluster_id)
     if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
@@ -5064,6 +5061,8 @@ def reviewClassification():
                     for label in cluster.labels:
                         cluster_labels.append(label.description)
                         cluster_label_ids.append(str(label.id))
+
+    if Config.DEBUGGING: app.logger.info(cluster.labels)
 
     return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
 
