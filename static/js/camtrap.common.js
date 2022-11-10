@@ -2097,6 +2097,7 @@ function submitLabels(mapID = 'map1') {
                         }
                         if (isClassCheck) {
                             clusters[wrapMapID][wrapIndex].ready = true
+                            clusters[wrapMapID][wrapIndex].classification = response.classifications
                         }
                         Progress = reply.progress
                         updateProgBar(Progress)
@@ -2108,7 +2109,6 @@ function submitLabels(mapID = 'map1') {
     xhttp.open("POST", url, true);
     if (isClassCheck) {
         clusters[mapID][clusterIndex[mapID]].ready = false
-        clusters[mapID][clusterIndex[mapID]].classification = baseClassifications.slice()
     }
     xhttp.send(formData);
     if (batchComplete&&nothingStatus) {

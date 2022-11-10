@@ -4652,6 +4652,7 @@ def assignLabel(clusterID):
         explore = request.args.get('explore', None)
         reAllocated = False
         newClusters = []
+        classifications = None
 
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
         turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
@@ -4852,7 +4853,9 @@ def assignLabel(clusterID):
 
                     db.session.commit()
 
-        return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters})
+                    if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
+
+        return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
 
     except:
         return json.dumps('error')
