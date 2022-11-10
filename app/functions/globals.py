@@ -2138,11 +2138,19 @@ def getClusterClassifications(cluster_id):
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                             .distinct().count()
+
+    possibilities = [r.id for r in db.session.query(Label)\
+                            .join(classSQ,classSQ.c.label_id==Label.id)\
+                            .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO)\
+                            .filter(classSQ.c.count>1)\
+                            .distinct().all()]
     
     classifications = db.session.query(Label.description,classSQ.c.count/clusterDetCount)\
                             .join(classSQ,classSQ.c.label_id==Label.id)\
                             .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO)\
                             .filter(classSQ.c.count>1)\
+                            .filter(~Label.parent_id.in_(possibilities))\
+                            .filter(~Label.clusters.contains(cluster))\
                             .order_by(classSQ.c.count.desc())\
                             .distinct().all()
     

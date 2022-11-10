@@ -5062,7 +5062,7 @@ def reviewClassification():
                         cluster_labels.append(label.description)
                         cluster_label_ids.append(str(label.id))
 
-    if Config.DEBUGGING: app.logger.info(cluster.labels)
+    if Config.DEBUGGING: app.logger.info(cluster.id, cluster.labels)
 
     return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
 
