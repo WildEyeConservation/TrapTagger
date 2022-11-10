@@ -985,7 +985,7 @@ function updateClusterLabels(mapID = 'map1') {
     }
 }
 
-function updateDebugInfo(mapID = 'map1') {
+function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     /** Updates the displayed image/cluster info. */
     if ((!isViewing && !isTagging && !isBounding && !isKnockdown)||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
         if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
@@ -1030,14 +1030,16 @@ function updateDebugInfo(mapID = 'map1') {
                 }
             }
             
-            var temp =''
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
-                temp += clusters[mapID][clusterIndex[mapID]].label[i]
-                if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
-                    temp += ', '
+            if (updateLabels) {
+                var temp =''
+                for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
+                    temp += clusters[mapID][clusterIndex[mapID]].label[i]
+                    if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
+                        temp += ', '
+                    }
                 }
+                document.getElementById('debugLabels').innerHTML = "Labels: "+temp;
             }
-            document.getElementById('debugLabels').innerHTML = "Labels: "+temp;
 
             if (document.getElementById('groundLabels')) {
                 var temp =''
@@ -1546,7 +1548,7 @@ function assignLabel(label,mapID = 'map1'){
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
                                 }
                                 if (!isClassCheck) {
-                                    updateDebugInfo(mapID)
+                                    updateDebugInfo(mapID,false)
                                 }
 
                                 clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label), 1)
@@ -1619,7 +1621,7 @@ function assignLabel(label,mapID = 'map1'){
                                     }
                                 }
                                 if (!isClassCheck) {
-                                    updateDebugInfo(mapID)
+                                    updateDebugInfo(mapID,false)
                                 }  
                                 
                                 if (wrongStatus) {

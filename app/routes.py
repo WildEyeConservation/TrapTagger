@@ -5018,7 +5018,7 @@ def reviewClassification():
                     action = item['action']
 
                     if action=='accept':
-                        if classification in ['vehicles/humans/livestock','nothing','unknown']:
+                        if classification.lower() in ['vehicles/humans/livestock','nothing','unknown']:
                             label = db.session.query(Label).filter(Label.description==classification).first()
                         else:
                             label = db.session.query(Label).filter(Label.description==classification).filter(Label.task==cluster.task).first()
