@@ -1387,73 +1387,73 @@ function assignLabel(label,mapID = 'map1'){
 
             if (checkVar == 0) {
 
-                classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
+                if (label == '4') {
+                    // other
+                    if (divBtns != null) {
+                        orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+                        orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+                        clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                        updateDebugInfo(mapID,false)
 
-                if (classification != undefined) {
-                    // Append to labels
-                    classification = classification[0]
+                        selectBtns = document.getElementById('selectBtns')
+                        multipleStatus = false
 
-                    if (label == '1') {
-                        // accept
-                        classificationCheckData['data'].push({'label':classification,'action':'accept'})
-                    } else if (label == '2') {
-                        // reject
-                        classificationCheckData['data'].push({'label':classification,'action':'reject'})
-                    } else if (label == '3') {
-                        // overwrite
-                        classificationCheckData['overwrite'] = true
-                        classificationCheckData['data'].push({'label':classification,'action':'accept'})
-                    } else if (label == '4') {
-                        // other
-                        if (divBtns != null) {
-                            orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
-                            orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
-                            clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
-                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
-                            updateDebugInfo(mapID,false)
+                        while(divBtns.firstChild){
+                            divBtns.removeChild(divBtns.firstChild);
+                        }
 
-                            selectBtns = document.getElementById('selectBtns')
-                            multipleStatus = false
-                    
-                            while(divBtns.firstChild){
-                                divBtns.removeChild(divBtns.firstChild);
-                            }
-                    
-                            var newbtn = document.createElement('button');
-                            newbtn.classList.add('btn');
-                            newbtn.classList.add('btn-danger');
-                            newbtn.innerHTML = 'Back';
-                            newbtn.setAttribute("id", 0);
-                            newbtn.classList.add('btn-block');
-                            newbtn.classList.add('btn-sm');
-                            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-                            newbtn.addEventListener('click', (evt)=>{
-                                suggestionBack();
-                            });
-                            selectBtns.appendChild(newbtn);
-                    
-                            dropdown = document.createElement('div')
-                            dropdown.classList.add('dropdown')
-                            selectBtns.appendChild(dropdown)
-                    
-                            dropbutton = document.createElement('button')
-                            dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
-                            dropbutton.setAttribute('type','button')
-                            dropbutton.setAttribute('data-toggle','dropdown')
-                            dropbutton.innerHTML = 'Annotation Level'
-                            dropdown.appendChild(dropbutton)
-                    
-                            levelSelector = document.createElement('div')
-                            levelSelector.setAttribute('id','level-selector')
-                            levelSelector.setAttribute('class','dropdown-menu')
-                            dropdown.appendChild(levelSelector)
-                    
-                            populateLevels()
+                        var newbtn = document.createElement('button');
+                        newbtn.classList.add('btn');
+                        newbtn.classList.add('btn-danger');
+                        newbtn.innerHTML = 'Back';
+                        newbtn.setAttribute("id", 0);
+                        newbtn.classList.add('btn-block');
+                        newbtn.classList.add('btn-sm');
+                        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                        newbtn.addEventListener('click', (evt)=>{
+                            suggestionBack();
+                        });
+                        selectBtns.appendChild(newbtn);
+
+                        dropdown = document.createElement('div')
+                        dropdown.classList.add('dropdown')
+                        selectBtns.appendChild(dropdown)
+
+                        dropbutton = document.createElement('button')
+                        dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
+                        dropbutton.setAttribute('type','button')
+                        dropbutton.setAttribute('data-toggle','dropdown')
+                        dropbutton.innerHTML = 'Annotation Level'
+                        dropdown.appendChild(dropbutton)
+
+                        levelSelector = document.createElement('div')
+                        levelSelector.setAttribute('id','level-selector')
+                        levelSelector.setAttribute('class','dropdown-menu')
+                        dropdown.appendChild(levelSelector)
+
+                        populateLevels()
+                    }
+                } else {
+                    classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
+
+                    if (classification != undefined) {
+                        // Append to labels
+                        classification = classification[0]
+    
+                        if (label == '1') {
+                            // accept
+                            classificationCheckData['data'].push({'label':classification,'action':'accept'})
+                        } else if (label == '2') {
+                            // reject
+                            classificationCheckData['data'].push({'label':classification,'action':'reject'})
+                        } else if (label == '3') {
+                            // overwrite
+                            classificationCheckData['overwrite'] = true
+                            classificationCheckData['data'].push({'label':classification,'action':'accept'})
                         }
                     }
-                }
-
-                if (label != '4') {
+    
                     if (clusters[mapID][clusterIndex[mapID]].classification.length==0) {
                         // Finished - submit
                         classificationCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
