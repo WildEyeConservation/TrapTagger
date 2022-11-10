@@ -1484,16 +1484,6 @@ def generate_training_csv(self,tasks,destBucket,min_area):
         for task_id in tasks:
             task = db.session.query(Task).get(task_id)
 
-            dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                    .join(Image) \
-                                    .join(Camera) \
-                                    .join(Trapgroup) \
-                                    .filter(Trapgroup.survey_id==task.survey_id) \
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .subquery()
-
             # we want to include all child-level labels
             labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
 
@@ -1512,10 +1502,9 @@ def generate_training_csv(self,tasks,destBucket,min_area):
                         .join(Survey,Survey.id==Trapgroup.survey_id)\
                         .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
                         .join(Label,Labelgroup.labels)\
-                        .join(dimensionSQ,dimensionSQ.c.detID==Detection.id)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Label.id.in_([r.id for r in labels]))\
-                        .filter(dimensionSQ.c.area > min_area)\
+                        .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static == False)\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
@@ -1590,16 +1579,6 @@ def crop_survey_images(self,task_id,min_area,destBucket):
     try:
         task = db.session.query(Task).get(task_id)
 
-        dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                .join(Image) \
-                                .join(Camera) \
-                                .join(Trapgroup) \
-                                .filter(Trapgroup.survey_id==task.survey_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                .subquery()
-
         # we want to include all child-level labels
         labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
 
@@ -1618,10 +1597,9 @@ def crop_survey_images(self,task_id,min_area,destBucket):
                     .join(Survey,Survey.id==Trapgroup.survey_id)\
                     .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
                     .join(Label,Labelgroup.labels)\
-                    .join(dimensionSQ,dimensionSQ.c.detID==Detection.id)\
                     .filter(Labelgroup.task_id==task_id)\
                     .filter(Label.id.in_([r.id for r in labels]))\
-                    .filter(dimensionSQ.c.area > min_area)\
+                    .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static == False)\
                     .filter(~Detection.status.in_(['deleted','hidden']))\

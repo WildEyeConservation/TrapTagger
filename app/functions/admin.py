@@ -1155,26 +1155,16 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
         survey.status = 'Processing'
         db.session.commit()
 
-        dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                .join(Image) \
-                                .join(Camera) \
-                                .join(Trapgroup) \
-                                .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .subquery()
-
         # Don't edit the Detection.status != 'deleted' line
         detections = db.session.query(Detection)\
                                 .join(Image) \
                                 .join(Camera) \
                                 .join(Trapgroup) \
-                                .join(dimensionSQ, dimensionSQ.c.detID==Detection.id)\
                                 .filter(Trapgroup.survey_id==survey_id) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(Detection.status != 'deleted') \
-                                .filter(dimensionSQ.c.area<Config.DET_AREA)
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)
 
         if (not edge) and (ignore_small_detections=='false') and (survey.sky_masked==True):
             detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
@@ -1232,16 +1222,7 @@ def maskSky(self,survey_id,sky_masked,edge):
 
 
         if (not edge) and (sky_masked=='false') and (survey.ignore_small_detections==True):
-            dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                .join(Image) \
-                                .join(Camera) \
-                                .join(Trapgroup) \
-                                .filter(Trapgroup.survey_id==survey_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .subquery()
-
-            detections.join(dimensionSQ, dimensionSQ.c.detID==Detection.id).filter(dimensionSQ.c.area>=Config.DET_AREA)
+            detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)
                                 
         detections = detections.distinct().all()
                                 

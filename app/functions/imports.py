@@ -1569,14 +1569,13 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     remove_duplicate_images(survey_id)
 
-def classifyCluster(cluster,classifications,dimensionSQ):
+def classifyCluster(cluster,classifications):
     '''
     Returns the species contained in a single cluster.
 
         Parameters:
             cluster (Cluster): Cluster object to be classified
             classifications (list): List of all classifications in a survey
-            dimensionSQ (SQLAlchemy subquery): Subquery of detection area
 
         Returns:
             clusterClass (str): The species contained in the cluster
@@ -1592,13 +1591,12 @@ def classifyCluster(cluster,classifications,dimensionSQ):
                             .join(Trapgroup)\
                             .join(Survey)\
                             .join(Classifier)\
-                            .join(dimensionSQ, dimensionSQ.c.detID==Detection.id) \
                             .filter(Image.clusters.contains(cluster)) \
                             .filter(Detection.class_score>Classifier.threshold) \
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .filter(dimensionSQ.c.area > Config.DET_AREA) \
+                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                             .filter(Detection.classification==classification) \
                             .distinct(Detection.id).count()
 
@@ -1622,13 +1620,6 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
     '''
 
     try:
-        dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                .join(Image) \
-                                .join(Camera) \
-                                .join(Trapgroup) \
-                                .filter(Trapgroup.id==trapgroup_id) \
-                                .subquery()
-
         clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Cluster.task_id==task_id).distinct().all()
         for chunk in chunker(clusters,500):
             for cluster in chunk:
@@ -1645,7 +1636,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
                                             .filter(Image.clusters.contains(cluster))\
                                             .distinct().all()
                 classifications = [r[0] for r in classifications if r[0]!=None]
-                cluster.classification = classifyCluster(cluster,classifications,dimensionSQ)
+                cluster.classification = classifyCluster(cluster,classifications)
             db.session.commit()
 
     except Exception as exc:
@@ -1662,7 +1653,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
     return True
 
 def single_cluster_classification(cluster):
-    '''Runs classifyCluster on a given cluster. Includes required dimensionSQ.'''
+    '''Runs classifyCluster on a given cluster.'''
 
     classifications = db.session.query(Detection.classification)\
                                 .join(Image)\
@@ -1678,12 +1669,7 @@ def single_cluster_classification(cluster):
                                 .distinct().all()
     classifications = [r[0] for r in classifications if r[0]!=None]
 
-    dimensionSQ = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                            .join(Image) \
-                            .filter(Image.clusters.contains(cluster)) \
-                            .subquery()
-
-    return classifyCluster(cluster,classifications,dimensionSQ)
+    return classifyCluster(cluster,classifications)
 
 def updateDetectionRatings(images):
     '''Helper function for updateTrapgroupDetectionRatings that allows that function to update the detection ratings of images in parallel.'''
