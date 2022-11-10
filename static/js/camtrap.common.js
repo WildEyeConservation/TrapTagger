@@ -1398,6 +1398,8 @@ function assignLabel(label,mapID = 'map1'){
 
                         selectBtns = document.getElementById('selectBtns')
                         multipleStatus = false
+                        wrongStatus = true
+                        tempTaggingLevel = -1
 
                         while(divBtns.firstChild){
                             divBtns.removeChild(divBtns.firstChild);
