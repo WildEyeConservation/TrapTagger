@@ -1410,7 +1410,7 @@ function assignLabel(label,mapID = 'map1'){
                             orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
                             clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
                             clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
-                            updateDebugInfo()
+                            updateDebugInfo(mapID,false)
 
                             selectBtns = document.getElementById('selectBtns')
                             multipleStatus = false
@@ -1547,8 +1547,10 @@ function assignLabel(label,mapID = 'map1'){
                                     clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
                                 }
-                                if (!isClassCheck) {
+                                if (isClassCheck) {
                                     updateDebugInfo(mapID,false)
+                                } else {
+                                    updateDebugInfo(mapID)
                                 }
 
                                 clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label), 1)
@@ -1620,9 +1622,11 @@ function assignLabel(label,mapID = 'map1'){
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
                                     }
                                 }
-                                if (!isClassCheck) {
+                                if (isClassCheck) {
                                     updateDebugInfo(mapID,false)
-                                }  
+                                } else {
+                                    updateDebugInfo(mapID)
+                                }
                                 
                                 if (wrongStatus) {
                                     wrongStatus = false
