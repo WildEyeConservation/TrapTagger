@@ -593,32 +593,10 @@ def getTaggingLevelsbyTask(task_id,task_type):
     elif task_type=='AIcheck':
         values = ['-3']
         disabled = 'true'
+        task = db.session.query(Task).get(task_id)
 
-        correct_clusters = db.session.query(Cluster)\
-                                .join(Label, Cluster.labels)\
-                                .join(Translation)\
-                                .filter(Cluster.task_id==task_id)\
-                                .filter(Translation.task_id==task_id)\
-                                .filter(Cluster.classification==Translation.classification)\
-                                .distinct(Cluster.id).all()
-
-        correct_clusters.extend(
-            db.session.query(Cluster)\
-                        .join(Translation,Translation.classification==Cluster.classification)\
-                        .filter(Cluster.task_id==task_id)\
-                        .filter(Translation.task_id==task_id)\
-                        .filter(Translation.label_id==GLOBALS.nothing_id)\
-                        .distinct().all()
-        )
-
-        correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(func.lower(Cluster.classification)=='nothing').all())
-        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
-        correct_clusters.extend(db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(downLabel)).all())
-
-        check = db.session.query(Cluster)\
-                            .filter(Cluster.task_id==int(task_id))\
-                            .filter(~Cluster.id.in_([r.id for r in correct_clusters]))\
-                            .distinct().count()
+        if task.class_check_count == None: updateLabelCompletionStatus(task_id)
+        check = task.class_check_count
 
         texts = ['Comparison ('+str(check)+')']
 
@@ -5002,7 +4980,7 @@ def getOtherTasks(task_id):
     else:
         return json.dumps([])
 
-@app.route('/reviewClassification')
+@app.route('/reviewClassification', methods=['POST'])
 @login_required
 def reviewClassification():
 
@@ -5013,10 +4991,17 @@ def reviewClassification():
     turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
     num2 = turkcode.task.size + turkcode.task.test_size
 
+    cluster_labels = []
+    cluster_label_ids = []
+    classifications = []
+
     data = ast.literal_eval(request.form['data'])
     cluster_id = data['cluster_id']
     overwrite = data['overwrite']
     data = data['data']
+
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('overwrite: {}, {}'.format(overwrite,type(overwrite)))
 
     cluster = db.session.query(Cluster).get(cluster_id)
     if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
@@ -5042,7 +5027,7 @@ def reviewClassification():
                             # Remove related labels
                             if label.parent:
                                 family_labels = [label.parent]
-                                family_labels.extend(label.children)
+                                family_labels.extend(label.parent.children)
                                 for family_label in family_labels:
                                     if family_label in cluster.labels:
                                         cluster.labels.remove(family_label)
@@ -5067,7 +5052,17 @@ def reviewClassification():
                 cluster.user_id == current_user.id
                 db.session.commit()
 
-    return json.dumps((num, num2))
+                classifications = getClusterClassifications(cluster.id)
+
+                if cluster.labels == []:
+                    cluster_labels.append('None')
+                    cluster_label_ids.append('0')
+                else:
+                    for label in cluster.labels:
+                        cluster_labels.append(label.description)
+                        cluster_label_ids.append(str(label.id))
+
+    return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
 
 @app.route('/getAllTaskLabels/<task_id1>/<task_id2>')
 @login_required

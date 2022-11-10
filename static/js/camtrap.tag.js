@@ -62,6 +62,9 @@ function loadNewCluster(mapID = 'map1') {
                                     if (clusters[mapID].length-1 == clusterIndex[mapID]){
                                         // updateCanvas()
                                         // updateButtons()
+                                        if (isClassCheck) {
+                                            baseClassifications = clusters[mapID][clusterIndex[mapID]].classification.slice()
+                                        }
                                         update(mapID)
                                     } else if (knockWait == true) {
                                         if (modalWait2.is(':visible')) {

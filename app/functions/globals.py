@@ -1331,6 +1331,12 @@ def updateLabelCompletionStatus(task_id):
         label.info_tag_count = count
     db.session.commit()
 
+    #Also update the number of clusters requiring a classification check
+    task = db.session.query(Task).get(task_id)
+    count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
+    count = taggingLevelSQ(count,'-3',False,task_id)
+    task.class_check_count = count.distinct().count()
+
     return True
 
 def resolve_abandoned_jobs(abandoned_jobs):
@@ -2174,54 +2180,3 @@ def getClusterClassifications(cluster_id):
     print('Cluster classifications fetched in {}'.format(time.time()-startTime))
     
     return classifications
-
-# def getAIcheckClusters(task_id,count=False):
-#     startTime=time.time()
-#     task = db.session.query(Task).get(task_id)
-#     classificationSQ = db.session.query(Cluster.id.label('cluster_id'),Detection.classification.label('classification'),func.count(distinct(Detection.id)).label('count'))\
-#                             .join(Image,Cluster.images)\
-#                             .join(Camera)\
-#                             .join(Trapgroup)\
-#                             .join(Survey)\
-#                             .join(Classifier)\
-#                             .join(Detection)\
-#                             .filter(Label.task==task)\
-#                             .filter(Cluster.task==task)\
-#                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-#                             .filter(Detection.static == False) \
-#                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-#                             .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-#                             .filter(Detection.class_score>Classifier.threshold) \
-#                             .group_by(Cluster.id,Detection.classification)\
-#                             .subquery()
-#     clusterDetCountSQ = db.session.query(Cluster.id.label('cluster_id'),func.count(Detection.id).label('count'))\
-#                             .join(Image,Cluster.images)\
-#                             .join(Detection)\
-#                             .filter(Cluster.task==task)\
-#                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-#                             .filter(Detection.static == False) \
-#                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-#                             .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-#                             .group_by(Cluster.id)\
-#                             .subquery()
-#     labelstableSQ = db.session.query(labelstable.c.cluster_id.label('cluster_id'),Translation.classification.label('classification'))\
-#                             .join(Translation,Translation.label_id==labelstable.c.label_id)\
-#                             .join(Cluster,Cluster.id==labelstable.c.cluster_id)\
-#                             .filter(Cluster.task==task)\
-#                             .filter(Translation.task_id==task.id)\
-#                             .subquery()     
-#     clusters = db.session.query(Cluster)\
-#                             .join(clusterDetCountSQ,clusterDetCountSQ.c.cluster_id==Cluster.id)\
-#                             .join(classificationSQ,classificationSQ.c.cluster_id==Cluster.id)\
-#                             .outerjoin(labelstableSQ,and_(labelstableSQ.c.cluster_id==Cluster.id,labelstableSQ.c.classification==classificationSQ.c.classification))\
-#                             .filter(Cluster.task==task)\
-#                             .filter((classificationSQ.c.count/clusterDetCountSQ.c.count)>Config.MIN_CLASSIFICATION_RATIO)\
-#                             .filter(classificationSQ.c.count>1)\
-#                             .filter(labelstableSQ.c.classification==None)\
-#                             .distinct()
-#     if count:
-#         clusters = clusters.count()
-#     else:
-#         clusters = clusters.all()
-#     print('AI check clusters fetched in {}'.format(time.time()-startTime))
-#     return clusters

@@ -85,6 +85,7 @@ const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
+var baseClassifications = null
 
 var clusters = {"map1": []}
 var clusterIndex = {"map1": 0}
@@ -792,7 +793,7 @@ function updateCanvas(mapID = 'map1') {
 function updateButtons(mapID = 'map1'){
     /** Enables/disables the next/previous image/cluster & undo buttons. */
     if (prevClusterBtn != null) {
-        if (isBounding) {
+        if (isBounding||isClassCheck) {
             if (clusterIndex[mapID]==0){
                 prevClusterBtn.classList.add("disabled")
             }else{
@@ -948,8 +949,12 @@ function prevCluster(mapID = 'map1'){
     }
     if ((finishedDisplaying[mapID] == true) && ((taggingLevel.includes('-2')) || (multipleStatus==false))) {
         if (modalActive == false) {
-            if (clusterIndex[mapID]>0){
-                if (isBounding||(document.getElementById('btnSendToBack')!=null)) {
+            if (isClassCheck && (baseClassifications.length!=clusters[mapID][clusterIndex[mapID]].classification.length)) {
+                clusters[mapID][clusterIndex[mapID]].classification = baseClassifications.slice()
+                classificationCheckData = {'overwrite':false,'data':[]}
+                updateDebugInfo(mapID)
+            } else if (clusterIndex[mapID]>0) {
+                if (isBounding||isClassCheck||(document.getElementById('btnSendToBack')!=null)) {
                     if ((clusters[mapID][clusterIndex[mapID]-1].ready)||(clusters[mapID][clusterIndex[mapID]-1].id == '-99')||(clusters[mapID][clusterIndex[mapID]-1].id == '-101')||(clusters[mapID][clusterIndex[mapID]-1].id == '-782')) {
                         goToPrevCluster(mapID)
                     } else {
@@ -1018,7 +1023,7 @@ function updateDebugInfo(mapID = 'map1') {
                     row = document.createElement('div')
                     row.classList.add('row')
                     if (i!=0) {
-                        col1.setAttribute('style','font-size: 80%')
+                        row.setAttribute('style','font-size: 80%;color: rgba(150,150,150,100)')
                     }
                     row.innerHTML = clusters[mapID][clusterIndex[mapID]].classification[i][0] + ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
                     col2.appendChild(row)
@@ -1234,6 +1239,11 @@ function nextCluster(mapID = 'map1') {
             if (clusterIndex[mapID]<clusters[mapID].length-1) {
                 clusterIndex[mapID] = clusterIndex[mapID] + 1
                 reachedEnd = false
+
+                if (isClassCheck) {
+                    baseClassifications = clusters[mapID][clusterIndex[mapID]].classification.slice()
+                }
+
                 update(mapID)
 
                 if ((mapID == 'map1')&&(mapdiv2 != null)) {
@@ -1449,17 +1459,22 @@ function assignLabel(label,mapID = 'map1'){
 
                     var xhttp = new XMLHttpRequest();
                     xhttp.onreadystatechange =
-                        function () {
+                    function(wrapClusterIndex,wrapMapID){
+                        return function() {
                             if (this.readyState == 4 && this.status == 278) {
                                 window.location.replace(JSON.parse(this.responseText)['redirect'])
                             } else if (this.readyState == 4 && this.status == 200) {                    
-                                Progress = JSON.parse(this.responseText);
-                                if (!multipleStatus) {
-                                    updateProgBar(Progress)
-                                }
+                                response = JSON.parse(this.responseText);
+                                clusters[wrapMapID][wrapClusterIndex].classification = response.classifications
+                                clusters[wrapMapID][wrapClusterIndex].label = response.labels
+                                clusters[wrapMapID][wrapClusterIndex].label_ids = response.label_ids
+                                clusters[wrapMapID][wrapClusterIndex].ready = true
+                                updateProgBar(response.progress)
                             }
                         }
+                    }(clusterIndex[mapID],mapID);
                     xhttp.open("POST", '/reviewClassification');
+                    clusters[mapID][clusterIndex[mapID]].ready = false
                     xhttp.send(formData);
 
                     classificationCheckData = {'overwrite':false,'data':[]}
@@ -1528,7 +1543,9 @@ function assignLabel(label,mapID = 'map1'){
                                     clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
                                 }
-                                updateDebugInfo(mapID)
+                                if (!isClassCheck) {
+                                    updateDebugInfo(mapID)
+                                }
 
                                 clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label), 1)
                             } else {
@@ -1599,7 +1616,9 @@ function assignLabel(label,mapID = 'map1'){
                                         clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
                                     }
                                 }
-                                updateDebugInfo(mapID)    
+                                if (!isClassCheck) {
+                                    updateDebugInfo(mapID)
+                                }  
                                 
                                 if (wrongStatus) {
                                     wrongStatus = false
@@ -2056,7 +2075,7 @@ function submitLabels(mapID = 'map1') {
     }
     var xhttp = new XMLHttpRequest();
     if (isTagging) { 
-        xhttp.onreadystatechange = function(wrapNothingStatus) {
+        xhttp.onreadystatechange = function(wrapNothingStatus,wrapMapID,wrapIndex) {
             return function() {
                 if (this.readyState == 4 && this.status == 278) {
                     window.location.replace(JSON.parse(this.responseText)['redirect'])
@@ -2065,25 +2084,32 @@ function submitLabels(mapID = 'map1') {
                     if (reply!='error') {
                         if (wrapNothingStatus) {
                             if (reply.reAllocated==true) {
-                                clusterRequests[mapID] = [];
-                                clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
-                                clusters[mapID].push(...reply.newClusters)
+                                clusterRequests[wrapMapID] = [];
+                                clusters[wrapMapID] = clusters[wrapMapID].slice(0,clusterIndex[wrapMapID]+1);
+                                clusters[wrapMapID].push(...reply.newClusters)
                                 clisterIdList = []
                             }
                             if (modalWait2.is(':visible')) {
                                 modalWait2Hide = true
                                 modalWait2.modal('hide');
                             }
-                            nextCluster(mapID)
-                        }               
+                            nextCluster(wrapMapID)
+                        }
+                        if (isClassCheck) {
+                            clusters[wrapMapID][wrapIndex].ready = true
+                        }
                         Progress = reply.progress
                         updateProgBar(Progress)
                     }
                 }
             }
-        }(nothingStatus)
+        }(nothingStatus,mapID,clusterIndex[mapID])
     }
     xhttp.open("POST", url, true);
+    if (isClassCheck) {
+        clusters[mapID][clusterIndex[mapID]].ready = false
+        clusters[mapID][clusterIndex[mapID]].classification = baseClassifications.slice()
+    }
     xhttp.send(formData);
     if (batchComplete&&nothingStatus) {
         redirectToDone()

@@ -337,6 +337,7 @@ class Task(db.Model):
     ai_check_complete = db.Column(db.Boolean, default=False, index=False)
     jobs_finished = db.Column(db.Integer, default=0, index=False)
     current_name = db.Column(db.String(8), index=False)
+    class_check_count = db.Column(db.Integer, index=False)
     clusters = db.relationship('Cluster', backref='task', lazy='dynamic')
     turkcodes = db.relationship('Turkcode', backref='task', lazy='dynamic')
     labels = db.relationship('Label', backref='task', lazy='dynamic')
