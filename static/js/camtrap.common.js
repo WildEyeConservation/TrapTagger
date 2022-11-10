@@ -1451,36 +1451,38 @@ function assignLabel(label,mapID = 'map1'){
                     }
                 }
 
-                if (clusters[mapID][clusterIndex[mapID]].classification.length==0) {
-                    // Finished - submit
-                    classificationCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
-                    var formData = new FormData()
-                    formData.append("data", JSON.stringify(classificationCheckData))
-
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.onreadystatechange =
-                    function(wrapClusterIndex,wrapMapID){
-                        return function() {
-                            if (this.readyState == 4 && this.status == 278) {
-                                window.location.replace(JSON.parse(this.responseText)['redirect'])
-                            } else if (this.readyState == 4 && this.status == 200) {                    
-                                response = JSON.parse(this.responseText);
-                                clusters[wrapMapID][wrapClusterIndex].classification = response.classifications
-                                clusters[wrapMapID][wrapClusterIndex].label = response.labels
-                                clusters[wrapMapID][wrapClusterIndex].label_ids = response.label_ids
-                                clusters[wrapMapID][wrapClusterIndex].ready = true
-                                updateProgBar(response.progress)
+                if (label != '4') {
+                    if (clusters[mapID][clusterIndex[mapID]].classification.length==0) {
+                        // Finished - submit
+                        classificationCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+                        var formData = new FormData()
+                        formData.append("data", JSON.stringify(classificationCheckData))
+    
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.onreadystatechange =
+                        function(wrapClusterIndex,wrapMapID){
+                            return function() {
+                                if (this.readyState == 4 && this.status == 278) {
+                                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                                } else if (this.readyState == 4 && this.status == 200) {                    
+                                    response = JSON.parse(this.responseText);
+                                    clusters[wrapMapID][wrapClusterIndex].classification = response.classifications
+                                    clusters[wrapMapID][wrapClusterIndex].label = response.labels
+                                    clusters[wrapMapID][wrapClusterIndex].label_ids = response.label_ids
+                                    clusters[wrapMapID][wrapClusterIndex].ready = true
+                                    updateProgBar(response.progress)
+                                }
                             }
-                        }
-                    }(clusterIndex[mapID],mapID);
-                    xhttp.open("POST", '/reviewClassification');
-                    clusters[mapID][clusterIndex[mapID]].ready = false
-                    xhttp.send(formData);
-
-                    classificationCheckData = {'overwrite':false,'data':[]}
-                    nextCluster(mapID)
-                } else {
-                    updateDebugInfo()
+                        }(clusterIndex[mapID],mapID);
+                        xhttp.open("POST", '/reviewClassification');
+                        clusters[mapID][clusterIndex[mapID]].ready = false
+                        xhttp.send(formData);
+    
+                        classificationCheckData = {'overwrite':false,'data':[]}
+                        nextCluster(mapID)
+                    } else {
+                        updateDebugInfo()
+                    }
                 }
             }
         
