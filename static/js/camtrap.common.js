@@ -2038,7 +2038,7 @@ function activateMultiple(mapID = 'map1') {
                 multipleStatus = false
     
                 if (isClassCheck) {
-                    suggestionBack()
+                    suggestionBack(false)
                 } else {
                     getKeys()
                 }
@@ -2105,7 +2105,7 @@ function submitLabels(mapID = 'map1') {
                         }
                         if (isClassCheck) {
                             clusters[wrapMapID][wrapIndex].ready = true
-                            clusters[wrapMapID][wrapIndex].classification = response.classifications
+                            clusters[wrapMapID][wrapIndex].classification = reply.classifications
                         }
                         Progress = reply.progress
                         updateProgBar(Progress)
