@@ -1641,7 +1641,6 @@ function assignLabel(label,mapID = 'map1'){
     
                                 if (!multipleStatus) {
                                     if (isClassCheck) {
-                                        wrongStatus = false
                                         suggestionBack(false)
                                     }
                                     if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString()) || isTutorial) {
@@ -2119,6 +2118,7 @@ function submitLabels(mapID = 'map1') {
     }
     xhttp.open("POST", url, true);
     if (isClassCheck) {
+        wrongStatus = false
         clusters[mapID][clusterIndex[mapID]].ready = false
     }
     xhttp.send(formData);
