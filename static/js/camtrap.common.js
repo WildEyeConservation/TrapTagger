@@ -1630,7 +1630,7 @@ function assignLabel(label,mapID = 'map1'){
                                     updateDebugInfo(mapID)
                                 }
                                 
-                                if (wrongStatus) {
+                                if (wrongStatus&&!(isClassCheck&&multipleStatus)) {
                                     wrongStatus = false
                                     initKeys(globalKeys[taggingLevel])
                                 }
@@ -1641,6 +1641,7 @@ function assignLabel(label,mapID = 'map1'){
     
                                 if (!multipleStatus) {
                                     if (isClassCheck) {
+                                        wrongStatus = false
                                         suggestionBack(false)
                                     }
                                     if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString()) || isTutorial) {
