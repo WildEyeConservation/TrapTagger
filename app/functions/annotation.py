@@ -423,7 +423,7 @@ def launch_task(self,task_id):
 
     return True
 
-@celery.task(ignore_result=True)
+@celery.task(bind=True,max_retries=29,ignore_result=True)
 def freeUpWork(self,task_id):
     '''Attempts to free up trapgroups etc. to allow task annoation to complete.'''
 
@@ -544,7 +544,7 @@ def freeUpWork(self,task_id):
 
     return True
 
-@celery.task(ignore_result=True)
+@celery.task(bind=True,max_retries=29,ignore_result=True)
 def wrapUpTask(self,task_id):
     '''Cleans up a task after annotation.'''
 
@@ -617,12 +617,13 @@ def wrapUpTask(self,task_id):
         GLOBALS.mutex.pop(int(task_id), None)
         db.session.commit()
 
-    except Exception:
+    except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
         db.session.remove()
