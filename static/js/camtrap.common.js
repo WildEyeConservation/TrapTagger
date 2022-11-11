@@ -1009,13 +1009,13 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 classifierLabels.appendChild(row)
             
                 col1 = document.createElement('div')
-                col1.classList.add('col-lg-6')
+                col1.classList.add('col-lg-4')
                 // col1.setAttribute('style','font-size: 100%')
                 col1.innerHTML = 'Suggestion:'
                 row.appendChild(col1)
 
                 col2 = document.createElement('div')
-                col2.classList.add('col-lg-6')
+                col2.classList.add('col-lg-8')
                 row.appendChild(col2)
 
                 var temp =''
