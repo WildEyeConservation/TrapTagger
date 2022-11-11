@@ -2609,6 +2609,9 @@ def getJobs():
     next_url = url_for('getJobs', page=tasks.next_num, order=order) if tasks.has_next else None
     prev_url = url_for('getJobs', page=tasks.prev_num, order=order) if tasks.has_prev else None
 
+    current_user.last_ping = datetime.utcnow()
+    db.session.commit()
+
     return json.dumps({'jobs': task_list, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/getWorkers')

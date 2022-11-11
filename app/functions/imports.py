@@ -17,7 +17,8 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
-from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, save_crops, list_all, classifyTask, all_equal
+from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
+                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
@@ -1858,6 +1859,17 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
     # classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
     # survey.classifier = classifier
     # db.session.commit()
+
+    #Also update the number of clusters requiring a classification check
+    survey = db.session.query(Survey).get(survey_id)
+    for task in survey.tasks:
+        count = db.session.query(Cluster).filter(Cluster.task_id==task.id)
+        count = taggingLevelSQ(count,'-3',False,task.id)
+        task.class_check_count = count.distinct().count()
+    task.ai_check_complete = False
+    db.session.commit()
+    db.session.remove()
+
     return True
 
 def findValue(dictionary,minMax):
