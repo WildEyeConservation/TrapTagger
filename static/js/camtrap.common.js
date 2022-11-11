@@ -1004,29 +1004,29 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                     classifierLabels.removeChild(classifierLabels.firstChild);
                 }
 
-                row = document.createElement('div')
-                row.classList.add('row')
-                classifierLabels.appendChild(row)
+                // row = document.createElement('div')
+                // row.classList.add('row')
+                // classifierLabels.appendChild(row)
             
                 col1 = document.createElement('div')
-                col1.classList.add('col-lg-4')
+                // col1.classList.add('col-lg-4')
                 // col1.setAttribute('style','font-size: 100%')
                 col1.innerHTML = 'Suggestion:'
-                row.appendChild(col1)
+                classifierLabels.appendChild(col1)
 
-                col2 = document.createElement('div')
-                col2.classList.add('col-lg-8')
-                row.appendChild(col2)
+                // col2 = document.createElement('div')
+                // col2.classList.add('col-lg-8')
+                // classifierLabels.appendChild(col2)
 
                 var temp =''
                 for (i=0;i<clusters[mapID][clusterIndex[mapID]].classification.length;i++) {
                     row = document.createElement('div')
-                    row.classList.add('row')
+                    // row.classList.add('row')
                     if (i!=0) {
                         row.setAttribute('style','font-size: 80%;color: rgba(150,150,150,100)')
                     }
                     row.innerHTML = clusters[mapID][clusterIndex[mapID]].classification[i][0] + ' (' + clusters[mapID][clusterIndex[mapID]].classification[i][1] + ')'
-                    col2.appendChild(row)
+                    classifierLabels.appendChild(row)
                 }
             }
             
