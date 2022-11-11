@@ -2149,7 +2149,7 @@ def getClusterClassifications(cluster_id):
                             .join(classSQ,classSQ.c.label_id==Label.id)\
                             .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO)\
                             .filter(classSQ.c.count>1)\
-                            .filter(~Label.parent_id.in_(possibilities))\
+                            .filter(or_(~Label.parent_id.in_(possibilities),Label.parent_id==None))\
                             .filter(~Label.clusters.contains(cluster))\
                             .order_by(classSQ.c.count.desc())\
                             .distinct().all()
