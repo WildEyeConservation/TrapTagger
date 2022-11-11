@@ -551,12 +551,12 @@ def wrapUpTask(self,task_id):
     try:
         task = db.session.query(Task).get(task_id)
 
-        GLOBALS.mutex[int(task_id)]['job'].acquire()
+        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].acquire()
         turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(User.id==None).filter(Turkcode.active==True).all()
         for turkcode in turkcodes:
             db.session.delete(turkcode)
 
-        GLOBALS.mutex[int(task_id)]['job'].release()
+        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].release()
 
         if '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
@@ -614,7 +614,7 @@ def wrapUpTask(self,task_id):
         if 'processing' not in task.survey.status:
             task.survey.status = 'Ready'
 
-        GLOBALS.mutex.pop(int(task_id), None)
+        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(int(task_id), None)
         db.session.commit()
 
     except Exception as exc:
