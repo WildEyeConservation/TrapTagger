@@ -62,7 +62,7 @@ def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     cluster = Cluster(task_id=task_id,user_id=user_id)
     localsession.add(cluster)
     cluster.images = [localsession.query(Image).get(image_id)]
-    cluster.classification = single_cluster_classification(cluster)
+    cluster.classification = classifyCluster(cluster)
     detections = localsession.query(Detection).filter(Detection.image_id==image_id).all()
     labelgroups = []
     for detection in detections:
@@ -165,7 +165,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
                 cluster = Cluster(task_id=task_id)
                 localsession.add(cluster)
                 cluster.images = [image]
-                cluster.classification = single_cluster_classification(cluster)
+                cluster.classification = classifyCluster(cluster)
             
             localsession.commit()
             os.remove(filePath)
@@ -285,7 +285,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                     newCluster.images = images[start_index:end_index]
 
                 if updateClassifications:
-                    newCluster.classification = single_cluster_classification(newCluster)
+                    newCluster.classification = classifyCluster(newCluster)
 
             cluster.images = []
             db.session.delete(cluster)
@@ -348,7 +348,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
 
             if newClusterRequired:
                 if currCluster and updateClassifications:
-                    currCluster.classification = single_cluster_classification(currCluster)
+                    currCluster.classification = classifyCluster(currCluster)
                 currCluster = Cluster(task_id=task_id)
                 db.session.add(currCluster)
                 newClusters.append(currCluster)
@@ -360,7 +360,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             prevLabels[str(image.camera_id)] = species
 
         if currCluster and updateClassifications:
-            currCluster.classification = single_cluster_classification(currCluster)
+            currCluster.classification = classifyCluster(currCluster)
 
         cluster.images = []
         db.session.delete(cluster)
@@ -1570,45 +1570,44 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     remove_duplicate_images(survey_id)
 
-def classifyCluster(cluster,classifications):
+def classifyCluster(cluster):
     '''
     Returns the species contained in a single cluster.
 
         Parameters:
             cluster (Cluster): Cluster object to be classified
-            classifications (list): List of all classifications in a survey
 
         Returns:
             clusterClass (str): The species contained in the cluster
     '''
-
-    max_count = 0
-    clusterClass = ''
-
-    for classification in classifications:
-        detectionCount = db.session.query(Detection) \
-                            .join(Image) \
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Classifier)\
-                            .filter(Image.clusters.contains(cluster)) \
-                            .filter(Detection.class_score>Classifier.threshold) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-                            .filter(Detection.classification==classification) \
-                            .distinct(Detection.id).count()
-
-        if detectionCount > max_count:
-            max_count = detectionCount
-            clusterClass = classification
-
-    if max_count == 0:
-        clusterClass = 'nothing'
-
-    return clusterClass
+    
+    try:
+        classification, count = db.session.query(Label.description,func.count(distinct(Detection.id)))\
+                                .join(Translation)\
+                                .join(Detection,Detection.classification==Translation.classification)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Survey)\
+                                .join(Classifier)\
+                                .filter(Translation.task==cluster.task)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
+                                .filter(Detection.class_score>Classifier.threshold) \
+                                .group_by(Label.id)\
+                                .order_by(func.count(distinct(Detection.id)).desc())\
+                                .first()
+    
+        if count > 0:
+            return classification
+    
+    except:
+        pass
+    
+    return 'nothing'
 
 @celery.task(bind=True,max_retries=29)
 def classifyTrapgroup(self,task_id,trapgroup_id):
@@ -1624,20 +1623,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
         clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Cluster.task_id==task_id).distinct().all()
         for chunk in chunker(clusters,500):
             for cluster in chunk:
-                classifications = db.session.query(Detection.classification)\
-                                            .join(Image)\
-                                            .join(Camera)\
-                                            .join(Trapgroup)\
-                                            .join(Survey)\
-                                            .join(Classifier)\
-                                            .filter(Detection.class_score>Classifier.threshold) \
-                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                            .filter(Detection.static == False) \
-                                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                            .filter(Image.clusters.contains(cluster))\
-                                            .distinct().all()
-                classifications = [r[0] for r in classifications if r[0]!=None]
-                cluster.classification = classifyCluster(cluster,classifications)
+                cluster.classification = classifyCluster(cluster)
             db.session.commit()
 
     except Exception as exc:
@@ -1652,25 +1638,6 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
         db.session.remove()
 
     return True
-
-def single_cluster_classification(cluster):
-    '''Runs classifyCluster on a given cluster.'''
-
-    classifications = db.session.query(Detection.classification)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .join(Survey)\
-                                .join(Classifier)\
-                                .filter(Detection.class_score>Classifier.threshold) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                .filter(Image.clusters.contains(cluster))\
-                                .distinct().all()
-    classifications = [r[0] for r in classifications if r[0]!=None]
-
-    return classifyCluster(cluster,classifications)
 
 def updateDetectionRatings(images):
     '''Helper function for updateTrapgroupDetectionRatings that allows that function to update the detection ratings of images in parallel.'''

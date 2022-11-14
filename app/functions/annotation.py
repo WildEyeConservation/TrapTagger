@@ -1175,7 +1175,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
             limit (int): The maximum number of clusters that should be returned
     '''
     
-    if limit < 1: return []
+    if limit < 0: return []
 
     if '-5' in taggingLevel:
         tL = re.split(',',taggingLevel)

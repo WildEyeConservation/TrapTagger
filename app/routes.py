@@ -4821,14 +4821,6 @@ def assignLabel(clusterID):
                                     if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
                                         newLabels.append(newLabel)
 
-                            elif int(label_id)==-254:
-                                translation = db.session.query(Translation)\
-                                                        .filter(Translation.task_id==cluster.task_id)\
-                                                        .filter(Translation.classification==cluster.classification)\
-                                                        .first()
-
-                                newLabels.append(translation.label)
-
                     if '-2' in taggingLevel:
                         cluster.tags.extend(newLabels)
                         cluster.skipped = True

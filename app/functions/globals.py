@@ -16,8 +16,6 @@ limitations under the License.
 
 from app import app, db, celery, mail
 from app.models import *
-# from app.functions.imports import single_cluster_classification, recluster_large_clusters
-# from app.functions.individualID import calculate_individual_similarities
 import GLOBALS
 import json
 from flask import render_template
@@ -757,8 +755,8 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
 
         cluster.images = images
 
-        from app.functions.imports import single_cluster_classification
-        cluster.classification = single_cluster_classification(cluster)
+        from app.functions.imports import classifyCluster
+        cluster.classification = classifyCluster(cluster)
 
         labelgroups = db.session.query(Labelgroup)\
                                 .join(Detection)\
@@ -808,7 +806,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
                 if not (prev) or (timestamp - prev).total_seconds() > 60:
                     if prev is not None:
                         reCluster.images = imList
-                        reCluster.classification = single_cluster_classification(reCluster)
+                        reCluster.classification = classifyCluster(reCluster)
                         reClusters.append(reCluster)
                     reCluster = Cluster(task_id=task_id, timestamp=datetime.utcnow())
                     db.session.add(reCluster)
@@ -817,7 +815,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
                 imList.append(image)
 
             reCluster.images = imList
-            reCluster.classification = single_cluster_classification(reCluster)
+            reCluster.classification = classifyCluster(reCluster)
             reClusters.append(reCluster)
             db.session.commit()
 
@@ -1187,9 +1185,9 @@ def splitClusterAndUnknock(self,oldClusterID, SplitPoint):
         newCluster.images = images[SplitPoint:]
         oldCluster.images = images[:SplitPoint]
 
-        from app.functions.imports import single_cluster_classification
-        newCluster.classification = single_cluster_classification(newCluster)
-        oldCluster.classification = single_cluster_classification(oldCluster)
+        from app.functions.imports import classifyCluster
+        newCluster.classification = classifyCluster(newCluster)
+        oldCluster.classification = classifyCluster(oldCluster)
         db.session.commit()
 
         unknock_cluster.apply_async(kwargs={'image_id':images[SplitPoint].id, 'label_id':None, 'user_id':None, 'task_id':task_id})
