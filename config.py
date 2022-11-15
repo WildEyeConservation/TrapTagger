@@ -91,7 +91,7 @@ class Config(object):
 
     # Species Classification Config
     CLUSTER_DET_COUNT = 1
-    DET_RATIO = 0.4
+    DET_RATIO = 0.5
     DET_AREA = 0.005
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 

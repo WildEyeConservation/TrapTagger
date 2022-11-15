@@ -1108,7 +1108,7 @@ def classifyTask(task_id,reClusters = None):
                                 .join(detCountSQ, detCountSQ.c.clusID==Cluster.id) \
                                 .join(detRatioSQ, detRatioSQ.c.clusID==Cluster.id) \
                                 .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
-                                .filter(detRatioSQ.c.detRatio >= Config.DET_RATIO) \
+                                .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
                                 .filter(Cluster.task_id==task_id)
 
             if reClusters != None:
