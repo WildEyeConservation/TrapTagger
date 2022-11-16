@@ -384,7 +384,7 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - MAIL_USERNAME:            The email address of your admin email account.
 - MAIL_PASSWORD:            The password of your admin email account.
 - BRANCH:                   The branch of the code you want used on the parallel instances. Default is master.
-- PARALLEL_AMI:             The AMI ID for the Parallel Worker image - use our publically available one (ami-090a06cd750f6c797)
+- PARALLEL_AMI:             The AMI ID for the Parallel Worker image - use our publically available one (ami-0ba42ea98124dd0a1)
 - SG_ID:                    The ID of your security group.
 - PUBLIC_SUBNET_ID:         The ID of your public subnet
 - PRIVATE_SUBNET_ID:        The ID of your private subnet
