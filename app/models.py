@@ -417,7 +417,7 @@ class Classifier(db.Model):
     ami_id = db.Column(db.String(32), index=False)
     name = db.Column(db.String(64), index=True, unique=True)
     source = db.Column(db.String(64), index=True)
-    description = db.Column(db.String(512), index=False)
+    description = db.Column(db.String(1024), index=False)
     region = db.Column(db.String(64), index=True)
     active = db.Column(db.Boolean, default=True, index=True)
     threshold = db.Column(db.Float, index=False)
