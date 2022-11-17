@@ -1164,7 +1164,7 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(Detection.status != 'deleted') \
-                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)
+                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) < Config.DET_AREA)
 
         if (not edge) and (ignore_small_detections=='false') and (survey.sky_masked==True):
             detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
