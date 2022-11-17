@@ -1126,7 +1126,7 @@ def classifyTask(task_id,reClusters = None):
 
                     labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
                     for labelgroup in labelgroups:
-                        labelgroup.labels = [species]
+                        labelgroup.labels = cluster.labels
                 db.session.commit()
         app.logger.info('Finished classifying task '+str(task_id))
 
