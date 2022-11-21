@@ -819,6 +819,77 @@ def setupDatabase():
 
     db.session.commit()
 
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def batch_images2(self, image_ids):
+    ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector. '''
+
+    try:
+
+        warnings.filterwarnings('error')
+        #TODO : The line above is to treat warnings as errors, this is necesary because when wand cannot read or can only
+        # partially read a corrupted image, it issues a warning rather than a error. In order to trap these cases and keep
+        # them out of the DB, I need to treat them as errors. However this exposes a ResourceWarning caused by pyexifinfo's
+        # failure to properly close the Popen object that it uses to read the output of exiftool. The line below just
+        # suppresses this back down to warning level, but ideally we should go fix this inside pyexifinfo itself or use an
+        # alternative exif API.
+        warnings.filterwarnings('ignore',category=ResourceWarning)
+
+        sourceBucket='traptagger'
+        images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
+
+        for image in images:
+            dirpath = image.camera.path
+            splits = dirpath.split('/')
+            splits[0] = splits[0]+'-comp'
+            newpath = '/'.join(splits)
+            hash = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, image.filename))['ETag'][1:-1]
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                print('Downloading {}'.format(image.filename))
+                GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, image.filename), Filename=temp_file.name)
+                
+                try:
+                    print('Extracting time stamp from {}'.format(image.filename))
+                    t = pyexifinfo.get_json(temp_file.name)[0]
+                    timestamp = None
+                    for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                        if field in t.keys():
+                            timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                            break
+                    assert timestamp
+                except:
+                    app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+image.filename))
+                    continue
+
+                try:
+                    print('Compressing {}'.format(image.filename))
+                    with wandImage(filename=temp_file.name).convert('jpeg') as img:
+                        img.metadata['colorspace:auto-grayscale'] = 'false'
+                        img.transform(resize='800')
+                        print('Uploading {}'.format(image.filename))
+                        GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),sourceBucket, newpath + '/' + image.filename)
+                except:
+                    app.logger.info("Skipping {} because it appears to be corrupt".format(image.filename))
+                    continue
+
+                image.timestamp = timestamp
+                image.corrected_timestamp = timestamp
+                image.hash = hash
+        
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
 def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external):
     ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector. '''
 
