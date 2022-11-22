@@ -6209,9 +6209,12 @@ def create_presigned_post():
     """
 
     # Generate a presigned S3 POST URL
-    object_name = current_user.folder + '/' + request.form['filename']
+    # object_name = current_user.folder + '/' + request.form['filename']
     # fields = request.form['fields']
     # conditions = request.form['conditions']
+
+    content = request.get_json()
+    object_name = current_user.folder + '/' + content.get('filename')
     
     try:
         response = GLOBALS.s3client.generate_presigned_post(Config.BUCKET,
