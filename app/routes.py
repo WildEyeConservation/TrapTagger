@@ -6199,3 +6199,29 @@ def getClassifierInfo():
 
     return json.dumps({'data': data, 'next_url':next_url, 'prev_url':prev_url})
 
+@app.route('/create_presigned_post', methods=['POST'])
+@login_required
+def create_presigned_post():
+    """Generate a presigned URL S3 POST request to upload a file
+        return: Dictionary with the following keys:
+            url: URL to post to
+            fields: Dictionary of form fields and values to submit with the POST
+    """
+
+    # Generate a presigned S3 POST URL
+    object_name = current_user.folder + '/' + request.form['filename']
+    # fields = request.form['fields']
+    # conditions = request.form['conditions']
+    
+    try:
+        response = GLOBALS.s3client.generate_presigned_post(Config.BUCKET,
+                                                     object_name,
+                                                     Fields={},
+                                                     Conditions=[],
+                                                     ExpiresIn=3600)
+    except ClientError as e:
+        # logging.error(e)
+        return None
+
+    # The response contains the presigned URL and required fields
+    return response
