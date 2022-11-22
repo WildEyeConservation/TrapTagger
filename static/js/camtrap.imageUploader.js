@@ -153,6 +153,7 @@ uppy.use(Uppy.AwsS3, {
                 headers: {
                     'Content-Type': file.type,
                 },
+                body: file
             }
         })
     },
