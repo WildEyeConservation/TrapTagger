@@ -6214,14 +6214,15 @@ def create_presigned_post():
     # conditions = request.form['conditions']
 
     content = request.get_json()
-    object_name = current_user.folder + '/' + content.get('filename')
+    # object_name = current_user.folder + '/' + content.get('filename')
+    object_name = content.get('filename')
     contentType = content.get('contentType')
     
     try:
         response = GLOBALS.s3client.generate_presigned_post(Config.BUCKET,
                                                      object_name,
                                                      Fields={"Content-Type": contentType},
-                                                     Conditions=[],
+                                                     Conditions=["starts-with", "$Content-Type", "image/"],
                                                      ExpiresIn=3600)
     except ClientError as e:
         # logging.error(e)
