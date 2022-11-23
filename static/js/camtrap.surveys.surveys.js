@@ -675,7 +675,7 @@ function buildBrowserUpload(divID) {
     formGroup.append(row2)
 
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-2')
+    col2.classList.add('col-lg-3')
     row2.appendChild(col2)
 
     btn = document.createElement('button')
@@ -3089,38 +3089,39 @@ function addImagesSendRequest(formData) {
             if (reply.status=='success') {
 
                 if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
-                    uploading = true
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');
-                    xhttp.send();
+                    uploadFiles()
+                    // uploading = true
+                    // var xhttp = new XMLHttpRequest();
+                    // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');
+                    // xhttp.send();
                     
-                    ProgBarDiv = document.getElementById('uploadProgBarDiv')
+                    // ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
-                    while(ProgBarDiv.firstChild){
-                        ProgBarDiv.removeChild(ProgBarDiv.firstChild);
-                    }
+                    // while(ProgBarDiv.firstChild){
+                    //     ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+                    // }
 
-                    var newProg = document.createElement('div');
-                    newProg.classList.add('progress');
+                    // var newProg = document.createElement('div');
+                    // newProg.classList.add('progress');
 
-                    var newProgInner = document.createElement('div');
-                    newProgInner.classList.add('progress-bar');
-                    newProgInner.classList.add('progress-bar-striped');
-                    newProgInner.classList.add('active');
-                    newProgInner.setAttribute("role", "progressbar");
-                    newProgInner.setAttribute("id", "uploadProgBar");
-                    newProgInner.setAttribute("aria-valuenow", "0");
-                    newProgInner.setAttribute("aria-valuemin", "0");
-                    newProgInner.setAttribute("aria-valuemax", files.length.toString());
-                    newProgInner.setAttribute("style", "width:0%");
+                    // var newProgInner = document.createElement('div');
+                    // newProgInner.classList.add('progress-bar');
+                    // newProgInner.classList.add('progress-bar-striped');
+                    // newProgInner.classList.add('active');
+                    // newProgInner.setAttribute("role", "progressbar");
+                    // newProgInner.setAttribute("id", "uploadProgBar");
+                    // newProgInner.setAttribute("aria-valuenow", "0");
+                    // newProgInner.setAttribute("aria-valuemin", "0");
+                    // newProgInner.setAttribute("aria-valuemax", files.length.toString());
+                    // newProgInner.setAttribute("style", "width:0%");
 
-                    newProg.appendChild(newProgInner);
-                    ProgBarDiv.appendChild(newProg);
+                    // newProg.appendChild(newProgInner);
+                    // ProgBarDiv.appendChild(newProg);
 
-                    modalAddImages.modal('hide')
-                    modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+                    // modalAddImages.modal('hide')
+                    // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 
-                    uploadSurveyToCloud(surveyName)
+                    // uploadSurveyToCloud(surveyName)
                 } else {
 
                     if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('addImagesAddCoordinates').checked)) {
