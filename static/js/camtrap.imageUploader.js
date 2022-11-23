@@ -205,7 +205,7 @@ function initUpload() {
     newProgInner.setAttribute("id", "uploadProgBar");
     newProgInner.setAttribute("aria-valuenow", "0");
     newProgInner.setAttribute("aria-valuemin", "0");
-    newProgInner.setAttribute("aria-valuemax", files.length.toString());
+    newProgInner.setAttribute("aria-valuemax", "0");
     newProgInner.setAttribute("style", "width:0%");
 
     newProg.appendChild(newProgInner);
