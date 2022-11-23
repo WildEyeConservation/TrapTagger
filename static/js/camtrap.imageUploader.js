@@ -191,7 +191,7 @@ async function listFolderNames(dirHandle,path){
     folders = []
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            lowerFolders = await listFolder2(entry,path+'/'+entry.name)
+            lowerFolders = await listFolderNames(entry,path+'/'+entry.name)
             folders.push(path)
             folders.push(...lowerFolders)
         }
@@ -231,12 +231,12 @@ function initUpload() {
 }
 
 async function selectFiles() {
-    const globalDirHandle = await window.showDirectoryPicker();
-    folders = await listFolderNames(dirHandle,dirHandle.name)
+    globalDirHandle = await window.showDirectoryPicker();
+    folders = await listFolderNames(globalDirHandle,globalDirHandle.name)
 
     // finishedQueueing = false
     // initUpload()
-    // await listFolder2(dirHandle,dirHandle.name)
+    // await listFolder2(globalDirHandle,globalDirHandle.name)
     // if (uploadQueue.length!=0) {
     //     addBatch()
     // }
