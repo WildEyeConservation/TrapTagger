@@ -154,7 +154,7 @@ async function addBatch() {
                     data: file.slice(0, file.size, file.type),
                   })
             } else {
-                filesUploaded
+                filesUploaded += 1
             }
             filesQueued += 1
         }
@@ -173,7 +173,7 @@ async function listFolder2(dirHandle,path){
             count+=1
             queue.push([path,entry])
             if (((filesQueued-filesUploaded)<10)&&(queue.length>=10)) {
-                addBatch()
+                await addBatch()
             }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
