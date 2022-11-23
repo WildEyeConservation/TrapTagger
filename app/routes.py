@@ -49,7 +49,7 @@ from flask_cors import cross_origin
 from calendar import monthrange
 from botocore.client import Config as botoConfig
 
-GLOBALS.s3client = boto3.client('s3', config=botoConfig(signature_version='s3v4'))
+GLOBALS.s3client = boto3.client('s3', config=botoConfig(signature_version='s3v4'), region_name=Config.AWS_REGION)
 GLOBALS.lock = Lock()
 
 @app.before_request
