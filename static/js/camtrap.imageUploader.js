@@ -116,7 +116,7 @@
 //     </div>)
 // }
 
-surveyName = 'Test'
+surveyName = 'surveyName'
 filesUploaded = 0
 filesQueued = 0
 queue = []
@@ -206,7 +206,7 @@ uppy.use(Uppy.AwsS3, {
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
-                filename: surveyName + '/' + file.meta.relativePath,
+                filename: file.name,
                 contentType: file.type,
             }),
         }).then((response) => {
