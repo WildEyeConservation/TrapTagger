@@ -118,6 +118,7 @@
 
 surveyName = 'surveyName'
 filesUploaded = 0
+filesActuallyUploaded = 0
 filesQueued = 0
 queue = []
 
@@ -133,7 +134,6 @@ async function addBatch() {
     }
     fetch('/check_upload_files', {
         method: 'post',
-        // Send and receive JSON.
         headers: {
             accept: 'application/json',
             'Content-Type': 'application/json',
@@ -149,15 +149,18 @@ async function addBatch() {
             if (!data.includes(filename)) {
                 file = files[filename]
                 filesToAdd.push({
-                    name: filename, // file name
-                    type: file.type, // file type
-                    data: file.slice(0, file.size, file.type), // file blob
+                    name: filename,
+                    type: file.type,
+                    data: file.slice(0, file.size, file.type),
                   })
-                filesQueued += 1
+            } else {
+                filesUploaded
             }
+            filesQueued += 1
         }
         uppy.addFiles(filesToAdd)
     })
+    return true
 }
 
 async function listFolder2(dirHandle,path){
@@ -169,9 +172,9 @@ async function listFolder2(dirHandle,path){
         } else {
             count+=1
             queue.push([path,entry])
-            // if ((filesQueued-filesUploaded)<10) {
-            //     addBatch()
-            // }
+            if (((filesQueued-filesUploaded)<10)&&(queue.length>=10)) {
+                addBatch()
+            }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
         }
@@ -182,7 +185,10 @@ async function listFolder2(dirHandle,path){
 
 async function selectFiles() {
     const dirHandle = await window.showDirectoryPicker();
-    listFolder2(dirHandle,dirHandle.name)
+    await listFolder2(dirHandle,dirHandle.name)
+    if ((filesQueued-filesUploaded)<10) {
+        addBatch()
+    }
 }
 
 var uppy = new Uppy.Uppy({
@@ -256,4 +262,5 @@ uppy.use(Uppy.AwsS3, {
 uppy.on('upload-success', (file, response) => {
     console.log(file.name+' uploaded successfully!')
     filesUploaded += 1
+    filesActuallyUploaded += 1
 })
