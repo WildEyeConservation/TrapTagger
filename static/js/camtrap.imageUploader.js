@@ -157,6 +157,7 @@ async function addBatch() {
 
 async function listFolder2(dirHandle,path){
     // let files=[]
+    count = 0
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
             await listFolder2(entry,path+'/'+entry.name)
