@@ -128,10 +128,8 @@ uppy.use(Uppy.DragDrop, { target: document.getElementById('dragArea') })
 // })
 uppy.use(Uppy.AwsS3, {
     getUploadParameters (file) {
-        // Send a request to our PHP signing endpoint.
-        return fetch('/create_presigned_post', {
+        return fetch('/get_presigned_url', {
             method: 'post',
-            // Send and receive JSON.
             headers: {
             accept: 'application/json',
             'content-type': 'application/json',
@@ -141,19 +139,15 @@ uppy.use(Uppy.AwsS3, {
                 contentType: file.type,
             }),
         }).then((response) => {
-            // Parse the JSON response.
             return response.text()
         }).then((url) => {
-            // Return an object in the correct shape.
             return {
                 method: 'PUT',
                 url: url,
                 fields: {},
-                // Provide content type header required by S3
                 headers: {
                     'Content-Type': file.type,
                 }
-                // body: file
             }
         })
     },

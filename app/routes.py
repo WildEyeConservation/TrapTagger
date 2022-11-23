@@ -6200,39 +6200,15 @@ def getClassifierInfo():
 
     return json.dumps({'data': data, 'next_url':next_url, 'prev_url':prev_url})
 
-@app.route('/create_presigned_post', methods=['POST'])
+@app.route('/get_presigned_url', methods=['POST'])
 @login_required
-def create_presigned_post():
-    """Generate a presigned URL S3 POST request to upload a file
-        return: Dictionary with the following keys:
-            url: URL to post to
-            fields: Dictionary of form fields and values to submit with the POST
-    """
-
-    # Generate a presigned S3 POST URL
-    # object_name = current_user.folder + '/' + request.form['filename']
-    # fields = request.form['fields']
-    # conditions = request.form['conditions']
-
-    # content = request.get_json()
-    # object_name = current_user.folder + '/' + content.get('filename')
-    # contentType = content.get('contentType')
-    
-    # try:
-    #     response = GLOBALS.s3client.generate_presigned_post(Config.BUCKET,
-    #                                                  object_name,
-    #                                                  Fields={"Content-Type": contentType},
-    #                                                  Conditions=["starts-with", "$Content-Type", "image/"],
-    #                                                  ExpiresIn=3600)
-    # except ClientError as e:
-    #     # logging.error(e)
-    #     return None
-
-    # # The response contains the presigned URL and required fields
-    # return response
-
-    return  GLOBALS.s3client.generate_presigned_url(ClientMethod='put_object',
-                                                   Params={'Bucket': Config.BUCKET,
-                                                            'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-                                                            'ContentType': request.json['contentType'],
-                                                            'Body' : ''})
+def get_presigned_url():
+    """Returns a presigned URL in order to upload a file directly to S3."""
+    if current_user.admin:
+        return  GLOBALS.s3client.generate_presigned_url(ClientMethod='put_object',
+                                                        Params={'Bucket': Config.BUCKET,
+                                                                'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
+                                                                'ContentType': request.json['contentType'],
+                                                                'Body' : ''})
+    else:
+        return 'error'
