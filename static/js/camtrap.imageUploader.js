@@ -169,9 +169,9 @@ async function listFolder2(dirHandle,path){
         } else {
             count+=1
             queue.push([path,entry])
-            if ((filesQueued-filesUploaded)<10) {
-                addBatch()
-            }
+            // if ((filesQueued-filesUploaded)<10) {
+            //     addBatch()
+            // }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
         }

@@ -6221,10 +6221,12 @@ def check_upload_files():
     files = request.json['filenames']
     already_uploaded = []
     for file in files:
-        try:              
+        try:
+            print('checking {}'.format(current_user.folder + '/' + file))
             check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=current_user.folder + '/' + file)
             already_uploaded.append(file)
         except:
+            print('{} does not exist'.format(current_user.folder + '/' + file))
             # file does not exist
             pass
 
