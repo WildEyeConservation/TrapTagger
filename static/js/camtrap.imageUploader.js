@@ -235,7 +235,7 @@ async function selectFiles() {
     folders.push(globalDirHandle.name)
 
     selectFiles = document.getElementById('selectFiles')
-    for (let idx = 0; idx < folders.files.length; idx++){
+    for (let idx = 0; idx < folders.length; idx++){
         let option = document.createElement('option');
         option.text = folders[idx];
         option.value = idx;
