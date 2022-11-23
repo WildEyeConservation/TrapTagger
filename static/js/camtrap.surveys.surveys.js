@@ -3089,7 +3089,7 @@ function addImagesSendRequest(formData) {
             if (reply.status=='success') {
 
                 if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
-                    uploadFiles()
+                    uploadFiles(true)
                     // uploading = true
                     // var xhttp = new XMLHttpRequest();
                     // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');

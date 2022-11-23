@@ -197,7 +197,7 @@ async function listFolderNames(dirHandle,path){
     return folders
 }
 
-function initUpload() {
+function initUpload(edit=false) {
     uploading = true
     ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
@@ -222,9 +222,15 @@ function initUpload() {
     newProg.appendChild(newProgInner);
     ProgBarDiv.appendChild(newProg);
 
-    surveyName = document.getElementById('newSurveyName').value
+    if (!edit) { 
+        surveyName = document.getElementById('newSurveyName').value
+    }
     
-    modalNewSurvey.modal('hide')
+    if (modalNewSurvey.is(':visible')) {
+        modalNewSurvey.modal('hide')
+    } else {
+        modalAddImages.modal('hide')
+    }
     modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 }
 
