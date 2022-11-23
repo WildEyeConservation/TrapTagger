@@ -147,7 +147,12 @@ async function addBatch() {
         filesToAdd = []
         for (filename in files) {
             if (!data.includes(filename)) {
-                filesToAdd.push(files[filename])
+                file = files[filename]
+                filesToAdd.push({
+                    name: filename, // file name
+                    type: file.type, // file type
+                    data: file.slice(0, file.size, file.type), // file blob
+                  })
                 filesQueued += 1
             }
         }
