@@ -116,23 +116,25 @@
 //     </div>)
 // }
 
+batchSize = 1000
 surveyName = 'surveyName'
 filesUploaded = 0
 filesActuallyUploaded = 0
 filesQueued = 0
-queue = []
+uploadQueue = []
+finishedQueueing = false
 
 async function addBatch() {
     fileNames = []
     files = {}
-    while ((fileNames.length<10)&&(queue.length>0)) {
-        item = queue.pop()
+    while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
+        item = uploadQueue.pop()
         let file= await item[1].getFile()
         filename = surveyName + '/' + item[0] + '/' + file.name
         fileNames.push(filename)
         files[filename] = file
     }
-    fetch('/check_upload_files', {
+    await fetch('/check_upload_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -157,6 +159,7 @@ async function addBatch() {
                 filesUploaded += 1
             }
             filesQueued += 1
+            updateUploadProgress(filesUploaded,filesQueued)
         }
         uppy.addFiles(filesToAdd)
     })
@@ -171,8 +174,8 @@ async function listFolder2(dirHandle,path){
             await listFolder2(entry,path+'/'+entry.name)
         } else {
             count+=1
-            queue.push([path,entry])
-            if (((filesQueued-filesUploaded)<10)&&(queue.length>=10)) {
+            uploadQueue.push([path,entry])
+            if (((filesQueued-filesUploaded)<(0.25*batchSize))&&(uploadQueue.length>=batchSize)) {
                 await addBatch()
             }
             // setFileCount(count)
@@ -183,12 +186,46 @@ async function listFolder2(dirHandle,path){
     return (count)
 }
 
+function initUpload() {
+    uploading = true
+    ProgBarDiv = document.getElementById('uploadProgBarDiv')
+
+    while(ProgBarDiv.firstChild){
+        ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+    }
+
+    var newProg = document.createElement('div');
+    newProg.classList.add('progress');
+
+    var newProgInner = document.createElement('div');
+    newProgInner.classList.add('progress-bar');
+    newProgInner.classList.add('progress-bar-striped');
+    newProgInner.classList.add('active');
+    newProgInner.setAttribute("role", "progressbar");
+    newProgInner.setAttribute("id", "uploadProgBar");
+    newProgInner.setAttribute("aria-valuenow", "0");
+    newProgInner.setAttribute("aria-valuemin", "0");
+    newProgInner.setAttribute("aria-valuemax", files.length.toString());
+    newProgInner.setAttribute("style", "width:0%");
+
+    newProg.appendChild(newProgInner);
+    ProgBarDiv.appendChild(newProg);
+
+    surveyName = document.getElementById('surveyName').value
+    
+    modalNewSurvey.modal('hide')
+    modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+}
+
 async function selectFiles() {
     const dirHandle = await window.showDirectoryPicker();
+    finishedQueueing = false
+    initUpload()
     await listFolder2(dirHandle,dirHandle.name)
-    if ((filesQueued-filesUploaded)<10) {
+    if (uploadQueue.length!=0) {
         addBatch()
     }
+    finishedQueueing = true
 }
 
 var uppy = new Uppy.Uppy({
@@ -263,4 +300,16 @@ uppy.on('upload-success', (file, response) => {
     console.log(file.name+' uploaded successfully!')
     filesUploaded += 1
     filesActuallyUploaded += 1
+    updateUploadProgress(filesUploaded,filesQueued)
+
+    if ((filesUploaded==filesQueued)&&(queued==0)&&(finishedQueueing)) {
+        // Finished!
+        // var xhttp = new XMLHttpRequest();
+        // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
+        // xhttp.send();
+        modalUploadProgress.modal('hide')
+        document.getElementById('modalAlertHeader').innerHTML = 'Success'
+        document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
+        modalAlert.modal({keyboard: true});
+    }
 })
