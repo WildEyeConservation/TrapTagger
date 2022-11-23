@@ -146,9 +146,9 @@ uppy.use(Uppy.AwsS3, {
         }).then((data) => {
             // Return an object in the correct shape.
             return {
-                method: 'POST',
-                url: data.url,
-                fields: data.fields,
+                method: 'PUT',
+                url: data,
+                fields: {},
                 // Provide content type header required by S3
                 headers: {
                     'Content-Type': file.type,
