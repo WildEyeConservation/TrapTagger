@@ -47,7 +47,7 @@ from multiprocessing import Lock
 from gpuworker.worker import detectAndClassify
 from flask_cors import cross_origin
 from calendar import monthrange
-from botocore.client import botoConfig
+from botocore.client import Config as botoConfig
 
 GLOBALS.s3client = boto3.client('s3', config=botoConfig(signature_version='s3v4'))
 GLOBALS.lock = Lock()
