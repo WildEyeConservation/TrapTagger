@@ -123,12 +123,13 @@ queue = []
 
 async function addBatch() {
     fileNames = []
-    files = []
-    while (fileNames.length<10) {
+    files = {}
+    while ((fileNames.length<10)&&(queue.length>0)) {
         item = queue.pop()
         let file= await item[1].getFile()
-        fileNames.append(surveyName + '/' + file.meta.relativePath)
-        files.append(file)
+        filename = surveyName + '/' + item[0] + '/' + file.name
+        fileNames.push(filename)
+        files[filename] = file
     }
     fetch('/check_upload_files', {
         method: 'post',
@@ -144,10 +145,9 @@ async function addBatch() {
         return response.json()
     }).then((data) => {
         filesToAdd = []
-        for (fi=0;fi<files.length;fi++) {
-            file = files[fi]
-            if (!data.includes(surveyName + '/' + file.meta.relativePath)) {
-                filesToAdd.push(file)
+        for (filename in files) {
+            if (!data.includes(filename)) {
+                filesToAdd.push(files[filename])
                 filesQueued += 1
             }
         }
