@@ -116,13 +116,75 @@
 //     </div>)
 // }
 
+surveyName = 'Test'
+filesUploaded = 0
+filesQueued = 0
+queue = []
 
+async function addBatch() {
+    fileNames = []
+    files = []
+    while (fileNames.length<10) {
+        item = queue.pop()
+        let file= await item[1].getFile()
+        fileNames.append(surveyName + '/' + file.meta.relativePath)
+        files.append(file)
+    }
+    fetch('/check_upload_files', {
+        method: 'post',
+        // Send and receive JSON.
+        headers: {
+            accept: 'application/json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            filenames: fileNames
+        })
+    }).then((response) => {
+        return response.json()
+    }).then((data) => {
+        filesToAdd = []
+        for (fi=0;fi<files.length;fi++) {
+            file = files[fi]
+            if (!data.includes(surveyName + '/' + file.meta.relativePath)) {
+                filesToAdd.push(file)
+                filesQueued += 1
+            }
+        }
+        uppy.addFiles(filesToAdd)
+    })
+}
+
+async function listFolder2(dirHandle,path){
+    // let files=[]
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind=='directory'){
+            await listFolder2(entry,path+'/'+entry.name)
+        } else {
+            count+=1
+            queue.push([path,entry])
+            if ((filesQueued-filesUploaded)<10) {
+                await addBatch()
+            }
+            // setFileCount(count)
+            // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
+        }
+    }
+    // console.log(path,count)
+    return (count)
+}
+
+async function selectFiles() {
+    const dirHandle = await window.showDirectoryPicker();
+    listFolder2(dirHandle,dirHandle.name)
+}
 
 var uppy = new Uppy.Uppy({
+    autoProceed: true
     // debug: true,
     // logger: debugLogger
 })
-uppy.use(Uppy.DragDrop, { target: document.getElementById('dragArea') })
+// uppy.use(Uppy.DragDrop, { target: document.getElementById('dragArea') })
 // uppy.use(Uppy.Tus, { endpoint: 'https://tusd.tusdemo.net/files/' })
 // uppy.use(Uppy.AwsS3, {
 //     limit: 2,
@@ -134,11 +196,11 @@ uppy.use(Uppy.AwsS3, {
         return fetch('/get_presigned_url', {
             method: 'post',
             headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
+                accept: 'application/json',
+                'content-type': 'application/json',
             },
             body: JSON.stringify({
-                filename: document.getElementById('newSurveyName').value + '/' + file.meta.relativePath,
+                filename: surveyName + '/' + file.meta.relativePath,
                 contentType: file.type,
             }),
         }).then((response) => {
@@ -155,34 +217,37 @@ uppy.use(Uppy.AwsS3, {
         })
     },
 })
-uppy.on('files-added', (files) => {
-    for (fc=0;fc<files.length;fc++) {
-        console.log(files.fc.meta.relativePath)
-    }
-    // if (files[0].source!="myplugin"){
-    //     fetch('/api/files/query', {
-    //     method: 'post',
-    //     // Send and receive JSON.
-    //     headers: {
-    //         accept: 'application/json',
-    //         'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify(files)}).then((response) => response.json())
-    //     .then((data) => {
-    //         uppy.cancelAll();
-    //         //files.forEach((file)=>{uppy.removeFile(file.id)})
-    //         const allFiles= data['wanted'].concat(data['completed']);
-    //         // allFiles.forEach((index)=>{
-    //         //   files[index].source='myplugin';
-    //         //   uppy.addFile(files[index])
-    //         // })
-    //         uppy.addFiles(allFiles.map((index)=>{ let file=files[index];file.source = 'myplugin';return file}))
-    //         data['completed'].forEach((index)=>{
-    //         uppy.setFileState(files[index].id, {progress: { percentage:100, uploadComplete: true, uploadStarted: true }})
-    //         })
-    //     })
-    // }
-})
+// uppy.on('files-added', (files) => {
+//     fileNames = []
+//     for (fc=0;fc<files.length;fc++) {
+//         fileNames.push(files[fc].meta.relativePath)
+//     }
+//     fetch('/check_upload_files', {
+//         method: 'post',
+//         // Send and receive JSON.
+//         headers: {
+//             accept: 'application/json',
+//             'Content-Type': 'application/json',
+//         },
+//         body: JSON.stringify({
+//             filenames: fileNames
+//         })
+//     }).then((response) => response.json()
+//     ).then((data) => {
+//         uppy.cancelAll();
+//         //files.forEach((file)=>{uppy.removeFile(file.id)})
+//         const allFiles= data['wanted'].concat(data['completed']);
+//         // allFiles.forEach((index)=>{
+//         //   files[index].source='myplugin';
+//         //   uppy.addFile(files[index])
+//         // })
+//         uppy.addFiles(allFiles.map((index)=>{ let file=files[index];file.source = 'myplugin';return file}))
+//         data['completed'].forEach((index)=>{
+//         uppy.setFileState(files[index].id, {progress: { percentage:100, uploadComplete: true, uploadStarted: true }})
+//         })
+//     })
+// })
 uppy.on('upload-success', (file, response) => {
     console.log(file.meta.relativePath+' uploaded successfully!')
+    filesUploaded += 1
 })

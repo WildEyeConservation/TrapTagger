@@ -6212,3 +6212,20 @@ def get_presigned_url():
                                                                 'Body' : ''})
     else:
         return 'error'
+
+@app.route('/check_upload_files', methods=['POST'])
+@login_required
+def check_upload_files():
+    """Checks a list of images to see if they have already been uploaded."""
+
+    files = request.json['filenames']
+    already_uploaded = []
+    for file in files:
+        try:              
+            check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=current_user.folder + '/' + file)
+            already_uploaded.append(file)
+        except:
+            # file does not exist
+            pass
+
+    return json.dumps(already_uploaded)
