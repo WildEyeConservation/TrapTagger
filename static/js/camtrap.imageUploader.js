@@ -234,12 +234,12 @@ async function selectFiles() {
     await listFolderNames(globalDirHandle,globalDirHandle.name)
     folders.push(globalDirHandle.name)
 
-    selectFiles = document.getElementById('selectFiles')
+    pathDisplay = document.getElementById('pathDisplay')
     for (let idx = 0; idx < folders.length; idx++){
         let option = document.createElement('option');
         option.text = folders[idx];
         option.value = idx;
-        selectFiles.add(option);
+        pathDisplay.add(option);
     }
     checkTrapgroupCode()
 }

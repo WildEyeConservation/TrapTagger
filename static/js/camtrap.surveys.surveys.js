@@ -220,7 +220,7 @@ var current_page = '/getHomeSurveys'
 var timerTaskStatus = null
 var timerTaskBar = null
 
-var selectFiles = null
+var pathDisplay = null
 var inputFile = null
 
 function buildSurveys(survey,disableSurvey) {
@@ -856,13 +856,14 @@ function checkTrapgroupCode() {
 
     infoDiv.innerHTML = ''
     if (browserChecked) {
-        if ((tgCode!='')&&(inputFile.files.length>0)) {
+        pathDisplay = document.getElementById('pathDisplay')
+        if ((tgCode!='')&&(pathDisplay.options.length>0)) {
             infoDiv.innerHTML = 'Checking...'
             pattern = new RegExp(tgCode)
     
             tgs = []
-            for (fi=0;fi<inputFile.files.length;fi++) {
-                matches = inputFile.files[fi].webkitRelativePath.match(pattern)
+            for (fi=0;fi<pathDisplay.options.length;fi++) {
+                matches = pathDisplay.options[fi].text.match(pattern)
                 if (matches!=null) {
                     tg = matches[0]
                     if (!tgs.includes(tg)) {
