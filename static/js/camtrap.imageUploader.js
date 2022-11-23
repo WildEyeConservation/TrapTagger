@@ -234,13 +234,24 @@ async function selectFiles() {
     await listFolderNames(globalDirHandle,globalDirHandle.name)
     folders.push(globalDirHandle.name)
 
-    // finishedQueueing = false
-    // initUpload()
-    // await listFolder2(globalDirHandle,globalDirHandle.name)
-    // if (uploadQueue.length!=0) {
-    //     addBatch()
-    // }
-    // finishedQueueing = true
+    selectFiles = document.getElementById('selectFiles')
+    for (let idx = 0; idx < folders.files.length; idx++){
+        let option = document.createElement('option');
+        option.text = folders[idx];
+        option.value = idx;
+        selectFiles.add(option);
+    }
+    checkTrapgroupCode()
+}
+
+async function uploadFiles() {
+    finishedQueueing = false
+    initUpload()
+    await listFolder2(globalDirHandle,globalDirHandle.name)
+    if (uploadQueue.length!=0) {
+        addBatch()
+    }
+    finishedQueueing = true
 }
 
 var uppy = new Uppy.Uppy({

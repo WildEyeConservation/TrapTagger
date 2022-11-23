@@ -666,7 +666,7 @@ function buildBrowserUpload(divID) {
     input = document.createElement('select')
     input.setAttribute('size','15')
     input.classList.add('form-control')
-    input.setAttribute('id','selectFiles')
+    input.setAttribute('id','pathDisplay')
     col.appendChild(input)
 
     formGroup.appendChild(document.createElement('br'))
@@ -679,33 +679,39 @@ function buildBrowserUpload(divID) {
     col2.classList.add('col-lg-2')
     row2.appendChild(col2)
 
-    label = document.createElement('label')
-    label.setAttribute('class','btn btn-primary btn-sm btn-block')
-    label.setAttribute('for','inputFile')
-    label.innerHTML = 'Select Images'
-    col2.appendChild(label)
+    btn = document.createElement('button')
+    btn.setAttribute('onclick','selectFiles()')
+    btn.setAttribute("class","btn btn-primary btn-block")
+    btn.innerHTML = 'Select Images'
+    col2.appendChild(btn)
 
-    input2 = document.createElement('input')
-    input2.setAttribute('type','file')
-    input2.classList.add('form-control-file')
-    input2.setAttribute('id','inputFile')
-    input2.multiple = true
-    input2.setAttribute('style','display:none;')
-    input2.setAttribute('webkitdirectory','')
-    input2.setAttribute('directory','')
-    label.append(input2)
+    // label = document.createElement('label')
+    // label.setAttribute('class','btn btn-primary btn-sm btn-block')
+    // label.setAttribute('for','inputFile')
+    // label.innerHTML = 'Select Images'
+    // col2.appendChild(label)
 
-    input2.addEventListener( 'input', () => {
-        inputFile = document.getElementById('inputFile')
-        selectFiles = document.getElementById('selectFiles')
-        for (let idx = 0; idx < inputFile.files.length; idx++){
-            let option = document.createElement('option');
-            option.text = inputFile.files[idx].webkitRelativePath;
-            option.value = idx;
-            selectFiles.add(option);
-        }
-        checkTrapgroupCode()
-    });
+    // input2 = document.createElement('input')
+    // input2.setAttribute('type','file')
+    // input2.classList.add('form-control-file')
+    // input2.setAttribute('id','inputFile')
+    // input2.multiple = true
+    // input2.setAttribute('style','display:none;')
+    // input2.setAttribute('webkitdirectory','')
+    // input2.setAttribute('directory','')
+    // label.append(input2)
+
+    // input2.addEventListener( 'input', () => {
+    //     inputFile = document.getElementById('inputFile')
+    //     selectFiles = document.getElementById('selectFiles')
+    //     for (let idx = 0; idx < inputFile.files.length; idx++){
+    //         let option = document.createElement('option');
+    //         option.text = inputFile.files[idx].webkitRelativePath;
+    //         option.value = idx;
+    //         selectFiles.add(option);
+    //     }
+    //     checkTrapgroupCode()
+    // });
 
     // Initalise tg code check
     if (document.getElementById('addImagesTGCode')!=null) {
@@ -2813,34 +2819,35 @@ function submitNewSurvey(formData) {
             if (reply.status=='success') {
 
                 if (document.getElementById('BrowserUpload').checked == true) {
-                    uploading = true
-                    ProgBarDiv = document.getElementById('uploadProgBarDiv')
+                    uploadFiles()
+                    // uploading = true
+                    // ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
-                    while(ProgBarDiv.firstChild){
-                        ProgBarDiv.removeChild(ProgBarDiv.firstChild);
-                    }
+                    // while(ProgBarDiv.firstChild){
+                    //     ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+                    // }
 
-                    var newProg = document.createElement('div');
-                    newProg.classList.add('progress');
+                    // var newProg = document.createElement('div');
+                    // newProg.classList.add('progress');
 
-                    var newProgInner = document.createElement('div');
-                    newProgInner.classList.add('progress-bar');
-                    newProgInner.classList.add('progress-bar-striped');
-                    newProgInner.classList.add('active');
-                    newProgInner.setAttribute("role", "progressbar");
-                    newProgInner.setAttribute("id", "uploadProgBar");
-                    newProgInner.setAttribute("aria-valuenow", "0");
-                    newProgInner.setAttribute("aria-valuemin", "0");
-                    newProgInner.setAttribute("aria-valuemax", files.length.toString());
-                    newProgInner.setAttribute("style", "width:0%");
+                    // var newProgInner = document.createElement('div');
+                    // newProgInner.classList.add('progress-bar');
+                    // newProgInner.classList.add('progress-bar-striped');
+                    // newProgInner.classList.add('active');
+                    // newProgInner.setAttribute("role", "progressbar");
+                    // newProgInner.setAttribute("id", "uploadProgBar");
+                    // newProgInner.setAttribute("aria-valuenow", "0");
+                    // newProgInner.setAttribute("aria-valuemin", "0");
+                    // newProgInner.setAttribute("aria-valuemax", files.length.toString());
+                    // newProgInner.setAttribute("style", "width:0%");
 
-                    newProg.appendChild(newProgInner);
-                    ProgBarDiv.appendChild(newProg);
+                    // newProg.appendChild(newProgInner);
+                    // ProgBarDiv.appendChild(newProg);
 
-                    modalNewSurvey.modal('hide')
-                    modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+                    // modalNewSurvey.modal('hide')
+                    // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 
-                    uploadSurveyToCloud(surveyName)
+                    // uploadSurveyToCloud(surveyName)
                 } else {
                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
                     document.getElementById('modalAlertBody').innerHTML = 'Your survey is being imported.'
