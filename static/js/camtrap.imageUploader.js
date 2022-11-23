@@ -188,12 +188,10 @@ async function listFolder2(dirHandle,path){
 }
 
 async function listFolderNames(dirHandle,path){
-    folders = []
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            lowerFolders = await listFolderNames(entry,path+'/'+entry.name)
-            folders.push(path)
-            folders.push(...lowerFolders)
+            await listFolderNames(entry,path+'/'+entry.name)
+            folders.push(path+'/'+entry.name)
         }
     }
     return folders
@@ -232,7 +230,9 @@ function initUpload() {
 
 async function selectFiles() {
     globalDirHandle = await window.showDirectoryPicker();
-    folders = await listFolderNames(globalDirHandle,globalDirHandle.name)
+    folders = []
+    await listFolderNames(globalDirHandle,globalDirHandle.name)
+    folders.push(globalDirHandle.name)
 
     // finishedQueueing = false
     // initUpload()
