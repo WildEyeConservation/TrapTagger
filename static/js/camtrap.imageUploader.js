@@ -254,6 +254,6 @@ uppy.use(Uppy.AwsS3, {
 //     })
 // })
 uppy.on('upload-success', (file, response) => {
-    console.log(file.meta.relativePath+' uploaded successfully!')
+    console.log(file.name+' uploaded successfully!')
     filesUploaded += 1
 })
