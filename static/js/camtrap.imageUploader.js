@@ -142,12 +142,12 @@ uppy.use(Uppy.AwsS3, {
             }),
         }).then((response) => {
             // Parse the JSON response.
-            return response.json()
-        }).then((data) => {
+            return response.text()
+        }).then((url) => {
             // Return an object in the correct shape.
             return {
                 method: 'PUT',
-                url: data,
+                url: url,
                 fields: {},
                 // Provide content type header required by S3
                 headers: {
