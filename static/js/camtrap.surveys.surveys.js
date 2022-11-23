@@ -221,7 +221,6 @@ var timerTaskStatus = null
 var timerTaskBar = null
 
 var pathDisplay = null
-var inputFile = null
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -2633,60 +2632,60 @@ $('.modal').on("hidden.bs.modal", function (e) {
     }
 });
 
-function uploadSurveyToCloud(surveyName) {
-    stopFlag=false
-    inputFiles = document.getElementById('inputFile')
-    if (inputFiles.files.length>0) {
-        uploadImageToCloud(0,surveyName,1)
-    }
-}
+// function uploadSurveyToCloud(surveyName) {
+//     stopFlag=false
+//     inputFiles = document.getElementById('inputFile')
+//     if (inputFiles.files.length>0) {
+//         uploadImageToCloud(0,surveyName,1)
+//     }
+// }
 
-function updateUploadProgress(value,total) {
-    progBar = document.getElementById('uploadProgBar')
-    perc=(value/total)*100
+// function updateUploadProgress(value,total) {
+//     progBar = document.getElementById('uploadProgBar')
+//     perc=(value/total)*100
 
-    progBar.setAttribute('aria-valuenow',value)
-    progBar.setAttribute('style',"width:"+perc+"%")
-    progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
-}
+//     progBar.setAttribute('aria-valuenow',value)
+//     progBar.setAttribute('style',"width:"+perc+"%")
+//     progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
+// }
 
-function uploadImageToCloud(fileIndex,surveyName,attempts) {
+// function uploadImageToCloud(fileIndex,surveyName,attempts) {
 
-    var formData = new FormData()
-    formData.append("image", document.getElementById('inputFile').files[fileIndex])
-    formData.append("surveyName", surveyName)
+//     var formData = new FormData()
+//     formData.append("image", document.getElementById('inputFile').files[fileIndex])
+//     formData.append("surveyName", surveyName)
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/uploadImageToCloud');
-    xhttp.onreadystatechange =
-    function(wrapFileIndex,wrapSurveyName,wrapAttempts){
-        return function() {
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText)
-                if (stopFlag) {
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.open("GET", '/deleteImages/'+surveyName);
-                    xhttp.send();
-                } else if ((reply.status!='success') && (wrapAttempts<5)) {
-                    uploadImageToCloud(wrapFileIndex,wrapSurveyName,wrapAttempts+1)
-                } else if (wrapFileIndex < document.getElementById('inputFile').files.length-1) {
-                    updateUploadProgress(wrapFileIndex+1,document.getElementById('inputFile').files.length)
-                    uploadImageToCloud(wrapFileIndex+1,wrapSurveyName,1)
-                } else {
-                    // DONE! Close modals etc.
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
-                    xhttp.send();
-                    modalUploadProgress.modal('hide')
-                    document.getElementById('modalAlertHeader').innerHTML = 'Success'
-                    document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
-                    modalAlert.modal({keyboard: true});
-                }
-            }
-        }
-    }(fileIndex,surveyName,attempts)
-    xhttp.send(formData);
-}
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("POST", '/uploadImageToCloud');
+//     xhttp.onreadystatechange =
+//     function(wrapFileIndex,wrapSurveyName,wrapAttempts){
+//         return function() {
+//             if (this.readyState == 4 && this.status == 200) {
+//                 reply = JSON.parse(this.responseText)
+//                 if (stopFlag) {
+//                     var xhttp = new XMLHttpRequest();
+//                     xhttp.open("GET", '/deleteImages/'+surveyName);
+//                     xhttp.send();
+//                 } else if ((reply.status!='success') && (wrapAttempts<5)) {
+//                     uploadImageToCloud(wrapFileIndex,wrapSurveyName,wrapAttempts+1)
+//                 } else if (wrapFileIndex < document.getElementById('inputFile').files.length-1) {
+//                     updateUploadProgress(wrapFileIndex+1,document.getElementById('inputFile').files.length)
+//                     uploadImageToCloud(wrapFileIndex+1,wrapSurveyName,1)
+//                 } else {
+//                     // DONE! Close modals etc.
+//                     var xhttp = new XMLHttpRequest();
+//                     xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
+//                     xhttp.send();
+//                     modalUploadProgress.modal('hide')
+//                     document.getElementById('modalAlertHeader').innerHTML = 'Success'
+//                     document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
+//                     modalAlert.modal({keyboard: true});
+//                 }
+//             }
+//         }
+//     }(fileIndex,surveyName,attempts)
+//     xhttp.send(formData);
+// }
 
 document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     /** 
@@ -2747,13 +2746,13 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             legalInput = true
         }
     } else if (document.getElementById('BrowserUpload').checked == true) {
-        inputFile = document.getElementById('inputFile')
-        if (inputFile.files.length == 0) {
+        pathDisplay = document.getElementById('pathDisplay')
+        if (pathDisplay.options.length == 0) {
             document.getElementById('newSurveyErrors').innerHTML = 'You must select images to upload.'
         } else {
             legalInput = true
             newSurveyS3Folder = 'none'
-            files = inputFile.files
+            // files = inputFile.files
         }
     } else {
         document.getElementById('newSurveyErrors').innerHTML = 'You must select an image upload method.'
@@ -2932,13 +2931,13 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                 legalInput = true
             }
         } else if (document.getElementById('BrowserAdd').checked == true) {
-            inputFile = document.getElementById('inputFile')
-            if (inputFile.files.length == 0) {
+            pathDisplay = document.getElementById('pathDisplay')
+            if (pathDisplay.options.length == 0) {
                 document.getElementById('addImagesErrors').innerHTML = 'You must select images to upload.'
             } else {
                 legalInput = true
                 addImagesS3Folder = 'none'
-                files = inputFile.files
+                // files = inputFile.files
             }
         } else {
             document.getElementById('addImagesErrors').innerHTML = 'You must select an image upload method.'
