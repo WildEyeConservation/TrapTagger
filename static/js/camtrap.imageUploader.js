@@ -119,8 +119,8 @@
 
 
 var uppy = new Uppy.Uppy({
-    debug: true,
-    logger: debugLogger
+    // debug: true,
+    // logger: debugLogger
 })
 uppy.use(Uppy.DragDrop, { target: document.getElementById('dragArea') })
 // uppy.use(Uppy.Tus, { endpoint: 'https://tusd.tusdemo.net/files/' })
