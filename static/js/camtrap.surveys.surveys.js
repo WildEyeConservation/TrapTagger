@@ -2640,14 +2640,14 @@ $('.modal').on("hidden.bs.modal", function (e) {
 //     }
 // }
 
-// function updateUploadProgress(value,total) {
-//     progBar = document.getElementById('uploadProgBar')
-//     perc=(value/total)*100
+function updateUploadProgress(value,total) {
+    progBar = document.getElementById('uploadProgBar')
+    perc=(value/total)*100
 
-//     progBar.setAttribute('aria-valuenow',value)
-//     progBar.setAttribute('style',"width:"+perc+"%")
-//     progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
-// }
+    progBar.setAttribute('aria-valuenow',value)
+    progBar.setAttribute('style',"width:"+perc+"%")
+    progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
+}
 
 // function uploadImageToCloud(fileIndex,surveyName,attempts) {
 
@@ -2698,9 +2698,11 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyTGCode = document.getElementById('newSurveyTGCode').value
     newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
 
-    classifier = document.querySelector('input[name="classifierSelection"]:checked').id
-    if (!classifier) {
+    classifier = document.querySelector('input[name="classifierSelection"]:checked')
+    if (classifier==null) {
         document.getElementById('newSurveyErrors').innerHTML = 'You must select a classifier.'
+    } else {
+        classifier = classifier.id
     }
 
     while(document.getElementById('newSurveyErrors').firstChild){
@@ -2963,10 +2965,12 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
 
     legalClassifier = true
     if (document.getElementById('addImagesEditClassifier').checked) {
-        classifier = document.querySelector('input[name="classifierSelection"]:checked').id
-        if (!classifier) {
+        classifier = document.querySelector('input[name="classifierSelection"]:checked')
+        if (classifier==null) {
             document.getElementById('addImagesErrors').innerHTML = 'You must select a classifier.'
             legalClassifier = false
+        } else {
+            classifier = classifier.id
         }
     }
 
