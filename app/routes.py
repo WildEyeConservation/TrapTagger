@@ -6213,20 +6213,25 @@ def create_presigned_post():
     # fields = request.form['fields']
     # conditions = request.form['conditions']
 
-    content = request.get_json()
+    # content = request.get_json()
     # object_name = current_user.folder + '/' + content.get('filename')
-    object_name = content.get('filename')
-    contentType = content.get('contentType')
+    # contentType = content.get('contentType')
     
-    try:
-        response = GLOBALS.s3client.generate_presigned_post(Config.BUCKET,
-                                                     object_name,
-                                                     Fields={"Content-Type": contentType},
-                                                     Conditions=["starts-with", "$Content-Type", "image/"],
-                                                     ExpiresIn=3600)
-    except ClientError as e:
-        # logging.error(e)
-        return None
+    # try:
+    #     response = GLOBALS.s3client.generate_presigned_post(Config.BUCKET,
+    #                                                  object_name,
+    #                                                  Fields={"Content-Type": contentType},
+    #                                                  Conditions=["starts-with", "$Content-Type", "image/"],
+    #                                                  ExpiresIn=3600)
+    # except ClientError as e:
+    #     # logging.error(e)
+    #     return None
 
-    # The response contains the presigned URL and required fields
-    return response
+    # # The response contains the presigned URL and required fields
+    # return response
+
+    return  GLOBALS.s3client.generate_presigned_url(ClientMethod='put_object',
+                                                   Params={'Bucket': Config.BUCKET,
+                                                            'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
+                                                            'ContentType': request.json['contentType'],
+                                                            'Body' : ''})
