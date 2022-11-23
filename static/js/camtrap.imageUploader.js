@@ -117,12 +117,13 @@
 // }
 
 batchSize = 1000
-surveyName = 'surveyName'
+surveyName = null
 filesUploaded = 0
 filesActuallyUploaded = 0
 filesQueued = 0
 uploadQueue = []
 finishedQueueing = false
+globalDirHandle = null
 
 async function addBatch() {
     fileNames = []
@@ -186,6 +187,18 @@ async function listFolder2(dirHandle,path){
     return (count)
 }
 
+async function listFolderNames(dirHandle,path){
+    folders = []
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind=='directory'){
+            lowerFolders = await listFolder2(entry,path+'/'+entry.name)
+            folders.push(path)
+            folders.push(...lowerFolders)
+        }
+    }
+    return folders
+}
+
 function initUpload() {
     uploading = true
     ProgBarDiv = document.getElementById('uploadProgBarDiv')
@@ -218,14 +231,16 @@ function initUpload() {
 }
 
 async function selectFiles() {
-    const dirHandle = await window.showDirectoryPicker();
-    finishedQueueing = false
-    initUpload()
-    await listFolder2(dirHandle,dirHandle.name)
-    if (uploadQueue.length!=0) {
-        addBatch()
-    }
-    finishedQueueing = true
+    const globalDirHandle = await window.showDirectoryPicker();
+    folders = await listFolderNames(dirHandle,dirHandle.name)
+
+    // finishedQueueing = false
+    // initUpload()
+    // await listFolder2(dirHandle,dirHandle.name)
+    // if (uploadQueue.length!=0) {
+    //     addBatch()
+    // }
+    // finishedQueueing = true
 }
 
 var uppy = new Uppy.Uppy({

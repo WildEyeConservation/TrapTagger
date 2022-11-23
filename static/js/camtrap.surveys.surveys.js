@@ -2637,11 +2637,10 @@ function uploadSurveyToCloud(surveyName) {
 function updateUploadProgress(value,total) {
     progBar = document.getElementById('uploadProgBar')
     perc=(value/total)*100
-    remaining = total-value
 
     progBar.setAttribute('aria-valuenow',value)
     progBar.setAttribute('style',"width:"+perc+"%")
-    progBar.innerHTML = remaining + " images remaining."
+    progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
 }
 
 function uploadImageToCloud(fileIndex,surveyName,attempts) {
@@ -3166,7 +3165,7 @@ modalAlert.on('hidden.bs.modal', function(){
 modalUploadProgress.on('hidden.bs.modal', function(){
     /** Clears the new survey and edit survey modals when the upload modal is closed. */
     resetNewSurveyPage()
-    resetAddImagesPage()
+    // resetAddImagesPage()
     uploading = false
 });
 
