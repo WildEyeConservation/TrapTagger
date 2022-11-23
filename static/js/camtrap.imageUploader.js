@@ -211,7 +211,7 @@ function initUpload() {
     newProg.appendChild(newProgInner);
     ProgBarDiv.appendChild(newProg);
 
-    surveyName = document.getElementById('surveyName').value
+    surveyName = document.getElementById('newSurveyName').value
     
     modalNewSurvey.modal('hide')
     modalUploadProgress.modal({backdrop: 'static', keyboard: false});
@@ -302,7 +302,7 @@ uppy.on('upload-success', (file, response) => {
     filesActuallyUploaded += 1
     updateUploadProgress(filesUploaded,filesQueued)
 
-    if ((filesUploaded==filesQueued)&&(queued==0)&&(finishedQueueing)) {
+    if ((filesUploaded==filesQueued)&&(queue.length==0)&&(finishedQueueing)) {
         // Finished!
         // var xhttp = new XMLHttpRequest();
         // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
