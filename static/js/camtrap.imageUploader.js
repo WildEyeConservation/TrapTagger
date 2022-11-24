@@ -168,7 +168,7 @@ async function addBatch() {
     return true
 }
 
-async function handlePath() {
+async function handlePath(path,entry) {
     if (entry.kind=='directory'){
         await listFolder2(entry,path+'/'+entry.name)
     } else {
