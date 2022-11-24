@@ -116,7 +116,7 @@
 //     </div>)
 // }
 
-batchSize = 1000
+batchSize = 200
 surveyName = null
 filesUploaded = 0
 filesActuallyUploaded = 0
@@ -124,8 +124,11 @@ filesQueued = 0
 uploadQueue = []
 finishedQueueing = false
 globalDirHandle = null
+addingBatch=false
+filecount=0
 
 async function addBatch() {
+    addingBatch = true
     fileNames = []
     files = {}
     while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
@@ -164,6 +167,10 @@ async function addBatch() {
         }
         uppy.addFiles(filesToAdd)
     })
+    addingBatch = false
+    if ((uploadQueue.length!=0)&&(finishedQueueing)) {
+        addBatch()
+    }
     return true
 }
 
@@ -176,8 +183,8 @@ async function listFolder2(dirHandle,path){
         } else {
             count+=1
             uploadQueue.push([path,entry])
-            if (((filesQueued-filesUploaded)<(0.25*batchSize))&&(uploadQueue.length>=batchSize)) {
-                await addBatch()
+            if (((filesQueued-filesUploaded)<(0.25*batchSize))&&(uploadQueue.length>=batchSize)&&(!addingBatch)) {
+                addBatch()
             }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
@@ -192,6 +199,9 @@ async function listFolderNames(dirHandle,path){
         if (entry.kind=='directory'){
             await listFolderNames(entry,path+'/'+entry.name)
             folders.push(path+'/'+entry.name)
+            updatePathDisplay(folders)
+        } else {
+            filecount += 1
         }
     }
     return folders
@@ -234,12 +244,7 @@ function initUpload(edit=false) {
     modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 }
 
-async function selectFiles() {
-    globalDirHandle = await window.showDirectoryPicker();
-    folders = []
-    await listFolderNames(globalDirHandle,globalDirHandle.name)
-    folders.push(globalDirHandle.name)
-
+function updatePathDisplay(folders) {
     pathDisplay = document.getElementById('pathDisplay')
     for (let idx = 0; idx < folders.length; idx++){
         let option = document.createElement('option');
@@ -247,6 +252,15 @@ async function selectFiles() {
         option.value = idx;
         pathDisplay.add(option);
     }
+}
+
+async function selectFiles() {
+    globalDirHandle = await window.showDirectoryPicker();
+    folders = []
+    await listFolderNames(globalDirHandle,globalDirHandle.name)
+    folders.push(globalDirHandle.name)
+    updatePathDisplay(folders)
+
     checkTrapgroupCode()
 }
 
@@ -254,7 +268,7 @@ async function uploadFiles() {
     finishedQueueing = false
     initUpload()
     await listFolder2(globalDirHandle,globalDirHandle.name)
-    if (uploadQueue.length!=0) {
+    if ((uploadQueue.length!=0)&&(!addingBatch)) {
         addBatch()
     }
     finishedQueueing = true
