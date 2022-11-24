@@ -288,7 +288,7 @@ async function uploadFiles() {
     finishedQueueing = false
     initUpload()
     await listFolder2(globalDirHandle,globalDirHandle.name)
-    if (uploadQueue.length!=0) {
+    if ((uploadQueue.length!=0)&&(!addingBatch)) {
         addBatch()
     }
     finishedQueueing = true
