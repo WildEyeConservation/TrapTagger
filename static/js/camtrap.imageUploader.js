@@ -168,26 +168,37 @@ async function addBatch() {
     return true
 }
 
-async function handleEntry(path,entry) {
-    if (entry.kind=='directory'){
-        await listFolder2(entry,path+'/'+entry.name)
-    } else {
-        count+=1
-        uploadQueue.push([path,entry])
-        if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
-            await addBatch()
-        }
-        // setFileCount(count)
-        // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
-    }
-    return true
-}
+// async function handleEntry(path,entry) {
+//     if (entry.kind=='directory'){
+//         await listFolder2(entry,path+'/'+entry.name)
+//     } else {
+//         count+=1
+//         uploadQueue.push([path,entry])
+//         if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
+//             await addBatch()
+//         }
+//         // setFileCount(count)
+//         // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
+//     }
+//     return true
+// }
 
 async function listFolder2(dirHandle,path){
     // let files=[]
     count = 0
     for await (const entry of dirHandle.values()) {
-        await handleEntry(path,entry)
+        // await handleEntry(path,entry)
+        if (entry.kind=='directory'){
+            await listFolder2(entry,path+'/'+entry.name)
+        } else {
+            count+=1
+            uploadQueue.push([path,entry])
+            if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
+                await addBatch()
+            }
+            // setFileCount(count)
+            // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
+        }
     }
     // console.log(path,count)
     return (count)
