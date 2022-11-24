@@ -126,17 +126,17 @@ finishedQueueing = false
 globalDirHandle = null
 filecount=0
 
-function addBatch() {
+async function addBatch() {
     fileNames = []
     files = {}
     while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
         item = uploadQueue.pop()
-        let file= item[1].getFile()
+        let file = await item[1].getFile()
         filename = surveyName + '/' + item[0] + '/' + file.name
         fileNames.push(filename)
         files[filename] = file
     }
-    fetch('/check_upload_files', {
+    await fetch('/check_upload_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
