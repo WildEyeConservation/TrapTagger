@@ -168,21 +168,25 @@ async function addBatch() {
     return true
 }
 
+async function handlePath() {
+    if (entry.kind=='directory'){
+        await listFolder2(entry,path+'/'+entry.name)
+    } else {
+        count+=1
+        uploadQueue.push([path,entry])
+        if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
+            await addBatch()
+        }
+        // setFileCount(count)
+        // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
+    }
+}
+
 async function listFolder2(dirHandle,path){
     // let files=[]
     count = 0
     for await (const entry of dirHandle.values()) {
-        if (entry.kind=='directory'){
-            await listFolder2(entry,path+'/'+entry.name)
-        } else {
-            count+=1
-            uploadQueue.push([path,entry])
-            if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
-                await addBatch()
-            }
-            // setFileCount(count)
-            // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
-        }
+        await handlePath(path,entry)
     }
     // console.log(path,count)
     return (count)
