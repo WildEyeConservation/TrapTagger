@@ -180,6 +180,7 @@ async function handleEntry(path,entry) {
         // setFileCount(count)
         // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
     }
+    return true
 }
 
 async function listFolder2(dirHandle,path){
