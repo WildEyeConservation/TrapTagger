@@ -125,8 +125,10 @@ uploadQueue = []
 finishedQueueing = false
 globalDirHandle = null
 filecount=0
+addingBatch = false
 
 async function addBatch() {
+    addingBatch = true
     fileNames = []
     files = {}
     while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
@@ -165,6 +167,7 @@ async function addBatch() {
         }
         uppy.addFiles(filesToAdd)
     })
+    addingBatch = false
     return true
 }
 
@@ -193,8 +196,8 @@ async function listFolder2(dirHandle,path){
         } else {
             count+=1
             uploadQueue.push([path,entry])
-            if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
-                await addBatch()
+            if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)&&!addingBatch) {
+                addBatch()
             }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
@@ -361,9 +364,14 @@ uppy.use(Uppy.AwsS3, {
 // })
 uppy.on('upload-success', (file, response) => {
     console.log(file.name+' uploaded successfully!')
+    uppy.removeFile(file)
     filesUploaded += 1
     filesActuallyUploaded += 1
     updateUploadProgress(filesUploaded,filesQueued)
+
+    if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch) {
+        addBatch()
+    }
 
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         // Finished!
