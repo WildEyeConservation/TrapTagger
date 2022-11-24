@@ -124,11 +124,9 @@ filesQueued = 0
 uploadQueue = []
 finishedQueueing = false
 globalDirHandle = null
-addingBatch=false
 filecount=0
 
 async function addBatch() {
-    addingBatch = true
     fileNames = []
     files = {}
     while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
@@ -167,10 +165,6 @@ async function addBatch() {
         }
         uppy.addFiles(filesToAdd)
     })
-    addingBatch = false
-    if ((uploadQueue.length!=0)&&(finishedQueueing)) {
-        addBatch()
-    }
     return true
 }
 
@@ -183,8 +177,8 @@ async function listFolder2(dirHandle,path){
         } else {
             count+=1
             uploadQueue.push([path,entry])
-            if (((filesQueued-filesUploaded)<(0.25*batchSize))&&(uploadQueue.length>=batchSize)&&(!addingBatch)) {
-                addBatch()
+            if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
+                await addBatch()
             }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
@@ -209,6 +203,13 @@ async function listFolderNames(dirHandle,path){
 
 function initUpload(edit=false) {
     uploading = true
+    filesUploaded = 0
+    filesActuallyUploaded = 0
+    filesQueued = 0
+    uploadQueue = []
+    finishedQueueing = false
+    filecount=0
+
     ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
     while(ProgBarDiv.firstChild){
@@ -268,7 +269,7 @@ async function uploadFiles() {
     finishedQueueing = false
     initUpload()
     await listFolder2(globalDirHandle,globalDirHandle.name)
-    if ((uploadQueue.length!=0)&&(!addingBatch)) {
+    if (uploadQueue.length!=0) {
         addBatch()
     }
     finishedQueueing = true
