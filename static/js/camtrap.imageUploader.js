@@ -126,17 +126,17 @@ finishedQueueing = false
 globalDirHandle = null
 filecount=0
 
-async function addBatch() {
+function addBatch() {
     fileNames = []
     files = {}
     while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
         item = uploadQueue.pop()
-        let file= await item[1].getFile()
+        let file= item[1].getFile()
         filename = surveyName + '/' + item[0] + '/' + file.name
         fileNames.push(filename)
         files[filename] = file
     }
-    await fetch('/check_upload_files', {
+    fetch('/check_upload_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -168,17 +168,17 @@ async function addBatch() {
     return true
 }
 
-async function listFolder2(dirHandle,path){
+function listFolder2(dirHandle,path){
     // let files=[]
     count = 0
-    for await (const entry of dirHandle.values()) {
+    for (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            await listFolder2(entry,path+'/'+entry.name)
+            listFolder2(entry,path+'/'+entry.name)
         } else {
             count+=1
             uploadQueue.push([path,entry])
             if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
-                await addBatch()
+                addBatch()
             }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
@@ -265,10 +265,10 @@ async function selectFiles() {
     checkTrapgroupCode()
 }
 
-async function uploadFiles() {
+function uploadFiles() {
     finishedQueueing = false
     initUpload()
-    await listFolder2(globalDirHandle,globalDirHandle.name)
+    listFolder2(globalDirHandle,globalDirHandle.name)
     if (uploadQueue.length!=0) {
         addBatch()
     }
