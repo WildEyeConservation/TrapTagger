@@ -168,17 +168,17 @@ function addBatch() {
     return true
 }
 
-function listFolder2(dirHandle,path){
+async function listFolder2(dirHandle,path){
     // let files=[]
     count = 0
-    for (const entry of dirHandle.values()) {
+    for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            listFolder2(entry,path+'/'+entry.name)
+            await listFolder2(entry,path+'/'+entry.name)
         } else {
             count+=1
             uploadQueue.push([path,entry])
             if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)) {
-                addBatch()
+                await addBatch()
             }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
@@ -265,10 +265,10 @@ async function selectFiles() {
     checkTrapgroupCode()
 }
 
-function uploadFiles() {
+async function uploadFiles() {
     finishedQueueing = false
     initUpload()
-    listFolder2(globalDirHandle,globalDirHandle.name)
+    await listFolder2(globalDirHandle,globalDirHandle.name)
     if (uploadQueue.length!=0) {
         addBatch()
     }
