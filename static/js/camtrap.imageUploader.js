@@ -252,29 +252,30 @@ function initUpload(edit=false) {
     taskDiv.appendChild(row)
 
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
+    col1.classList.add('col-lg-9')
     row.appendChild(col1)
 
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-1')
+    col2.classList.add('col-lg-3')
     row.appendChild(col2)
 
     btnPause = document.createElement('button')
     btnPause.setAttribute("class","btn btn-primary btn-sm")
+    btnPause.setAttribute('style','margin-right:4px')
     btnPause.setAttribute('onclick','pauseUpload()')
     btnPause.setAttribute('id','btnPause')
     btnPause.innerHTML = 'Pause'
     col2.appendChild(btnPause)
 
-    col3 = document.createElement('div')
-    col3.classList.add('col-lg-1')
-    row.appendChild(col3)
+    // col3 = document.createElement('div')
+    // col3.classList.add('col-lg-1')
+    // row.appendChild(col3)
 
     btnStop = document.createElement('button')
     btnStop.setAttribute("class","btn btn-danger btn-sm")
     btnStop.setAttribute('onclick','stopUpload()')
     btnStop.innerHTML = 'Stop'
-    col3.appendChild(btnStop)
+    col2.appendChild(btnStop)
 
     // ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
@@ -446,10 +447,9 @@ function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
-            // Finished!
-            // var xhttp = new XMLHttpRequest();
-            // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
-            // xhttp.send();
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
+            xhttp.send();
             // modalUploadProgress.modal('hide')
             // document.getElementById('modalAlertHeader').innerHTML = 'Success'
             // document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
