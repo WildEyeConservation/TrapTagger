@@ -445,10 +445,11 @@ uppy.on('upload-success', (file, response) => {
             // var xhttp = new XMLHttpRequest();
             // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
             // xhttp.send();
-            modalUploadProgress.modal('hide')
-            document.getElementById('modalAlertHeader').innerHTML = 'Success'
-            document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
-            modalAlert.modal({keyboard: true});
+            // modalUploadProgress.modal('hide')
+            // document.getElementById('modalAlertHeader').innerHTML = 'Success'
+            // document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
+            // modalAlert.modal({keyboard: true});
+            console.log('Upload Complete')
         } else {
             //check upload - restart upload
             filesQueued = 0
