@@ -449,13 +449,18 @@ function checkFinishedUpload() {
             //completely done
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    updatePage(current_page)
+                }
+            }
             xhttp.send();
             // modalUploadProgress.modal('hide')
             // document.getElementById('modalAlertHeader').innerHTML = 'Success'
             // document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
             // modalAlert.modal({keyboard: true});
             console.log('Upload Complete')
-            updatePage(current_page)
         } else {
             //check upload - restart upload
             filesQueued = 0
