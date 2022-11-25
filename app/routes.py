@@ -49,7 +49,12 @@ from flask_cors import cross_origin
 from calendar import monthrange
 from botocore.client import Config as botoConfig
 
-GLOBALS.s3client = boto3.client('s3', config=botoConfig(signature_version='s3v4'), region_name=Config.AWS_REGION)
+GLOBALS.s3client = boto3.client('s3')
+GLOBALS.s3UploadClient = boto3.client('s3', 
+                                    config=botoConfig(signature_version='s3v4'), 
+                                    region_name=Config.AWS_REGION,
+                                    aws_access_key_id=Config.AWS_S3_UPLOAD_ACCESS_KEY_ID,
+                                    aws_secret_access_key=Config.AWS_S3_UPLOAD_SECRET_ACCESS_KEY)
 GLOBALS.lock = Lock()
 
 @app.before_request
@@ -2513,42 +2518,14 @@ def getHomeSurveys():
         surveys = surveys.distinct().paginate(page, 5, False)
 
         survey_list = []
+        
+        # check for uploads and include those first
+        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='uploading').distinct().all()
+        for survey in uploads:
+            survey_list.append(getSurveyInfo(survey))
+
         for survey in surveys.items:
-            survey_dict = {}
-            survey_dict['id'] = survey.id
-            survey_dict['name'] = survey.name
-            survey_dict['description'] = survey.description
-            survey_dict['numTrapgroups'] = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey.id).count()
-            if survey.image_count == None:
-                survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
-            survey_dict['numImages'] = survey.image_count
-
-            
-            if survey.status in ['indprocessing']:
-                survey_dict['status'] = 'processing'
-            else:
-                survey_dict['status'] = survey.status
-
-            disabledLaunch='false'
-            for task in survey.tasks:
-                if task.status.lower() not in Config.TASK_READY_STATUSES:
-                    disabledLaunch='true'
-                    break
-
-            task_info = []
-            for task in survey.tasks:
-                if (task.name != 'default') and ('_o_l_d_' not in task.name) and ('_copying' not in task.name):
-                    task_dict = {}
-                    task_dict['id'] = task.id
-                    task_dict['name'] = task.name
-                    task_dict['status'] = task.status
-                    task_dict['disabledLaunch'] = disabledLaunch
-                    task_dict['complete'] = task.complete
-
-                    task_info.append(task_dict)
-            survey_dict['tasks'] = task_info
-
-            survey_list.append(survey_dict)
+            survey_list.append(getSurveyInfo(survey))
 
         next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order) if surveys.has_next else None
         prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order) if surveys.has_prev else None
@@ -6205,11 +6182,11 @@ def getClassifierInfo():
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
     if current_user.admin:
-        return  GLOBALS.s3client.generate_presigned_url(ClientMethod='put_object',
-                                                        Params={'Bucket': Config.BUCKET,
-                                                                'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-                                                                'ContentType': request.json['contentType'],
-                                                                'Body' : ''})
+        return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+                                                                Params={'Bucket': Config.BUCKET,
+                                                                        'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
+                                                                        'ContentType': request.json['contentType'],
+                                                                        'Body' : ''})
     else:
         return 'error'
 

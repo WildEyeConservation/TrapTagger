@@ -199,7 +199,7 @@ var barColours = {
 
 var btnOpacity = 0.2
 
-var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','uploading','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
+var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
 var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
@@ -242,7 +242,6 @@ function buildSurveys(survey,disableSurvey) {
     taskDivHeading = document.createElement('div')
     taskDivHeading.classList.add('col-lg-6');
     taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:15px; font-size: 110%")
-    taskDivHeading.innerHTML = 'Annotation Sets:'
     entireRowHeading.appendChild(surveyDivHeading)
     entireRowHeading.appendChild(taskDivHeading)
     newSurveyDiv.appendChild(entireRowHeading)
@@ -253,6 +252,7 @@ function buildSurveys(survey,disableSurvey) {
     surveyDiv.classList.add('col-lg-6');
     taskDiv = document.createElement('div')
     taskDiv.setAttribute('style',"border-left: thin solid #ffffff;")
+    taskDiv.setAttribute('id','taskDiv-'+survey.name)
     taskDiv.classList.add('col-lg-6');
     entireRow.appendChild(surveyDiv)
     entireRow.appendChild(taskDiv)
@@ -264,10 +264,33 @@ function buildSurveys(survey,disableSurvey) {
 
     newSurveyDiv.appendChild(entireRow)
 
-    for (ii=0;ii<survey.tasks.length;ii++) {
-        buildTask(taskDiv, survey.tasks[ii], disableSurvey, survey)
-        if (ii < survey.tasks.length-1) {
-            taskDiv.appendChild(document.createElement('br'))
+    if (survey.status.toLowerCase()=='uploading') {
+        uploadID = survey.id
+        surveyName = survey.name
+        row = document.createElement('div')
+        row.classList.add('row')
+        taskDiv.appendChild(row)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-9')
+        row.appendChild(col1)
+
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-3')
+        row.appendChild(col2)
+
+        btnResume = document.createElement('button')
+        btnResume.setAttribute("class","btn btn-primary btn-block btn-sm")
+        btnResume.setAttribute('onclick','selectFiles(true)')
+        btnResume.innerHTML = 'Resume Upload'
+        col2.appendChild(btnResume)
+    } else {
+        taskDivHeading.innerHTML = 'Annotation Sets:'
+        for (ii=0;ii<survey.tasks.length;ii++) {
+            buildTask(taskDiv, survey.tasks[ii], disableSurvey, survey)
+            if (ii < survey.tasks.length-1) {
+                taskDiv.appendChild(document.createElement('br'))
+            }
         }
     }
 
@@ -488,6 +511,10 @@ function updatePage(url){
 
             timerTaskStatus = setInterval(updateTaskStatus, 5000); //5 seconds
             timerTaskBar = setInterval(updateTaskProgressBar, 5000); //5 seconds
+
+            if (uploading) {
+                uploadFiles()
+            }
         }
     }
     xhttp.open("GET", url);
@@ -2821,7 +2848,8 @@ function submitNewSurvey(formData) {
             if (reply.status=='success') {
 
                 if (document.getElementById('BrowserUpload').checked == true) {
-                    uploadFiles()
+                    uploading = true
+                    updatePage(current_page)
                     // uploading = true
                     // ProgBarDiv = document.getElementById('uploadProgBarDiv')
 

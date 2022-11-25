@@ -126,6 +126,8 @@ finishedQueueing = false
 globalDirHandle = null
 filecount=0
 addingBatch = false
+uploadPaused = false
+uploadID = null
 
 async function addBatch() {
     addingBatch = true
@@ -163,7 +165,7 @@ async function addBatch() {
                 filesUploaded += 1
             }
             filesQueued += 1
-            updateUploadProgress(filesUploaded,filesQueued)
+            updateUploadProgress(filesUploaded,filecount)
         }
         uppy.addFiles(filesToAdd)
     })
@@ -188,52 +190,96 @@ async function addBatch() {
 
 async function listFolder2(dirHandle,path){
     // let files=[]
-    count = 0
     for await (const entry of dirHandle.values()) {
         // await handleEntry(path,entry)
         if (entry.kind=='directory'){
             await listFolder2(entry,path+'/'+entry.name)
+            folders.push(path+'/'+entry.name)
+            updatePathDisplay(folders)
         } else {
-            count+=1
+            filecount+=1
             uploadQueue.push([path,entry])
-            if (((filesQueued-filesUploaded)<(0.5*batchSize))&&(uploadQueue.length>=batchSize)&&!addingBatch) {
-                addBatch()
-            }
+            // if (((filesQueued-filesUploaded)<(0.4*batchSize))&&(uploadQueue.length>=batchSize)&&!addingBatch) {
+            //     addBatch()
+            // }
             // setFileCount(count)
             // limitConnections(()=>upload(path,entry).then(()=>{completeCount+=1; setCompleteState(completeCount)}))
         }
     }
     // console.log(path,count)
-    return (count)
+    return filecount
 }
 
-async function listFolderNames(dirHandle,path){
-    for await (const entry of dirHandle.values()) {
-        if (entry.kind=='directory'){
-            await listFolderNames(entry,path+'/'+entry.name)
-            folders.push(path+'/'+entry.name)
-            updatePathDisplay(folders)
-        } else {
-            filecount += 1
-        }
-    }
-    return folders
-}
+// async function listFolderNames(dirHandle,path){
+//     for await (const entry of dirHandle.values()) {
+//         if (entry.kind=='directory'){
+//             await listFolderNames(entry,path+'/'+entry.name)
+//             folders.push(path+'/'+entry.name)
+//             updatePathDisplay(folders)
+//         } else {
+//             filecount += 1
+//         }
+//     }
+//     return folders
+// }
 
 function initUpload(edit=false) {
-    uploading = true
     filesUploaded = 0
     filesActuallyUploaded = 0
-    filesQueued = 0
-    uploadQueue = []
-    finishedQueueing = false
-    filecount=0
+    // filesQueued = 0
+    // uploadQueue = []
 
-    ProgBarDiv = document.getElementById('uploadProgBarDiv')
+    //Disable edit/delete buttons
+    addImagesBtn = document.getElementById('addImagesBtn'+uploadID.toString())
+    addImagesBtn.disabled = true
+    addTaskBtn = document.getElementById('addTaskBtn'+uploadID.toString())
+    addTaskBtn.disabled = true
+    deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
+    deleteSurveyBtn.disabled = true
 
-    while(ProgBarDiv.firstChild){
-        ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+    if (!edit) { 
+        surveyName = document.getElementById('newSurveyName').value
     }
+
+    taskDiv = document.getElementById('taskDiv-'+surveyName)
+    while(taskDiv.firstChild){
+        taskDiv.removeChild(taskDiv.firstChild);
+    }
+    
+    row = document.createElement('div')
+    row.classList.add('row')
+    taskDiv.appendChild(row)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-8')
+    row.appendChild(col1)
+
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-2')
+    row.appendChild(col2)
+
+    btnPause = document.createElement('button')
+    btnPause.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnPause.setAttribute('onclick','pauseUpload()')
+    btnPause.setAttribute('id','btnPause')
+    btnPause.innerHTML = 'Pause'
+    col2.appendChild(btnPause)
+
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    btnStop = document.createElement('button')
+    btnStop.setAttribute("class","btn btn-danger btn-block btn-sm")
+    btnStop.setAttribute('onclick','stopUpload()')
+    btnStop.innerHTML = 'Stop'
+    col3.appendChild(btnStop)
+
+    // ProgBarDiv = document.getElementById('uploadProgBarDiv')
+
+    // while(ProgBarDiv.firstChild){
+    //     ProgBarDiv.removeChild(ProgBarDiv.firstChild);
+    // }
 
     var newProg = document.createElement('div');
     newProg.classList.add('progress');
@@ -250,23 +296,33 @@ function initUpload(edit=false) {
     newProgInner.setAttribute("style", "width:0%");
 
     newProg.appendChild(newProgInner);
-    ProgBarDiv.appendChild(newProg);
-
-    if (!edit) { 
-        surveyName = document.getElementById('newSurveyName').value
-    }
+    col1.appendChild(newProg);
     
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')
     } else {
         modalAddImages.modal('hide')
     }
-    modalUploadProgress.modal({backdrop: 'static', keyboard: false});
+    // modalUploadProgress.modal({backdrop: 'static', keyboard: false});
 }
 
 function updatePathDisplay(folders) {
     pathDisplay = document.getElementById('pathDisplay')
-    for (let idx = 0; idx < folders.length; idx++){
+
+    // add folder count
+    let fileCountOption = document.createElement('option');
+    fileCountOption.text = 'Files detected: '+filecount.toString();
+    fileCountOption.value = 0;
+    pathDisplay.add(fileCountOption);
+
+    // add folder count
+    let folderDisplay = document.createElement('option');
+    folderDisplay.text = 'Paths found:';
+    folderDisplay.value = 1;
+    pathDisplay.add(folderDisplay)
+
+    //add paths
+    for (let idx = 2; idx < folders.length; idx++){
         let option = document.createElement('option');
         option.text = folders[idx];
         option.value = idx;
@@ -274,23 +330,26 @@ function updatePathDisplay(folders) {
     }
 }
 
-async function selectFiles() {
+async function selectFiles(resuming=false) {
     globalDirHandle = await window.showDirectoryPicker();
     folders = []
-    await listFolderNames(globalDirHandle,globalDirHandle.name)
+    filesQueued = 0
+    uploadQueue = []
+    await listFolder2(globalDirHandle,globalDirHandle.name)
     folders.push(globalDirHandle.name)
-    updatePathDisplay(folders)
-
-    checkTrapgroupCode()
+    if (resuming) {
+        uploadFiles(true)
+    } else {
+        updatePathDisplay(folders)
+        checkTrapgroupCode()
+    }
 }
 
-async function uploadFiles() {
+async function uploadFiles(edit=false) {
     finishedQueueing = false
-    initUpload()
-    await listFolder2(globalDirHandle,globalDirHandle.name)
-    if ((uploadQueue.length!=0)&&(!addingBatch)) {
-        addBatch()
-    }
+    initUpload(edit)
+    // await listFolder2(globalDirHandle,globalDirHandle.name)
+    addBatch()
     finishedQueueing = true
 }
 
@@ -367,20 +426,48 @@ uppy.on('upload-success', (file, response) => {
     uppy.removeFile(file)
     filesUploaded += 1
     filesActuallyUploaded += 1
-    updateUploadProgress(filesUploaded,filesQueued)
+    updateUploadProgress(filesUploaded,filecount)
 
-    if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch) {
+    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch) {
         addBatch()
     }
 
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
-        // Finished!
-        // var xhttp = new XMLHttpRequest();
-        // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
-        // xhttp.send();
-        modalUploadProgress.modal('hide')
-        document.getElementById('modalAlertHeader').innerHTML = 'Success'
-        document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
-        modalAlert.modal({keyboard: true});
+        if (filesActuallyUploaded==0) {
+            //completely done
+            // Finished!
+            // var xhttp = new XMLHttpRequest();
+            // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Complete');
+            // xhttp.send();
+            modalUploadProgress.modal('hide')
+            document.getElementById('modalAlertHeader').innerHTML = 'Success'
+            document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
+            modalAlert.modal({keyboard: true});
+        } else {
+            //check upload - restart upload
+            filesQueued = 0
+            listFolder2(globalDirHandle,globalDirHandle.name)
+            uploadFiles(True)
+        }
     }
 })
+
+function pauseUpload() {
+    btnPause = document.getElementById('btnPause')
+    if (uploadPaused) {
+        uppy.resumeAll()
+        uploadPaused = false
+        btnPause.innerHTML = 'Pause'
+        btnPause.setAttribute("class","btn btn-primary btn-block btn-sm")
+    } else {
+        uppy.pauseAll()
+        uploadPaused = true
+        btnPause.innerHTML = 'Resume'
+        btnPause.setAttribute("class","btn btn-success btn-block btn-sm")
+    }
+}
+
+function stopUpload() {
+    uppy.cancelAll()
+    updatePage(current_page)
+}

@@ -179,9 +179,9 @@ service on the web console and do the following:
 
 - Create record
 
-### S3-only IAM User
+### S3-only IAM Users
 
-In order to prevent third-party classifier images from causing harm, these should be restricted to only be able to get objects from S3 (images to classify) and nothing else. This is achieved by creating an IAM user and associated credentials with those permissions that are then shared with the classifier instances. This is done as follows:
+In order to prevent third-party classifier images from causing harm, these should be restricted to only be able to get objects from S3 (images to classify) and nothing else. Additionally, user should upload their images with images signed by an IAM user that only has permissions to put objects into the TrapTagger bucket. Both of these are achieved by creating an IAM user and associated credentials with those permissions. This is done as follows (perform this action twice - once for each use case: upload and dowload only):
 
 - Go to the IAM User console
 - Select users in the side tab
@@ -206,7 +206,8 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
     - yourDomain with your site domain
     - bucketName with your bucket name
     - rootUserARN with the user ARN of your root user
-    - S3UserARN with the user ARN of your S3-only user
+    - S3DownloadUserARN with the user ARN of your download-only S3 user
+    - S3UploadUserARN with the user ARN of your upload-only S3 user
 ```
 {
     "Version": "2012-10-17",
@@ -238,9 +239,19 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
             "Sid": "Classifier Worker Permissions",
             "Effect": "Allow",
             "Principal": {
-                "AWS": "S3UserARN"
+                "AWS": "S3DownloadUserARN"
             },
             "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::bucketName/*"
+        }
+        ,
+        {
+            "Sid": "Uploader Permissions",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "S3UploadUserARN"
+            },
+            "Action": "s3:PutObject",
             "Resource": "arn:aws:s3:::bucketName/*"
         }
     ]
@@ -373,33 +384,35 @@ Docker forms a type of virtual environment in which the application runs, and in
 You need to set a number of environment variables in order to set a number of parameters in the application. An easy way to do this is to keep these variables in a script such as 
 env_variables.sh, and then simply set them using the command `. env_variables.sh` before running the Docker container. The list of required variables is as follows:
 
-- DATABASE_NAME:            The name of your database.
-- HOST_IP:                  The private IPv4 address of your server instance.
-- DNS:                      The domain name where the site is being hosted. Use your public IPv4 DNS of your server if you haven't purchased a domain.
-- DATABASE_SERVER:          The server where the database is being hosted, including your username and password. ie. mysql+pymysql://username:password@database endpoint
-- AWS_ACCESS_KEY_ID:        Your AWS ID.
-- AWS_SECRET_ACCESS_KEY:    Your AWS secret access key.
-- REGION_NAME:              The region in which you are hosting the site. eg. us-west-2
-- SECRET_KEY:               A secret key.
-- MAIL_USERNAME:            The email address of your admin email account.
-- MAIL_PASSWORD:            The password of your admin email account.
-- BRANCH:                   The branch of the code you want used on the parallel instances. Default is master.
-- PARALLEL_AMI:             The AMI ID for the Parallel Worker image - use our publically available one (ami-0ba42ea98124dd0a1)
-- SG_ID:                    The ID of your security group.
-- PUBLIC_SUBNET_ID:         The ID of your public subnet
-- PRIVATE_SUBNET_ID:        The ID of your private subnet
-- TOKEN:                    A secret token key.
-- KEY_NAME:                 The name of the private key file you use on your EC2 instances. (without the .pem)
-- QUEUE:                    The queue name for the local worker - set to default for your server instance.
-- WORKER_NAME:              The worker name for the local worker - set to traptagger_worker for your server instance.
-- MAIN_GIT_REPO:            The repository for the main application.
-- MONITORED_EMAIL_ADDRESS:  A monitored email address for user enquiries and questions.
-- BUCKET:                   The name of your bucket that you created for your images to be stored.
-- BRANCH:                   The branch of the repository that you would like to use (master).
-- DB_CLUSTER_NAME:          The name of your aurora db instance.
-- IAM_ADMIN_GROUP:          The name of the user group you created.
-- AWS_S3_ACCESS_KEY_ID:     The AWS ID of your S3-only IAM user
-- AWS_S3_SECRET_ACCESS_KEY: The AWS secret access key for your S3-only IAM user
+- DATABASE_NAME:                        The name of your database.
+- HOST_IP:                              The private IPv4 address of your server instance.
+- DNS:                                  The domain name where the site is being hosted. Use your public IPv4 DNS of your server if you haven't purchased a domain.
+- DATABASE_SERVER:                      The server where the database is being hosted, including your username and password. ie. mysql+pymysql://username:password@database endpoint
+- AWS_ACCESS_KEY_ID:                    Your AWS ID.
+- AWS_SECRET_ACCESS_KEY:                Your AWS secret access key.
+- REGION_NAME:                          The region in which you are hosting the site. eg. us-west-2
+- SECRET_KEY:                           A secret key.
+- MAIL_USERNAME:                        The email address of your admin email account.
+- MAIL_PASSWORD:                        The password of your admin email account.
+- BRANCH:                               The branch of the code you want used on the parallel instances. Default is master.
+- PARALLEL_AMI:                         The AMI ID for the Parallel Worker image - use our publically available one (ami-0ba42ea98124dd0a1)
+- SG_ID:                                The ID of your security group.
+- PUBLIC_SUBNET_ID:                     The ID of your public subnet
+- PRIVATE_SUBNET_ID:                    The ID of your private subnet
+- TOKEN:                                A secret token key.
+- KEY_NAME:                             The name of the private key file you use on your EC2 instances. (without the .pem)
+- QUEUE:                                The queue name for the local worker - set to default for your server instance.
+- WORKER_NAME:                          The worker name for the local worker - set to traptagger_worker for your server instance.
+- MAIN_GIT_REPO:                        The repository for the main application.
+- MONITORED_EMAIL_ADDRESS:              A monitored email address for user enquiries and questions.
+- BUCKET:                               The name of your bucket that you created for your images to be stored.
+- BRANCH:                               The branch of the repository that you would like to use (master).
+- DB_CLUSTER_NAME:                      The name of your aurora db instance.
+- IAM_ADMIN_GROUP:                      The name of the user group you created.
+- AWS_S3_DOWNLOAD_ACCESS_KEY_ID:        The AWS ID of your S3-only IAM user
+- AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY:    The AWS secret access key for your S3-only IAM user
+- AWS_S3_UPLOAD_ACCESS_KEY_ID:          The AWS ID of your S3-only IAM user
+- AWS_S3_UPLOAD_SECRET_ACCESS_KEY:      The AWS secret access key for your S3-only IAM user
 
 ### SSL Certificate
 

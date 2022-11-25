@@ -20,6 +20,7 @@ MegaDetectorMisses = {}
 mutex = {}
 load_testers = 0
 s3client = None
+s3UploadClient = None
 lock = None
 nothing_id = 1
 knocked_id = 2

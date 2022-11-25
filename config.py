@@ -174,8 +174,8 @@ class Config(object):
                 BUCKET + "' '" + 
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
-                os.environ.get('AWS_S3_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
                 ' -l info'
         },
         'default': {
@@ -217,8 +217,8 @@ class Config(object):
                 BUCKET + "' '" + 
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
-                os.environ.get('AWS_S3_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
                 ' -l info'
         },
         'celery': {
@@ -281,8 +281,8 @@ class Config(object):
             '{} ' + 
             SETUP_PERIOD['classification'] + " " + 
             'IDLE_MULTIPLIER' + " '" +
-            os.environ.get('AWS_S3_ACCESS_KEY_ID') + "' '" + 
-            os.environ.get('AWS_S3_SECRET_ACCESS_KEY') + "' " + 
+            os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+            os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' " + 
             '-l info'
     }
 

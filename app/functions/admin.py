@@ -1347,3 +1347,42 @@ def updateStatistics(self):
         db.session.remove()
 
     return True
+
+def getSurveyInfo(survey):
+    '''Returns a dictionary of info on a survey.'''
+
+    survey_dict = {}
+    survey_dict['id'] = survey.id
+    survey_dict['name'] = survey.name
+    survey_dict['description'] = survey.description
+    survey_dict['numTrapgroups'] = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey.id).count()
+    if survey.image_count == None:
+        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
+    survey_dict['numImages'] = survey.image_count
+
+    
+    if survey.status in ['indprocessing']:
+        survey_dict['status'] = 'processing'
+    else:
+        survey_dict['status'] = survey.status
+
+    disabledLaunch='false'
+    for task in survey.tasks:
+        if task.status.lower() not in Config.TASK_READY_STATUSES:
+            disabledLaunch='true'
+            break
+
+    task_info = []
+    for task in survey.tasks:
+        if (task.name != 'default') and ('_o_l_d_' not in task.name) and ('_copying' not in task.name):
+            task_dict = {}
+            task_dict['id'] = task.id
+            task_dict['name'] = task.name
+            task_dict['status'] = task.status
+            task_dict['disabledLaunch'] = disabledLaunch
+            task_dict['complete'] = task.complete
+
+            task_info.append(task_dict)
+    survey_dict['tasks'] = task_info
+
+    return survey_dict

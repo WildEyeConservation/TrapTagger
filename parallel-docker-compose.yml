@@ -52,8 +52,8 @@ services:
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET=${BUCKET}
             - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
-            - AWS_S3_ACCESS_KEY_ID=${AWS_S3_ACCESS_KEY_ID}
-            - AWS_S3_SECRET_ACCESS_KEY=${AWS_S3_SECRET_ACCESS_KEY}
+            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
         command: celery -A app.celery worker -E -n ${WORKER_NAME} -Q ${QUEUE} -Ofair --concurrency=${CONCURRENCY} --loglevel=info
         networks:
             - my-network
