@@ -309,24 +309,30 @@ function initUpload(edit=false) {
 function updatePathDisplay(folders) {
     pathDisplay = document.getElementById('pathDisplay')
 
-    // add folder count
-    let fileCountOption = document.createElement('option');
-    fileCountOption.text = 'Files detected: '+filecount.toString();
-    fileCountOption.value = 0;
-    pathDisplay.add(fileCountOption);
+    if (pathDisplay) {
+        while(pathDisplay.firstChild){
+            pathDisplay.removeChild(pathDisplay.firstChild);
+        }
 
-    // add folder count
-    let folderDisplay = document.createElement('option');
-    folderDisplay.text = 'Paths found:';
-    folderDisplay.value = 1;
-    pathDisplay.add(folderDisplay)
+        // add folder count
+        let fileCountOption = document.createElement('option');
+        fileCountOption.text = 'Files detected: '+filecount.toString();
+        fileCountOption.value = 0;
+        pathDisplay.add(fileCountOption);
 
-    //add paths
-    for (let idx = 2; idx < folders.length; idx++){
-        let option = document.createElement('option');
-        option.text = folders[idx];
-        option.value = idx;
-        pathDisplay.add(option);
+        // add folder count
+        let folderDisplay = document.createElement('option');
+        folderDisplay.text = 'Paths found:';
+        folderDisplay.value = 1;
+        pathDisplay.add(folderDisplay)
+
+        //add paths
+        for (let idx = 2; idx < folders.length; idx++){
+            let option = document.createElement('option');
+            option.text = folders[idx];
+            option.value = idx;
+            pathDisplay.add(option);
+        }
     }
 }
 
@@ -447,7 +453,7 @@ uppy.on('upload-success', (file, response) => {
             //check upload - restart upload
             filesQueued = 0
             listFolder2(globalDirHandle,globalDirHandle.name)
-            uploadFiles(True)
+            uploadFiles(true)
         }
     }
 })

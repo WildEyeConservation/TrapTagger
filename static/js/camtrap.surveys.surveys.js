@@ -888,7 +888,7 @@ function checkTrapgroupCode() {
             pattern = new RegExp(tgCode)
     
             tgs = []
-            for (fi=0;fi<pathDisplay.options.length;fi++) {
+            for (fi=2;fi<pathDisplay.options.length;fi++) {
                 matches = pathDisplay.options[fi].text.match(pattern)
                 if (matches!=null) {
                     tg = matches[0]
