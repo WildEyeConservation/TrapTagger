@@ -168,6 +168,7 @@ async function addBatch() {
             updateUploadProgress(filesUploaded,filecount)
         }
         uppy.addFiles(filesToAdd)
+        checkFinishedUpload()
     })
     addingBatch = false
     return true
@@ -434,10 +435,14 @@ uppy.on('upload-success', (file, response) => {
     filesActuallyUploaded += 1
     updateUploadProgress(filesUploaded,filecount)
 
-    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch) {
+    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
         addBatch()
     }
 
+    checkFinishedUpload()
+})
+
+function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
@@ -457,7 +462,7 @@ uppy.on('upload-success', (file, response) => {
             uploadFiles(true)
         }
     }
-})
+}
 
 function pauseUpload() {
     btnPause = document.getElementById('btnPause')
