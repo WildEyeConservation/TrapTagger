@@ -264,36 +264,6 @@ function buildSurveys(survey,disableSurvey) {
 
     newSurveyDiv.appendChild(entireRow)
 
-    if (survey.status.toLowerCase()=='uploading') {
-        uploadID = survey.id
-        surveyName = survey.name
-        row = document.createElement('div')
-        row.classList.add('row')
-        taskDiv.appendChild(row)
-
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-9')
-        row.appendChild(col1)
-
-        col2 = document.createElement('div')
-        col2.classList.add('col-lg-3')
-        row.appendChild(col2)
-
-        btnResume = document.createElement('button')
-        btnResume.setAttribute("class","btn btn-primary btn-sm")
-        btnResume.setAttribute('onclick','selectFiles(true)')
-        btnResume.innerHTML = 'Resume Upload'
-        col2.appendChild(btnResume)
-    } else {
-        taskDivHeading.innerHTML = 'Annotation Sets:'
-        for (ii=0;ii<survey.tasks.length;ii++) {
-            buildTask(taskDiv, survey.tasks[ii], disableSurvey, survey)
-            if (ii < survey.tasks.length-1) {
-                taskDiv.appendChild(document.createElement('br'))
-            }
-        }
-    }
-
     infoElementRow = document.createElement('div')
     infoElementRow.classList.add('row');
     infoElementRow.classList.add('center');
@@ -332,40 +302,11 @@ function buildSurveys(survey,disableSurvey) {
 
     addImagesCol = document.createElement('div')
     addImagesCol.classList.add('col-lg-2');
-    addImagesBtn = document.createElement('button')
-    addImagesBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-    addImagesBtn.setAttribute("id","addImagesBtn"+survey.id)
-    addImagesBtn.innerHTML = 'Edit'
-    addImagesCol.appendChild(addImagesBtn)
     infoElementRow.appendChild(addImagesCol)
-
-    addImagesBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
-        return function() {
-            surveyName = wrapSurveyName
-            selectedSurvey = wrapSurveyId
-            document.getElementById('addImagesHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
-            modalAddImages.modal({keyboard: true});
-        }
-    }(survey.name,survey.id));
 
     addTaskCol = document.createElement('div')
     addTaskCol.classList.add('col-lg-3');
-    addTaskBtn = document.createElement('button')
-    addTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-    addTaskBtn.setAttribute("id","addTaskBtn"+survey.id)
-    addTaskBtn.innerHTML = 'Add Annotation Set'
-    addTaskCol.appendChild(addTaskBtn)
     infoElementRow.appendChild(addTaskCol)
-
-    addTaskBtn.addEventListener('click', function(wrapSurveyId) {
-        return function() {
-            selectedSurvey = wrapSurveyId
-            resetModalAddTask1()
-            resetModalAddTask2()
-            resetModalAddTask3()
-            modalAddTask.modal({keyboard: true});
-        }
-    }(survey.id));
 
     deleteSurveyCol = document.createElement('div')
     deleteSurveyCol.classList.add('col-lg-2');
@@ -386,14 +327,82 @@ function buildSurveys(survey,disableSurvey) {
         }
     }(survey.name));
 
-    if (disableSurvey) {
-        addImagesBtn.disabled = true
-        deleteSurveyBtn.disabled = true
-        addTaskBtn.disabled = true
+    if (survey.status.toLowerCase()=='uploading') {
+        uploadID = survey.id
+        surveyName = survey.name
+        row = document.createElement('div')
+        row.classList.add('row')
+        taskDiv.appendChild(row)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-9')
+        row.appendChild(col1)
+
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-3')
+        row.appendChild(col2)
+
+        btnResume = document.createElement('button')
+        btnResume.setAttribute("class","btn btn-primary btn-sm")
+        btnResume.setAttribute('onclick','selectFiles(true)')
+        btnResume.innerHTML = 'Resume Upload'
+        col2.appendChild(btnResume)
+
+        addImagesBtn = null
+        addTaskBtn = null
     } else {
-        addImagesBtn.disabled = false
+        taskDivHeading.innerHTML = 'Annotation Sets:'
+        for (ii=0;ii<survey.tasks.length;ii++) {
+            buildTask(taskDiv, survey.tasks[ii], disableSurvey, survey)
+            if (ii < survey.tasks.length-1) {
+                taskDiv.appendChild(document.createElement('br'))
+            }
+        }
+
+        addImagesBtn = document.createElement('button')
+        addImagesBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+        addImagesBtn.setAttribute("id","addImagesBtn"+survey.id)
+        addImagesBtn.innerHTML = 'Edit'
+        addImagesCol.appendChild(addImagesBtn)
+    
+        addImagesBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
+            return function() {
+                surveyName = wrapSurveyName
+                selectedSurvey = wrapSurveyId
+                document.getElementById('addImagesHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
+                modalAddImages.modal({keyboard: true});
+            }
+        }(survey.name,survey.id));
+
+        addTaskBtn = document.createElement('button')
+        addTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+        addTaskBtn.setAttribute("id","addTaskBtn"+survey.id)
+        addTaskBtn.innerHTML = 'Add Annotation Set'
+        addTaskCol.appendChild(addTaskBtn)
+
+        addTaskBtn.addEventListener('click', function(wrapSurveyId) {
+            return function() {
+                selectedSurvey = wrapSurveyId
+                resetModalAddTask1()
+                resetModalAddTask2()
+                resetModalAddTask3()
+                modalAddTask.modal({keyboard: true});
+            }
+        }(survey.id));
+    }
+
+    if (disableSurvey) {
+        if (addTaskBtn) {
+            addImagesBtn.disabled = true
+            addTaskBtn.disabled = true
+        }
+        deleteSurveyBtn.disabled = true
+    } else {
+        if (addTaskBtn) {
+            addImagesBtn.disabled = false
+            addTaskBtn.disabled = false
+        }
         deleteSurveyBtn.disabled = false
-        addTaskBtn.disabled = false
     }
 
     surveyDiv.appendChild(infoElementRow)

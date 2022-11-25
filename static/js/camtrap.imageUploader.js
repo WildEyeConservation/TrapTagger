@@ -230,10 +230,10 @@ function initUpload(edit=false) {
     // uploadQueue = []
 
     //Disable edit/delete buttons
-    addImagesBtn = document.getElementById('addImagesBtn'+uploadID.toString())
-    addImagesBtn.disabled = true
-    addTaskBtn = document.getElementById('addTaskBtn'+uploadID.toString())
-    addTaskBtn.disabled = true
+    // addImagesBtn = document.getElementById('addImagesBtn'+uploadID.toString())
+    // addImagesBtn.disabled = true
+    // addTaskBtn = document.getElementById('addTaskBtn'+uploadID.toString())
+    // addTaskBtn.disabled = true
     deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
     deleteSurveyBtn.disabled = true
 
@@ -251,11 +251,11 @@ function initUpload(edit=false) {
     taskDiv.appendChild(row)
 
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-2')
+    col2.classList.add('col-lg-1')
     row.appendChild(col2)
 
     btnPause = document.createElement('button')
@@ -266,7 +266,7 @@ function initUpload(edit=false) {
     col2.appendChild(btnPause)
 
     col3 = document.createElement('div')
-    col3.classList.add('col-lg-2')
+    col3.classList.add('col-lg-1')
     row.appendChild(col3)
 
     btnStop = document.createElement('button')
