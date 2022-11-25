@@ -2525,7 +2525,8 @@ def getHomeSurveys():
             survey_list.append(getSurveyInfo(survey))
 
         for survey in surveys.items:
-            survey_list.append(getSurveyInfo(survey))
+            if survey not in uploads:
+                survey_list.append(getSurveyInfo(survey))
 
         next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order) if surveys.has_next else None
         prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order) if surveys.has_prev else None
