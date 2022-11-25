@@ -35,6 +35,8 @@ class Config(object):
     DETECTOR = 'MDv5b'
     VAT=1.15
     ADMIN_USERS = ['Admin','WildEye','Dashboard']
+    AWS_S3_UPLOAD_ACCESS_KEY_ID = os.environ.get('AWS_S3_UPLOAD_ACCESS_KEY_ID')
+    AWS_S3_UPLOAD_SECRET_ACCESS_KEY = os.environ.get('AWS_S3_UPLOAD_SECRET_ACCESS_KEY')
 
     DETECTOR_THRESHOLDS = {
         'MDv4': 0.8,
