@@ -3183,13 +3183,13 @@ function addImagesSendRequest(formData) {
     xhttp.send(formData);
 }
 
-document.getElementById('cancelUpload').addEventListener('click', ()=>{
-    /** Cancels the browser upload when the concel button is pressed. */
-    stopFlag = true
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/deleteSurvey/'+surveyName);
-    xhttp.send();
-});
+// document.getElementById('cancelUpload').addEventListener('click', ()=>{
+//     /** Cancels the browser upload when the concel button is pressed. */
+//     stopFlag = true
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("GET", '/deleteSurvey/'+surveyName);
+//     xhttp.send();
+// });
 
 modalAlert.on('hidden.bs.modal', function(){
     /** Updates the appropriate flag and updates the page when the alert modal is closed. */
