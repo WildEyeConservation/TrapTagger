@@ -259,7 +259,7 @@ function initUpload(edit=false) {
     row.appendChild(col2)
 
     btnPause = document.createElement('button')
-    btnPause.setAttribute("class","btn btn-primary btn-block btn-sm")
+    btnPause.setAttribute("class","btn btn-primary btn-sm")
     btnPause.setAttribute('onclick','pauseUpload()')
     btnPause.setAttribute('id','btnPause')
     btnPause.innerHTML = 'Pause'
@@ -270,7 +270,7 @@ function initUpload(edit=false) {
     row.appendChild(col3)
 
     btnStop = document.createElement('button')
-    btnStop.setAttribute("class","btn btn-danger btn-block btn-sm")
+    btnStop.setAttribute("class","btn btn-danger btn-sm")
     btnStop.setAttribute('onclick','stopUpload()')
     btnStop.innerHTML = 'Stop'
     col3.appendChild(btnStop)
@@ -465,12 +465,12 @@ function pauseUpload() {
         uppy.resumeAll()
         uploadPaused = false
         btnPause.innerHTML = 'Pause'
-        btnPause.setAttribute("class","btn btn-primary btn-block btn-sm")
+        btnPause.setAttribute("class","btn btn-primary btn-sm")
     } else {
         uppy.pauseAll()
         uploadPaused = true
         btnPause.innerHTML = 'Resume'
-        btnPause.setAttribute("class","btn btn-success btn-block btn-sm")
+        btnPause.setAttribute("class","btn btn-success btn-sm")
     }
 }
 

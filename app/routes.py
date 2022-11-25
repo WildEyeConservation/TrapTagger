@@ -2489,11 +2489,18 @@ def getHomeSurveys():
     '''Returns a paginated list of all surveys and their associated tasks for the current user.'''
     
     if current_user.admin:
+        survey_list = []
+        
+        # check for uploads and include those first
+        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='uploading').distinct().all()
+        for survey in uploads:
+            survey_list.append(getSurveyInfo(survey))
+
         page = request.args.get('page', 1, type=int)
         order = request.args.get('order', 5, type=int)
         search = request.args.get('search', '', type=str)
 
-        surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id)
+        surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
 
         searches = re.split('[ ,]',search)
         for search in searches:
@@ -2515,21 +2522,18 @@ def getHomeSurveys():
             #Add date descending
             surveys = surveys.order_by(desc(Survey.id))
 
-        surveys = surveys.distinct().paginate(page, 5, False)
+        count = 5-len(uploads)
+        if count > 0:
+            surveys = surveys.distinct().paginate(page, count, False)
 
-        survey_list = []
-        
-        # check for uploads and include those first
-        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='uploading').distinct().all()
-        for survey in uploads:
-            survey_list.append(getSurveyInfo(survey))
-
-        for survey in surveys.items:
-            if survey not in uploads:
+            for survey in surveys.items:
                 survey_list.append(getSurveyInfo(survey))
 
-        next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order) if surveys.has_next else None
-        prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order) if surveys.has_prev else None
+            next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order) if surveys.has_next else None
+            prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order) if surveys.has_prev else None
+        else:
+            next_url = None
+            prev_url = None
 
         current_user.last_ping = datetime.utcnow()
         db.session.commit()

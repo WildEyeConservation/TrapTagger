@@ -280,7 +280,7 @@ function buildSurveys(survey,disableSurvey) {
         row.appendChild(col2)
 
         btnResume = document.createElement('button')
-        btnResume.setAttribute("class","btn btn-primary btn-block btn-sm")
+        btnResume.setAttribute("class","btn btn-primary btn-sm")
         btnResume.setAttribute('onclick','selectFiles(true)')
         btnResume.innerHTML = 'Resume Upload'
         col2.appendChild(btnResume)
