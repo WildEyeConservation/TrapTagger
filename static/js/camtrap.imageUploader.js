@@ -455,6 +455,7 @@ function checkFinishedUpload() {
             // document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
             // modalAlert.modal({keyboard: true});
             console.log('Upload Complete')
+            updatePage(current_page)
         } else {
             //check upload - restart upload
             filesQueued = 0
