@@ -523,6 +523,6 @@ function updateUploadProgress(value,total) {
     if ((value!=0) && (value<=total)) {
         rate = timeElapsed/value
         timeRemaining = new Date((rate*(total-value)) * 1000).toISOString().substr(11, 8)
-        document.getElementById('uploadStatus').innerHTML = 'Time Remaining: ' + timeRemaining
+        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining
     }
 }
