@@ -128,6 +128,8 @@ filecount=0
 addingBatch = false
 uploadPaused = false
 uploadID = null
+uploadCheck = false
+uploadStart = null
 
 async function addBatch() {
     addingBatch = true
@@ -225,6 +227,7 @@ async function listFolder2(dirHandle,path){
 // }
 
 function initUpload(edit=false) {
+    uploadStart = Date.now()
     filesUploaded = 0
     filesActuallyUploaded = 0
     // filesQueued = 0
@@ -283,6 +286,10 @@ function initUpload(edit=false) {
     //     ProgBarDiv.removeChild(ProgBarDiv.firstChild);
     // }
 
+    uploadStatus = document.createElement('div')
+    uploadStatus.setAttribute('id','uploadStatus')
+    col1.appendChild(uploadStatus);
+
     var newProg = document.createElement('div');
     newProg.classList.add('progress');
 
@@ -299,6 +306,10 @@ function initUpload(edit=false) {
 
     newProg.appendChild(newProgInner);
     col1.appendChild(newProg);
+
+    timeRemDiv = document.createElement('div')
+    timeRemDiv.setAttribute('id','uploadTimeRemDiv')
+    col1.appendChild(timeRemDiv);
     
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')
@@ -447,6 +458,8 @@ function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
+            uploading = false
+            uploadCheck = false
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
             xhttp.onreadystatechange =
@@ -463,7 +476,9 @@ function checkFinishedUpload() {
             console.log('Upload Complete')
         } else {
             //check upload - restart upload
+            uploadCheck = true
             filesQueued = 0
+            filecount = 0
             listFolder2(globalDirHandle,globalDirHandle.name)
             uploadFiles(true)
         }
@@ -488,4 +503,24 @@ function pauseUpload() {
 function stopUpload() {
     uppy.cancelAll()
     updatePage(current_page)
+}
+
+function updateUploadProgress(value,total) {
+    progBar = document.getElementById('uploadProgBar')
+    perc=(value/total)*100
+
+    progBar.setAttribute('aria-valuenow',value)
+    progBar.setAttribute('style',"width:"+perc+"%")
+    progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
+
+    if (uploadCheck) {
+        document.getElementById('uploadStatus').innerHTML = 'Checking...'
+    } else {
+        document.getElementById('uploadStatus').innerHTML = 'Uploading...'
+    }
+
+    timeElapsed = Date.now() - uploadStart
+    rate = timeElapsed/value
+    timeRemaining = new Date((rate*(total-value)) * 1000).toISOString().substr(11, 8);
+    document.getElementById('uploadStatus').innerHTML = 'Time Remaining: ' + timeRemaining
 }

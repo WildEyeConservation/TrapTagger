@@ -2676,15 +2676,6 @@ $('.modal').on("hidden.bs.modal", function (e) {
 //     }
 // }
 
-function updateUploadProgress(value,total) {
-    progBar = document.getElementById('uploadProgBar')
-    perc=(value/total)*100
-
-    progBar.setAttribute('aria-valuenow',value)
-    progBar.setAttribute('style',"width:"+perc+"%")
-    progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
-}
-
 // function uploadImageToCloud(fileIndex,surveyName,attempts) {
 
 //     var formData = new FormData()
