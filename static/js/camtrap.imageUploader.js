@@ -515,6 +515,8 @@ function updateUploadProgress(value,total) {
 
     if (uploadCheck) {
         document.getElementById('uploadStatus').innerHTML = 'Checking...'
+    } else if (uploadPaused) {
+        document.getElementById('uploadStatus').innerHTML = 'Paused'
     } else {
         document.getElementById('uploadStatus').innerHTML = 'Uploading...'
     }
