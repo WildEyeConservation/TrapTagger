@@ -274,27 +274,31 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow2.classList.add('center');
     infoElementRow2.setAttribute('style',"margin-left: 10px")
 
-    infoElementNumTrapgroups = document.createElement('div')
-    infoElementNumTrapgroups.classList.add('col-lg-3');
-    infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
     if (survey.status.toLowerCase()!='uploading') {
+        infoElementNumTrapgroups = document.createElement('div')
+        infoElementNumTrapgroups.classList.add('col-lg-3');
+        infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
         infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
-    }
-    infoElementRow.appendChild(infoElementNumTrapgroups)
+        infoElementRow.appendChild(infoElementNumTrapgroups)
 
-    infoElementNumImages = document.createElement('div')
-    infoElementNumImages.classList.add('col-lg-2');
-    infoElementNumImages.setAttribute("style","font-size: 80%")
-    if (survey.status.toLowerCase()!='uploading') {
+        infoElementNumImages = document.createElement('div')
+        infoElementNumImages.classList.add('col-lg-2');
+        infoElementNumImages.setAttribute("style","font-size: 80%")
         infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
-    }
-    infoElementRow.appendChild(infoElementNumImages)
+        infoElementRow.appendChild(infoElementNumImages)
 
-    infoElementDescription = document.createElement('div')
-    infoElementDescription.classList.add('col-lg-3');
-    infoElementDescription.setAttribute("style","font-size: 80%")
-    infoElementDescription.innerHTML = 'Status: ' + survey.status
-    infoElementRow2.appendChild(infoElementDescription)
+        infoElementDescription = document.createElement('div')
+        infoElementDescription.classList.add('col-lg-3');
+        infoElementDescription.setAttribute("style","font-size: 80%")
+        infoElementDescription.innerHTML = 'Status: ' + survey.status
+        infoElementRow2.appendChild(infoElementDescription)
+    } else {
+        infoElementDescription = document.createElement('div')
+        infoElementDescription.classList.add('col-lg-5');
+        infoElementDescription.setAttribute("style","font-size: 80%")
+        infoElementDescription.innerHTML = 'Status: ' + survey.status
+        infoElementRow1.appendChild(infoElementDescription)
+    }
 
     infoElementFiller = document.createElement('div')
     infoElementFiller.classList.add('col-lg-9');
