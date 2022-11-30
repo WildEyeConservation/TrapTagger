@@ -449,7 +449,7 @@ uppy.on('upload-success', (file, response) => {
     checkFinishedUpload()
 })
 
-async function checkFinishedUpload() {
+function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
@@ -537,11 +537,11 @@ function updateUploadProgress(value,total) {
         document.getElementById('uploadStatus').innerHTML = 'Uploading...'
     }
 
-    timeElapsed = Date.now() - uploadStart
+    timeElapsed = (Date.now() - uploadStart)/1000
     if ((value!=0) && (value<=total)) {
         rate = timeElapsed/value
         seconds = rate*(total-value)
         timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
-        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining + ' (' + seconds.toString() + 's)'
+        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
     }
 }
