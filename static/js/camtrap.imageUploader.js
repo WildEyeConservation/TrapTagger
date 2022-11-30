@@ -254,17 +254,33 @@ function initUpload(edit=false) {
     row.classList.add('row')
     taskDiv.appendChild(row)
 
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-9')
-    row.appendChild(col1)
+    row2 = document.createElement('div')
+    row2.classList.add('row')
+    taskDiv.appendChild(row2)
 
-    col2 = document.createElement('div')
-    col2.classList.add('col-lg-3')
-    row.appendChild(col2)
+    row3 = document.createElement('div')
+    row3.classList.add('row')
+    taskDiv.appendChild(row3)
+
+    col11 = document.createElement('div')
+    col11.classList.add('col-lg-10')
+    row.appendChild(col11)
+
+    col21 = document.createElement('div')
+    col21.classList.add('col-lg-10')
+    row2.appendChild(col21)
+
+    col31 = document.createElement('div')
+    col31.classList.add('col-lg-10')
+    row3.appendChild(col31)
+
+    col22 = document.createElement('div')
+    col22.classList.add('col-lg-2')
+    row2.appendChild(col22)
 
     btnPause = document.createElement('button')
     btnPause.setAttribute("class","btn btn-primary btn-sm")
-    btnPause.setAttribute('style','margin-right:4px')
+    // btnPause.setAttribute('style','margin-right:4px')
     btnPause.setAttribute('onclick','pauseUpload()')
     btnPause.setAttribute('id','btnPause')
     btnPause.innerHTML = 'Pause'
@@ -274,11 +290,11 @@ function initUpload(edit=false) {
     // col3.classList.add('col-lg-1')
     // row.appendChild(col3)
 
-    btnStop = document.createElement('button')
-    btnStop.setAttribute("class","btn btn-danger btn-sm")
-    btnStop.setAttribute('onclick','stopUpload()')
-    btnStop.innerHTML = 'Stop'
-    col2.appendChild(btnStop)
+    // btnStop = document.createElement('button')
+    // btnStop.setAttribute("class","btn btn-danger btn-sm")
+    // btnStop.setAttribute('onclick','stopUpload()')
+    // btnStop.innerHTML = 'Stop'
+    // col2.appendChild(btnStop)
 
     // ProgBarDiv = document.getElementById('uploadProgBarDiv')
 
@@ -288,7 +304,7 @@ function initUpload(edit=false) {
 
     uploadStatus = document.createElement('div')
     uploadStatus.setAttribute('id','uploadStatus')
-    col1.appendChild(uploadStatus);
+    col11.appendChild(uploadStatus);
 
     var newProg = document.createElement('div');
     newProg.classList.add('progress');
@@ -305,11 +321,11 @@ function initUpload(edit=false) {
     newProgInner.setAttribute("style", "width:0%");
 
     newProg.appendChild(newProgInner);
-    col1.appendChild(newProg);
+    col21.appendChild(newProg);
 
     timeRemDiv = document.createElement('div')
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
-    col1.appendChild(timeRemDiv);
+    col31.appendChild(timeRemDiv);
     
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')
@@ -483,20 +499,20 @@ function checkFinishedUpload() {
     }
 }
 
-function pauseUpload() {
-    btnPause = document.getElementById('btnPause')
-    if (uploadPaused) {
-        uppy.resumeAll()
-        uploadPaused = false
-        btnPause.innerHTML = 'Pause'
-        btnPause.setAttribute("class","btn btn-primary btn-sm")
-    } else {
-        uppy.pauseAll()
-        uploadPaused = true
-        btnPause.innerHTML = 'Resume'
-        btnPause.setAttribute("class","btn btn-success btn-sm")
-    }
-}
+// function pauseUpload() {
+//     btnPause = document.getElementById('btnPause')
+//     if (uploadPaused) {
+//         uppy.resumeAll()
+//         uploadPaused = false
+//         btnPause.innerHTML = 'Pause'
+//         btnPause.setAttribute("class","btn btn-primary btn-sm")
+//     } else {
+//         uppy.pauseAll()
+//         uploadPaused = true
+//         btnPause.innerHTML = 'Resume'
+//         btnPause.setAttribute("class","btn btn-success btn-sm")
+//     }
+// }
 
 function resetUploadStatusVariables() {
     uploading = false
@@ -515,7 +531,7 @@ function resetUploadStatusVariables() {
     uploadStart = null
 }
 
-function stopUpload() {
+function pauseUpload() {
     uppy.cancelAll()
     resetUploadStatusVariables()
     updatePage(current_page)
