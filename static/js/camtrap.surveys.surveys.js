@@ -481,8 +481,14 @@ function updatePage(url){
             while(surveyListDiv.firstChild){
                 surveyListDiv.removeChild(surveyListDiv.firstChild);
             }
-            taskProcessing = false
 
+            if (reply.surveys.length > 0) {
+                surveyListDiv.setAttribute('class','')
+            } else {
+                surveyListDiv.setAttribute('class','card-body')
+            }
+
+            taskProcessing = false
             for (iii=0;iii<reply.surveys.length;iii++) {
                 disableSurvey = false
                 for (z=0;z<reply.surveys[iii].tasks.length;z++) {
