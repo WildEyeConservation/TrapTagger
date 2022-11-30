@@ -462,7 +462,14 @@ function updatePage(url){
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);    
+            reply = JSON.parse(this.responseText);
+
+            if (reply.surveys[0].status.toLowerCase()=='uploading') {
+                document.getElementById('btnNewSurvey').disabled = true
+            } else {
+                document.getElementById('btnNewSurvey').disabled = false
+            }
+
             surveyListDiv = document.getElementById('surveyListDiv'); 
             while(surveyListDiv.firstChild){
                 surveyListDiv.removeChild(surveyListDiv.firstChild);

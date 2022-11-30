@@ -461,8 +461,7 @@ function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
-            uploading = false
-            uploadCheck = false
+            resetUploadStatusVariables()
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
             xhttp.onreadystatechange =
@@ -503,8 +502,26 @@ function pauseUpload() {
     }
 }
 
+function resetUploadStatusVariables() {
+    uploading = false
+    surveyName = null
+    filesUploaded = 0
+    filesActuallyUploaded = 0
+    filesQueued = 0
+    uploadQueue = []
+    finishedQueueing = false
+    globalDirHandle = null
+    filecount=0
+    addingBatch = false
+    uploadPaused = false
+    uploadID = null
+    uploadCheck = false
+    uploadStart = null
+}
+
 function stopUpload() {
     uppy.cancelAll()
+    resetUploadStatusVariables()
     updatePage(current_page)
 }
 
