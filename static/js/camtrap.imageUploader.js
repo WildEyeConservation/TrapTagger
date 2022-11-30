@@ -453,7 +453,6 @@ async function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
-            resetUploadStatusVariables()
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
             xhttp.onreadystatechange =
@@ -463,6 +462,7 @@ async function checkFinishedUpload() {
                 }
             }
             xhttp.send();
+            resetUploadStatusVariables()
             // modalUploadProgress.modal('hide')
             // document.getElementById('modalAlertHeader').innerHTML = 'Success'
             // document.getElementById('modalAlertBody').innerHTML = 'All images uploaded successfully.'
