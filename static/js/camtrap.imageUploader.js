@@ -172,9 +172,6 @@ async function addBatch() {
         uppy.addFiles(filesToAdd)
     })
     addingBatch = false
-    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
-        addBatch()
-    }
     checkFinishedUpload()
     return true
 }
@@ -449,15 +446,10 @@ uppy.on('upload-success', (file, response) => {
     filesUploaded += 1
     filesActuallyUploaded += 1
     updateUploadProgress(filesUploaded,filecount)
-
-    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
-        addBatch()
-    }
-
     checkFinishedUpload()
 })
 
-function checkFinishedUpload() {
+async function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
         if (filesActuallyUploaded==0) {
             //completely done
@@ -483,6 +475,10 @@ function checkFinishedUpload() {
             filecount = 0
             listFolder2(globalDirHandle,globalDirHandle.name)
             uploadFiles(true)
+        }
+    } else {
+        if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
+            addBatch()
         }
     }
 }
