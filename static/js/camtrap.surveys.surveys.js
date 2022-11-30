@@ -233,9 +233,9 @@ function buildSurveys(survey,disableSurvey) {
     newSurveyDiv = document.createElement('div')
     
     if (survey.status.toLowerCase()=='uploading') {
-        newSurveyDiv.setAttribute('style','background-color: rgb(111, 123, 137); border-bottom: 2px solid rgb(60,74,89)')
+        newSurveyDiv.setAttribute('style','background-color: rgb(111, 123, 137); border-bottom: 1px solid rgb(60,74,89); border-top: 1px solid rgb(60,74,89)')
     } else {
-        newSurveyDiv.setAttribute('style','border-bottom: 2px solid rgb(60,74,89)')
+        newSurveyDiv.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); border-top: 1px solid rgb(60,74,89)')
     }
     
     // newSurveyDiv.style.backgroundColor = '#3C4A59';
