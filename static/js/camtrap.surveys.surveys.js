@@ -297,7 +297,7 @@ function buildSurveys(survey,disableSurvey) {
         infoElementDescription.classList.add('col-lg-5');
         infoElementDescription.setAttribute("style","font-size: 80%")
         infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow1.appendChild(infoElementDescription)
+        infoElementRow.appendChild(infoElementDescription)
     }
 
     infoElementFiller = document.createElement('div')
