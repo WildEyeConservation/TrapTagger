@@ -170,12 +170,12 @@ async function addBatch() {
             updateUploadProgress(filesUploaded,filecount)
         }
         uppy.addFiles(filesToAdd)
-        checkFinishedUpload()
     })
     addingBatch = false
     if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
         addBatch()
     }
+    checkFinishedUpload()
     return true
 }
 

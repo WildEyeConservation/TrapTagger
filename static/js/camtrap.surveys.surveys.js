@@ -277,13 +277,17 @@ function buildSurveys(survey,disableSurvey) {
     infoElementNumTrapgroups = document.createElement('div')
     infoElementNumTrapgroups.classList.add('col-lg-3');
     infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
-    infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
+    if (survey.status.toLowerCase()!='uploading') {
+        infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
+    }
     infoElementRow.appendChild(infoElementNumTrapgroups)
 
     infoElementNumImages = document.createElement('div')
     infoElementNumImages.classList.add('col-lg-2');
     infoElementNumImages.setAttribute("style","font-size: 80%")
-    infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
+    if (survey.status.toLowerCase()!='uploading') {
+        infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
+    }
     infoElementRow.appendChild(infoElementNumImages)
 
     infoElementDescription = document.createElement('div')
