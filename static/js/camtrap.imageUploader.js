@@ -284,7 +284,7 @@ function initUpload(edit=false) {
     btnPause.setAttribute('onclick','pauseUpload()')
     btnPause.setAttribute('id','btnPause')
     btnPause.innerHTML = 'Pause'
-    col2.appendChild(btnPause)
+    col22.appendChild(btnPause)
 
     // col3 = document.createElement('div')
     // col3.classList.add('col-lg-1')
