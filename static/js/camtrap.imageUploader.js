@@ -173,6 +173,9 @@ async function addBatch() {
         checkFinishedUpload()
     })
     addingBatch = false
+    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
+        addBatch()
+    }
     return true
 }
 
@@ -524,7 +527,8 @@ function updateUploadProgress(value,total) {
     timeElapsed = Date.now() - uploadStart
     if ((value!=0) && (value<=total)) {
         rate = timeElapsed/value
-        timeRemaining = new Date((rate*(total-value)) * 1000).toISOString().substr(11, 8)
-        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining
+        seconds = rate*(total-value)
+        timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
+        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining + ' (' + seconds.toString() + 's)'
     }
 }

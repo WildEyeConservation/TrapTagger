@@ -4820,7 +4820,7 @@ def assignLabel(clusterID):
                                             .join(Detection) \
                                             .join(Image) \
                                             .filter(Image.clusters.contains(cluster)) \
-                                            .filter(Labelgroup.task_id==task.id) \
+                                            .filter(Labelgroup.task_id==cluster.task_id) \
                                             .distinct().all()
 
                     for labelgroup in labelgroups:
@@ -4964,6 +4964,7 @@ def getOtherTasks(task_id):
 @app.route('/reviewClassification', methods=['POST'])
 @login_required
 def reviewClassification():
+    '''Endpoint for the review of classifications in the AI check workflow.'''
 
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
@@ -5388,8 +5389,13 @@ def editSightings(image_id,task_id):
                                     classification='nothing'
                                 )
                                 db.session.add(detection)
-                                labelgroup = Labelgroup(task_id=int(task_id), detection=detection, checked=True)
-                                db.session.add(labelgroup)
+
+                                for tempTask in task.survey.tasks:
+                                    labelgroup = Labelgroup(task_id=tempTask.id, detection=detection, checked=True)
+                                    db.session.add(labelgroup)
+                                    tempCluster = db.session.query(Cluster).filter(Cluster.images.contains(image)).filter(Cluster.task==tempTask).first()
+                                    labelgroup.labels = tempCluster.labels
+
                                 labelgroup.labels = [label]
                                 labelgroup.tags = cluster.tags
 
@@ -6204,11 +6210,11 @@ def check_upload_files():
     already_uploaded = []
     for file in files:
         try:
-            print('checking {}'.format(current_user.folder + '/' + file))
+            if Config.DEBUGGING: print('checking {}'.format(current_user.folder + '/' + file))
             check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=current_user.folder + '/' + file)
             already_uploaded.append(file)
         except:
-            print('{} does not exist'.format(current_user.folder + '/' + file))
+            if Config.DEBUGGING: print('{} does not exist'.format(current_user.folder + '/' + file))
             # file does not exist
             pass
 

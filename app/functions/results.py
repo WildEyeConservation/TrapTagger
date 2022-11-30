@@ -18,7 +18,6 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import retryTime, list_all, chunker, batch_crops
 import GLOBALS
-from flask_login import current_user
 from sqlalchemy.sql import alias, func, or_, and_
 import re
 import math
@@ -158,16 +157,16 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
     translations = translations.replace('*****', '/')
     translations = ast.literal_eval(translations)
 
-    GLOBALS.ground_truths[str(current_user.id)] = {}
-    GLOBALS.ground_truths[str(current_user.id)]['ground'] = int(groundTruth)
-    GLOBALS.ground_truths[str(current_user.id)]['task1'] = int(task_id1)
-    GLOBALS.ground_truths[str(current_user.id)]['task2'] = int(task_id2)
+    GLOBALS.ground_truths[str(user_id)] = {}
+    GLOBALS.ground_truths[str(user_id)]['ground'] = int(groundTruth)
+    GLOBALS.ground_truths[str(user_id)]['task1'] = int(task_id1)
+    GLOBALS.ground_truths[str(user_id)]['task2'] = int(task_id2)
 
     if int(groundTruth) == int(task_id1):
-        GLOBALS.ground_truths[str(current_user.id)]['other'] = int(task_id2)
+        GLOBALS.ground_truths[str(user_id)]['other'] = int(task_id2)
         ground_truth = 1
     else:
-        GLOBALS.ground_truths[str(current_user.id)]['other'] = int(task_id1)
+        GLOBALS.ground_truths[str(user_id)]['other'] = int(task_id1)
         ground_truth = 2
 
     task1Translation = {}
@@ -187,8 +186,8 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
     task1Translation['None'] = task1Translation[str(GLOBALS.nothing_id)]
     task2Translation['None'] = task2Translation[str(GLOBALS.nothing_id)]
 
-    GLOBALS.ground_truths[str(current_user.id)]['nothing1'] = task1Translation[str(GLOBALS.nothing_id)]
-    GLOBALS.ground_truths[str(current_user.id)]['nothing2'] = task2Translation[str(GLOBALS.nothing_id)]
+    GLOBALS.ground_truths[str(user_id)]['nothing1'] = task1Translation[str(GLOBALS.nothing_id)]
+    GLOBALS.ground_truths[str(user_id)]['nothing2'] = task2Translation[str(GLOBALS.nothing_id)]
 
     # detection-label based
     sq1 = db.session.query(Image.id.label('image_id1'),Label.id.label('label_id1'))\
