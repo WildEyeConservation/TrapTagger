@@ -226,24 +226,9 @@ async function listFolder2(dirHandle,path){
 //     return folders
 // }
 
-function initUpload(edit=false) {
-    uploadStart = Date.now()
-    filesUploaded = 0
-    filesActuallyUploaded = 0
-    // filesQueued = 0
-    // uploadQueue = []
-
-    //Disable edit/delete buttons
-    // addImagesBtn = document.getElementById('addImagesBtn'+uploadID.toString())
-    // addImagesBtn.disabled = true
-    // addTaskBtn = document.getElementById('addTaskBtn'+uploadID.toString())
-    // addTaskBtn.disabled = true
+function buildUploadProgress() {
     deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
     deleteSurveyBtn.disabled = true
-
-    if (!edit) { 
-        surveyName = document.getElementById('newSurveyName').value
-    }
 
     taskDiv = document.getElementById('taskDiv-'+surveyName)
     while(taskDiv.firstChild){
@@ -279,7 +264,7 @@ function initUpload(edit=false) {
     row2.appendChild(col22)
 
     btnPause = document.createElement('button')
-    btnPause.setAttribute("class","btn btn-primary btn-sm")
+    btnPause.setAttribute("class","btn btn-primary btn-sm btn-block")
     // btnPause.setAttribute('style','margin-right:4px')
     btnPause.setAttribute('onclick','pauseUpload()')
     btnPause.setAttribute('id','btnPause')
@@ -326,6 +311,30 @@ function initUpload(edit=false) {
     timeRemDiv = document.createElement('div')
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
     col31.appendChild(timeRemDiv);
+
+    if (filecount) {
+        updateUploadProgress(filesUploaded,filecount)
+    }
+}
+
+function initUpload(edit=false) {
+    uploadStart = Date.now()
+    filesUploaded = 0
+    filesActuallyUploaded = 0
+    // filesQueued = 0
+    // uploadQueue = []
+
+    //Disable edit/delete buttons
+    // addImagesBtn = document.getElementById('addImagesBtn'+uploadID.toString())
+    // addImagesBtn.disabled = true
+    // addTaskBtn = document.getElementById('addTaskBtn'+uploadID.toString())
+    // addTaskBtn.disabled = true
+
+    if (!edit) { 
+        surveyName = document.getElementById('newSurveyName').value
+    }
+
+    buildUploadProgress()
     
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')

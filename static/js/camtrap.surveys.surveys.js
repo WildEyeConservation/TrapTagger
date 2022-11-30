@@ -425,6 +425,10 @@ function buildSurveys(survey,disableSurvey) {
 
     newSurveyDiv.appendChild(document.createElement('br'))
     surveyListDiv.appendChild(newSurveyDiv) 
+
+    if ((survey.status.toLowerCase()=='uploading')&&(uploading)) {
+        buildUploadProgress()
+    }
 }
 
 function checkNotifications() {
