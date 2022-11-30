@@ -231,9 +231,16 @@ function buildSurveys(survey,disableSurvey) {
 
     surveyListDiv = document.getElementById('surveyListDiv'); 
     newSurveyDiv = document.createElement('div')
-    newSurveyDiv.style.backgroundColor = '#3C4A59';
+    
+    if (survey.status.toLowerCase()=='uploading') {
+        newSurveyDiv.setAttribute('style','background-color: rgb(111, 123, 137); margin-bottom: 5px')
+    } else {
+        newSurveyDiv.setAttribute('style','background-color: rgb(60, 74, 89); margin-bottom: 5px')
+    }
+    
+    // newSurveyDiv.style.backgroundColor = '#3C4A59';
 
-    newSurveyDiv.appendChild(document.createElement('br'))
+    // newSurveyDiv.appendChild(document.createElement('br'))
 
     entireRowHeading = document.createElement('div')
     entireRowHeading.classList.add('row');
