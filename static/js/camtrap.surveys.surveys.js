@@ -240,7 +240,7 @@ function buildSurveys(survey,disableSurvey) {
     
     // newSurveyDiv.style.backgroundColor = '#3C4A59';
 
-    // newSurveyDiv.appendChild(document.createElement('br'))
+    newSurveyDiv.appendChild(document.createElement('br'))
 
     entireRowHeading = document.createElement('div')
     entireRowHeading.classList.add('row');
@@ -496,9 +496,9 @@ function updatePage(url){
                     taskProcessing = true
                 }
                 buildSurveys(reply.surveys[iii],disableSurvey)
-                if (iii < reply.surveys.length-1) {
-                    surveyListDiv.appendChild(document.createElement('br'))
-                }
+                // if (iii < reply.surveys.length-1) {
+                //     surveyListDiv.appendChild(document.createElement('br'))
+                // }
             }
 
             if (taskProcessing==true) {
