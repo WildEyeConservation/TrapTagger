@@ -479,7 +479,7 @@ uppy.on('upload-success', (file, response) => {
 })
 
 function checkFinishedUpload() {
-    if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)) {
+    if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)) {
         if (filesActuallyUploaded==0) {
             //completely done
             var xhttp = new XMLHttpRequest();
