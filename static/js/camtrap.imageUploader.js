@@ -122,7 +122,7 @@ filesUploaded = 0
 filesActuallyUploaded = 0
 filesQueued = 0
 uploadQueue = []
-finishedQueueing = false
+// finishedQueueing = false
 globalDirHandle = null
 filecount=0
 addingBatch = false
@@ -313,6 +313,7 @@ function buildUploadProgress() {
 
     timeRemDiv = document.createElement('div')
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
+    timeRemDiv.setAttribute('style','font-size: 80%')
     col31.appendChild(timeRemDiv);
 
     if (filecount) {
@@ -393,11 +394,11 @@ async function selectFiles(resuming=false) {
 }
 
 async function uploadFiles(edit=false) {
-    finishedQueueing = false
+    // finishedQueueing = false
     initUpload(edit)
     // await listFolder2(globalDirHandle,globalDirHandle.name)
     addBatch()
-    finishedQueueing = true
+    // finishedQueueing = true
 }
 
 var uppy = new Uppy.Uppy({
@@ -478,7 +479,7 @@ uppy.on('upload-success', (file, response) => {
 })
 
 function checkFinishedUpload() {
-    if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)&&(finishedQueueing)) {
+    if ((filesUploaded==filesQueued)&&(uploadQueue.length==0)) {
         if (filesActuallyUploaded==0) {
             //completely done
             var xhttp = new XMLHttpRequest();
@@ -531,7 +532,7 @@ function resetUploadStatusVariables() {
     filesActuallyUploaded = 0
     filesQueued = 0
     uploadQueue = []
-    finishedQueueing = false
+    // finishedQueueing = false
     globalDirHandle = null
     filecount=0
     addingBatch = false
