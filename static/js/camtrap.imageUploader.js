@@ -242,7 +242,8 @@ function buildUploadProgress() {
     taskDiv.appendChild(row)
 
     row2 = document.createElement('div')
-    row2.classList.add('row')
+    row2.classList.add('row center')
+    row2.setAttribute('style','margin-right:10px')
     taskDiv.appendChild(row2)
 
     row3 = document.createElement('div')
