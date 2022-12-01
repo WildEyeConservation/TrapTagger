@@ -549,25 +549,29 @@ function pauseUpload() {
 
 function updateUploadProgress(value,total) {
     progBar = document.getElementById('uploadProgBar')
-    perc=(value/total)*100
+    if (progBar) {
+        perc=(value/total)*100
 
-    progBar.setAttribute('aria-valuenow',value)
-    progBar.setAttribute('style',"width:"+perc+"%")
-    progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
-
-    if (uploadCheck) {
-        document.getElementById('uploadStatus').innerHTML = 'Checking...'
-    } else if (uploadPaused) {
-        document.getElementById('uploadStatus').innerHTML = 'Paused'
+        progBar.setAttribute('aria-valuenow',value)
+        progBar.setAttribute('style',"width:"+perc+"%")
+        progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
+    
+        if (uploadCheck) {
+            document.getElementById('uploadStatus').innerHTML = 'Checking...'
+        } else if (uploadPaused) {
+            document.getElementById('uploadStatus').innerHTML = 'Paused'
+        } else {
+            document.getElementById('uploadStatus').innerHTML = 'Uploading...'
+        }
+    
+        timeElapsed = (Date.now() - uploadStart)/1000
+        if ((value!=0) && (value<=total)) {
+            rate = timeElapsed/value
+            seconds = rate*(total-value)
+            timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
+            document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
+        }
     } else {
-        document.getElementById('uploadStatus').innerHTML = 'Uploading...'
-    }
-
-    timeElapsed = (Date.now() - uploadStart)/1000
-    if ((value!=0) && (value<=total)) {
-        rate = timeElapsed/value
-        seconds = rate*(total-value)
-        timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
-        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
+        buildUploadProgress()
     }
 }
