@@ -132,7 +132,7 @@ uploadCheck = false
 uploadStart = null
 
 async function addBatch() {
-    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
+    if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
         addingBatch = true
         fileNames = []
         files = {}
@@ -321,7 +321,7 @@ function buildUploadProgress() {
     }
 }
 
-function initUpload(edit=false) {
+function initUpload() {
     uploadStart = Date.now()
     filesUploaded = 0
     filesActuallyUploaded = 0
@@ -334,7 +334,7 @@ function initUpload(edit=false) {
     // addTaskBtn = document.getElementById('addTaskBtn'+uploadID.toString())
     // addTaskBtn.disabled = true
 
-    if (!edit) { 
+    if (!surveyName) { 
         surveyName = document.getElementById('newSurveyName').value
     }
 
@@ -386,16 +386,16 @@ async function selectFiles(resuming=false) {
     await listFolder2(globalDirHandle,globalDirHandle.name)
     folders.push(globalDirHandle.name)
     if (resuming) {
-        uploadFiles(true)
+        uploadFiles()
     } else {
         updatePathDisplay(folders)
         checkTrapgroupCode()
     }
 }
 
-async function uploadFiles(edit=false) {
+async function uploadFiles() {
     // finishedQueueing = false
-    initUpload(edit)
+    initUpload()
     // await listFolder2(globalDirHandle,globalDirHandle.name)
     addBatch()
     // finishedQueueing = true
@@ -503,7 +503,7 @@ async function checkFinishedUpload() {
             filesQueued = 0
             filecount = 0
             await listFolder2(globalDirHandle,globalDirHandle.name)
-            uploadFiles(true)
+            uploadFiles()
         }
     } else {
         addBatch()

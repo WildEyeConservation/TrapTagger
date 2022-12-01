@@ -2442,7 +2442,7 @@ modalStatus.on('hidden.bs.modal', function(){
 modalNewSurvey.on('hidden.bs.modal', function(){
     /** Clears the new-survey modal when closed. */
     
-    if ((!helpReturn)&&(!uploading)) {
+    if (!helpReturn) {
         resetNewSurveyPage()
         document.getElementById('btnSaveSurvey').disabled=false
     } else {
@@ -2667,7 +2667,7 @@ modalAddImages.on('shown.bs.modal', function(){
 modalAddImages.on('hidden.bs.modal', function(){
     /** Clears the edit-survey modal when closed. */
 
-    if ((!helpReturn)&&(!uploading)) {
+    if (!helpReturn) {
         resetEditSurveyModal()
         document.getElementById('btnAddImages').disabled = false
     } else {
@@ -3149,7 +3149,9 @@ function addImagesSendRequest(formData) {
             if (reply.status=='success') {
 
                 if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
-                    uploadFiles(true)
+                    uploading = true
+                    updatePage(current_page)
+                    // uploadFiles(true)
                     // uploading = true
                     // var xhttp = new XMLHttpRequest();
                     // xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Uploading');
