@@ -132,47 +132,49 @@ uploadCheck = false
 uploadStart = null
 
 async function addBatch() {
-    addingBatch = true
-    fileNames = []
-    files = {}
-    while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
-        item = uploadQueue.pop()
-        let file = await item[1].getFile()
-        filename = surveyName + '/' + item[0] + '/' + file.name
-        fileNames.push(filename)
-        files[filename] = file
-    }
-    await fetch('/check_upload_files', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            filenames: fileNames
-        })
-    }).then((response) => {
-        return response.json()
-    }).then((data) => {
-        filesToAdd = []
-        for (filename in files) {
-            if (!data.includes(filename)) {
-                file = files[filename]
-                filesToAdd.push({
-                    name: filename,
-                    type: file.type,
-                    data: file.slice(0, file.size, file.type),
-                  })
-            } else {
-                filesUploaded += 1
-            }
-            filesQueued += 1
-            updateUploadProgress(filesUploaded,filecount)
+    if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
+        addingBatch = true
+        fileNames = []
+        files = {}
+        while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
+            item = uploadQueue.pop()
+            let file = await item[1].getFile()
+            filename = surveyName + '/' + item[0] + '/' + file.name
+            fileNames.push(filename)
+            files[filename] = file
         }
-        uppy.addFiles(filesToAdd)
-    })
-    addingBatch = false
-    checkFinishedUpload()
+        await fetch('/check_upload_files', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                filenames: fileNames
+            })
+        }).then((response) => {
+            return response.json()
+        }).then((data) => {
+            filesToAdd = []
+            for (filename in files) {
+                if (!data.includes(filename)) {
+                    file = files[filename]
+                    filesToAdd.push({
+                        name: filename,
+                        type: file.type,
+                        data: file.slice(0, file.size, file.type),
+                    })
+                } else {
+                    filesUploaded += 1
+                }
+                filesQueued += 1
+                updateUploadProgress(filesUploaded,filecount)
+            }
+            uppy.addFiles(filesToAdd)
+        })
+        addingBatch = false
+        checkFinishedUpload()
+    }
     return true
 }
 
@@ -502,9 +504,7 @@ function checkFinishedUpload() {
             uploadFiles(true)
         }
     } else {
-        if (((filesQueued-filesUploaded)<(0.4*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
-            addBatch()
-        }
+        addBatch()
     }
 }
 

@@ -553,9 +553,9 @@ function updatePage(url){
             timerTaskStatus = setInterval(updateTaskStatus, 5000); //5 seconds
             timerTaskBar = setInterval(updateTaskProgressBar, 5000); //5 seconds
 
-            if (uploading) {
-                uploadFiles()
-            }
+            // if (uploading) {
+            //     uploadFiles()
+            // }
         }
     }
     xhttp.open("GET", url);
