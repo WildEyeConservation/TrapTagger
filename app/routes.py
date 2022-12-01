@@ -1087,7 +1087,7 @@ def createNewSurvey():
 
             if newSurveyS3Folder=='none':
                 classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
                 db.session.commit()
             else:
@@ -1438,48 +1438,44 @@ def editSurvey():
         elif 'coordData' in request.form:
             coordData = ast.literal_eval(request.form['coordData'])
             updateCoords.delay(survey_id=survey.id,coordData=coordData)
-        
-        else:
-            if 'kml' in request.files:
-                uploaded_file = request.files['kml']
-                fileAttached = True
-            else:
-                fileAttached = False
 
-            if fileAttached:
-                if uploaded_file.filename != '':
-                    if os.path.splitext(uploaded_file.filename)[1].lower() == '.kml':
-                        pass  
-                    else:
-                        status = 'error'
-                        message = 'Coordinates file must be a kml file.' 
+        elif 'kml' in request.files:
+            uploaded_file = request.files['kml']
+
+            if uploaded_file.filename != '':
+                if os.path.splitext(uploaded_file.filename)[1].lower() == '.kml':
+                    pass  
                 else:
                     status = 'error'
-                    message = 'Coordinates file must have a name.' 
+                    message = 'Coordinates file must be a kml file.' 
+            else:
+                status = 'error'
+                message = 'Coordinates file must have a name.' 
 
             if status == 'success':
-                newSurveyTGCode = request.form['newSurveyTGCode']
-                newSurveyS3Folder = request.form['newSurveyS3Folder']
-                checkbox = request.form['checkbox']
+                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
+                    uploaded_file.save(temp_file.name)
+                    GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
+                importKML(survey.id)
+        
+        else:
+            newSurveyTGCode = request.form['newSurveyTGCode']
+            newSurveyS3Folder = request.form['newSurveyS3Folder']
+            checkbox = request.form['checkbox']
 
-                if fileAttached:
-                    key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
-                        uploaded_file.save(temp_file.name)
-                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
+            if newSurveyTGCode!=' ':
+                if checkbox=='false':
+                    newSurveyTGCode = newSurveyTGCode+'[0-9]+'
 
-                if newSurveyTGCode!=' ':
-                    if checkbox=='false':
-                        newSurveyTGCode = newSurveyTGCode+'[0-9]+'
-
-                    survey.trapgroup_code=newSurveyTGCode
-                    db.session.commit()
-                    
-                    if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=None)
+                survey.trapgroup_code=newSurveyTGCode
+                db.session.commit()
+                
+                if newSurveyS3Folder!='none':
+                    import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=None)
                 else:
-                    if fileAttached:
-                        importKML(survey.id)
+                    survey.status = 'Uploading'
+                    db.session.commit()
 
     return json.dumps({'status': status, 'message': message})
 
@@ -2492,7 +2488,7 @@ def getHomeSurveys():
         survey_list = []
         
         # check for uploads and include those first
-        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='uploading').distinct().all()
+        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='Uploading').distinct().all()
         for survey in uploads:
             survey_list.append(getSurveyInfo(survey))
 
