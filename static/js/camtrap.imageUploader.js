@@ -478,7 +478,7 @@ uppy.on('upload-success', (file, response) => {
     checkFinishedUpload()
 })
 
-function checkFinishedUpload() {
+async function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)) {
         if (filesActuallyUploaded==0) {
             //completely done
@@ -502,7 +502,8 @@ function checkFinishedUpload() {
             uploadCheck = true
             filesQueued = 0
             filecount = 0
-            listFolder2(globalDirHandle,globalDirHandle.name).then(uploadFiles(true))
+            await listFolder2(globalDirHandle,globalDirHandle.name)
+            uploadFiles(true)
         }
     } else {
         addBatch()
