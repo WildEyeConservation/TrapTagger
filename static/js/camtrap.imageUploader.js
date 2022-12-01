@@ -502,8 +502,7 @@ function checkFinishedUpload() {
             uploadCheck = true
             filesQueued = 0
             filecount = 0
-            listFolder2(globalDirHandle,globalDirHandle.name)
-            uploadFiles(true)
+            listFolder2(globalDirHandle,globalDirHandle.name).then(uploadFiles(true))
         }
     } else {
         addBatch()
