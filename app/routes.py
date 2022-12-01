@@ -793,7 +793,7 @@ def deleteSurvey(surveyName):
         tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
 
         #Check that survey is not in use
-        if survey.status.lower() in Config.SURVEY_READY_STATUSES:
+        if (survey.status.lower() in Config.SURVEY_READY_STATUSES) or (survey.status.lower() == 'uploading'):
             pass
         else:
             status = 'error'
