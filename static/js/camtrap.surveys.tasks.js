@@ -219,6 +219,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         newProgInner.setAttribute("aria-valuemin", "0");
         newProgInner.setAttribute("aria-valuemax", task.total);
         newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
+        newProgInner.innerHTML = task.remaining
     
         newProg.appendChild(newProgInner);
         taskProgressBarDiv.appendChild(newProg);

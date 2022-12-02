@@ -444,8 +444,8 @@ function updateTaskStatus() {
                         }
                     }   
     
-                    document.getElementById('taskHitsCompleted'+reply.id).innerHTML = 'Batches Completed: ' + reply.hitsCompleted
-                    document.getElementById('taskHitsActive'+reply.id).innerHTML = 'Batches Active: ' + reply.hitsActive
+                    document.getElementById('taskHitsCompleted'+reply.id).innerHTML = 'Jobs Available: ' + reply.hitsCompleted
+                    document.getElementById('taskHitsActive'+reply.id).innerHTML = 'Jobs Completed: ' + reply.hitsActive
         
                     if ((reply.state=='SUCCESS')||(reply.state=='FAILURE')) {
                         updatePage(current_page)
