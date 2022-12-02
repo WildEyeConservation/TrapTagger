@@ -1400,88 +1400,92 @@ def getTaskProgress(task_id):
     task = db.session.query(Task).get(task_id)
     taggingLevel = task.tagging_level
 
-    if '-5' in taggingLevel:
-        tL = re.split(',',taggingLevel)
-        label = db.session.query(Label).get(int(tL[1]))
-        OtherIndividual = alias(Individual)
+    if task and task.taggingLevel:
+        if '-5' in taggingLevel:
+            tL = re.split(',',taggingLevel)
+            label = db.session.query(Label).get(int(tL[1]))
+            OtherIndividual = alias(Individual)
 
-        sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
-                        .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                        .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                        .filter(OtherIndividual.c.active==True)\
-                        .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.score>=tL[2])\
-                        .filter(IndSimilarity.skipped==False)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label.id)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Individual.id)\
-                        .subquery()
+            sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
+                            .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                            .filter(OtherIndividual.c.active==True)\
+                            .filter(OtherIndividual.c.name!='unidentifiable')\
+                            .filter(IndSimilarity.score>=tL[2])\
+                            .filter(IndSimilarity.skipped==False)\
+                            .filter(Individual.task_id==task_id)\
+                            .filter(Individual.label_id==label.id)\
+                            .filter(Individual.active==True)\
+                            .filter(Individual.name!='unidentifiable')\
+                            .group_by(Individual.id)\
+                            .subquery()
 
-        sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
-                        .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                        .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                        .filter(OtherIndividual.c.active==True)\
-                        .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.score>=tL[2])\
-                        .filter(IndSimilarity.skipped==False)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label.id)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Individual.id)\
-                        .subquery()
+            sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
+                            .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                            .filter(OtherIndividual.c.active==True)\
+                            .filter(OtherIndividual.c.name!='unidentifiable')\
+                            .filter(IndSimilarity.score>=tL[2])\
+                            .filter(IndSimilarity.skipped==False)\
+                            .filter(Individual.task_id==task_id)\
+                            .filter(Individual.label_id==label.id)\
+                            .filter(Individual.active==True)\
+                            .filter(Individual.name!='unidentifiable')\
+                            .group_by(Individual.id)\
+                            .subquery()
 
-        remaining = db.session.query(Individual)\
-                        .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                        .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                        .join(Detection,Individual.detections)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label.id)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                        .distinct().count()
-
-        total = db.session.query(Individual)\
-                        .join(Detection,Individual.detections)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label.id)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .distinct().count()
-    else:
-        if (',' not in taggingLevel) and (int(taggingLevel) > 0):
-            label = db.session.query(Label).get(int(taggingLevel))
-            names = [label.description]
-            ids = [label.id]
-            names, ids = addChildLabels(names,ids,label,task_id)
-            total = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.any(Label.id.in_(ids))).count()
-        else:
-            total = db.session.query(Cluster).filter(Cluster.task_id==task_id).count()
-
-        remaining = db.session.query(Cluster)\
-                        .filter(Cluster.task_id == task_id)\
-                        .filter(Cluster.examined==False)\
-                        .distinct().count()
-
-    completed = total-remaining
-
-    if '-5' in taggingLevel:
-        remaining = str(remaining) + ' individuals remaining.'
-    else:
-        remaining = str(remaining) + ' clusters remaining.'
-
-    jobsAvailable = db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
-
-    jobsCompleted = db.session.query(Turkcode)\
-                            .join(User, User.username==Turkcode.user_id)\
-                            .filter(User.parent_id!=None)\
-                            .filter(Turkcode.task_id==task_id)\
-                            .filter(Turkcode.tagging_time!=None)\
+            remaining = db.session.query(Individual)\
+                            .outerjoin(sq1,sq1.c.indID1==Individual.id)\
+                            .outerjoin(sq2,sq2.c.indID2==Individual.id)\
+                            .join(Detection,Individual.detections)\
+                            .filter(Individual.active==True)\
+                            .filter(Individual.task_id==task_id)\
+                            .filter(Individual.label_id==label.id)\
+                            .filter(Individual.name!='unidentifiable')\
+                            .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
                             .distinct().count()
 
-    jobsCompleted = jobsCompleted - task.jobs_finished
+            total = db.session.query(Individual)\
+                            .join(Detection,Individual.detections)\
+                            .filter(Individual.active==True)\
+                            .filter(Individual.task_id==task_id)\
+                            .filter(Individual.label_id==label.id)\
+                            .filter(Individual.name!='unidentifiable')\
+                            .distinct().count()
+        else:
+            if (',' not in taggingLevel) and (int(taggingLevel) > 0):
+                label = db.session.query(Label).get(int(taggingLevel))
+                names = [label.description]
+                ids = [label.id]
+                names, ids = addChildLabels(names,ids,label,task_id)
+                total = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.any(Label.id.in_(ids))).count()
+            else:
+                total = db.session.query(Cluster).filter(Cluster.task_id==task_id).count()
 
-    return completed, total, remaining, jobsAvailable, jobsCompleted
+            remaining = db.session.query(Cluster)\
+                            .filter(Cluster.task_id == task_id)\
+                            .filter(Cluster.examined==False)\
+                            .distinct().count()
+
+        completed = total-remaining
+
+        if '-5' in taggingLevel:
+            remaining = str(remaining) + ' individuals remaining.'
+        else:
+            remaining = str(remaining) + ' clusters remaining.'
+
+        jobsAvailable = db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
+
+        jobsCompleted = db.session.query(Turkcode)\
+                                .join(User, User.username==Turkcode.user_id)\
+                                .filter(User.parent_id!=None)\
+                                .filter(Turkcode.task_id==task_id)\
+                                .filter(Turkcode.tagging_time!=None)\
+                                .distinct().count()
+
+        jobsCompleted = jobsCompleted - task.jobs_finished
+
+        return completed, total, remaining, jobsAvailable, jobsCompleted
+
+    else:
+        return 0,0,0,0,0
