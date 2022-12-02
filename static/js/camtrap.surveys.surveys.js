@@ -356,6 +356,7 @@ function buildSurveys(survey,disableSurvey) {
         
         if (uploading) {
             buildUploadProgress()
+            disableSurvey = true
         } else {
             row = document.createElement('div')
             row.classList.add('row')
