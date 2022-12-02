@@ -342,6 +342,12 @@ function buildSurveys(survey,disableSurvey) {
         }
     }(survey.name));
 
+    surveyDiv.appendChild(infoElementRow)
+    surveyDiv.appendChild(infoElementRow2)
+
+    newSurveyDiv.appendChild(document.createElement('br'))
+    surveyListDiv.appendChild(newSurveyDiv) 
+
     if (survey.status.toLowerCase()=='uploading') {
         uploadID = survey.id
         surveyName = survey.name
@@ -423,12 +429,6 @@ function buildSurveys(survey,disableSurvey) {
         }
         deleteSurveyBtn.disabled = false
     }
-
-    surveyDiv.appendChild(infoElementRow)
-    surveyDiv.appendChild(infoElementRow2)
-
-    newSurveyDiv.appendChild(document.createElement('br'))
-    surveyListDiv.appendChild(newSurveyDiv) 
 }
 
 function checkNotifications() {

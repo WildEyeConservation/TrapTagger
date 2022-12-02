@@ -206,17 +206,16 @@ def stop_task(self,task_id):
         task = db.session.query(Task).get(int(task_id))
 
         if task.status.lower() not in Config.TASK_READY_STATUSES:
-            if not populateMutex(int(task_id)): return json.dumps('error')
             survey = task.survey
             app.logger.info(task.survey.name + ': ' + task.name + ' stopped')
 
-            GLOBALS.mutex[int(task_id)]['job'].acquire()
+            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[task_id]['job'].acquire()
             turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==int(task_id)).filter(User.id==None).filter(Turkcode.active==True).all()
             for turkcode in turkcodes:
                 db.session.delete(turkcode)
 
             db.session.commit()
-            GLOBALS.mutex[int(task_id)]['job'].release()
+            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[task_id]['job'].release()
 
             abandoned_jobs = db.session.query(Turkcode) \
                                 .join(User, User.username==Turkcode.user_id) \
@@ -239,7 +238,7 @@ def stop_task(self,task_id):
             updateLabelCompletionStatus(int(task_id))
             updateIndividualIdStatus(int(task_id))
 
-            GLOBALS.mutex.pop(int(task_id), None)
+            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
             task.current_name = None
             task.status = 'Stopped'
