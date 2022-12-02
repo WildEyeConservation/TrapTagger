@@ -296,6 +296,7 @@ function buildUploadProgress() {
 
     var newProg = document.createElement('div');
     newProg.classList.add('progress');
+    newProg.setAttribute('style','background-color: #3C4A59')
 
     var newProgInner = document.createElement('div');
     newProgInner.classList.add('progress-bar');
