@@ -74,6 +74,7 @@ function buildJob(job) {
     var newProgInner = document.createElement('div');
     newProgInner.classList.add('progress-bar');
     newProgInner.classList.add('progress-bar-striped');
+    newProgInner.classList.add('progress-bar-animated');
     newProgInner.classList.add('active');
     newProgInner.setAttribute("role", "progressbar");
     newProgInner.setAttribute("id", "progBar"+job.id);
