@@ -576,7 +576,7 @@ function updateUploadProgress(value,total) {
             timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
             document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
         }
-    } else {
+    } else if (uploading) {
         buildUploadProgress()
     }
 }
