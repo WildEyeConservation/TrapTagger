@@ -189,14 +189,14 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         taskHitsActive.setAttribute("id","taskHitsActive"+task.id)
         taskHitsActive.setAttribute("style","font-size: 70%")
         taskInfoCol.appendChild(taskHitsActive)
-        taskHitsActive.innerHTML = 'Batches Active: 0' 
+        taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
     
         taskHitsCompleted = document.createElement('div')
         taskHitsCompleted.classList.add('row');
         taskHitsCompleted.setAttribute("id","taskHitsCompleted"+task.id)
         taskHitsCompleted.setAttribute("style","font-size: 70%")
         taskInfoCol.appendChild(taskHitsCompleted)
-        taskHitsCompleted.innerHTML = 'Batches Completed: 0' 
+        taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
 
         taskProgressBarCol = document.createElement('div')
         taskProgressBarCol.classList.add('col-lg-6');
@@ -215,10 +215,10 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         newProgInner.classList.add('active');
         newProgInner.setAttribute("role", "progressbar");
         newProgInner.setAttribute("id", "progBar"+task.id);
-        newProgInner.setAttribute("aria-valuenow", "0");
+        newProgInner.setAttribute("aria-valuenow", task.completed);
         newProgInner.setAttribute("aria-valuemin", "0");
-        newProgInner.setAttribute("aria-valuemax", "30");
-        newProgInner.setAttribute("style", "width:0%");
+        newProgInner.setAttribute("aria-valuemax", task.total);
+        newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
     
         newProg.appendChild(newProgInner);
         taskProgressBarDiv.appendChild(newProg);

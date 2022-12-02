@@ -1376,12 +1376,18 @@ def getSurveyInfo(survey):
     task_info = []
     for task in survey.tasks:
         if (task.name != 'default') and ('_o_l_d_' not in task.name) and ('_copying' not in task.name):
+            completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task.id)
             task_dict = {}
             task_dict['id'] = task.id
             task_dict['name'] = task.name
             task_dict['status'] = task.status
             task_dict['disabledLaunch'] = disabledLaunch
             task_dict['complete'] = task.complete
+            task_dict['completed'] = completed
+            task_dict['total'] = total
+            task_dict['remaining'] = remaining
+            task_dict['jobsAvailable'] = jobsAvailable
+            task_dict['jobsCompleted'] = jobsCompleted
 
             task_info.append(task_dict)
     survey_dict['tasks'] = task_info
