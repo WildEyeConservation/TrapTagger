@@ -16,11 +16,12 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, populateMutex, resolve_abandoned_jobs
+from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
+                                    retryTime, chunker, populateMutex, resolve_abandoned_jobs, addChildLabels
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
 from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
-from sqlalchemy.sql import func, or_, and_
+from sqlalchemy.sql import func, or_, and_, distinct
 from sqlalchemy import desc, extract
 from datetime import datetime, timedelta
 import re
@@ -1461,4 +1462,11 @@ def getTaskProgress(task_id):
 
     completed = total-remaining
 
-    return completed, total, remaining
+    if '-5' in taggingLevel:
+        remaining = str(remaining) + ' individuals remaining.'
+    else:
+        remaining = str(remaining) + ' clusters remaining.'
+
+    jobsAvailable = db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
+
+    return completed, total, remaining, jobsAvailable

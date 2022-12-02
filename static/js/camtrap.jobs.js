@@ -82,6 +82,7 @@ function buildJob(job) {
     newProgInner.setAttribute("aria-valuemin", "0");
     newProgInner.setAttribute("aria-valuemax", job.total);
     newProgInner.setAttribute("style", "width:"+(job.completed/job.total)*100+"%;transition:none");
+    newProgInner.innerHTML = job.remaining
 
     newProg.appendChild(newProgInner);
     jobProgressBarDiv.appendChild(newProg);
@@ -103,7 +104,12 @@ function buildJob(job) {
         }
     }(job.id));
 
-    takeJobBtn.disabled = true
+    if (job.jobsAvailable==0) {
+        takeJobBtn.disabled = true
+    } else {
+        takeJobBtn.disabled = false
+    }
+
     newJobDiv.appendChild(document.createElement('br'))
 }
 
