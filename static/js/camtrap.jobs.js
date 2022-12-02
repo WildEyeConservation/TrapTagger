@@ -197,10 +197,10 @@ function updateJobProgressBar() {
                     }
 
                     progBar = document.getElementById('progBar'+wrapTaskID)
+                    perc=(reply.completed/reply.total)*100
                     progBar.setAttribute('style',"width:"+perc+"%")
                     progBar.setAttribute('aria-valuenow',reply.completed)
                     progBar.setAttribute('aria-valuemax',reply.total)
-                    perc=(reply.completed/reply.total)*100
                     progBar.innerHTML = reply.remaining
                 }
             }
