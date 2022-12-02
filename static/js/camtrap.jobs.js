@@ -26,7 +26,8 @@ function buildJob(job) {
     /** Builds the supplied job item on the page. */
     jobListDiv = document.getElementById('jobListDiv'); 
     newJobDiv = document.createElement('div')
-    newJobDiv.style.backgroundColor = '#3C4A59';
+    // newJobDiv.style.backgroundColor = '#3C4A59';
+    newJobDiv.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); border-top: 1px solid rgb(60,74,89)')
 
     jobListDiv.appendChild(newJobDiv)
 
@@ -133,11 +134,17 @@ function updatePage(url){
                 jobListDiv.removeChild(jobListDiv.firstChild);
             }
 
+            if (reply.jobs.length > 0) {
+                jobListDiv.setAttribute('class','')
+            } else {
+                jobListDiv.setAttribute('class','card-body')
+            }
+
             for (iii=0;iii<reply.jobs.length;iii++) {
                 buildJob(reply.jobs[iii])
-                if (iii < reply.jobs.length-1) {
-                    jobListDiv.appendChild(document.createElement('br'))
-                }
+                // if (iii < reply.jobs.length-1) {
+                //     jobListDiv.appendChild(document.createElement('br'))
+                // }
             }
             
             if (reply.next_url==null) {

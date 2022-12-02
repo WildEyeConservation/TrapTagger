@@ -482,6 +482,7 @@ async function checkFinishedUpload() {
     if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)) {
         if (filesActuallyUploaded==0) {
             //completely done
+            // do something like just set status to ready if uploadCheck==false and filesActuallyUploaded==0 because nothing was uploaded
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
             xhttp.onreadystatechange =

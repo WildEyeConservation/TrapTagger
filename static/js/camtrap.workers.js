@@ -27,7 +27,8 @@ function buildWorker(worker) {
     /** Builds the supplied worker item on the page. */
     workerListDiv = document.getElementById('workerListDiv'); 
     newWorkerDiv = document.createElement('div')
-    newWorkerDiv.style.backgroundColor = '#3C4A59';
+    // newWorkerDiv.style.backgroundColor = '#3C4A59';
+    newWorkerDiv.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); border-top: 1px solid rgb(60,74,89)')
 
     workerListDiv.appendChild(newWorkerDiv)
 
@@ -140,11 +141,17 @@ function updatePage(url){
                 workerListDiv.removeChild(workerListDiv.firstChild);
             }
 
+            if (reply.workers.length > 0) {
+                workerListDiv.setAttribute('class','')
+            } else {
+                workerListDiv.setAttribute('class','card-body')
+            }
+
             for (iii=0;iii<reply.workers.length;iii++) {
                 buildWorker(reply.workers[iii])
-                if (iii < reply.workers.length-1) {
-                    workerListDiv.appendChild(document.createElement('br'))
-                }
+                // if (iii < reply.workers.length-1) {
+                //     workerListDiv.appendChild(document.createElement('br'))
+                // }
             }
             
             if (reply.next_url==null) {
