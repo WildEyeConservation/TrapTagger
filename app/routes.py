@@ -665,6 +665,8 @@ def stopTask(task_id):
 
     task = db.session.query(Task).get(int(task_id))
     if task and (task.survey.user==current_user) and (task.status.lower() not in Config.TASK_READY_STATUSES):
+        task.status = 'Stopping'
+        db.session.commit()
         stop_task.apply_async(kwargs={'task_id':task_id})
         return json.dumps('success')
 

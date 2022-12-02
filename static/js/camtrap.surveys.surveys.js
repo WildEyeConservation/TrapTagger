@@ -200,7 +200,7 @@ var barColours = {
 var btnOpacity = 0.2
 
 var disabledSurveyStatuses = ['re-clustering','extracting labels','correcting timestamps','reclustering','removing duplicate images','importing coordinates','processing','deleting','launched','importing','removing humans','removing static detections','clustering','complete','cancelled','prepping task','classifying','calculating scores']
-var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising']
+var diabledTaskStatuses = ['wrapping up','prepping','deleting','importing','processing','pending','started','initialising','stopping']
 const launchMTurkTaskBtn = document.querySelector('#launchMTurkTaskBtn');
 const btnCreateTask = document.querySelector('#btnCreateTask');
 
@@ -343,26 +343,29 @@ function buildSurveys(survey,disableSurvey) {
     }(survey.name));
 
     if (survey.status.toLowerCase()=='uploading') {
-        uploadID = survey.id
-        surveyName = survey.name
-        row = document.createElement('div')
-        row.classList.add('row')
-        taskDiv.appendChild(row)
-
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-9')
-        row.appendChild(col1)
-
-        col2 = document.createElement('div')
-        col2.classList.add('col-lg-3')
-        row.appendChild(col2)
-
-        btnResume = document.createElement('button')
-        btnResume.setAttribute("class","btn btn-primary btn-sm")
-        btnResume.setAttribute('onclick','selectFiles(true)')
-        btnResume.innerHTML = 'Resume Upload'
-        col2.appendChild(btnResume)
-
+        if (uploading) {
+            buildUploadProgress()
+        } else {
+            uploadID = survey.id
+            surveyName = survey.name
+            row = document.createElement('div')
+            row.classList.add('row')
+            taskDiv.appendChild(row)
+    
+            col1 = document.createElement('div')
+            col1.classList.add('col-lg-9')
+            row.appendChild(col1)
+    
+            col2 = document.createElement('div')
+            col2.classList.add('col-lg-3')
+            row.appendChild(col2)
+    
+            btnResume = document.createElement('button')
+            btnResume.setAttribute("class","btn btn-primary btn-sm")
+            btnResume.setAttribute('onclick','selectFiles(true)')
+            btnResume.innerHTML = 'Resume Upload'
+            col2.appendChild(btnResume)
+        }
         addImagesBtn = null
         addTaskBtn = null
     } else {
@@ -425,10 +428,6 @@ function buildSurveys(survey,disableSurvey) {
 
     newSurveyDiv.appendChild(document.createElement('br'))
     surveyListDiv.appendChild(newSurveyDiv) 
-
-    if ((survey.status.toLowerCase()=='uploading')&&(uploading)) {
-        buildUploadProgress()
-    }
 }
 
 function checkNotifications() {
