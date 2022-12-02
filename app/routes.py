@@ -48,6 +48,7 @@ from gpuworker.worker import detectAndClassify
 from flask_cors import cross_origin
 from calendar import monthrange
 from botocore.client import Config as botoConfig
+from multiprocessing.pool import ThreadPool as Pool
 
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.s3UploadClient = boto3.client('s3', 
@@ -6127,15 +6128,14 @@ def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
 
     files = request.json['filenames']
-    already_uploaded = []
+    
+    results = []
+    pool = Pool(processes=4)
     for file in files:
-        try:
-            if Config.DEBUGGING: print('checking {}'.format(current_user.folder + '/' + file))
-            check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=current_user.folder + '/' + file)
-            already_uploaded.append(file)
-        except:
-            if Config.DEBUGGING: print('{} does not exist'.format(current_user.folder + '/' + file))
-            # file does not exist
-            pass
+        results.append(pool.apply_async(checkFile,(file,current_user.folder)))
+    pool.close()
+    pool.join()
+
+    already_uploaded = [result for result in [result.get() for result in results] if result!=None]
 
     return json.dumps(already_uploaded)

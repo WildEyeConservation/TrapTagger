@@ -343,11 +343,14 @@ function buildSurveys(survey,disableSurvey) {
     }(survey.name));
 
     if (survey.status.toLowerCase()=='uploading') {
+        uploadID = survey.id
+        surveyName = survey.name
+        addImagesBtn = null
+        addTaskBtn = null
+        
         if (uploading) {
             buildUploadProgress()
         } else {
-            uploadID = survey.id
-            surveyName = survey.name
             row = document.createElement('div')
             row.classList.add('row')
             taskDiv.appendChild(row)
@@ -366,8 +369,6 @@ function buildSurveys(survey,disableSurvey) {
             btnResume.innerHTML = 'Resume Upload'
             col2.appendChild(btnResume)
         }
-        addImagesBtn = null
-        addTaskBtn = null
     } else {
         taskDivHeading.innerHTML = 'Annotation Sets:'
         for (ii=0;ii<survey.tasks.length;ii++) {
@@ -3237,12 +3238,12 @@ modalAlert.on('hidden.bs.modal', function(){
     }
 });
 
-modalUploadProgress.on('hidden.bs.modal', function(){
-    /** Clears the new survey and edit survey modals when the upload modal is closed. */
-    resetNewSurveyPage()
-    // resetAddImagesPage()
-    uploading = false
-});
+// modalUploadProgress.on('hidden.bs.modal', function(){
+//     /** Clears the new survey and edit survey modals when the upload modal is closed. */
+//     resetNewSurveyPage()
+//     // resetAddImagesPage()
+//     uploading = false
+// });
 
 modalNotification.on('hidden.bs.modal', function(){
     /** Checks for the next notification on close*/

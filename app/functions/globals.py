@@ -2157,3 +2157,14 @@ def getClusterClassifications(cluster_id):
     print('Cluster classifications fetched in {}'.format(time.time()-startTime))
     
     return classifications
+
+def checkFile(file,folder):
+    '''Checks if a file exists in S3. Returns the filename if it does and None otherwise.'''
+    try:
+        if Config.DEBUGGING: print('checking {}'.format(folder + '/' + file))
+        check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=folder + '/' + file)
+        return file
+    except:
+        if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + file))
+        # file does not exist
+        return None

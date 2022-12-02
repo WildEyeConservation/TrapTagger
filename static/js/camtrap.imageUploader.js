@@ -388,6 +388,7 @@ async function selectFiles(resuming=false) {
     await listFolder2(globalDirHandle,globalDirHandle.name)
     folders.push(globalDirHandle.name)
     if (resuming) {
+        uploading = true
         uploadFiles()
     } else {
         updatePathDisplay(folders)
