@@ -1469,4 +1469,13 @@ def getTaskProgress(task_id):
 
     jobsAvailable = db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
 
-    return completed, total, remaining, jobsAvailable
+    jobsCompleted = db.session.query(Turkcode)\
+                            .join(User, User.username==Turkcode.user_id)\
+                            .filter(User.parent_id!=None)\
+                            .filter(Turkcode.task_id==task_id)\
+                            .filter(Turkcode.tagging_time!=None)\
+                            .distinct().count()
+
+    jobsCompleted = jobsCompleted - task.jobs_finished
+
+    return completed, total, remaining, jobsAvailable, jobsCompleted

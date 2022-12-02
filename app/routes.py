@@ -242,17 +242,7 @@ def updateTaskProgressBar(tskd):
     
     if current_user.admin or (current_user.parent_id == None):
         task_id = int(tskd)
-        task = db.session.query(Task).get(task_id)
-        completed, total, remaining, jobsAvailable = getTaskProgress(task_id)
-
-        jobsCompleted = db.session.query(Turkcode)\
-                                .join(User, User.username==Turkcode.user_id)\
-                                .filter(User.parent_id!=None)\
-                                .filter(Turkcode.task_id==task_id)\
-                                .filter(Turkcode.tagging_time!=None)\
-                                .distinct().count()
-
-        jobsCompleted = jobsCompleted - task.jobs_finished
+        completed, total, remaining, jobsAvailable, jobsCompleted= getTaskProgress(task_id)
 
         return json.dumps({'completed':completed, 'total':total, 'remaining':remaining, 'id':task_id, 'jobsCompleted':jobsCompleted, 'jobsAvailable':jobsAvailable})
 
@@ -2506,7 +2496,7 @@ def getJobs():
 
     task_list = []
     for task in tasks.items:
-        completed, total, remaining, jobsAvailable = getTaskProgress(task.id)
+        completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task.id)
         task_dict = {}
         task_dict['id'] = task.id
         task_dict['name'] = task.survey.name
@@ -2514,6 +2504,7 @@ def getJobs():
         task_dict['total'] = total
         task_dict['remaining'] = remaining
         task_dict['jobsAvailable'] = jobsAvailable
+        task_dict['jobsCompleted'] = jobsCompleted
         task_list.append(task_dict)
 
     next_url = url_for('getJobs', page=tasks.next_num, order=order) if tasks.has_next else None
