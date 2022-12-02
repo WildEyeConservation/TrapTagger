@@ -77,10 +77,10 @@ function buildJob(job) {
     newProgInner.classList.add('active');
     newProgInner.setAttribute("role", "progressbar");
     newProgInner.setAttribute("id", "progBar"+job.id);
-    newProgInner.setAttribute("aria-valuenow", "0");
+    newProgInner.setAttribute("aria-valuenow", job.completed);
     newProgInner.setAttribute("aria-valuemin", "0");
-    newProgInner.setAttribute("aria-valuemax", "30");
-    newProgInner.setAttribute("style", "width:0%");
+    newProgInner.setAttribute("aria-valuemax", job.total);
+    newProgInner.setAttribute("style", "width:"+(job.completed/job.total)*100+"%;transition:none");
 
     newProg.appendChild(newProgInner);
     jobProgressBarDiv.appendChild(newProg);
@@ -197,11 +197,10 @@ function updateJobProgressBar() {
                     }
 
                     progBar = document.getElementById('progBar'+wrapTaskID)
-        
+                    progBar.setAttribute('style',"width:"+perc+"%")
                     progBar.setAttribute('aria-valuenow',reply.completed)
                     progBar.setAttribute('aria-valuemax',reply.total)
                     perc=(reply.completed/reply.total)*100
-                    progBar.setAttribute('style',"width:"+perc+"%")
                     progBar.innerHTML = reply.remaining
                 }
             }
