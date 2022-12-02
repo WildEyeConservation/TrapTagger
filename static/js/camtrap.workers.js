@@ -143,8 +143,10 @@ function updatePage(url){
 
             if (reply.workers.length > 0) {
                 workerListDiv.setAttribute('class','')
+                document.getElementById('mainCard').setAttribute('style','')
             } else {
                 workerListDiv.setAttribute('class','card-body')
+                document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
             for (iii=0;iii<reply.workers.length;iii++) {

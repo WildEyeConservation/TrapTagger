@@ -488,8 +488,10 @@ function updatePage(url){
 
             if (reply.surveys.length > 0) {
                 surveyListDiv.setAttribute('class','')
+                document.getElementById('mainCard').setAttribute('style','')
             } else {
                 surveyListDiv.setAttribute('class','card-body')
+                document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
             taskProcessing = false

@@ -136,8 +136,10 @@ function updatePage(url){
 
             if (reply.jobs.length > 0) {
                 jobListDiv.setAttribute('class','')
+                document.getElementById('mainCard').setAttribute('style','')
             } else {
                 jobListDiv.setAttribute('class','card-body')
+                document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
             for (iii=0;iii<reply.jobs.length;iii++) {
