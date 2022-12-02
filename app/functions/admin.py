@@ -1400,7 +1400,7 @@ def getTaskProgress(task_id):
     task = db.session.query(Task).get(task_id)
     taggingLevel = task.tagging_level
 
-    if task and task.taggingLevel:
+    if task and taggingLevel:
         if '-5' in taggingLevel:
             tL = re.split(',',taggingLevel)
             label = db.session.query(Label).get(int(tL[1]))
