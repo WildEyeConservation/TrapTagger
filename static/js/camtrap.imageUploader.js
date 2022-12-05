@@ -64,6 +64,7 @@ async function checkFileBatch() {
                         updateUploadProgress(filesUploaded,filecount)
                     }
                 }
+                checkFinishedUpload()
             })
         } catch(e) {
             proposedQueue.push(...items)
@@ -73,9 +74,6 @@ async function checkFileBatch() {
         checkFileBatch()
     } else {
         checkingFiles = false
-        if (uploadQueue.length==0) {
-            checkFinishedUpload()
-        }
     }
     return true
 }
