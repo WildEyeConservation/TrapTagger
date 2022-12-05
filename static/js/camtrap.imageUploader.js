@@ -35,7 +35,7 @@ async function addBatch() {
         items = []
         while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
             item = uploadQueue.pop()
-            items.append(item)
+            items.push(item)
             let file = await item[1].getFile()
             filename = surveyName + '/' + item[0] + '/' + file.name
             fileNames.push(filename)
