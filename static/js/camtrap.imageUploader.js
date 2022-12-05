@@ -27,47 +27,56 @@ uploadCheck = false
 uploadStart = null
 retrying = false
 
-async function addBatch() {
+async function addBatch(files=null,fileNames=null) {
     if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
         addingBatch = true
-        fileNames = []
-        files = {}
-        while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
-            item = uploadQueue.pop()
-            let file = await item[1].getFile()
-            filename = surveyName + '/' + item[0] + '/' + file.name
-            fileNames.push(filename)
-            files[filename] = file
-        }
-        await fetch('/check_upload_files', {
-            method: 'post',
-            headers: {
-                accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                filenames: fileNames
-            })
-        }).then((response) => {
-            return response.json()
-        }).then((data) => {
-            filesToAdd = []
-            for (filename in files) {
-                if (!data.includes(filename)) {
-                    file = files[filename]
-                    filesToAdd.push({
-                        name: filename,
-                        type: file.type,
-                        data: file.slice(0, file.size, file.type),
-                    })
-                } else {
-                    filesUploaded += 1
-                }
-                filesQueued += 1
-                updateUploadProgress(filesUploaded,filecount)
+        
+        if (!fileNames) {
+            fileNames = []
+            files = {}
+            while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
+                item = uploadQueue.pop()
+                let file = await item[1].getFile()
+                filename = surveyName + '/' + item[0] + '/' + file.name
+                fileNames.push(filename)
+                files[filename] = file
             }
-            uppy.addFiles(filesToAdd)
-        })
+        }
+
+        try {
+            await fetch('/check_upload_files', {
+                method: 'post',
+                headers: {
+                    accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filenames: fileNames
+                })
+            }).then((response) => {
+                return response.json()
+            }).then((data) => {
+                filesToAdd = []
+                for (filename in files) {
+                    if (!data.includes(filename)) {
+                        file = files[filename]
+                        filesToAdd.push({
+                            name: filename,
+                            type: file.type,
+                            data: file.slice(0, file.size, file.type),
+                        })
+                    } else {
+                        filesUploaded += 1
+                    }
+                    filesQueued += 1
+                    updateUploadProgress(filesUploaded,filecount)
+                }
+                uppy.addFiles(filesToAdd)
+            })
+        } catch(e) {
+            setTimeout(function() { addBatch(files,fileNames); }, 10000);
+        }
+        
         addingBatch = false
         checkFinishedUpload()
     }
@@ -290,7 +299,7 @@ uppy.on('upload-error', function (file, error) {
     // console.log(file.name + 'failed to upload: ' + error);
     if (!retrying) {
         retrying = true
-        setTimeout(function() { retryUpload(); }, 30000);
+        setTimeout(function() { retryUpload(); }, 10000);
     }
 });
 
