@@ -61,6 +61,7 @@ async function checkFileBatch() {
                     } else {
                         filesUploaded += 1
                         filesQueued += 1
+                        updateUploadProgress(filesUploaded,filecount)
                     }
                 }
             })
@@ -95,6 +96,7 @@ async function addBatch() {
         }
         uppy.addFiles(filesToAdd)
         addingBatch = false
+        checkFinishedUpload()
     }
     return true
 }
@@ -109,7 +111,7 @@ async function listFolder(dirHandle,path){
         } else {
             filecount+=1
             proposedQueue.push([path,entry])
-            if ((!checkingFiles)&&(proposedQueue.length>=batchSize)) {
+            if ((!checkingFiles)&&(proposedQueue.length>=batchSize)&&uploading) {
                 checkFileBatch()
             }
         }
@@ -254,12 +256,12 @@ async function selectFiles(resuming=false) {
     filesQueued = 0
     uploadQueue = []
     await listFolder(globalDirHandle,globalDirHandle.name)
-    if (!checkingFiles) {
-        checkFileBatch()
-    }
     folders.push(globalDirHandle.name)
     if (resuming) {
         uploading = true
+        if (!checkingFiles) {
+            checkFileBatch()
+        }
         uploadFiles()
     } else {
         updatePathDisplay(folders)
@@ -270,6 +272,9 @@ async function selectFiles(resuming=false) {
 async function uploadFiles() {
     /** Uploades the files currently in the queue */
     initUpload()
+    if (!checkingFiles) {
+        checkFileBatch()
+    }
     addBatch()
 }
 
