@@ -73,6 +73,9 @@ async function checkFileBatch() {
         checkFileBatch()
     } else {
         checkingFiles = false
+        if (uploadQueue.length==0) {
+            checkFinishedUpload()
+        }
     }
     return true
 }
