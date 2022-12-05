@@ -72,13 +72,13 @@ async function addBatch() {
                 }
                 uppy.addFiles(filesToAdd)
             })
+            addingBatch = false
+            checkFinishedUpload()
         } catch(e) {
             uploadQueue.push(...items)
             setTimeout(function() { addBatch(); }, 10000);
+            addingBatch = false
         }
-
-        addingBatch = false
-        checkFinishedUpload()
     }
     return true
 }
