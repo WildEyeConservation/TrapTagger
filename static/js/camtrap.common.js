@@ -1042,7 +1042,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 document.getElementById('groundLabels').innerHTML = "Ground Truth: "+temp;
             }
 
-            if (!isClassCheck) {
+            if (!isClassCheck&&document.getElementById('classifierLabels')) {
                 var temp =''
                 for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++) {
                     temp += clusters[mapID][clusterIndex[mapID]].tags[i]
@@ -2488,8 +2488,12 @@ function checkWaitModal(mapID = 'map1') {
 
     PlsWaitCountDown -= 1
     if (PlsWaitCountDown<=0) {
-        window.location.replace("done")
-        document.getElementById('PlsWaitCountDownDiv').innerHTML = "0"
+        if (isComparison) {
+            PlsWaitCountDown = 30
+        } else {
+            window.location.replace("done")
+            document.getElementById('PlsWaitCountDownDiv').innerHTML = "0"
+        }
     } else {
         document.getElementById('PlsWaitCountDownDiv').innerHTML = PlsWaitCountDown
     }
