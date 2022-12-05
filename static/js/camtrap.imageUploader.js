@@ -25,6 +25,7 @@ uploadPaused = false
 uploadID = null
 uploadCheck = false
 uploadStart = null
+retrying = false
 
 async function addBatch() {
     if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
@@ -285,34 +286,45 @@ uppy.on('upload-success', (file, response) => {
 })
 
 uppy.on('upload-error', function (file, error) {
-    console.log(file.name + 'failed to upload: ' + error);
+    /** Retry upload on error */
+    // console.log(file.name + 'failed to upload: ' + error);
+    if (!retrying) {
+        retrying = true
+        setTimeout(function() { retryUpload(); }, 30000);
+    }
 });
+
+function retryUpload() {
+    /** retries the failed uploads */
+    retrying = false
+    uppy.retryAll()
+}
 
 async function checkFinishedUpload() {
     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
     if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)) {
-        if (filesActuallyUploaded==0) {
-            //completely done
-            // do something like just set status to ready if uploadCheck==false and filesActuallyUploaded==0 because nothing was uploaded
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    updatePage(current_page)
-                }
+        // if (filesActuallyUploaded==0) {
+        //completely done
+        // do something like just set status to ready if uploadCheck==false and filesActuallyUploaded==0 because nothing was uploaded
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                updatePage(current_page)
             }
-            xhttp.send();
-            resetUploadStatusVariables()
-            console.log('Upload Complete')
-        } else {
-            //check upload - restart upload
-            uploadCheck = true
-            filesQueued = 0
-            filecount = 0
-            await listFolder(globalDirHandle,globalDirHandle.name)
-            uploadFiles()
         }
+        xhttp.send();
+        resetUploadStatusVariables()
+        console.log('Upload Complete')
+        // } else {
+        //     //check upload - restart upload
+        //     uploadCheck = true
+        //     filesQueued = 0
+        //     filecount = 0
+        //     await listFolder(globalDirHandle,globalDirHandle.name)
+        //     uploadFiles()
+        // }
     } else {
         addBatch()
     }
@@ -333,6 +345,7 @@ function resetUploadStatusVariables() {
     uploadID = null
     uploadCheck = false
     uploadStart = null
+    retrying = false
 }
 
 function pauseUpload() {
