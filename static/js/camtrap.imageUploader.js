@@ -27,20 +27,19 @@ uploadCheck = false
 uploadStart = null
 retrying = false
 
-async function addBatch(files=null,fileNames=null) {
+async function addBatch() {
     if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
         addingBatch = true
-        
-        if (!fileNames) {
-            fileNames = []
-            files = {}
-            while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
-                item = uploadQueue.pop()
-                let file = await item[1].getFile()
-                filename = surveyName + '/' + item[0] + '/' + file.name
-                fileNames.push(filename)
-                files[filename] = file
-            }
+        fileNames = []
+        files = {}
+        items = []
+        while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
+            item = uploadQueue.pop()
+            items.append(item)
+            let file = await item[1].getFile()
+            filename = surveyName + '/' + item[0] + '/' + file.name
+            fileNames.push(filename)
+            files[filename] = file
         }
 
         try {
@@ -74,9 +73,10 @@ async function addBatch(files=null,fileNames=null) {
                 uppy.addFiles(filesToAdd)
             })
         } catch(e) {
-            setTimeout(function() { addBatch(files,fileNames); }, 10000);
+            uploadQueue.push(...items)
+            setTimeout(function() { addBatch(); }, 10000);
         }
-        
+
         addingBatch = false
         checkFinishedUpload()
     }
