@@ -17,6 +17,7 @@ surveyName = null
 filesUploaded = 0
 filesActuallyUploaded = 0
 filesQueued = 0
+proposedQueue = []
 uploadQueue = []
 globalDirHandle = null
 filecount=0
@@ -26,24 +27,22 @@ uploadID = null
 uploadCheck = false
 uploadStart = null
 retrying = false
+checkingFiles = false
 
-async function addBatch() {
-    if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
-        addingBatch = true
-        fileNames = []
-        files = {}
-        items = []
-        while ((fileNames.length<batchSize)&&(uploadQueue.length>0)) {
-            item = uploadQueue.pop()
+async function checkFileBatch() {
+    /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
+    if (proposedQueue.length>0) {
+        checkingFiles = true
+        let fileNames = []
+        let items = []
+        while ((fileNames.length<batchSize)&&(proposedQueue.length>0)) {
+            let item = proposedQueue.pop()
             items.push(item)
-            let file = await item[1].getFile()
-            filename = surveyName + '/' + item[0] + '/' + file.name
-            fileNames.push(filename)
-            files[filename] = file
+            fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
         }
 
         try {
-            await fetch('/check_upload_files', {
+            fetch('/check_upload_files', {
                 method: 'post',
                 headers: {
                     accept: 'application/json',
@@ -55,30 +54,47 @@ async function addBatch() {
             }).then((response) => {
                 return response.json()
             }).then((data) => {
-                filesToAdd = []
-                for (filename in files) {
-                    if (!data.includes(filename)) {
-                        file = files[filename]
-                        filesToAdd.push({
-                            name: filename,
-                            type: file.type,
-                            data: file.slice(0, file.size, file.type),
-                        })
+                for (let itemIdx=0;itemIdx<items.length;itemIdx++) {
+                    let item = items[itemIdx]
+                    if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
+                        uploadQueue.push(item)
                     } else {
                         filesUploaded += 1
+                        filesQueued += 1
                     }
-                    filesQueued += 1
-                    updateUploadProgress(filesUploaded,filecount)
                 }
-                uppy.addFiles(filesToAdd)
             })
-            addingBatch = false
-            checkFinishedUpload()
         } catch(e) {
-            uploadQueue.push(...items)
-            setTimeout(function() { addBatch(); }, 10000);
-            addingBatch = false
+            proposedQueue.push(...items)
+            setTimeout(function() { checkFileBatch(); }, 10000);
         }
+
+        checkFileBatch()
+    } else {
+        checkingFiles = false
+    }
+    return true
+}
+
+async function addBatch() {
+    /** Opens a batch of images from the checked queue and moves them to Uppy for upload. */
+    if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
+        addingBatch = true
+        let filesToAdd = []
+        while ((filesToAdd.length<batchSize)&&(uploadQueue.length>0)) {
+            let item = uploadQueue.pop()
+            let file = await item[1].getFile()
+            let filename = surveyName + '/' + item[0] + '/' + item[1].name
+            filesToAdd.push({
+                name: filename,
+                type: file.type,
+                data: file.slice(0, file.size, file.type),
+            })
+            filesQueued += 1
+            updateUploadProgress(filesUploaded,filecount)
+        }
+        uppy.addFiles(filesToAdd)
+        addingBatch = false
     }
     return true
 }
@@ -92,7 +108,10 @@ async function listFolder(dirHandle,path){
             updatePathDisplay(folders)
         } else {
             filecount+=1
-            uploadQueue.push([path,entry])
+            proposedQueue.push([path,entry])
+            if ((!checkingFiles)&&(proposedQueue.length>=batchSize)) {
+                checkFileBatch()
+            }
         }
     }
     return filecount
@@ -235,6 +254,9 @@ async function selectFiles(resuming=false) {
     filesQueued = 0
     uploadQueue = []
     await listFolder(globalDirHandle,globalDirHandle.name)
+    if (!checkingFiles) {
+        checkFileBatch()
+    }
     folders.push(globalDirHandle.name)
     if (resuming) {
         uploading = true
@@ -346,6 +368,7 @@ function resetUploadStatusVariables() {
     filesUploaded = 0
     filesActuallyUploaded = 0
     filesQueued = 0
+    proposedQueue = []
     uploadQueue = []
     globalDirHandle = null
     filecount=0
@@ -355,6 +378,7 @@ function resetUploadStatusVariables() {
     uploadCheck = false
     uploadStart = null
     retrying = false
+    checkingFiles = false
 }
 
 function pauseUpload() {
