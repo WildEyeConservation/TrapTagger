@@ -378,7 +378,7 @@ function resetUploadStatusVariables() {
     filecount=0
     addingBatch = false
     uploadPaused = false
-    uploadID = null
+    // uploadID = null
     uploadCheck = false
     uploadStart = null
     retrying = false
