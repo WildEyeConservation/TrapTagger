@@ -28,6 +28,7 @@ uploadCheck = false
 uploadStart = null
 retrying = false
 checkingFiles = false
+folders = []
 
 // worker = new Worker('js/camtrap.fileWorker.v2.js')
 
