@@ -96,7 +96,8 @@ async function addBatch() {
             filesQueued += 1
             updateUploadProgress(filesUploaded,filecount)
         }
-        uppy.addFiles(filesToAdd)
+        // uppy.addFiles(filesToAdd)
+        postMessage({'func': 'uppyAddFiles', 'args': filesToAdd})
         addingBatch = false
         checkFinishedUpload()
     }
@@ -393,31 +394,35 @@ function pauseUpload() {
 }
 
 function updateUploadProgress(value,total) {
-    /** Updates the file upload progress bar */
-    progBar = document.getElementById('uploadProgBar')
-    if (progBar) {
-        perc=(value/total)*100
-
-        progBar.setAttribute('aria-valuenow',value)
-        progBar.setAttribute('style',"width:"+perc+"%")
-        progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
-    
-        if (uploadCheck) {
-            document.getElementById('uploadStatus').innerHTML = 'Checking...'
-        } else if (uploadPaused) {
-            document.getElementById('uploadStatus').innerHTML = 'Paused'
-        } else {
-            document.getElementById('uploadStatus').innerHTML = 'Uploading...'
-        }
-    
-        timeElapsed = (Date.now() - uploadStart)/1000
-        if ((value!=0) && (value<=total)) {
-            rate = timeElapsed/value
-            seconds = rate*(total-value)
-            timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
-            document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
-        }
-    } else if (uploading) {
-        buildUploadProgress()
-    }
+    postMessage({'func': 'updateUploadProgress', 'args': [value,total]})
 }
+
+// function updateUploadProgress(value,total) {
+//     /** Updates the file upload progress bar */
+//     progBar = document.getElementById('uploadProgBar')
+//     if (progBar) {
+//         perc=(value/total)*100
+
+//         progBar.setAttribute('aria-valuenow',value)
+//         progBar.setAttribute('style',"width:"+perc+"%")
+//         progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
+    
+//         if (uploadCheck) {
+//             document.getElementById('uploadStatus').innerHTML = 'Checking...'
+//         } else if (uploadPaused) {
+//             document.getElementById('uploadStatus').innerHTML = 'Paused'
+//         } else {
+//             document.getElementById('uploadStatus').innerHTML = 'Uploading...'
+//         }
+    
+//         timeElapsed = (Date.now() - uploadStart)/1000
+//         if ((value!=0) && (value<=total)) {
+//             rate = timeElapsed/value
+//             seconds = rate*(total-value)
+//             timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
+//             document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
+//         }
+//     } else if (uploading) {
+//         buildUploadProgress()
+//     }
+// }

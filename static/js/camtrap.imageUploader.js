@@ -31,6 +31,14 @@ checkingFiles = false
 
 worker = new Worker('js/camtrap.fileWorker.v2.js')
 
+worker.onmessage = function(evt){
+    if (evt.data.func=='updateUploadProgress') {
+        updateUploadProgress(evt.data.args[0],evt.data.args[1])
+    } else if (evt.data.func=='uppyAddFiles') {
+        uppy.addFiles(evt.data.args)
+    }
+};
+
 async function checkFileBatch() {
     /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
     if (proposedQueue.length>0) {
