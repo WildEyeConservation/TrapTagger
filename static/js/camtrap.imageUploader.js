@@ -29,6 +29,8 @@ uploadStart = null
 retrying = false
 checkingFiles = false
 
+worker = new Worker('js/camtrap.fileWorker.v1.js')
+
 async function checkFileBatch() {
     /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
     if (proposedQueue.length>0) {
@@ -248,20 +250,21 @@ function updatePathDisplay(folders) {
 
 async function selectFiles(resuming=false) {
     /** Allows a user to select a folder, which is then iterated through and uploaded */
-    resetUploadStatusVariables()
-    globalDirHandle = await window.showDirectoryPicker();
-    await listFolder(globalDirHandle,globalDirHandle.name)
-    folders.push(globalDirHandle.name)
-    if (resuming) {
-        uploading = true
-        if (!checkingFiles) {
-            checkFileBatch()
-        }
-        uploadFiles()
-    } else {
-        updatePathDisplay(folders)
-        checkTrapgroupCode()
-    }
+    worker.postMessage(0)
+    // resetUploadStatusVariables()
+    // globalDirHandle = await window.showDirectoryPicker();
+    // await listFolder(globalDirHandle,globalDirHandle.name)
+    // folders.push(globalDirHandle.name)
+    // if (resuming) {
+    //     uploading = true
+    //     if (!checkingFiles) {
+    //         checkFileBatch()
+    //     }
+    //     uploadFiles()
+    // } else {
+    //     updatePathDisplay(folders)
+    //     checkTrapgroupCode()
+    // }
 }
 
 async function uploadFiles() {
