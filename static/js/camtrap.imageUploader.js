@@ -337,7 +337,7 @@ function retryUpload() {
 
 async function checkFinishedUpload() {
     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
-    if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)) {
+    if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)) {
         // if (filesActuallyUploaded==0) {
         //completely done
         // do something like just set status to ready if uploadCheck==false and filesActuallyUploaded==0 because nothing was uploaded
@@ -361,6 +361,9 @@ async function checkFinishedUpload() {
         //     uploadFiles()
         // }
     } else {
+        if (!checkingFiles&&(proposedQueue.length!=0)) {
+            checkFileBatch()
+        }
         addBatch()
     }
 }
