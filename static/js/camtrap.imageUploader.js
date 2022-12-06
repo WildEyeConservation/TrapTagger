@@ -289,7 +289,7 @@ async function uploadFiles() {
     } else {
         modalAddImages.modal('hide')
     }
-    worker.postMessage({'func': 'uploadFiles', 'args': null});
+    worker.postMessage({'func': 'uploadFiles', 'args': surveyName});
     // initUpload()
     // if (!checkingFiles) {
     //     checkFileBatch()
@@ -354,36 +354,40 @@ function retryUpload() {
 }
 
 async function checkFinishedUpload() {
-    /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
-    if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)) {
-        //completely done
-
-        if (filesActuallyUploaded==0) {
-            // don't bother importing
-            let newStatus = 'Ready'
-        } else {
-            let newStatus = 'Complete'
-        }
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/'+newStatus);
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                updatePage(current_page)
-            }
-        }
-        xhttp.send();
-
-        resetUploadStatusVariables()
-        console.log('Upload Complete')
-    } else {
-        if (!checkingFiles&&(proposedQueue.length!=0)) {
-            checkFileBatch()
-        }
-        addBatch()
-    }
+    worker.postMessage({'func': 'checkFinishedUpload', 'args': null});
 }
+
+// async function checkFinishedUpload() {
+//     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
+//     if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)) {
+//         //completely done
+
+//         if (filesActuallyUploaded==0) {
+//             // don't bother importing
+//             let newStatus = 'Ready'
+//         } else {
+//             let newStatus = 'Complete'
+//         }
+
+//         var xhttp = new XMLHttpRequest();
+//         xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/'+newStatus);
+//         xhttp.onreadystatechange =
+//         function(){
+//             if (this.readyState == 4 && this.status == 200) {
+//                 updatePage(current_page)
+//             }
+//         }
+//         xhttp.send();
+
+//         resetUploadStatusVariables()
+//         console.log('Upload Complete')
+//     } else {
+//         if (!checkingFiles&&(proposedQueue.length!=0)) {
+//             checkFileBatch()
+//         }
+//         addBatch()
+//     }
+// }
 
 function resetUploadStatusVariables() {
     /** Resets all the status variables */

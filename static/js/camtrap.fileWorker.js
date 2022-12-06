@@ -262,7 +262,10 @@ onmessage = function (evt) {
         globalDirHandle = evt.data.args
         selectFiles()
     } else if (evt.data.func=='uploadFiles') {
+        surveyName = evt.data.args
         uploadFiles()
+    } else if (evt.data.func=='checkFinishedUpload') {
+        checkFinishedUpload()
     }
 };
 
