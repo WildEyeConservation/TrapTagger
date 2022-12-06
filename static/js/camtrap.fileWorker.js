@@ -30,6 +30,23 @@ retrying = false
 checkingFiles = false
 folders = []
 
+onmessage = function (evt) {
+    if (evt.data.func=='selectFiles') {
+        resetUploadStatusVariables()
+        globalDirHandle = evt.data.args
+        selectFiles()
+    } else if (evt.data.func=='uploadFiles') {
+        surveyName = evt.data.args
+        uploadFiles()
+    } else if (evt.data.func=='checkFinishedUpload') {
+        checkFinishedUpload()
+    } else if (evt.data.func=='fileUploadedSuccessfully') {
+        fileUploadedSuccessfully()
+    } else if (evt.data.func=='resetUploadStatusVariables') {
+        resetUploadStatusVariables()
+    }
+};
+
 async function checkFileBatch() {
     /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
     if (proposedQueue.length>0) {
@@ -256,21 +273,6 @@ function updatePathDisplay(folders) {
 //     }
 // }
 
-onmessage = function (evt) {
-    if (evt.data.func=='selectFiles') {
-        resetUploadStatusVariables()
-        globalDirHandle = evt.data.args
-        selectFiles()
-    } else if (evt.data.func=='uploadFiles') {
-        surveyName = evt.data.args
-        uploadFiles()
-    } else if (evt.data.func=='checkFinishedUpload') {
-        checkFinishedUpload()
-    } else if (evt.data.func=='fileUploadedSuccessfully') {
-        fileUploadedSuccessfully()
-    }
-};
-
 function fileUploadedSuccessfully() {
     filesUploaded += 1
     filesActuallyUploaded += 1
@@ -355,11 +357,11 @@ async function uploadFiles() {
 //     }
 // });
 
-function retryUpload() {
-    /** retries the failed uploads */
-    retrying = false
-    uppy.retryAll()
-}
+// function retryUpload() {
+//     /** retries the failed uploads */
+//     retrying = false
+//     uppy.retryAll()
+// }
 
 async function checkFinishedUpload() {
     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
@@ -368,9 +370,9 @@ async function checkFinishedUpload() {
 
         if (filesActuallyUploaded==0) {
             // don't bother importing
-            let newStatus = 'Ready'
+            newStatus = 'Ready'
         } else {
-            let newStatus = 'Complete'
+            newStatus = 'Complete'
         }
 
         var xhttp = new XMLHttpRequest();
@@ -378,7 +380,7 @@ async function checkFinishedUpload() {
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
-                updatePage(current_page)
+                postMessage({'func': 'updatePage', 'args': null})
             }
         }
         xhttp.send();
@@ -412,12 +414,12 @@ function resetUploadStatusVariables() {
     folders = []
 }
 
-function pauseUpload() {
-    /** Pauses an upload by cancelling it. */
-    uppy.cancelAll()
-    resetUploadStatusVariables()
-    updatePage(current_page)
-}
+// function pauseUpload() {
+//     /** Pauses an upload by cancelling it. */
+//     uppy.cancelAll()
+//     resetUploadStatusVariables()
+//     updatePage(current_page)
+// }
 
 function updateUploadProgress(value,total) {
     postMessage({'func': 'updateUploadProgress', 'args': [value,total]})

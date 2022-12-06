@@ -43,99 +43,101 @@ worker.onmessage = function(evt){
         checkTrapgroupCode()
     } else if (evt.data.func=='buildUploadProgress') {
         buildUploadProgress()
+    } else if (evt.data.func=='updatePage') {
+        updatePage(current_page)
     }
 };
 
-async function checkFileBatch() {
-    /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
-    if (proposedQueue.length>0) {
-        checkingFiles = true
-        let fileNames = []
-        let items = []
-        while ((fileNames.length<batchSize)&&(proposedQueue.length>0)) {
-            let item = proposedQueue.pop()
-            items.push(item)
-            fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
-        }
+// async function checkFileBatch() {
+//     /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
+//     if (proposedQueue.length>0) {
+//         checkingFiles = true
+//         let fileNames = []
+//         let items = []
+//         while ((fileNames.length<batchSize)&&(proposedQueue.length>0)) {
+//             let item = proposedQueue.pop()
+//             items.push(item)
+//             fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
+//         }
 
-        try {
-            fetch('/check_upload_files', {
-                method: 'post',
-                headers: {
-                    accept: 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    filenames: fileNames
-                })
-            }).then((response) => {
-                return response.json()
-            }).then((data) => {
-                for (let itemIdx=0;itemIdx<items.length;itemIdx++) {
-                    let item = items[itemIdx]
-                    if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
-                        uploadQueue.push(item)
-                    } else {
-                        filesUploaded += 1
-                        filesQueued += 1
-                        updateUploadProgress(filesUploaded,filecount)
-                    }
-                }
-                checkFinishedUpload()
-            })
-        } catch(e) {
-            proposedQueue.push(...items)
-            setTimeout(function() { checkFileBatch(); }, 10000);
-        }
+//         try {
+//             fetch('/check_upload_files', {
+//                 method: 'post',
+//                 headers: {
+//                     accept: 'application/json',
+//                     'Content-Type': 'application/json',
+//                 },
+//                 body: JSON.stringify({
+//                     filenames: fileNames
+//                 })
+//             }).then((response) => {
+//                 return response.json()
+//             }).then((data) => {
+//                 for (let itemIdx=0;itemIdx<items.length;itemIdx++) {
+//                     let item = items[itemIdx]
+//                     if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
+//                         uploadQueue.push(item)
+//                     } else {
+//                         filesUploaded += 1
+//                         filesQueued += 1
+//                         updateUploadProgress(filesUploaded,filecount)
+//                     }
+//                 }
+//                 checkFinishedUpload()
+//             })
+//         } catch(e) {
+//             proposedQueue.push(...items)
+//             setTimeout(function() { checkFileBatch(); }, 10000);
+//         }
 
-        checkFileBatch()
-    } else {
-        checkingFiles = false
-    }
-    return true
-}
+//         checkFileBatch()
+//     } else {
+//         checkingFiles = false
+//     }
+//     return true
+// }
 
-async function addBatch() {
-    /** Opens a batch of images from the checked queue and moves them to Uppy for upload. */
-    if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
-        addingBatch = true
-        let filesToAdd = []
-        while ((filesToAdd.length<batchSize)&&(uploadQueue.length>0)) {
-            let item = uploadQueue.pop()
-            let file = await item[1].getFile()
-            let filename = surveyName + '/' + item[0] + '/' + item[1].name
-            filesToAdd.push({
-                name: filename,
-                type: file.type,
-                data: file.slice(0, file.size, file.type),
-            })
-            filesQueued += 1
-            updateUploadProgress(filesUploaded,filecount)
-        }
-        uppy.addFiles(filesToAdd)
-        addingBatch = false
-        checkFinishedUpload()
-    }
-    return true
-}
+// async function addBatch() {
+//     /** Opens a batch of images from the checked queue and moves them to Uppy for upload. */
+//     if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
+//         addingBatch = true
+//         let filesToAdd = []
+//         while ((filesToAdd.length<batchSize)&&(uploadQueue.length>0)) {
+//             let item = uploadQueue.pop()
+//             let file = await item[1].getFile()
+//             let filename = surveyName + '/' + item[0] + '/' + item[1].name
+//             filesToAdd.push({
+//                 name: filename,
+//                 type: file.type,
+//                 data: file.slice(0, file.size, file.type),
+//             })
+//             filesQueued += 1
+//             updateUploadProgress(filesUploaded,filecount)
+//         }
+//         uppy.addFiles(filesToAdd)
+//         addingBatch = false
+//         checkFinishedUpload()
+//     }
+//     return true
+// }
 
-async function listFolder(dirHandle,path){
-    /** Iterates through a folder, adding the files to the upload queue */
-    for await (const entry of dirHandle.values()) {
-        if (entry.kind=='directory'){
-            await listFolder(entry,path+'/'+entry.name)
-            folders.push(path+'/'+entry.name)
-            updatePathDisplay(folders)
-        } else {
-            filecount+=1
-            proposedQueue.push([path,entry])
-            if ((!checkingFiles)&&(proposedQueue.length>=batchSize)&&uploading) {
-                checkFileBatch()
-            }
-        }
-    }
-    return filecount
-}
+// async function listFolder(dirHandle,path){
+//     /** Iterates through a folder, adding the files to the upload queue */
+//     for await (const entry of dirHandle.values()) {
+//         if (entry.kind=='directory'){
+//             await listFolder(entry,path+'/'+entry.name)
+//             folders.push(path+'/'+entry.name)
+//             updatePathDisplay(folders)
+//         } else {
+//             filecount+=1
+//             proposedQueue.push([path,entry])
+//             if ((!checkingFiles)&&(proposedQueue.length>=batchSize)&&uploading) {
+//                 checkFileBatch()
+//             }
+//         }
+//     }
+//     return filecount
+// }
 
 function buildUploadProgress() {
     /** Builds the upload progress bar */
@@ -217,20 +219,20 @@ function buildUploadProgress() {
     }
 }
 
-function initUpload() {
-    /** Prepares for a file upload */
-    uploadStart = Date.now()
-    filesUploaded = 0
-    filesActuallyUploaded = 0
+// function initUpload() {
+//     /** Prepares for a file upload */
+//     uploadStart = Date.now()
+//     filesUploaded = 0
+//     filesActuallyUploaded = 0
 
-    buildUploadProgress()
+//     buildUploadProgress()
     
-    if (modalNewSurvey.is(':visible')) {
-        modalNewSurvey.modal('hide')
-    } else {
-        modalAddImages.modal('hide')
-    }
-}
+//     if (modalNewSurvey.is(':visible')) {
+//         modalNewSurvey.modal('hide')
+//     } else {
+//         modalAddImages.modal('hide')
+//     }
+// }
 
 function updatePathDisplay(folders) {
     /** Updates the folders found display */
@@ -413,6 +415,7 @@ function pauseUpload() {
     /** Pauses an upload by cancelling it. */
     uppy.cancelAll()
     resetUploadStatusVariables()
+    worker.postMessage({'func': 'resetUploadStatusVariables', 'args': null});
     updatePage(current_page)
 }
 
