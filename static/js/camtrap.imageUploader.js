@@ -38,6 +38,8 @@ worker.onmessage = function(evt){
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
         updatePathDisplay(evt.data.args)
+    } else if (evt.data.func=='checkTrapgroupCode') {
+        checkTrapgroupCode()
     }
 };
 

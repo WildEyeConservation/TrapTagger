@@ -270,7 +270,9 @@ async function selectFiles(resuming=false) {
         uploadFiles()
     } else {
         updatePathDisplay(folders)
-        checkTrapgroupCode()
+        // checkTrapgroupCode()
+        postMessage({'func': 'checkTrapgroupCode', 'args': null})
+        
     }
 }
 
@@ -283,55 +285,55 @@ async function uploadFiles() {
     addBatch()
 }
 
-var uppy = new Uppy.Uppy({
-    /** New uppy instance that auto uploads as soon as it is handed a file */
-    autoProceed: true
-})
+// var uppy = new Uppy.Uppy({
+//     /** New uppy instance that auto uploads as soon as it is handed a file */
+//     autoProceed: true
+// })
 
-uppy.use(Uppy.AwsS3, {
-    /** Uppy is set up to directly upload to S3 using a presigned URL from the application server */
-    getUploadParameters (file) {
-        return fetch('/get_presigned_url', {
-            method: 'post',
-            headers: {
-                accept: 'application/json',
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                filename: file.name,
-                contentType: file.type,
-            }),
-        }).then((response) => {
-            return response.text()
-        }).then((url) => {
-            return {
-                method: 'PUT',
-                url: url,
-                fields: {},
-                headers: {
-                    'Content-Type': file.type,
-                }
-            }
-        })
-    },
-})
+// uppy.use(Uppy.AwsS3, {
+//     /** Uppy is set up to directly upload to S3 using a presigned URL from the application server */
+//     getUploadParameters (file) {
+//         return fetch('/get_presigned_url', {
+//             method: 'post',
+//             headers: {
+//                 accept: 'application/json',
+//                 'content-type': 'application/json',
+//             },
+//             body: JSON.stringify({
+//                 filename: file.name,
+//                 contentType: file.type,
+//             }),
+//         }).then((response) => {
+//             return response.text()
+//         }).then((url) => {
+//             return {
+//                 method: 'PUT',
+//                 url: url,
+//                 fields: {},
+//                 headers: {
+//                     'Content-Type': file.type,
+//                 }
+//             }
+//         })
+//     },
+// })
 
-uppy.on('upload-success', (file, response) => {
-    /** On successful upload, increment the counts, remove the file from memory, and then check if finished */
-    uppy.removeFile(file)
-    filesUploaded += 1
-    filesActuallyUploaded += 1
-    updateUploadProgress(filesUploaded,filecount)
-    checkFinishedUpload()
-})
+// uppy.on('upload-success', (file, response) => {
+//     /** On successful upload, increment the counts, remove the file from memory, and then check if finished */
+//     uppy.removeFile(file)
+//     filesUploaded += 1
+//     filesActuallyUploaded += 1
+//     updateUploadProgress(filesUploaded,filecount)
+//     checkFinishedUpload()
+// })
 
-uppy.on('upload-error', function (file, error) {
-    /** Retry upload on error */
-    if (!retrying) {
-        retrying = true
-        setTimeout(function() { retryUpload(); }, 10000);
-    }
-});
+// uppy.on('upload-error', function (file, error) {
+//     /** Retry upload on error */
+//     if (!retrying) {
+//         retrying = true
+//         setTimeout(function() { retryUpload(); }, 10000);
+//     }
+// });
 
 function retryUpload() {
     /** retries the failed uploads */
