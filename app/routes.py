@@ -760,6 +760,7 @@ def updateSurveyStatus(surveyName, status):
         db.session.commit()
         if status == 'Complete':
             import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+    
     return json.dumps('')
 
 @app.route('/checkSightingEditStatus/<task_id>/<species>')

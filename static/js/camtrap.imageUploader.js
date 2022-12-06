@@ -206,10 +206,6 @@ function initUpload() {
     filesUploaded = 0
     filesActuallyUploaded = 0
 
-    // if (!surveyName) { 
-    //     surveyName = document.getElementById('newSurveyName').value
-    // }
-
     buildUploadProgress()
     
     if (modalNewSurvey.is(':visible')) {
@@ -312,7 +308,6 @@ uppy.use(Uppy.AwsS3, {
 
 uppy.on('upload-success', (file, response) => {
     /** On successful upload, increment the counts, remove the file from memory, and then check if finished */
-    // console.log(file.name+' uploaded successfully!')
     uppy.removeFile(file)
     filesUploaded += 1
     filesActuallyUploaded += 1
@@ -322,7 +317,6 @@ uppy.on('upload-success', (file, response) => {
 
 uppy.on('upload-error', function (file, error) {
     /** Retry upload on error */
-    // console.log(file.name + 'failed to upload: ' + error);
     if (!retrying) {
         retrying = true
         setTimeout(function() { retryUpload(); }, 10000);
@@ -338,11 +332,17 @@ function retryUpload() {
 async function checkFinishedUpload() {
     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
     if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)) {
-        // if (filesActuallyUploaded==0) {
         //completely done
-        // do something like just set status to ready if uploadCheck==false and filesActuallyUploaded==0 because nothing was uploaded
+
+        if (filesActuallyUploaded==0) {
+            // don't bother importing
+            let newStatus = 'Ready'
+        } else {
+            let newStatus = 'Complete'
+        }
+
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/Ready');
+        xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/'+newStatus);
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
@@ -350,16 +350,9 @@ async function checkFinishedUpload() {
             }
         }
         xhttp.send();
+
         resetUploadStatusVariables()
         console.log('Upload Complete')
-        // } else {
-        //     //check upload - restart upload
-        //     uploadCheck = true
-        //     filesQueued = 0
-        //     filecount = 0
-        //     await listFolder(globalDirHandle,globalDirHandle.name)
-        //     uploadFiles()
-        // }
     } else {
         if (!checkingFiles&&(proposedQueue.length!=0)) {
             checkFileBatch()
@@ -371,7 +364,6 @@ async function checkFinishedUpload() {
 function resetUploadStatusVariables() {
     /** Resets all the status variables */
     uploading = false
-    // surveyName = null
     filesUploaded = 0
     filesActuallyUploaded = 0
     filesQueued = 0
@@ -381,7 +373,6 @@ function resetUploadStatusVariables() {
     filecount=0
     addingBatch = false
     uploadPaused = false
-    // uploadID = null
     uploadCheck = false
     uploadStart = null
     retrying = false
