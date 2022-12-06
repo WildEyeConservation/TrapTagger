@@ -214,11 +214,11 @@ function initUpload() {
 
     buildUploadProgress()
     
-    if (modalNewSurvey.is(':visible')) {
-        modalNewSurvey.modal('hide')
-    } else {
-        modalAddImages.modal('hide')
-    }
+    // if (modalNewSurvey.is(':visible')) {
+    //     modalNewSurvey.modal('hide')
+    // } else {
+    //     modalAddImages.modal('hide')
+    // }
 }
 
 function updatePathDisplay(folders) {

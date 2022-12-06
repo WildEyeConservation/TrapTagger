@@ -284,6 +284,11 @@ async function selectFiles(resuming=false) {
 
 async function uploadFiles() {
     /** Uploades the files currently in the queue */
+    if (modalNewSurvey.is(':visible')) {
+        modalNewSurvey.modal('hide')
+    } else {
+        modalAddImages.modal('hide')
+    }
     worker.postMessage({'func': 'uploadFiles', 'args': null});
     // initUpload()
     // if (!checkingFiles) {
