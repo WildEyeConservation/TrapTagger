@@ -218,35 +218,39 @@ function initUpload() {
 }
 
 function updatePathDisplay(folders) {
-    /** Updates the folders found display */
-    pathDisplay = document.getElementById('pathDisplay')
-
-    if (pathDisplay) {
-        while(pathDisplay.firstChild){
-            pathDisplay.removeChild(pathDisplay.firstChild);
-        }
-
-        // add file count
-        let fileCountOption = document.createElement('option');
-        fileCountOption.text = 'Files detected: '+filecount.toString();
-        fileCountOption.value = 0;
-        pathDisplay.add(fileCountOption);
-
-        // add folder heading
-        let folderDisplay = document.createElement('option');
-        folderDisplay.text = 'Paths found:';
-        folderDisplay.value = 1;
-        pathDisplay.add(folderDisplay)
-
-        //add paths
-        for (let idx = 2; idx < folders.length; idx++){
-            let option = document.createElement('option');
-            option.text = folders[idx];
-            option.value = idx;
-            pathDisplay.add(option);
-        }
-    }
+    postMessage({'func': 'updatePathDisplay', 'args': folders})
 }
+
+// function updatePathDisplay(folders) {
+//     /** Updates the folders found display */
+//     pathDisplay = document.getElementById('pathDisplay')
+
+//     if (pathDisplay) {
+//         while(pathDisplay.firstChild){
+//             pathDisplay.removeChild(pathDisplay.firstChild);
+//         }
+
+//         // add file count
+//         let fileCountOption = document.createElement('option');
+//         fileCountOption.text = 'Files detected: '+filecount.toString();
+//         fileCountOption.value = 0;
+//         pathDisplay.add(fileCountOption);
+
+//         // add folder heading
+//         let folderDisplay = document.createElement('option');
+//         folderDisplay.text = 'Paths found:';
+//         folderDisplay.value = 1;
+//         pathDisplay.add(folderDisplay)
+
+//         //add paths
+//         for (let idx = 2; idx < folders.length; idx++){
+//             let option = document.createElement('option');
+//             option.text = folders[idx];
+//             option.value = idx;
+//             pathDisplay.add(option);
+//         }
+//     }
+// }
 
 onmessage = function (evt) {
     resetUploadStatusVariables()

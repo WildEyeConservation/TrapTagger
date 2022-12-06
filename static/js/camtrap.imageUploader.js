@@ -36,6 +36,8 @@ worker.onmessage = function(evt){
         updateUploadProgress(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uppyAddFiles') {
         uppy.addFiles(evt.data.args)
+    } else if (evt.data.func=='updatePathDisplay') {
+        updatePathDisplay(evt.data.args)
     }
 };
 
