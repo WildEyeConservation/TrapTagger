@@ -206,9 +206,9 @@ function initUpload() {
     filesUploaded = 0
     filesActuallyUploaded = 0
 
-    if (!surveyName) { 
-        surveyName = document.getElementById('newSurveyName').value
-    }
+    // if (!surveyName) { 
+    //     surveyName = document.getElementById('newSurveyName').value
+    // }
 
     buildUploadProgress()
     
@@ -252,10 +252,8 @@ function updatePathDisplay(folders) {
 
 async function selectFiles(resuming=false) {
     /** Allows a user to select a folder, which is then iterated through and uploaded */
+    resetUploadStatusVariables()
     globalDirHandle = await window.showDirectoryPicker();
-    folders = []
-    filesQueued = 0
-    uploadQueue = []
     await listFolder(globalDirHandle,globalDirHandle.name)
     folders.push(globalDirHandle.name)
     if (resuming) {
@@ -370,7 +368,7 @@ async function checkFinishedUpload() {
 function resetUploadStatusVariables() {
     /** Resets all the status variables */
     uploading = false
-    surveyName = null
+    // surveyName = null
     filesUploaded = 0
     filesActuallyUploaded = 0
     filesQueued = 0
@@ -385,6 +383,7 @@ function resetUploadStatusVariables() {
     uploadStart = null
     retrying = false
     checkingFiles = false
+    folders = []
 }
 
 function pauseUpload() {

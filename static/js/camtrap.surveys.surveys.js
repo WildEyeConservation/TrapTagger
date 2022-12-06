@@ -942,7 +942,7 @@ function checkTrapgroupCode() {
                 }
             }
 
-            infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.toString()
+            infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.join(', ')
         }
     } else if (folderChecked) {
         S3FolderInput = document.getElementById('S3FolderInput')
