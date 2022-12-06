@@ -1235,7 +1235,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(Individual.name!='unidentifiable')\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                        .distinct().order_by(desc(sq3.c.count3)).first()
+                        .distinct(Individual.id).order_by(desc(sq3.c.count3)).first()
 
         clusters = [cluster]
     else:
@@ -1246,7 +1246,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(Cluster.task_id == task_id) \
                         .filter(Cluster.examined==False)\
                         .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp)) \
-                        .distinct().limit(limit+1).all()
+                        .distinct(Cluster.id).limit(limit+1).all()
 
         if len(clusters) < (limit+1):
             trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
