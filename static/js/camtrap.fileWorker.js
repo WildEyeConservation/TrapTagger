@@ -123,84 +123,88 @@ async function listFolder(dirHandle,path){
 }
 
 function buildUploadProgress() {
-    /** Builds the upload progress bar */
-
-    deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
-    deleteSurveyBtn.disabled = true
-
-    taskDiv = document.getElementById('taskDiv-'+surveyName)
-    while(taskDiv.firstChild){
-        taskDiv.removeChild(taskDiv.firstChild);
-    }
-    
-    row = document.createElement('div')
-    row.classList.add('row')
-    taskDiv.appendChild(row)
-
-    row2 = document.createElement('div')
-    row2.setAttribute('class','row center')
-    row2.setAttribute('style','margin-right:10px')
-    taskDiv.appendChild(row2)
-
-    row3 = document.createElement('div')
-    row3.classList.add('row')
-    taskDiv.appendChild(row3)
-
-    col11 = document.createElement('div')
-    col11.classList.add('col-lg-10')
-    row.appendChild(col11)
-
-    col21 = document.createElement('div')
-    col21.classList.add('col-lg-10')
-    row2.appendChild(col21)
-
-    col31 = document.createElement('div')
-    col31.classList.add('col-lg-10')
-    row3.appendChild(col31)
-
-    col22 = document.createElement('div')
-    col22.classList.add('col-lg-2')
-    row2.appendChild(col22)
-
-    btnPause = document.createElement('button')
-    btnPause.setAttribute("class","btn btn-primary btn-sm btn-block")
-    btnPause.setAttribute('onclick','pauseUpload()')
-    btnPause.setAttribute('id','btnPause')
-    btnPause.innerHTML = 'Pause'
-    col22.appendChild(btnPause)
-
-    uploadStatus = document.createElement('div')
-    uploadStatus.setAttribute('id','uploadStatus')
-    col11.appendChild(uploadStatus);
-
-    var newProg = document.createElement('div');
-    newProg.classList.add('progress');
-    newProg.setAttribute('style','background-color: #3C4A59')
-
-    var newProgInner = document.createElement('div');
-    newProgInner.classList.add('progress-bar');
-    newProgInner.classList.add('progress-bar-striped');
-    newProgInner.classList.add('progress-bar-animated');
-    newProgInner.classList.add('active');
-    newProgInner.setAttribute("role", "progressbar");
-    newProgInner.setAttribute("id", "uploadProgBar");
-    newProgInner.setAttribute("aria-valuenow", "0");
-    newProgInner.setAttribute("aria-valuemin", "0");
-    newProgInner.setAttribute("aria-valuemax", "0");
-    newProgInner.setAttribute("style", "width:0%");
-
-    newProg.appendChild(newProgInner);
-    col21.appendChild(newProg);
-
-    timeRemDiv = document.createElement('div')
-    timeRemDiv.setAttribute('id','uploadTimeRemDiv')
-    timeRemDiv.setAttribute('style','font-size: 80%')
-    col31.appendChild(timeRemDiv);
-
-    if (filecount) {
-        updateUploadProgress(filesUploaded,filecount)
-    }
+    postMessage({'func': 'buildUploadProgress', 'args': null})
 }
+
+// function buildUploadProgress() {
+//     /** Builds the upload progress bar */
+
+//     deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
+//     deleteSurveyBtn.disabled = true
+
+//     taskDiv = document.getElementById('taskDiv-'+surveyName)
+//     while(taskDiv.firstChild){
+//         taskDiv.removeChild(taskDiv.firstChild);
+//     }
+    
+//     row = document.createElement('div')
+//     row.classList.add('row')
+//     taskDiv.appendChild(row)
+
+//     row2 = document.createElement('div')
+//     row2.setAttribute('class','row center')
+//     row2.setAttribute('style','margin-right:10px')
+//     taskDiv.appendChild(row2)
+
+//     row3 = document.createElement('div')
+//     row3.classList.add('row')
+//     taskDiv.appendChild(row3)
+
+//     col11 = document.createElement('div')
+//     col11.classList.add('col-lg-10')
+//     row.appendChild(col11)
+
+//     col21 = document.createElement('div')
+//     col21.classList.add('col-lg-10')
+//     row2.appendChild(col21)
+
+//     col31 = document.createElement('div')
+//     col31.classList.add('col-lg-10')
+//     row3.appendChild(col31)
+
+//     col22 = document.createElement('div')
+//     col22.classList.add('col-lg-2')
+//     row2.appendChild(col22)
+
+//     btnPause = document.createElement('button')
+//     btnPause.setAttribute("class","btn btn-primary btn-sm btn-block")
+//     btnPause.setAttribute('onclick','pauseUpload()')
+//     btnPause.setAttribute('id','btnPause')
+//     btnPause.innerHTML = 'Pause'
+//     col22.appendChild(btnPause)
+
+//     uploadStatus = document.createElement('div')
+//     uploadStatus.setAttribute('id','uploadStatus')
+//     col11.appendChild(uploadStatus);
+
+//     var newProg = document.createElement('div');
+//     newProg.classList.add('progress');
+//     newProg.setAttribute('style','background-color: #3C4A59')
+
+//     var newProgInner = document.createElement('div');
+//     newProgInner.classList.add('progress-bar');
+//     newProgInner.classList.add('progress-bar-striped');
+//     newProgInner.classList.add('progress-bar-animated');
+//     newProgInner.classList.add('active');
+//     newProgInner.setAttribute("role", "progressbar");
+//     newProgInner.setAttribute("id", "uploadProgBar");
+//     newProgInner.setAttribute("aria-valuenow", "0");
+//     newProgInner.setAttribute("aria-valuemin", "0");
+//     newProgInner.setAttribute("aria-valuemax", "0");
+//     newProgInner.setAttribute("style", "width:0%");
+
+//     newProg.appendChild(newProgInner);
+//     col21.appendChild(newProg);
+
+//     timeRemDiv = document.createElement('div')
+//     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
+//     timeRemDiv.setAttribute('style','font-size: 80%')
+//     col31.appendChild(timeRemDiv);
+
+//     if (filecount) {
+//         updateUploadProgress(filesUploaded,filecount)
+//     }
+// }
 
 function initUpload() {
     /** Prepares for a file upload */
@@ -218,7 +222,7 @@ function initUpload() {
 }
 
 function updatePathDisplay(folders) {
-    postMessage({'func': 'updatePathDisplay', 'args': folders})
+    postMessage({'func': 'updatePathDisplay', 'args': [folders,filecount]})
 }
 
 // function updatePathDisplay(folders) {
@@ -253,9 +257,13 @@ function updatePathDisplay(folders) {
 // }
 
 onmessage = function (evt) {
-    resetUploadStatusVariables()
-    globalDirHandle = evt.data
-    selectFiles()
+    if (evt.data.func=='selectFiles') {
+        resetUploadStatusVariables()
+        globalDirHandle = evt.data.args
+        selectFiles()
+    } else if (evt.data.func=='uploadFiles') {
+        uploadFiles()
+    }
 };
 
 async function selectFiles(resuming=false) {

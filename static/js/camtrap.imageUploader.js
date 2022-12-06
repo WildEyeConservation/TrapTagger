@@ -37,9 +37,12 @@ worker.onmessage = function(evt){
     } else if (evt.data.func=='uppyAddFiles') {
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
-        updatePathDisplay(evt.data.args)
+        filecount = evt.data.args[1]
+        updatePathDisplay(evt.data.args[0])
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
+    } else if (evt.data.func=='buildUploadProgress') {
+        buildUploadProgress()
     }
 };
 
@@ -264,7 +267,7 @@ async function selectFiles(resuming=false) {
     /** Allows a user to select a folder, which is then iterated through and uploaded */
     resetUploadStatusVariables()
     globalDirHandle = await window.showDirectoryPicker();
-    worker.postMessage(globalDirHandle);
+    worker.postMessage({'func': 'selectFiles', 'args': globalDirHandle});
     // await listFolder(globalDirHandle,globalDirHandle.name)
     // folders.push(globalDirHandle.name)
     // if (resuming) {
@@ -281,11 +284,12 @@ async function selectFiles(resuming=false) {
 
 async function uploadFiles() {
     /** Uploades the files currently in the queue */
-    initUpload()
-    if (!checkingFiles) {
-        checkFileBatch()
-    }
-    addBatch()
+    worker.postMessage({'func': 'uploadFiles', 'args': null});
+    // initUpload()
+    // if (!checkingFiles) {
+    //     checkFileBatch()
+    // }
+    // addBatch()
 }
 
 var uppy = new Uppy.Uppy({
