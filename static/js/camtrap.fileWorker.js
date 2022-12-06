@@ -266,8 +266,17 @@ onmessage = function (evt) {
         uploadFiles()
     } else if (evt.data.func=='checkFinishedUpload') {
         checkFinishedUpload()
+    } else if (evt.data.func=='fileUploadedSuccessfully') {
+        fileUploadedSuccessfully()
     }
 };
+
+function fileUploadedSuccessfully() {
+    filesUploaded += 1
+    filesActuallyUploaded += 1
+    updateUploadProgress(filesUploaded,filecount)
+    checkFinishedUpload()
+}
 
 async function selectFiles(resuming=false) {
     /** Allows a user to select a folder, which is then iterated through and uploaded */

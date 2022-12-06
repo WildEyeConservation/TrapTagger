@@ -333,10 +333,11 @@ uppy.use(Uppy.AwsS3, {
 uppy.on('upload-success', (file, response) => {
     /** On successful upload, increment the counts, remove the file from memory, and then check if finished */
     uppy.removeFile(file)
-    filesUploaded += 1
-    filesActuallyUploaded += 1
-    updateUploadProgress(filesUploaded,filecount)
-    checkFinishedUpload()
+    worker.postMessage({'func': 'fileUploadedSuccessfully', 'args': null});
+    // filesUploaded += 1
+    // filesActuallyUploaded += 1
+    // updateUploadProgress(filesUploaded,filecount)
+    // checkFinishedUpload()
 })
 
 uppy.on('upload-error', function (file, error) {
