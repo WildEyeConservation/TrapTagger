@@ -34,6 +34,8 @@ worker.onmessage = function(evt){
         buildUploadProgress()
     } else if (evt.data.func=='updatePage') {
         updatePage(current_page)
+    } else if (evt.data.func=='uploadStart') {
+        uploadStart = Date.now()
     }
 };
 
@@ -159,7 +161,6 @@ async function uploadFiles() {
         modalAddImages.modal('hide')
     }
     worker.postMessage({'func': 'uploadFiles', 'args': surveyName});
-    uploadStart = Date.now()
 }
 
 var uppy = new Uppy.Uppy({

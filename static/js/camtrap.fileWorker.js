@@ -178,6 +178,7 @@ async function uploadFiles() {
 
     uploading = true
     buildUploadProgress()
+    postMessage({'func': 'uploadStart', 'args': null})
     addBatch()
 }
 
