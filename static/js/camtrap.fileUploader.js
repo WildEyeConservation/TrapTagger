@@ -114,7 +114,7 @@ function buildUploadProgress(filesUploaded,filecount) {
     timeRemDiv = document.createElement('div')
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
     timeRemDiv.setAttribute('style','font-size: 80%')
-    timeRemDiv.innerHTML = 'Time Remaining: ' + getTimeRemaining(value,total)
+    timeRemDiv.innerHTML = 'Time Remaining: ' + getTimeRemaining(filesUploaded,filecount)
     col31.appendChild(timeRemDiv);
 }
 
