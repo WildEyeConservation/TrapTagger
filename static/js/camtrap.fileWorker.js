@@ -37,6 +37,8 @@ onmessage = function (evt) {
         fileUploadedSuccessfully()
     } else if (evt.data.func=='resetUploadStatusVariables') {
         resetUploadStatusVariables()
+    } else if (evt.data.func=='updateUploadProgress') {
+        updateUploadProgress(filesUploaded,filecount)
     }
 };
 

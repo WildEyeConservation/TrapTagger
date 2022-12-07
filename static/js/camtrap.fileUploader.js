@@ -111,6 +111,8 @@ function buildUploadProgress() {
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
     timeRemDiv.setAttribute('style','font-size: 80%')
     col31.appendChild(timeRemDiv);
+    
+    worker.postMessage({'func': 'updateUploadProgress', 'args': null});
 }
 
 function updatePathDisplay(folders,filecount) {
