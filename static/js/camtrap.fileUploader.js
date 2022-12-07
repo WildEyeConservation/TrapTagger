@@ -17,9 +17,6 @@ uploadID = null
 uploadStart = null
 retrying = false
 
-// Web worker is necessary to avoid browser throttling when it is in the background
-worker = new Worker('js/camtrap.fileWorker.v1.js')
-
 worker.onmessage = function(evt){
     /** Take instructions from the web worker */
     if (evt.data.func=='updateUploadProgress') {
@@ -35,6 +32,7 @@ worker.onmessage = function(evt){
     } else if (evt.data.func=='updatePage') {
         updatePage(current_page)
     } else if (evt.data.func=='uploadStart') {
+        uploading = true
         uploadStart = Date.now()
     }
 };

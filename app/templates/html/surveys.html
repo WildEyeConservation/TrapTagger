@@ -1614,5 +1614,9 @@ limitations under the License. -->
 <script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+<script>
+    // Web worker is necessary to avoid browser throttling when it is in the background
+    worker = new Worker('js/camtrap.fileWorker.v{{ version }}.js')
+</script>
 {% endblock %}
 

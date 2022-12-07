@@ -161,12 +161,10 @@ async function selectFiles(dirHandle,resuming=false) {
     await listFolder(dirHandle,dirHandle.name)
     folders.push(dirHandle.name)
     if (resuming) {
-        uploading = true
         uploadFiles()
     } else {
         updatePathDisplay()
         postMessage({'func': 'checkTrapgroupCode', 'args': null})
-        
     }
 }
 
