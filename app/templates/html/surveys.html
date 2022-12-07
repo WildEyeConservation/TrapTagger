@@ -1586,7 +1586,10 @@ limitations under the License. -->
 {% endblock %}
 
 {% block page_scripts %}
-<!-- <script src="https://sdk.amazonaws.com/js/aws-sdk-2.283.1.min.js"></script> -->
+<script>
+    // Web worker is necessary to avoid browser throttling when it is in the background
+    worker = new Worker('js/camtrap.fileWorker.v{{ version }}.js')
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
 <link href="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.css" rel="stylesheet">
 <script src="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.js"></script>
@@ -1614,9 +1617,5 @@ limitations under the License. -->
 <script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
-<script>
-    // Web worker is necessary to avoid browser throttling when it is in the background
-    worker = new Worker('js/camtrap.fileWorker.v{{ version }}.js')
-</script>
 {% endblock %}
 
