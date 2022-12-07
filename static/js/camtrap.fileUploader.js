@@ -86,6 +86,7 @@ function buildUploadProgress(filesUploaded,filecount) {
 
     uploadStatus = document.createElement('div')
     uploadStatus.setAttribute('id','uploadStatus')
+    uploadStatus.innerHTML = 'Uploading...'
     col11.appendChild(uploadStatus);
 
     var newProg = document.createElement('div');
@@ -105,6 +106,7 @@ function buildUploadProgress(filesUploaded,filecount) {
     newProgInner.setAttribute("aria-valuemin", "0");
     newProgInner.setAttribute("aria-valuemax", filecount);
     newProgInner.setAttribute("style","width:"+perc+"%");
+    newProgInner.innerHTML = filesUploaded.toString() + '/' + filecount.toString() + " images uploaded."
 
     newProg.appendChild(newProgInner);
     col21.appendChild(newProg);
@@ -112,6 +114,7 @@ function buildUploadProgress(filesUploaded,filecount) {
     timeRemDiv = document.createElement('div')
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
     timeRemDiv.setAttribute('style','font-size: 80%')
+    timeRemDiv.innerHTML = 'Time Remaining: ' + getTimeRemaining(value,total)
     col31.appendChild(timeRemDiv);
 }
 
@@ -235,24 +238,29 @@ function pauseUpload() {
     updatePage(current_page)
 }
 
+function getTimeRemaining(value,total) {
+    /** Returns the stringified time remaining for the upload */
+    timeElapsed = (Date.now() - uploadStart)/1000
+    if ((value!=0) && (value<=total)) {
+        rate = timeElapsed/value
+        seconds = rate*(total-value)
+        timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
+    } else {
+        timeRemaining = ''
+    }
+    return timeRemaining
+}
+
 function updateUploadProgress(value,total) {
     /** Updates the file upload progress bar */
     progBar = document.getElementById('uploadProgBar')
     if (progBar) {
         perc=(value/total)*100
-
         progBar.setAttribute('aria-valuenow',value)
         progBar.setAttribute('style',"width:"+perc+"%")
         progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
         document.getElementById('uploadStatus').innerHTML = 'Uploading...'
-    
-        timeElapsed = (Date.now() - uploadStart)/1000
-        if ((value!=0) && (value<=total)) {
-            rate = timeElapsed/value
-            seconds = rate*(total-value)
-            timeRemaining = new Date((seconds) * 1000).toISOString().substr(11, 8)
-            document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
-        }
+        document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + getTimeRemaining(value,total)
     } else if (uploading) {
         worker.postMessage({'func': 'buildUploadProgress', 'args': null});
     }
