@@ -148,7 +148,7 @@ async function selectFiles(resuming=false) {
     /** Allows a user to select a folder, and then passes the handle to the web work to process */
     resetUploadStatusVariables()
     dirHandle = await window.showDirectoryPicker();
-    worker.postMessage({'func': 'selectFiles', 'args': dirHandle});
+    worker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming]});
 }
 
 async function uploadFiles() {

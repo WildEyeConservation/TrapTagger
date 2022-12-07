@@ -27,7 +27,7 @@ folders = []
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='selectFiles') {
-        selectFiles(evt.data.args)
+        selectFiles(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uploadFiles') {
         surveyName = evt.data.args
         uploadFiles()
