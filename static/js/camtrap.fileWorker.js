@@ -37,8 +37,8 @@ onmessage = function (evt) {
         fileUploadedSuccessfully()
     } else if (evt.data.func=='resetUploadStatusVariables') {
         resetUploadStatusVariables()
-    } else if (evt.data.func=='updateUploadProgress') {
-        updateUploadProgress(filesUploaded,filecount)
+    } else if (evt.data.func=='buildUploadProgress') {
+        buildUploadProgress()
     }
 };
 
@@ -136,7 +136,7 @@ async function listFolder(dirHandle,path){
 
 function buildUploadProgress() {
     /** Wrapper function for buildUploadProgress so that the main js can update the page. */
-    postMessage({'func': 'buildUploadProgress', 'args': null})
+    postMessage({'func': 'buildUploadProgress', 'args': [filesUploaded,filecount]})
 }
 
 function updatePathDisplay() {

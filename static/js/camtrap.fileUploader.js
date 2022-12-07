@@ -28,7 +28,7 @@ worker.onmessage = function(evt){
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
     } else if (evt.data.func=='buildUploadProgress') {
-        buildUploadProgress()
+        buildUploadProgress(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='updatePage') {
         updatePage(current_page)
     } else if (evt.data.func=='uploadStart') {
@@ -37,7 +37,7 @@ worker.onmessage = function(evt){
     }
 };
 
-function buildUploadProgress() {
+function buildUploadProgress(filesUploaded,filecount) {
     /** Builds the upload progress bar */
 
     deleteSurveyBtn = document.getElementById('deleteSurveyBtn'+uploadID.toString())
@@ -92,6 +92,8 @@ function buildUploadProgress() {
     newProg.classList.add('progress');
     newProg.setAttribute('style','background-color: #3C4A59')
 
+    perc=(filesUploaded/filecount)*100
+
     var newProgInner = document.createElement('div');
     newProgInner.classList.add('progress-bar');
     newProgInner.classList.add('progress-bar-striped');
@@ -99,10 +101,10 @@ function buildUploadProgress() {
     newProgInner.classList.add('active');
     newProgInner.setAttribute("role", "progressbar");
     newProgInner.setAttribute("id", "uploadProgBar");
-    newProgInner.setAttribute("aria-valuenow", "0");
+    newProgInner.setAttribute("aria-valuenow", filesUploaded);
     newProgInner.setAttribute("aria-valuemin", "0");
-    newProgInner.setAttribute("aria-valuemax", "0");
-    newProgInner.setAttribute("style", "width:0%");
+    newProgInner.setAttribute("aria-valuemax", filecount);
+    newProgInner.setAttribute("style","width:"+perc+"%");
 
     newProg.appendChild(newProgInner);
     col21.appendChild(newProg);
@@ -111,8 +113,6 @@ function buildUploadProgress() {
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
     timeRemDiv.setAttribute('style','font-size: 80%')
     col31.appendChild(timeRemDiv);
-    
-    worker.postMessage({'func': 'updateUploadProgress', 'args': null});
 }
 
 function updatePathDisplay(folders,filecount) {
@@ -254,6 +254,6 @@ function updateUploadProgress(value,total) {
             document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + timeRemaining //+ ' (' + seconds.toString() + 's)'
         }
     } else if (uploading) {
-        buildUploadProgress()
+        worker.postMessage({'func': 'buildUploadProgress', 'args': null});
     }
 }
