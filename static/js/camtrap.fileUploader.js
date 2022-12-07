@@ -12,33 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-batchSize = 200
 surveyName = null
-filesUploaded = 0
-filesActuallyUploaded = 0
-filesQueued = 0
-proposedQueue = []
-uploadQueue = []
-globalDirHandle = null
-filecount=0
-addingBatch = false
-uploadPaused = false
 uploadID = null
-uploadCheck = false
 uploadStart = null
 retrying = false
-checkingFiles = false
 
-worker = new Worker('js/camtrap.fileWorker.v2.js')
+// Web worker is necessary to avoid browser throttling when it is in the background
+worker = new Worker('js/camtrap.fileWorker.v1.js')
 
 worker.onmessage = function(evt){
+    /** Take instructions from the web worker */
     if (evt.data.func=='updateUploadProgress') {
         updateUploadProgress(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uppyAddFiles') {
         uppy.addFiles(evt.data.args)
     } else if (evt.data.func=='updatePathDisplay') {
-        filecount = evt.data.args[1]
-        updatePathDisplay(evt.data.args[0])
+        updatePathDisplay(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='checkTrapgroupCode') {
         checkTrapgroupCode()
     } else if (evt.data.func=='buildUploadProgress') {
@@ -47,97 +36,6 @@ worker.onmessage = function(evt){
         updatePage(current_page)
     }
 };
-
-// async function checkFileBatch() {
-//     /** Pulls a batch of files from the proposed queue and checks if they already exist on the server. */
-//     if (proposedQueue.length>0) {
-//         checkingFiles = true
-//         let fileNames = []
-//         let items = []
-//         while ((fileNames.length<batchSize)&&(proposedQueue.length>0)) {
-//             let item = proposedQueue.pop()
-//             items.push(item)
-//             fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
-//         }
-
-//         try {
-//             fetch('/check_upload_files', {
-//                 method: 'post',
-//                 headers: {
-//                     accept: 'application/json',
-//                     'Content-Type': 'application/json',
-//                 },
-//                 body: JSON.stringify({
-//                     filenames: fileNames
-//                 })
-//             }).then((response) => {
-//                 return response.json()
-//             }).then((data) => {
-//                 for (let itemIdx=0;itemIdx<items.length;itemIdx++) {
-//                     let item = items[itemIdx]
-//                     if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
-//                         uploadQueue.push(item)
-//                     } else {
-//                         filesUploaded += 1
-//                         filesQueued += 1
-//                         updateUploadProgress(filesUploaded,filecount)
-//                     }
-//                 }
-//                 checkFinishedUpload()
-//             })
-//         } catch(e) {
-//             proposedQueue.push(...items)
-//             setTimeout(function() { checkFileBatch(); }, 10000);
-//         }
-
-//         checkFileBatch()
-//     } else {
-//         checkingFiles = false
-//     }
-//     return true
-// }
-
-// async function addBatch() {
-//     /** Opens a batch of images from the checked queue and moves them to Uppy for upload. */
-//     if (((filesQueued-filesUploaded)<(0.5*batchSize))&&!addingBatch&&(uploadQueue.length!=0)) {
-//         addingBatch = true
-//         let filesToAdd = []
-//         while ((filesToAdd.length<batchSize)&&(uploadQueue.length>0)) {
-//             let item = uploadQueue.pop()
-//             let file = await item[1].getFile()
-//             let filename = surveyName + '/' + item[0] + '/' + item[1].name
-//             filesToAdd.push({
-//                 name: filename,
-//                 type: file.type,
-//                 data: file.slice(0, file.size, file.type),
-//             })
-//             filesQueued += 1
-//             updateUploadProgress(filesUploaded,filecount)
-//         }
-//         uppy.addFiles(filesToAdd)
-//         addingBatch = false
-//         checkFinishedUpload()
-//     }
-//     return true
-// }
-
-// async function listFolder(dirHandle,path){
-//     /** Iterates through a folder, adding the files to the upload queue */
-//     for await (const entry of dirHandle.values()) {
-//         if (entry.kind=='directory'){
-//             await listFolder(entry,path+'/'+entry.name)
-//             folders.push(path+'/'+entry.name)
-//             updatePathDisplay(folders)
-//         } else {
-//             filecount+=1
-//             proposedQueue.push([path,entry])
-//             if ((!checkingFiles)&&(proposedQueue.length>=batchSize)&&uploading) {
-//                 checkFileBatch()
-//             }
-//         }
-//     }
-//     return filecount
-// }
 
 function buildUploadProgress() {
     /** Builds the upload progress bar */
@@ -213,28 +111,9 @@ function buildUploadProgress() {
     timeRemDiv.setAttribute('id','uploadTimeRemDiv')
     timeRemDiv.setAttribute('style','font-size: 80%')
     col31.appendChild(timeRemDiv);
-
-    if (filecount) {
-        updateUploadProgress(filesUploaded,filecount)
-    }
 }
 
-// function initUpload() {
-//     /** Prepares for a file upload */
-//     uploadStart = Date.now()
-//     filesUploaded = 0
-//     filesActuallyUploaded = 0
-
-//     buildUploadProgress()
-    
-//     if (modalNewSurvey.is(':visible')) {
-//         modalNewSurvey.modal('hide')
-//     } else {
-//         modalAddImages.modal('hide')
-//     }
-// }
-
-function updatePathDisplay(folders) {
+function updatePathDisplay(folders,filecount) {
     /** Updates the folders found display */
     pathDisplay = document.getElementById('pathDisplay')
 
@@ -266,37 +145,21 @@ function updatePathDisplay(folders) {
 }
 
 async function selectFiles(resuming=false) {
-    /** Allows a user to select a folder, which is then iterated through and uploaded */
+    /** Allows a user to select a folder, and then passes the handle to the web work to process */
     resetUploadStatusVariables()
-    globalDirHandle = await window.showDirectoryPicker();
-    worker.postMessage({'func': 'selectFiles', 'args': globalDirHandle});
-    // await listFolder(globalDirHandle,globalDirHandle.name)
-    // folders.push(globalDirHandle.name)
-    // if (resuming) {
-    //     uploading = true
-    //     if (!checkingFiles) {
-    //         checkFileBatch()
-    //     }
-    //     uploadFiles()
-    // } else {
-    //     updatePathDisplay(folders)
-    //     checkTrapgroupCode()
-    // }
+    dirHandle = await window.showDirectoryPicker();
+    worker.postMessage({'func': 'selectFiles', 'args': dirHandle});
 }
 
 async function uploadFiles() {
-    /** Uploades the files currently in the queue */
+    /** Kicks off the upload by instructung the worker accordingly */
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')
     } else {
         modalAddImages.modal('hide')
     }
     worker.postMessage({'func': 'uploadFiles', 'args': surveyName});
-    // initUpload()
-    // if (!checkingFiles) {
-    //     checkFileBatch()
-    // }
-    // addBatch()
+    uploadStart = Date.now()
 }
 
 var uppy = new Uppy.Uppy({
@@ -333,13 +196,9 @@ uppy.use(Uppy.AwsS3, {
 })
 
 uppy.on('upload-success', (file, response) => {
-    /** On successful upload, increment the counts, remove the file from memory, and then check if finished */
+    /** On successful upload, remove the file from memory and tell the worker to increment the counts and check if finished. */
     uppy.removeFile(file)
     worker.postMessage({'func': 'fileUploadedSuccessfully', 'args': null});
-    // filesUploaded += 1
-    // filesActuallyUploaded += 1
-    // updateUploadProgress(filesUploaded,filecount)
-    // checkFinishedUpload()
 })
 
 uppy.on('upload-error', function (file, error) {
@@ -356,59 +215,15 @@ function retryUpload() {
     uppy.retryAll()
 }
 
-async function checkFinishedUpload() {
-    worker.postMessage({'func': 'checkFinishedUpload', 'args': null});
-}
-
 // async function checkFinishedUpload() {
-//     /** Check if the upload is finished. Initiate an upload check, and then change survey status if all good. */
-//     if ((filesUploaded==filesQueued)&&(filesUploaded==filecount)&&(uploadQueue.length==0)&&(proposedQueue.length==0)) {
-//         //completely done
-
-//         if (filesActuallyUploaded==0) {
-//             // don't bother importing
-//             let newStatus = 'Ready'
-//         } else {
-//             let newStatus = 'Complete'
-//         }
-
-//         var xhttp = new XMLHttpRequest();
-//         xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/'+newStatus);
-//         xhttp.onreadystatechange =
-//         function(){
-//             if (this.readyState == 4 && this.status == 200) {
-//                 updatePage(current_page)
-//             }
-//         }
-//         xhttp.send();
-
-//         resetUploadStatusVariables()
-//         console.log('Upload Complete')
-//     } else {
-//         if (!checkingFiles&&(proposedQueue.length!=0)) {
-//             checkFileBatch()
-//         }
-//         addBatch()
-//     }
+//     worker.postMessage({'func': 'checkFinishedUpload', 'args': null});
 // }
 
 function resetUploadStatusVariables() {
     /** Resets all the status variables */
     uploading = false
-    filesUploaded = 0
-    filesActuallyUploaded = 0
-    filesQueued = 0
-    proposedQueue = []
-    uploadQueue = []
-    globalDirHandle = null
-    filecount=0
-    addingBatch = false
-    uploadPaused = false
-    uploadCheck = false
     uploadStart = null
     retrying = false
-    checkingFiles = false
-    folders = []
 }
 
 function pauseUpload() {
@@ -428,14 +243,7 @@ function updateUploadProgress(value,total) {
         progBar.setAttribute('aria-valuenow',value)
         progBar.setAttribute('style',"width:"+perc+"%")
         progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
-    
-        if (uploadCheck) {
-            document.getElementById('uploadStatus').innerHTML = 'Checking...'
-        } else if (uploadPaused) {
-            document.getElementById('uploadStatus').innerHTML = 'Paused'
-        } else {
-            document.getElementById('uploadStatus').innerHTML = 'Uploading...'
-        }
+        document.getElementById('uploadStatus').innerHTML = 'Uploading...'
     
         timeElapsed = (Date.now() - uploadStart)/1000
         if ((value!=0) && (value<=total)) {
