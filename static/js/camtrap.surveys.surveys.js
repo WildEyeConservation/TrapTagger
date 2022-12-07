@@ -3250,3 +3250,8 @@ modalNotification.on('hidden.bs.modal', function(){
     /** Checks for the next notification on close*/
     checkNotifications()
 });
+
+function isValidDate(d) {
+    /** Returns whether the specified date is valid or not */
+    return d instanceof Date && !isNaN(d);
+}
