@@ -219,10 +219,6 @@ function retryUpload() {
     uppy.retryAll()
 }
 
-// async function checkFinishedUpload() {
-//     worker.postMessage({'func': 'checkFinishedUpload', 'args': null});
-// }
-
 function resetUploadStatusVariables() {
     /** Resets all the status variables */
     uploading = false
