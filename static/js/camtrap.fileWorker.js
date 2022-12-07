@@ -30,6 +30,7 @@ onmessage = function (evt) {
         surveyName = evt.data.args[2]
         selectFiles(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uploadFiles') {
+        surveyName = evt.data.args
         uploadFiles()
     } else if (evt.data.func=='checkFinishedUpload') {
         checkFinishedUpload()

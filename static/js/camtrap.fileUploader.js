@@ -157,13 +157,13 @@ async function selectFiles(resuming=false) {
 }
 
 async function uploadFiles() {
-    /** Kicks off the upload by instructung the worker accordingly */
+    /** Kicks off the upload by instructing the worker accordingly */
     if (modalNewSurvey.is(':visible')) {
         modalNewSurvey.modal('hide')
     } else {
         modalAddImages.modal('hide')
     }
-    worker.postMessage({'func': 'uploadFiles', 'args': null});
+    worker.postMessage({'func': 'uploadFiles', 'args': surveyName});
 }
 
 var uppy = new Uppy.Uppy({
