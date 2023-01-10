@@ -289,3 +289,61 @@ function downloadFile(fileName) {
         window.URL.revokeObjectURL(url);
     })
 }
+
+
+function directDownload(url) {
+    return fetch(url)
+    .then((response) => {
+        return response.blob()
+    }).then(blob => {
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+}
+
+
+async function DownloadFiles(files) {
+    try {
+        var dirHandle = await window.showDirectoryPicker({
+            writable: true //ask for write permission
+        });
+        for (var index in files.files) {
+           var file = files.files[index];
+           const fileHandle = await dirHandle.getFileHandle(file.fileName, { create: true });
+           if (await verifyPermission(fileHandle, true)) {
+               const writable = await fileHandle.createWritable();
+               await writable.write(await getBlob(file.url));
+               await writable.close();
+           }
+       }
+    }
+    catch (error) {
+        alert(error);
+    }
+    return false;
+}
+
+async function verifyPermission(fileHandle, readWrite) {
+    const options = {};
+    if (readWrite) {
+        options.mode = 'readwrite';
+    }
+    if ((await fileHandle.queryPermission(options)) === 'granted') {
+        return true;
+    }
+    if ((await fileHandle.requestPermission(options)) === 'granted') {
+        return true;
+    }
+    return false;
+}
+
+function getBlob(urlToGet) {
+    const blob = fetch(urlToGet).then(data => data.blob());
+    return blob;
+}
