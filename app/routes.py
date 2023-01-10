@@ -6149,7 +6149,6 @@ def get_presigned_download_url():
         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='get_object',
                                                                 Params={'Bucket': Config.BUCKET,
                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-                                                                        'ContentType': request.json['contentType'],
                                                                         'Body' : ''})
     else:
         return 'error'
