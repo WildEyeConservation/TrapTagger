@@ -274,12 +274,10 @@ function downloadFile(fileName,fileType) {
             contentType: fileType,
         }),
     }).then((response) => {
-        return response.text()
-    }).then((url) => {
-        fetch(url)
-    }).then(response => 
-        response.blob()
-    ).then(blob => {
+        return fetch(response.text())
+    }).then((response) => {
+        return response.blob()
+    }).then(blob => {
         var url = window.URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.style.display = 'none';
