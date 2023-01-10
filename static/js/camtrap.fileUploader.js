@@ -273,7 +273,9 @@ function downloadFile(fileName) {
             filename: fileName
         }),
     }).then((response) => {
-        return fetch(response.text())
+        return response.text()
+    }).then((url) => {
+        return fetch(url)
     }).then((response) => {
         return response.blob()
     }).then(blob => {
