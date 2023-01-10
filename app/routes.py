@@ -6140,3 +6140,16 @@ def check_upload_files():
     already_uploaded = [result for result in [result.get() for result in results] if result!=None]
 
     return json.dumps(already_uploaded)
+
+@app.route('/get_presigned_download_url', methods=['POST'])
+@login_required
+def get_presigned_download_url():
+    """Returns a presigned URL in order to download a file directly from S3."""
+    if current_user.admin:
+        return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='get_object',
+                                                                Params={'Bucket': Config.BUCKET,
+                                                                        'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
+                                                                        'ContentType': request.json['contentType'],
+                                                                        'Body' : ''})
+    else:
+        return 'error'

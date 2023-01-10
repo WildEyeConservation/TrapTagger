@@ -261,3 +261,28 @@ function updateUploadProgress(value,total) {
         worker.postMessage({'func': 'buildUploadProgress', 'args': null});
     }
 }
+
+function downloadFile(fileName,fileType) {
+    return fetch('/get_presigned_download_url', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            filename: fileName,
+            contentType: fileType,
+        }),
+    }).then((response) => {
+        return response.text()
+    }).then((url) => {
+        return {
+            method: 'GET',
+            url: url,
+            fields: {},
+            headers: {
+                'Content-Type': fileType,
+            }
+        }
+    })
+}
