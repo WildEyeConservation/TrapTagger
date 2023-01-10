@@ -262,7 +262,7 @@ function updateUploadProgress(value,total) {
     }
 }
 
-function downloadFile(fileName,fileType) {
+function downloadFile(fileName) {
     return fetch('/get_presigned_download_url', {
         method: 'post',
         headers: {
@@ -270,8 +270,7 @@ function downloadFile(fileName,fileType) {
             'content-type': 'application/json',
         },
         body: JSON.stringify({
-            filename: fileName,
-            contentType: fileType,
+            filename: fileName
         }),
     }).then((response) => {
         return fetch(response.text())
