@@ -326,7 +326,7 @@ async function downloadFile(fileName,URL,dirHandle) {
 }
 
 async function getDirectoryFiles(path,dirHandle) {
-    fetch('/get_directory_files', {
+    await fetch('/get_directory_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -349,11 +349,13 @@ async function getDirectoryFiles(path,dirHandle) {
 async function iterateDirectories(directories,dirHandle,path='') {
     await getDirectoryFiles(path,dirHandle)
     for (item in directories) {
-        var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
-        if (await verifyPermission(newDirHandle, true)) {
-            var newDirectories = directories[item]
-            var newPath = path + '/' + item
-            await iterateDirectories(newDirectories,newDirHandle,newPath)
+        if (await verifyPermission(dirHandle, true)) {
+            var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
+            if (await verifyPermission(newDirHandle, true)) {
+                var newDirectories = directories[item]
+                var newPath = path + '/' + item
+                await iterateDirectories(newDirectories,newDirHandle,newPath)
+            }
         }
     }
 }
