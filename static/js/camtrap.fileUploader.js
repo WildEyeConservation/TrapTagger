@@ -353,7 +353,11 @@ async function iterateDirectories(directories,dirHandle,path='') {
             var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
             if (await verifyPermission(newDirHandle, true)) {
                 var newDirectories = directories[item]
-                var newPath = path + '/' + item
+                if (path=='') {
+                    var newPath = item
+                } else {
+                    var newPath = path + '/' + item
+                }
                 await iterateDirectories(newDirectories,newDirHandle,newPath)
             }
         }

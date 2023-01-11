@@ -6177,9 +6177,10 @@ def get_directory_files():
     path = request.json['path']
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     if survey:
+        path = current_user.folder+'/Downloads/'+surveyName+'/'+path
         folders,filenames = list_all(Config.BUCKET,path+'/')
         for fileName in filenames:
-            URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+current_user.folder+'/Downloads/'+path+'/'+fileName
+            URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+path+'/'+fileName
             URL = urllib.parse.quote(URL, safe="~()*!.'")
             files.append({
                 'fileName': fileName,
