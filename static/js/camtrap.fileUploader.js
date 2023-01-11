@@ -325,6 +325,39 @@ async function downloadFile(fileName,URL,dirHandle) {
     }
 }
 
+async function checkFiles(files,dirHandle) {
+    // Get list of files that already exist in folder
+    var existingFiles = []
+    if (await verifyPermission(dirHandle, true)) {
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind=='file') {
+                existingFiles.push(entry.name)
+            }
+        }
+    }
+
+    for (var index=0; index<files.length; index++) {
+        var file = files[index]
+        if (!existingFiles.includes(file.fileName)) {
+            // If file doesn't already exist, download it
+            downloadFile(file.fileName,file.URL,dirHandle)
+        } else {
+            // if it does exist and is supposed to be there, remove it from the list
+            var fileIndex = existingFiles.indexOf(file.fileName)
+            if (fileIndex > -1) {
+                existingFiles.splice(fileIndex, 1)
+            }
+        }
+    }
+
+    // Delete the remaining files that shouldn't be there
+    if (await verifyPermission(dirHandle, true)) {
+        for (var index=0; index<existingFiles.length; index++) {
+            dirHandle.removeEntry(existingFiles[index])
+        }
+    }
+}
+
 async function getDirectoryFiles(path,dirHandle) {
     await fetch('/get_directory_files', {
         method: 'post',
@@ -339,33 +372,7 @@ async function getDirectoryFiles(path,dirHandle) {
     }).then((response) => {
         return response.json()
     }).then((files) => {
-
-        // Get list of files that already exist in folder
-        var existingFiles = []
-        for (const entry of dirHandle.values()) {
-            if (entry.kind=='file') {
-                existingFiles.push(entry.name)
-            }
-        }
-
-        for (var index=0; index<files.length; index++) {
-            var file = files[index]
-            if (!existingFiles.includes(file.fileName)) {
-                // If file doesn't already exist, download it
-                downloadFile(file.fileName,file.URL,dirHandle)
-            } else {
-                // if it does exist and is supposed to be there, remove it from the list
-                var fileIndex = existingFiles.indexOf(file.fileName)
-                if (fileIndex > -1) {
-                    existingFiles.splice(fileIndex, 1)
-                }
-            }
-        }
-
-        // Delete the remaining files that shouldn't be there
-        for (var index=0; index<existingFiles.length; index++) {
-            dirHandle.removeEntry(existingFiles[index])
-        }
+        return checkFiles(files,dirHandle)
     })
 }
 
