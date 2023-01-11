@@ -339,9 +339,32 @@ async function getDirectoryFiles(path,dirHandle) {
     }).then((response) => {
         return response.json()
     }).then((files) => {
+
+        // Get list of files that already exist in folder
+        var alreadyExists = []
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind=='file'){
+                alreadyExists.push(entry.name)
+            }
+        }
+
         for (var index=0; index<files.length; index++) {
             var file = files[index]
-            downloadFile(file.fileName,file.URL,dirHandle)
+            if (!alreadyExists.includes(file.fileName)) {
+                // If file doesn't already exist, download it
+                downloadFile(file.fileName,file.URL,dirHandle)
+            } else {
+                // if it does exist and is supposed to be there, remove it from the list
+                var fileIndex = alreadyExists.indexOf(file.fileName)
+                if (fileIndex > -1) {
+                    alreadyExists.splice(fileIndex, 1)
+                }
+            }
+        }
+
+        // Delete the remaining files that shouldn't be there
+        for (var index=0; index<alreadyExists.length; index++) {
+            dirHandle.removeEntry(alreadyExists[index])
         }
     })
 }
