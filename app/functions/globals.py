@@ -2168,3 +2168,13 @@ def checkFile(file,folder):
         if Config.DEBUGGING: print('{} does not exist'.format(folder + '/' + file))
         # file does not exist
         return None
+
+def buildDirectoryTree(path):
+    '''Builds a directory tree for a given folder in S3'''
+
+    directories = {}
+    folders,filenames = list_all(Config.BUCKET,path+'/')
+    for folder in folders:
+        directories[folder] = buildDirectoryTree(path+'/'+folder)
+        
+    return directories

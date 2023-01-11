@@ -262,71 +262,120 @@ function updateUploadProgress(value,total) {
     }
 }
 
-function downloadFile(fileName) {
-    return fetch('/get_presigned_download_url', {
+// function downloadFile(fileName) {
+//     return fetch('/get_presigned_download_url', {
+//         method: 'post',
+//         headers: {
+//             accept: 'application/json',
+//             'content-type': 'application/json',
+//         },
+//         body: JSON.stringify({
+//             filename: fileName
+//         }),
+//     }).then((response) => {
+//         return response.text()
+//     }).then((url) => {
+//         return fetch(url)
+//     }).then((response) => {
+//         return response.blob()
+//     }).then(blob => {
+//         var url = window.URL.createObjectURL(blob);
+//         var a = document.createElement('a');
+//         a.style.display = 'none';
+//         a.href = url;
+//         a.download = fileName;
+//         document.body.appendChild(a);
+//         a.click();
+//         window.URL.revokeObjectURL(url);
+//     })
+// }
+
+
+// function directDownload(url) {
+//     return fetch(url)
+//     .then((response) => {
+//         return response.blob()
+//     }).then(blob => {
+//         var url = window.URL.createObjectURL(blob);
+//         var a = document.createElement('a');
+//         a.style.display = 'none';
+//         a.href = url;
+//         a.download = fileName;
+//         document.body.appendChild(a);
+//         a.click();
+//         window.URL.revokeObjectURL(url);
+//     })
+// }
+
+
+
+
+
+function getBlob(urlToGet) {
+    const blob = fetch(urlToGet).then(data => data.blob());
+    return blob;
+}
+
+async function downloadFile(fileName,URL,dirHandle) {
+    var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+    if (await verifyPermission(fileHandle, true)) {
+        const writable = await fileHandle.createWritable();
+        await writable.write(await getBlob(URL));
+        await writable.close();
+    }
+}
+
+async function getDirectoryFiles(path,dirHandle) {
+    fetch('/get_directory_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
             'content-type': 'application/json',
         },
         body: JSON.stringify({
-            filename: fileName
+            surveyName: surveyName,
+            path: path
         }),
     }).then((response) => {
-        return response.text()
-    }).then((url) => {
-        return fetch(url)
+        return response.json()
+    }).then((files) => {
+        for (var index=0; index<files.length; index++) {
+            var file = files[index]
+            downloadFile(file.fileName,file.URL,dirHandle)
+        }
+    })
+}
+
+async function iterateDirectories(directories,dirHandle,path='') {
+    await getDirectoryFiles(path,dirHandle)
+    for (item in directories) {
+        var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
+        var newDirectories = directories[item]
+        var newPath = path + '/' + item
+        await iterateDirectories(newDirectories,newDirHandle,newPath)
+    }
+}
+
+async function initiateDownload() {
+    // Select the download folder & get access
+    var dirHandle = await window.showDirectoryPicker({
+        writable: true //ask for write permission
+    });
+    // Fetch directory tree and start
+    fetch('/get_download_directories', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            surveyName: surveyName
+        }),
     }).then((response) => {
-        return response.blob()
-    }).then(blob => {
-        var url = window.URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
+        return response.json()
+    }).then((directories) => {
+        iterateDirectories(directories,dirHandle)
     })
-}
-
-
-function directDownload(url) {
-    return fetch(url)
-    .then((response) => {
-        return response.blob()
-    }).then(blob => {
-        var url = window.URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    })
-}
-
-
-async function DownloadFiles(files) {
-    try {
-        var dirHandle = await window.showDirectoryPicker({
-            writable: true //ask for write permission
-        });
-        for (var index in files.files) {
-           var file = files.files[index];
-           const fileHandle = await dirHandle.getFileHandle(file.fileName, { create: true });
-           if (await verifyPermission(fileHandle, true)) {
-               const writable = await fileHandle.createWritable();
-               await writable.write(await getBlob(file.url));
-               await writable.close();
-           }
-       }
-    }
-    catch (error) {
-        alert(error);
-    }
-    return false;
 }
 
 async function verifyPermission(fileHandle, readWrite) {
@@ -343,7 +392,3 @@ async function verifyPermission(fileHandle, readWrite) {
     return false;
 }
 
-function getBlob(urlToGet) {
-    const blob = fetch(urlToGet).then(data => data.blob());
-    return blob;
-}
