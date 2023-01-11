@@ -6181,7 +6181,7 @@ def get_directory_files():
         folders,filenames = list_all(Config.BUCKET,path+'/')
         for fileName in filenames:
             URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+path+'/'+fileName
-            URL = urllib.parse.quote(URL, safe="~()*!.'")
+            # URL = urllib.parse.quote(URL, safe="~()*!.'")
             files.append({
                 'fileName': fileName,
                 'URL': URL
