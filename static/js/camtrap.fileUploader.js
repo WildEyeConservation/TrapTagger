@@ -359,7 +359,7 @@ async function checkFiles(files,dirHandle) {
 }
 
 async function getDirectoryFiles(path,dirHandle) {
-    await fetch('/get_directory_files', {
+    fetch('/get_directory_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -388,7 +388,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
                 } else {
                     var newPath = path + '/' + item
                 }
-                await iterateDirectories(newDirectories,newDirHandle,newPath)
+                iterateDirectories(newDirectories,newDirHandle,newPath)
             }
         }
     }
