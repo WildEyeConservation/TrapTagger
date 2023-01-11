@@ -311,8 +311,8 @@ function updateUploadProgress(value,total) {
 
 
 
-function getBlob(urlToGet) {
-    const blob = fetch(urlToGet).then(data => data.blob());
+function getBlob(url) {
+    const blob = fetch(url).then(data => data.blob());
     return blob;
 }
 
@@ -325,13 +325,18 @@ async function downloadFile(fileName,URL,dirHandle) {
     }
 }
 
-async function checkFiles(files,dirHandle) {
+async function checkFiles(files,dirHandle,expectedDirectories) {
     // Get list of files that already exist in folder
     var existingFiles = []
+    var existingDirectories = []
     if (await verifyPermission(dirHandle, true)) {
         for await (const entry of dirHandle.values()) {
             if (entry.kind=='file') {
                 existingFiles.push(entry.name)
+            } else if (entry.kind=='directory') {
+                if (!expectedDirectories.includes(entry.name)) {
+                    existingDirectories.push(entry.name)
+                }
             }
         }
     }
@@ -355,10 +360,13 @@ async function checkFiles(files,dirHandle) {
         for (var index=0; index<existingFiles.length; index++) {
             dirHandle.removeEntry(existingFiles[index])
         }
+        for (var index=0; index<existingDirectories.length; index++) {
+            dirHandle.removeEntry(existingDirectories[index])
+        }
     }
 }
 
-async function getDirectoryFiles(path,dirHandle) {
+async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
     fetch('/get_directory_files', {
         method: 'post',
         headers: {
@@ -372,12 +380,12 @@ async function getDirectoryFiles(path,dirHandle) {
     }).then((response) => {
         return response.json()
     }).then((files) => {
-        return checkFiles(files,dirHandle)
+        return checkFiles(files,dirHandle,expectedDirectories)
     })
 }
 
 async function iterateDirectories(directories,dirHandle,path='') {
-    getDirectoryFiles(path,dirHandle)
+    var expectedDirectories = []
     for (item in directories) {
         if (await verifyPermission(dirHandle, true)) {
             var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
@@ -390,8 +398,10 @@ async function iterateDirectories(directories,dirHandle,path='') {
                 }
                 iterateDirectories(newDirectories,newDirHandle,newPath)
             }
+            expectedDirectories.push(item)
         }
     }
+    getDirectoryFiles(path,dirHandle,expectedDirectories)
 }
 
 async function initiateDownload() {
