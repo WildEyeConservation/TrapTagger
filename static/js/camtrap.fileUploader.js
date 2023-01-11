@@ -377,7 +377,7 @@ async function getDirectoryFiles(path,dirHandle) {
 }
 
 async function iterateDirectories(directories,dirHandle,path='') {
-    await getDirectoryFiles(path,dirHandle)
+    getDirectoryFiles(path,dirHandle)
     for (item in directories) {
         if (await verifyPermission(dirHandle, true)) {
             var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
