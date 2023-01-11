@@ -49,6 +49,7 @@ from flask_cors import cross_origin
 from calendar import monthrange
 from botocore.client import Config as botoConfig
 from multiprocessing.pool import ThreadPool as Pool
+import urllib
 
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.s3UploadClient = boto3.client('s3', 
@@ -6151,3 +6152,38 @@ def get_presigned_download_url():
                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/')})
     else:
         return 'error'
+
+@app.route('/get_download_directories', methods=['POST'])
+@login_required
+def get_download_directories():
+    """Returns the directory structure to be downloaded."""
+
+    directories = {}
+    surveyName = request.json['surveyName']
+    survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
+    if survey:
+        path = current_user.folder+'/Downloads/'+surveyName
+        directories = buildDirectoryTree(path)
+
+    return json.dumps(directories)
+
+@app.route('/get_directory_files', methods=['POST'])
+@login_required
+def get_directory_files():
+    """Returns a list of files in a particular S3 folder."""
+
+    files = []
+    surveyName = request.json['surveyName']
+    path = request.json['path']
+    survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
+    if survey:
+        folders,filenames = list_all(Config.BUCKET,path+'/')
+        for fileName in filenames:
+            URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+current_user.folder+'/Downloads/'+path+'/'+fileName
+            URL = urllib.parse.quote(URL, safe="~()*!.'")
+            files.append({
+                'fileName': fileName,
+                'URL': URL
+            })
+
+    return json.dumps(files)
