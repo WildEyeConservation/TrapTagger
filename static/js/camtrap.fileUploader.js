@@ -342,7 +342,7 @@ async function getDirectoryFiles(path,dirHandle) {
 
         // Get list of files that already exist in folder
         var existingFiles = []
-        for await (const entry of dirHandle.values()) {
+        for (const entry of dirHandle.values()) {
             if (entry.kind=='file') {
                 existingFiles.push(entry.name)
             }
