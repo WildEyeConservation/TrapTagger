@@ -387,6 +387,12 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
 async function iterateDirectories(directories,dirHandle,path='') {
     var expectedDirectories = []
     for (item in directories) {
+        expectedDirectories.push(item)
+    }
+
+    getDirectoryFiles(path,dirHandle,expectedDirectories)
+
+    for (item in directories) {
         if (await verifyPermission(dirHandle, true)) {
             var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
             if (await verifyPermission(newDirHandle, true)) {
@@ -401,7 +407,6 @@ async function iterateDirectories(directories,dirHandle,path='') {
             expectedDirectories.push(item)
         }
     }
-    getDirectoryFiles(path,dirHandle,expectedDirectories)
 }
 
 async function initiateDownload() {
