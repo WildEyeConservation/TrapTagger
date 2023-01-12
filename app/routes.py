@@ -6163,7 +6163,7 @@ def get_download_directories():
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     if survey:
         path = current_user.folder+'/Downloads/'+surveyName
-        directories = buildDirectoryTree(path)
+        directories = {surveyName: buildDirectoryTree(path)}
 
     return json.dumps(directories)
 

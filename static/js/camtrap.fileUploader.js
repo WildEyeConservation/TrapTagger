@@ -325,7 +325,23 @@ async function downloadFile(fileName,URL,dirHandle) {
     }
 }
 
-async function checkFiles(files,dirHandle,expectedDirectories) {
+async function deleteFolder(dirHandle,parentHandle=null) {
+    if (await verifyPermission(dirHandle, true)) {
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind=='directory') {
+                deleteFolder(entry)
+            }
+            dirHandle.removeEntry(entry.name)
+        }
+    }
+    if (parentHandle) {
+        if (await verifyPermission(parentHandle, true)) {
+            parentHandle.removeEntry(dirHandle)
+        }
+    }
+}
+
+async function checkFiles(files,dirHandle,expectedDirectories,path) {
     // Get list of files that already exist in folder
     var existingFiles = []
     var existingDirectories = []
@@ -335,7 +351,7 @@ async function checkFiles(files,dirHandle,expectedDirectories) {
                 existingFiles.push(entry.name)
             } else if (entry.kind=='directory') {
                 if (!expectedDirectories.includes(entry.name)) {
-                    existingDirectories.push(entry.name)
+                    existingDirectories.push(entry)
                 }
             }
         }
@@ -356,12 +372,14 @@ async function checkFiles(files,dirHandle,expectedDirectories) {
     }
 
     // Delete the remaining files that shouldn't be there
-    if (await verifyPermission(dirHandle, true)) {
-        for (var index=0; index<existingFiles.length; index++) {
-            dirHandle.removeEntry(existingFiles[index])
-        }
-        for (var index=0; index<existingDirectories.length; index++) {
-            dirHandle.removeEntry(existingDirectories[index])
+    if (path!='') {
+        if (await verifyPermission(dirHandle, true)) {
+            for (var index=0; index<existingFiles.length; index++) {
+                dirHandle.removeEntry(existingFiles[index])
+            }
+            for (var index=0; index<existingDirectories.length; index++) {
+                deleteFolder(existingDirectories[index],dirHandle)
+            }
         }
     }
 }
@@ -380,7 +398,7 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
     }).then((response) => {
         return response.json()
     }).then((files) => {
-        return checkFiles(files,dirHandle,expectedDirectories)
+        return checkFiles(files,dirHandle,expectedDirectories,path)
     })
 }
 
