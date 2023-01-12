@@ -329,9 +329,9 @@ async function deleteFolder(dirHandle,parentHandle=null) {
     if (await verifyPermission(dirHandle, true)) {
         for await (const entry of dirHandle.values()) {
             if (entry.kind=='directory') {
-                deleteFolder(entry)
+                await deleteFolder(entry)
             }
-            dirHandle.removeEntry(entry.name)
+            await dirHandle.removeEntry(entry.name)
         }
     }
     if (parentHandle) {
