@@ -336,7 +336,7 @@ async function deleteFolder(dirHandle,parentHandle=null) {
     }
     if (parentHandle) {
         if (await verifyPermission(parentHandle, true)) {
-            parentHandle.removeEntry(dirHandle)
+            parentHandle.removeEntry(dirHandle.name)
         }
     }
 }
