@@ -6160,10 +6160,11 @@ def get_download_directories():
 
     directories = {}
     surveyName = request.json['surveyName']
+    taskName = request.json['taskName']
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     if survey:
-        path = current_user.folder+'/Downloads/'+surveyName
-        directories = {surveyName: buildDirectoryTree(path)}
+        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
+        directories = {surveyName: {taskName: buildDirectoryTree(path)}}
 
     return json.dumps(directories)
 

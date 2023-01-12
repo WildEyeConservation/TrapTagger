@@ -372,7 +372,7 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
     }
 
     // Delete the remaining files that shouldn't be there
-    if (path!='') {
+    if (path.split('/').length!=1) {
         if (await verifyPermission(dirHandle, true)) {
             for (var index=0; index<existingFiles.length; index++) {
                 dirHandle.removeEntry(existingFiles[index])
@@ -440,7 +440,8 @@ async function initiateDownload() {
             'content-type': 'application/json',
         },
         body: JSON.stringify({
-            surveyName: surveyName
+            surveyName: surveyName,
+            taskName: taskName
         }),
     }).then((response) => {
         return response.json()

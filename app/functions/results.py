@@ -1237,6 +1237,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual
         image = db.session.query(Image).get(image_id)
         splitPath = re.split('/',image.camera.path)
         sourceKey = image.camera.path + '/' + image.filename
+        task = db.session.query(Task).get(task_id)
 
         imageLabels = db.session.query(Label)\
                             .join(Labelgroup,Label.labelgroups)\
@@ -1273,7 +1274,7 @@ def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual
                 if len(individuals)==0: individuals = [None]
             for individual in individuals:
                 if not (species_sorted and (label.id not in labels)):
-                    destinationKey = splitPath[0] + '/Downloads/' + surveyName
+                    destinationKey = splitPath[0] + '/Downloads/' + surveyName + '/' + task.name
                     if species_sorted:  destinationKey += '/' + label.description
                     if individual and individual_sorted: destinationKey += '/' + individual.name
                     if flat_structure:
@@ -1401,7 +1402,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
         # Delete previous
         s3 = boto3.resource('s3')
         bucketObject = s3.Bucket(Config.BUCKET)
-        bucketObject.objects.filter(Prefix=task.survey.user.folder+'/Downloads/'+surveyName+'/').delete()
+        bucketObject.objects.filter(Prefix=task.survey.user.folder+'/Downloads/'+surveyName+'/'+task.name+'/').delete()
         
         if '0' in species:
             labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
