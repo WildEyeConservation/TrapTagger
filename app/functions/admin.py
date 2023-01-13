@@ -637,6 +637,11 @@ def reclusterAfterTimestampChange(survey_id):
 
     survey = db.session.query(Survey).get(survey_id)
     survey.status = 'Reclustering'
+    for trapgroup in survey.trapgroups:
+        trapgroup.processing = False
+        trapgroup.queueing = False
+        trapgroup.active = False
+        trapgroup.user_id = None
     db.session.commit()
 
     # delete default task
@@ -671,7 +676,7 @@ def reclusterAfterTimestampChange(survey_id):
                 # db.session.commit
 
                 #create new task
-                newTask = Task(name=taskName+'_copying', survey_id=survey_id, status='Ready', tagging_time=task.tagging_time, test_size=task.test_size, size=task.size, parent_classification=task.parent_classification)
+                newTask = Task(name=taskName+'_copying', survey_id=survey_id, status='Ready', tagging_level=task.tagging_level, tagging_time=task.tagging_time, test_size=task.test_size, size=task.size, parent_classification=task.parent_classification)
                 db.session.add(newTask)
                 db.session.commit()
             else:
@@ -1387,6 +1392,7 @@ def getSurveyInfo(survey):
             task_dict['remaining'] = remaining
             task_dict['jobsAvailable'] = jobsAvailable
             task_dict['jobsCompleted'] = jobsCompleted
+            task_dict['downloadAvailable'] = task.download_available
 
             task_info.append(task_dict)
     survey_dict['tasks'] = task_info

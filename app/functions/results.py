@@ -1396,6 +1396,7 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
         app.logger.info('prepare_exif started for task {}'.format(task_id))
         task = db.session.query(Task).get(task_id)
         task.survey.status = 'Processing'
+        task.download_available = False
         db.session.commit()
         surveyName = task.survey.name
 
@@ -1452,7 +1453,9 @@ def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_s
                 result.forget()
         GLOBALS.lock.release()
 
-        db.session.query(Task).get(task_id).survey.status = 'Ready'
+        task = db.session.query(Task).get(task_id)
+        task.survey.status = 'Ready'
+        task.download_available = True
         db.session.commit()
 
     except Exception as exc:

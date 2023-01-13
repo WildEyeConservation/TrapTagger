@@ -11,6 +11,107 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+var downloadsAvailable = []
+
+function buildTaskProgress(taskInfoCol,survey,task,progressType) {
+    taskHitsActive = document.createElement('div')
+    taskHitsActive.classList.add('row');
+    taskHitsActive.setAttribute("id","taskHitsActive"+task.id)
+    taskHitsActive.setAttribute("style","font-size: 70%")
+    taskInfoCol.appendChild(taskHitsActive)
+
+    if (progressType=='launched') {
+        taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
+    }    
+
+    taskHitsCompleted = document.createElement('div')
+    taskHitsCompleted.classList.add('row');
+    taskHitsCompleted.setAttribute("id","taskHitsCompleted"+task.id)
+    taskHitsCompleted.setAttribute("style","font-size: 70%")
+    taskInfoCol.appendChild(taskHitsCompleted)
+
+    if (progressType=='launched') {
+        taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
+    }
+
+    taskProgressBarCol = document.createElement('div')
+    taskProgressBarCol.classList.add('col-lg-6');
+    
+    taskProgressBarDiv = document.createElement('div')
+    taskProgressBarDiv.setAttribute("id","taskProgressBarDiv"+task.id)
+
+    var newProg = document.createElement('div');
+    newProg.classList.add('progress');
+    newProg.setAttribute('style','background-color: #3C4A59')
+
+    var newProgInner = document.createElement('div');
+    newProgInner.classList.add('progress-bar');
+    newProgInner.classList.add('progress-bar-striped');
+    newProgInner.classList.add('progress-bar-animated');
+    newProgInner.classList.add('active');
+    newProgInner.setAttribute("role", "progressbar");
+    newProgInner.setAttribute("id", "progBar"+task.id);
+    newProgInner.setAttribute("aria-valuemin", "0");
+
+    if (progressType=='launched') {
+        newProgInner.setAttribute("aria-valuenow", task.completed);
+        newProgInner.setAttribute("aria-valuemax", task.total);
+        newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
+        newProgInner.innerHTML = task.remaining
+    }
+
+    newProg.appendChild(newProgInner);
+    taskProgressBarDiv.appendChild(newProg);
+    taskProgressBarCol.appendChild(taskProgressBarDiv);
+    newTaskDiv.appendChild(taskProgressBarCol)
+
+    stopTaskCol = document.createElement('div')
+    stopTaskCol.classList.add('col-lg-1');
+    stopTaskBtn = document.createElement('button')
+    stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+    stopTaskBtn.innerHTML = '&times;'
+    stopTaskCol.appendChild(stopTaskBtn)
+    newTaskDiv.appendChild(stopTaskCol)
+
+    if (progressType=='launched') {
+        stopTaskBtn.addEventListener('click', function(wrapTaskId) {
+            return function() {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);   
+                        if (reply=='success') {
+                            updatePage(current_page)
+                        }
+                    }
+                }
+                xhttp.open("GET", '/stopTask/'+wrapTaskId);
+                xhttp.send();
+            }
+        }(task.id));
+    }
+
+    tagTaskCol = document.createElement('div')
+    tagTaskCol.classList.add('col-lg-1');
+
+    if (progressType=='launched') {
+        tagTaskLink = document.createElement('a')
+        tagTaskLink.setAttribute("href","/jobs")
+        
+        tagTaskBtn = document.createElement('button')
+        tagTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+
+        icon = document.createElement('i')
+        icon.classList.add('fa');
+        icon.classList.add('fa-external-link');
+    
+        tagTaskBtn.appendChild(icon)
+        tagTaskLink.appendChild(tagTaskBtn)
+        tagTaskCol.appendChild(tagTaskLink)
+        newTaskDiv.appendChild(tagTaskCol)
+    }
+}
 
 function buildTask(taskDiv, task, disableSurvey, survey) {
     /**
@@ -64,7 +165,11 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         taskStatusElement.innerHTML = status
     }      
 
-    if ((task.status!='PROGRESS')) {
+    if ((task.status=='PROGRESS')) {
+        buildTaskProgress(taskInfoCol,survey,task,'launched')
+    } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
+        buildTaskProgress(taskInfoCol,survey,task,'downloading')
+    } else {
         taskStatusBtn = document.createElement('button')
         taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         taskStatusBtn.innerHTML = 'Details'
@@ -129,7 +234,8 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         resultsCol = document.createElement('div')
         resultsCol.classList.add('col-lg-2');
         resultsBtn = document.createElement('button')
-        if (task.complete) {
+        if (task.downloadAvailable) {
+            downloadsAvailable.push({'survey':survey.name,'task':task.name})
             resultsBtn.setAttribute("class","btn btn-success btn-block btn-sm")
         } else {
             resultsBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
@@ -183,91 +289,6 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
             }
         }(task.id, task.name));
 
-    } else {
-        taskHitsActive = document.createElement('div')
-        taskHitsActive.classList.add('row');
-        taskHitsActive.setAttribute("id","taskHitsActive"+task.id)
-        taskHitsActive.setAttribute("style","font-size: 70%")
-        taskInfoCol.appendChild(taskHitsActive)
-        taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
-    
-        taskHitsCompleted = document.createElement('div')
-        taskHitsCompleted.classList.add('row');
-        taskHitsCompleted.setAttribute("id","taskHitsCompleted"+task.id)
-        taskHitsCompleted.setAttribute("style","font-size: 70%")
-        taskInfoCol.appendChild(taskHitsCompleted)
-        taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
-
-        taskProgressBarCol = document.createElement('div')
-        taskProgressBarCol.classList.add('col-lg-6');
-        
-        taskProgressBarDiv = document.createElement('div')
-        taskProgressBarDiv.setAttribute("id","taskProgressBarDiv"+task.id)
-
-        var newProg = document.createElement('div');
-        newProg.classList.add('progress');
-        newProg.setAttribute('style','background-color: #3C4A59')
-    
-        var newProgInner = document.createElement('div');
-        newProgInner.classList.add('progress-bar');
-        newProgInner.classList.add('progress-bar-striped');
-        newProgInner.classList.add('progress-bar-animated');
-        newProgInner.classList.add('active');
-        newProgInner.setAttribute("role", "progressbar");
-        newProgInner.setAttribute("id", "progBar"+task.id);
-        newProgInner.setAttribute("aria-valuenow", task.completed);
-        newProgInner.setAttribute("aria-valuemin", "0");
-        newProgInner.setAttribute("aria-valuemax", task.total);
-        newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
-        newProgInner.innerHTML = task.remaining
-    
-        newProg.appendChild(newProgInner);
-        taskProgressBarDiv.appendChild(newProg);
-        taskProgressBarCol.appendChild(taskProgressBarDiv);
-        newTaskDiv.appendChild(taskProgressBarCol)
-
-        stopTaskCol = document.createElement('div')
-        stopTaskCol.classList.add('col-lg-1');
-        stopTaskBtn = document.createElement('button')
-        stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
-        stopTaskBtn.innerHTML = '&times;'
-        stopTaskCol.appendChild(stopTaskBtn)
-        newTaskDiv.appendChild(stopTaskCol)
-
-        stopTaskBtn.addEventListener('click', function(wrapTaskId) {
-            return function() {
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange =
-                function(){
-                    if (this.readyState == 4 && this.status == 200) {
-                        reply = JSON.parse(this.responseText);   
-                        if (reply=='success') {
-                            updatePage(current_page)
-                        }
-                    }
-                }
-                xhttp.open("GET", '/stopTask/'+wrapTaskId);
-                xhttp.send();
-            }
-        }(task.id));
-
-        tagTaskCol = document.createElement('div')
-        tagTaskCol.classList.add('col-lg-1');
-
-        tagTaskLink = document.createElement('a')
-        tagTaskLink.setAttribute("href","/jobs")
-        
-        tagTaskBtn = document.createElement('button')
-        tagTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-
-        icon = document.createElement('i')
-        icon.classList.add('fa');
-        icon.classList.add('fa-external-link');
-        
-        tagTaskBtn.appendChild(icon)
-        tagTaskLink.appendChild(tagTaskBtn)
-        tagTaskCol.appendChild(tagTaskLink)
-        newTaskDiv.appendChild(tagTaskCol)
     }
 
     taskDiv.appendChild(newTaskDiv)

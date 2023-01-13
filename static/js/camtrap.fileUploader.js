@@ -311,6 +311,11 @@ function updateUploadProgress(value,total) {
 
 
 
+var downloadingTask
+var filesDownloaded
+var filesToDownload
+var filesActuallyDownloaded
+
 function getBlob(url) {
     const blob = fetch(url).then(data => data.blob());
     return blob;
@@ -322,6 +327,9 @@ async function downloadFile(fileName,URL,dirHandle) {
         const writable = await fileHandle.createWritable();
         await writable.write(await getBlob(URL));
         await writable.close();
+        filesDownloaded += 1
+        filesActuallyDownloaded += 1
+        updateDownloadProgress()
     }
 }
 
@@ -343,6 +351,8 @@ async function deleteFolder(dirHandle,parentHandle=null) {
 
 async function checkFiles(files,dirHandle,expectedDirectories,path) {
     // Get list of files that already exist in folder
+    filesToDownload += files.length
+    updateDownloadProgress()
     var existingFiles = []
     var existingDirectories = []
     if (await verifyPermission(dirHandle, true)) {
@@ -364,6 +374,8 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
             downloadFile(file.fileName,file.URL,dirHandle)
         } else {
             // if it does exist and is supposed to be there, remove it from the list
+            filesDownloaded += 1
+            updateDownloadProgress()
             var fileIndex = existingFiles.indexOf(file.fileName)
             if (fileIndex > -1) {
                 existingFiles.splice(fileIndex, 1)
@@ -427,11 +439,14 @@ async function iterateDirectories(directories,dirHandle,path='') {
     }
 }
 
-async function initiateDownload() {
-    // Select the download folder & get access
-    var dirHandle = await window.showDirectoryPicker({
-        writable: true //ask for write permission
-    });
+async function startDownload() {
+    downloadingTask = selectedTask
+    filesDownloaded = 0
+    filesToDownload = 0
+    filesActuallyDownloaded = 0
+    updateDownloadProgress()
+    currentDownloadTasks.push(taskName)
+    currentDownloads.push(surveyName)
     // Fetch directory tree and start
     fetch('/get_download_directories', {
         method: 'post',
@@ -448,6 +463,15 @@ async function initiateDownload() {
     }).then((directories) => {
         iterateDirectories(directories,dirHandle)
     })
+    updatePage(current_page)
+}
+
+async function initiateDownload() {
+    // Select the download folder & get access
+    var dirHandle = await window.showDirectoryPicker({
+        writable: true //ask for write permission
+    });
+    startDownload()
 }
 
 async function verifyPermission(fileHandle, readWrite) {
@@ -464,3 +488,38 @@ async function verifyPermission(fileHandle, readWrite) {
     return false;
 }
 
+function updateDownloadProgress() {
+    progBar = document.getElementById('progBar'+downloadingTask)
+    progBar.setAttribute("aria-valuenow", filesDownloaded);
+    progBar.setAttribute("aria-valuemax", filesToDownload);
+    progBar.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
+    progBar.innerHTML = (filesToDownload-filesDownloaded).toString() + " files remaining"
+    checkDownloadStatus()
+}
+
+function checkDownloadStatus() {
+    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)) {
+        if (filesActuallyDownloaded==0) {
+            // finished
+            wrapUpDownload()
+        } else {
+            // check download
+            startDownload()
+        }
+    }
+}
+
+async function wrapUpDownload() {
+    fetch('/download_complete', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            task_id: downloadingTask,
+        }),
+    }).then(
+        updatePage(current_page)
+    )
+}

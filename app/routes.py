@@ -2416,6 +2416,12 @@ def getHomeSurveys():
         page = request.args.get('page', 1, type=int)
         order = request.args.get('order', 5, type=int)
         search = request.args.get('search', '', type=str)
+        downloads = request.args.get('downloads', '', type=str)
+
+        if downloads != '':
+            downloads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name.in_(re.split('[,]',downloads))).distinct().all()
+            for survey in downloads:
+                survey_list.append(getSurveyInfo(survey))
 
         surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
 
@@ -2439,7 +2445,7 @@ def getHomeSurveys():
             #Add date descending
             surveys = surveys.order_by(desc(Survey.id))
 
-        count = 5-len(uploads)
+        count = 5-len(survey_list)
         if count > 0:
             surveys = surveys.distinct().paginate(page, count, False)
 
@@ -6189,3 +6195,20 @@ def get_directory_files():
             })
 
     return json.dumps(files)
+
+@app.route('/download_complete', methods=['POST'])
+@login_required
+def download_complete():
+    """Changes the download availablity status of a task and cleans up S3 accordingly."""
+
+    task_id = request.json['task_id']
+    task = db.session.query(Task).get(task_id)
+    if task and (task.survey.user==current_user):
+        s3 = boto3.resource('s3')
+        bucketObject = s3.Bucket(Config.BUCKET)
+        bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
+
+        task.download_available = False
+        db.session.commit()
+
+    return json.dumps('success')

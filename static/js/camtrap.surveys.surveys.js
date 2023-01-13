@@ -100,6 +100,8 @@ var global_corrected_timestamps = {}
 var checkingTrapgroupCode = false
 var next_classifier_url
 var prev_classifier_url
+var currentDownloads
+var currentDownloadTasks
 
 var s3 = null
 var stopFlag = true
@@ -504,7 +506,7 @@ function updatePage(url){
                         taskProcessing = true
                     }
                 }
-                if (disabledSurveyStatuses.includes(reply.surveys[iii].status.toLowerCase())) {
+                if (disabledSurveyStatuses.includes(reply.surveys[iii].status.toLowerCase())||(currentDownloads.includes(reply.surveys[iii].name))) {
                     disableSurvey = true
                     taskProcessing = true
                 }
@@ -2682,7 +2684,7 @@ function generate_url() {
     /** Generates the url based on the current order selection and search query */
     order = orderSelect.options[orderSelect.selectedIndex].value
     search = document.getElementById('surveySearch').value
-    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()
+    return '/getHomeSurveys?page=1&order='+order+'&search='+search.toString()+'&downloads='+currentDownloads.toString()
 }
 
 $('#orderSelect').change( function() {
