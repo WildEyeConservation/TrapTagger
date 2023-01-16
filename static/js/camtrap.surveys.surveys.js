@@ -100,7 +100,7 @@ var global_corrected_timestamps = {}
 var checkingTrapgroupCode = false
 var next_classifier_url
 var prev_classifier_url
-var currentDownloads
+var currentDownloads = []
 var currentDownloadTasks
 
 var s3 = null
