@@ -439,7 +439,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
     }
 }
 
-async function startDownload() {
+async function startDownload(dirHandle) {
     downloadingTask = selectedTask
     filesDownloaded = 0
     filesToDownload = 0
@@ -473,7 +473,7 @@ async function initiateDownload() {
     var dirHandle = await window.showDirectoryPicker({
         writable: true //ask for write permission
     });
-    startDownload()
+    startDownload(dirHandle)
 }
 
 async function verifyPermission(fileHandle, readWrite) {

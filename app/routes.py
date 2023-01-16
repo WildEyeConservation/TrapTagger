@@ -2418,12 +2418,13 @@ def getHomeSurveys():
         search = request.args.get('search', '', type=str)
         downloads = request.args.get('downloads', '', type=str)
 
+        surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
+
         if downloads != '':
             downloads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name.in_(re.split('[,]',downloads))).distinct().all()
+            surveys = surveys.filter(~Survey.id.in_([r.id for r in downloads]))
             for survey in downloads:
                 survey_list.append(getSurveyInfo(survey))
-
-        surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
 
         searches = re.split('[ ,]',search)
         for search in searches:
