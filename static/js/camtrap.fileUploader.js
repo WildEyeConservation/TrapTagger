@@ -444,7 +444,6 @@ async function startDownload() {
     filesDownloaded = 0
     filesToDownload = 0
     filesActuallyDownloaded = 0
-    updateDownloadProgress()
     currentDownloadTasks.push(taskName)
     currentDownloads.push(surveyName)
     // Fetch directory tree and start
@@ -463,7 +462,10 @@ async function startDownload() {
     }).then((directories) => {
         iterateDirectories(directories,dirHandle)
     })
-    updatePage(current_page)
+    url = generate_url()
+    updatePage(url)
+    updateDownloadProgress()
+    modalResults.modal('hide')
 }
 
 async function initiateDownload() {
