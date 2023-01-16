@@ -730,9 +730,10 @@ def reclusterAfterTimestampChange(survey_id):
             # deal with knockdowns
             downLabel =  db.session.query(Label).get(GLOBALS.knocked_id)
             clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(downLabel)).all()
-            pool = Pool(processes=4)
+            pool = Pool(processes=1)
             for cluster in clusters:
                 rootImage = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).first()
+                lastImage = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.corrected_timestamp)).first()
                 trapgroup = rootImage.camera.trapgroup
 
                 if (trapgroup.queueing==False) and (trapgroup.processing==False):
@@ -740,7 +741,8 @@ def reclusterAfterTimestampChange(survey_id):
                     trapgroup.user_id = None
                     trapgroup.processing = True
                     db.session.commit()
-                    pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id))
+                    # finish_knockdown(rootImage.id, newTask.id, survey.user.id, lastImage.id)
+                    pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
 
             pool.close()
             pool.join()

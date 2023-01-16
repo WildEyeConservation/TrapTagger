@@ -133,8 +133,8 @@ modalResults.on('shown.bs.modal', function(){
     // </div>
     // <br>
 
-    for (item in downloadsAvailable) {
-        if ((item.survey==surveyName)&&(item.task==taskName)) {
+    for (var dai=0; dai<downloadsAvailable.length; dai++) {
+        if ((downloadsAvailable[dai].survey==surveyName)&&(downloadsAvailable[dai].task==taskName)) {
             //set up download button
             h5 = document.createElement('h5')
             h5.innerHTML = 'Download Available!'

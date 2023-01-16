@@ -710,7 +710,7 @@ def populateMutex(task_id,user_id=None):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def finish_knockdown(self,rootImageID, task_id, current_user_id):
+def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=None):
     '''
     Celery task for marking a camera as knocked down. Combines all images into a new cluster, and reclusters the images from the other cameras.
 
@@ -718,6 +718,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
             rootImageID (int): The image viewed by the user when they marked a cluster as knocked down
             task_id (int): The task being tagged
             current_user_id (int): The user who annotated the knock down
+            lastImageID (int): The last image from the sequence that is known to be knocked down
     '''
     
     try:
@@ -750,9 +751,13 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
         #Move images to new cluster
         images = db.session.query(Image) \
                         .filter(Image.camera == rootImage.camera) \
-                        .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp) \
-                        .all() 
+                        .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp)
 
+        if lastImageID:
+            lastImage = db.session.query(Image).get(lastImageID)
+            images = images.filter(Image.corrected_timestamp <= lastImage.corrected_timestamp)
+
+        images = images.distinct().all() 
         cluster.images = images
 
         from app.functions.imports import classifyCluster
@@ -770,7 +775,8 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
 
         db.session.commit()
 
-        lastImage = db.session.query(Image).filter(Image.camera_id == rootImage.camera_id).order_by(desc(Image.corrected_timestamp)).first()
+        if not lastImageID:
+            lastImage = db.session.query(Image).filter(Image.camera_id == rootImage.camera_id).order_by(desc(Image.corrected_timestamp)).first()
 
         old_clusters = db.session.query(Cluster) \
                             .join(Image, Cluster.images) \
@@ -784,7 +790,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id):
 
         recluster_ims = db.session.query(Image) \
                             .join(Camera) \
-                            .filter(Camera.id != rootImage.camera.id) \
+                            .filter(~Image.id.in_([r.id for r in images])) \
                             .filter(Image.clusters.any(Cluster.id.in_([r.id for r in old_clusters]))) \
                             .order_by(Image.corrected_timestamp) \
                             .distinct(Image.id) \
