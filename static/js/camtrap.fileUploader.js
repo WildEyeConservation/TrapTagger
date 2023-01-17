@@ -315,6 +315,7 @@ var downloadingTask
 var filesDownloaded
 var filesToDownload
 var filesActuallyDownloaded
+var globalTopLevelHandle
 
 function getBlob(url) {
     const blob = fetch(url).then(data => data.blob());
@@ -439,7 +440,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
     }
 }
 
-async function startDownload(dirHandle) {
+async function startDownload() {
     downloadingTask = selectedTask
     filesDownloaded = 0
     filesToDownload = 0
@@ -460,7 +461,7 @@ async function startDownload(dirHandle) {
     }).then((response) => {
         return response.json()
     }).then((directories) => {
-        iterateDirectories(directories,dirHandle)
+        iterateDirectories(directories,globalTopLevelHandle)
     })
     url = generate_url()
     updatePage(url)
@@ -470,10 +471,10 @@ async function startDownload(dirHandle) {
 
 async function initiateDownload() {
     // Select the download folder & get access
-    var dirHandle = await window.showDirectoryPicker({
+    globalTopLevelHandle = await window.showDirectoryPicker({
         writable: true //ask for write permission
     });
-    startDownload(dirHandle)
+    startDownload()
 }
 
 async function verifyPermission(fileHandle, readWrite) {
