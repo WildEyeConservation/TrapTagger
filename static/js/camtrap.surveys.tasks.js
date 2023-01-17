@@ -171,6 +171,10 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
         buildTaskProgress(newTaskDiv,survey,task,'downloading')
     } else {
+        taskInfoCol = document.createElement('div')
+        taskInfoCol.classList.add('col-lg-2');
+        newTaskDiv.appendChild(taskInfoCol)
+
         taskStatusBtn = document.createElement('button')
         taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         taskStatusBtn.innerHTML = 'Details'
