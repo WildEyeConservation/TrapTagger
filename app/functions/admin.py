@@ -736,13 +736,13 @@ def reclusterAfterTimestampChange(survey_id):
                 lastImage = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.corrected_timestamp)).first()
                 trapgroup = rootImage.camera.trapgroup
 
-                if (trapgroup.queueing==False) and (trapgroup.processing==False):
-                    trapgroup.active = False
-                    trapgroup.user_id = None
-                    trapgroup.processing = True
-                    db.session.commit()
-                    # finish_knockdown(rootImage.id, newTask.id, survey.user.id, lastImage.id)
-                    pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
+                # if (trapgroup.queueing==False) and (trapgroup.processing==False):
+                trapgroup.active = False
+                trapgroup.user_id = None
+                trapgroup.processing = True
+                db.session.commit()
+                # finish_knockdown(rootImage.id, newTask.id, survey.user.id, lastImage.id)
+                pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
 
             pool.close()
             pool.join()

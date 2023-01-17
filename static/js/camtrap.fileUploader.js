@@ -464,7 +464,7 @@ async function startDownload(dirHandle) {
     })
     url = generate_url()
     updatePage(url)
-    updateDownloadProgress()
+    // updateDownloadProgress()
     modalResults.modal('hide')
 }
 
