@@ -512,6 +512,20 @@ function checkDownloadStatus() {
     }
 }
 
+async function resetDownloadState() {
+    downloadingTask = null
+
+    var index = currentDownloadTasks.indexOf(taskName)
+    if (index > -1) {
+        currentDownloadTasks.splice(index, 1)
+    }
+
+    var index = currentDownloads.indexOf(surveyName)
+    if (index > -1) {
+        currentDownloads.splice(index, 1)
+    }
+}
+
 async function wrapUpDownload() {
     fetch('/download_complete', {
         method: 'post',
@@ -523,6 +537,8 @@ async function wrapUpDownload() {
             task_id: downloadingTask,
         }),
     }).then(
+        await resetDownloadState()
+    ).then(
         updatePage(current_page)
     )
 }
