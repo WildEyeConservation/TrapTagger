@@ -497,6 +497,7 @@ function updatePage(url){
                 document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
+            downloadsAvailable = []
             taskProcessing = false
             for (iii=0;iii<reply.surveys.length;iii++) {
                 disableSurvey = false

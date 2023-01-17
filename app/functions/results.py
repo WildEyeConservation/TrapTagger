@@ -441,7 +441,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
     labels.append(db.session.query(Label).get(GLOBALS.unknown_id))
     for level in detection_count_levels:
-        level_name = level
+        if level == 'trapgroup':
+            level_name = 'site'
+        else:
+            level_name = level
         if level == 'capture':
             level = 'unique_capture'
         for label in labels:
@@ -461,7 +464,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine multiple individuals
     for level in individual_levels:
-        level_name = level
+        if level == 'trapgroup':
+            level_name = 'site'
+        else:
+            level_name = level
         if level == 'capture':
             level = 'unique_capture'
         df = df.join(df.groupby(level)['individual'].apply(set).to_frame(level_name+'_individuals_temp'), on=level)
@@ -470,7 +476,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine multiple labels
     for level in label_levels:
-        level_name = level
+        if level == 'trapgroup':
+            level_name = 'site'
+        else:
+            level_name = level
         if level == 'capture':
             level = 'unique_capture'
         df = df.join(df.groupby(level)['label'].apply(set).to_frame(level_name+'_labels_temp'), on=level)
@@ -479,7 +488,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine multiple tags
     for level in tag_levels:
-        level_name = level
+        if level == 'trapgroup':
+            level_name = 'site'
+        else:
+            level_name = level
         if level == 'capture':
             level = 'unique_capture'
         df = df.join(df.groupby(level)['tag'].apply(set).to_frame(level_name+'_tags_temp'), on=level)
@@ -492,7 +504,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     #Generate necessary urls
     rootUrl = 'https://' + Config.DNS + '/imageViewer?type='
     for level in url_levels:
-        level_name = level
+        if level == 'trapgroup':
+            level_name = 'site'
+        else:
+            level_name = level
         if (level == 'capture') or (level == 'image'):
             level = 'image_id'
         elif level=='trapgroup':
