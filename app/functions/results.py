@@ -520,6 +520,9 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     # Rename image_id column as id for access to unique IDs
     df.rename(columns={'image_id':'id'},inplace=True)
 
+    # Rename trapgroup column to sites
+    df.rename(columns={'trapgroup':'site'},inplace=True)
+
     #Drop unnecessary columns
     del df['file_path']
     del df['image_name']
