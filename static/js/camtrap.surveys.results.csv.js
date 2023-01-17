@@ -342,9 +342,9 @@ btnCsvGenerate.addEventListener('click', ()=>{
 function translateCsvInfo(levelSelection,dataSelection) {
     /** Translates from new naming conevtions to old */
 
-    if (levelSelection=='site') {
-        levelSelection='trapgroup'
-    }
+    // if (levelSelection=='site') {
+    //     levelSelection='trapgroup'
+    // }
 
     if (['Name','ID'].includes(dataSelection)&&(levelSelection!='capture')) {
         dataSelection = levelSelection
