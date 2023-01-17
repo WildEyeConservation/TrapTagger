@@ -342,9 +342,9 @@ btnCsvGenerate.addEventListener('click', ()=>{
 function translateCsvInfo(levelSelection,dataSelection) {
     /** Translates from new naming conevtions to old */
 
-    // if (levelSelection=='site') {
-    //     levelSelection='trapgroup'
-    // }
+    if (levelSelection=='site') {
+        levelSelection='trapgroup'
+    }
 
     if (['Name','ID'].includes(dataSelection)&&(levelSelection!='capture')) {
         dataSelection = levelSelection
@@ -370,6 +370,10 @@ btnCsvDownload.addEventListener('click', ()=>{
         allColumns = document.querySelectorAll('[id^=csvColLevelElement-]');
         level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].text.toLowerCase();
         noEmpties = true
+
+        if (level=='site') {
+            level = 'trapgroup'
+        }
 
         //label_type
         if (document.getElementById('listLabelFormat').checked) {

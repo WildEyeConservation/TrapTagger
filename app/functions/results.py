@@ -441,10 +441,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
     labels.append(db.session.query(Label).get(GLOBALS.unknown_id))
     for level in detection_count_levels:
-        if level == 'trapgroup':
-            level_name = 'site'
-        else:
-            level_name = level
+        level_name = level
         if level == 'capture':
             level = 'unique_capture'
         for label in labels:
@@ -464,10 +461,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine multiple individuals
     for level in individual_levels:
-        if level == 'trapgroup':
-            level_name = 'site'
-        else:
-            level_name = level
+        level_name = level
         if level == 'capture':
             level = 'unique_capture'
         df = df.join(df.groupby(level)['individual'].apply(set).to_frame(level_name+'_individuals_temp'), on=level)
@@ -476,10 +470,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine multiple labels
     for level in label_levels:
-        if level == 'trapgroup':
-            level_name = 'site'
-        else:
-            level_name = level
+        level_name = level
         if level == 'capture':
             level = 'unique_capture'
         df = df.join(df.groupby(level)['label'].apply(set).to_frame(level_name+'_labels_temp'), on=level)
@@ -488,10 +479,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     #Combine multiple tags
     for level in tag_levels:
-        if level == 'trapgroup':
-            level_name = 'site'
-        else:
-            level_name = level
+        level_name = level
         if level == 'capture':
             level = 'unique_capture'
         df = df.join(df.groupby(level)['tag'].apply(set).to_frame(level_name+'_tags_temp'), on=level)
@@ -504,10 +492,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     #Generate necessary urls
     rootUrl = 'https://' + Config.DNS + '/imageViewer?type='
     for level in url_levels:
-        if level == 'trapgroup':
-            level_name = 'site'
-        else:
-            level_name = level
+        level_name = level
         if (level == 'capture') or (level == 'image'):
             level = 'image_id'
         elif level=='trapgroup':
@@ -519,9 +504,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
     # Rename image_id column as id for access to unique IDs
     df.rename(columns={'image_id':'id'},inplace=True)
-
-    # Rename trapgroup column to sites
-    df.rename(columns={'trapgroup':'site'},inplace=True)
 
     #Drop unnecessary columns
     del df['file_path']
@@ -537,7 +519,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     df['capture_image_count'] = df.groupby('unique_capture')['unique_capture'].transform('count')
     df['cluster_image_count'] = df.groupby('cluster')['cluster'].transform('count')
     df['camera_image_count'] = df.groupby('camera')['camera'].transform('count')
-    df['site_image_count'] = df.groupby('site')['site'].transform('count')
+    df['trapgroup_image_count'] = df.groupby('trapgroup')['trapgroup'].transform('count')
     df['survey_image_count'] = df.groupby('survey')['survey'].transform('count')
 
     # df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
