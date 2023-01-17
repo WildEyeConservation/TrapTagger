@@ -13,32 +13,37 @@
 // limitations under the License.
 var downloadsAvailable = []
 
-function buildTaskProgress(taskInfoCol,survey,task,progressType) {
-    taskHitsActive = document.createElement('div')
-    taskHitsActive.classList.add('row');
-    taskHitsActive.setAttribute("id","taskHitsActive"+task.id)
-    taskHitsActive.setAttribute("style","font-size: 70%")
-    taskInfoCol.appendChild(taskHitsActive)
-
-    if (progressType=='launched') {
-        taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
-    }    
-
-    taskHitsCompleted = document.createElement('div')
-    taskHitsCompleted.classList.add('row');
-    taskHitsCompleted.setAttribute("id","taskHitsCompleted"+task.id)
-    taskHitsCompleted.setAttribute("style","font-size: 70%")
-    taskInfoCol.appendChild(taskHitsCompleted)
-
-    if (progressType=='launched') {
-        taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
-    }
+function buildTaskProgress(newTaskDiv,survey,task,progressType) {
+    /** Builds a task progress bar depending on the type required. */
 
     taskProgressBarCol = document.createElement('div')
-    taskProgressBarCol.classList.add('col-lg-6');
-    
     taskProgressBarDiv = document.createElement('div')
-    taskProgressBarDiv.setAttribute("id","taskProgressBarDiv"+task.id)
+
+    if (progressType=='launched') {
+
+        taskInfoCol = document.createElement('div')
+        taskInfoCol.classList.add('col-lg-2');
+        newTaskDiv.appendChild(taskInfoCol)
+    
+        taskHitsActive = document.createElement('div')
+        taskHitsActive.classList.add('row');
+        taskHitsActive.setAttribute("id","taskHitsActive"+task.id)
+        taskHitsActive.setAttribute("style","font-size: 70%")
+        taskInfoCol.appendChild(taskHitsActive)
+        taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
+
+        taskHitsCompleted = document.createElement('div')
+        taskHitsCompleted.classList.add('row');
+        taskHitsCompleted.setAttribute("id","taskHitsCompleted"+task.id)
+        taskHitsCompleted.setAttribute("style","font-size: 70%")
+        taskInfoCol.appendChild(taskHitsCompleted)
+        taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
+
+        taskProgressBarCol.classList.add('col-lg-6');
+        taskProgressBarDiv.setAttribute("id","taskProgressBarDiv"+task.id)
+    } else {
+        taskProgressBarCol.classList.add('col-lg-8');
+    }    
 
     var newProg = document.createElement('div');
     newProg.classList.add('progress');
@@ -142,10 +147,6 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     taskStatusElement.setAttribute("style","padding-left: 15px; font-size: 70%")
     col.appendChild(taskStatusElement)
 
-    taskInfoCol = document.createElement('div')
-    taskInfoCol.classList.add('col-lg-2');
-    newTaskDiv.appendChild(taskInfoCol)
-
     if (task.status==null) {
         taskStatusElement.innerHTML = 'Unlaunched'
     } else {
@@ -166,9 +167,9 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     }      
 
     if ((task.status=='PROGRESS')) {
-        buildTaskProgress(taskInfoCol,survey,task,'launched')
+        buildTaskProgress(newTaskDiv,survey,task,'launched')
     } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
-        buildTaskProgress(taskInfoCol,survey,task,'downloading')
+        buildTaskProgress(newTaskDiv,survey,task,'downloading')
     } else {
         taskStatusBtn = document.createElement('button')
         taskStatusBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
