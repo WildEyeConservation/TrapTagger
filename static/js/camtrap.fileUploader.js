@@ -433,7 +433,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
                 } else {
                     var newPath = path + '/' + item
                 }
-                iterateDirectories(newDirectories,newDirHandle,newPath)
+                await iterateDirectories(newDirectories,newDirHandle,newPath)
             }
             expectedDirectories.push(item)
         }
