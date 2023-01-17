@@ -537,7 +537,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     df['capture_image_count'] = df.groupby('unique_capture')['unique_capture'].transform('count')
     df['cluster_image_count'] = df.groupby('cluster')['cluster'].transform('count')
     df['camera_image_count'] = df.groupby('camera')['camera'].transform('count')
-    df['trapgroup_image_count'] = df.groupby('trapgroup')['trapgroup'].transform('count')
+    df['site_image_count'] = df.groupby('site')['site'].transform('count')
     df['survey_image_count'] = df.groupby('survey')['survey'].transform('count')
 
     # df.sort_values(by=['survey', 'trapgroup', 'camera', 'timestamp'], inplace=True, ascending=True)
