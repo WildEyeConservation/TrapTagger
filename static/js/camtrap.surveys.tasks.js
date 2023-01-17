@@ -42,7 +42,7 @@ function buildTaskProgress(newTaskDiv,survey,task,progressType) {
         taskProgressBarCol.classList.add('col-lg-6');
         taskProgressBarDiv.setAttribute("id","taskProgressBarDiv"+task.id)
     } else {
-        taskProgressBarCol.classList.add('col-lg-8');
+        taskProgressBarCol.classList.add('col-lg-9');
     }    
 
     var newProg = document.createElement('div');
@@ -97,10 +97,10 @@ function buildTaskProgress(newTaskDiv,survey,task,progressType) {
         }(task.id));
     }
 
-    tagTaskCol = document.createElement('div')
-    tagTaskCol.classList.add('col-lg-1');
-
     if (progressType=='launched') {
+        tagTaskCol = document.createElement('div')
+        tagTaskCol.classList.add('col-lg-1');
+
         tagTaskLink = document.createElement('a')
         tagTaskLink.setAttribute("href","/jobs")
         
