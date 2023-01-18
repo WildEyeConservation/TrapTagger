@@ -64,7 +64,10 @@ function buildTaskProgress(newTaskDiv,survey,task,progressType) {
         newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
         newProgInner.innerHTML = task.remaining
     } else if (progressType=='downloading') {
-        updateDownloadProgress()
+        newProgInner.setAttribute("aria-valuenow", filesDownloaded);
+        newProgInner.setAttribute("aria-valuemax", filesToDownload);
+        newProgInner.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
+        newProgInner.innerHTML = (filesToDownload-filesDownloaded).toString() + " files remaining"
     }
 
     newProg.appendChild(newProgInner);
