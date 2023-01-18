@@ -543,6 +543,7 @@ async function verifyPermission(fileHandle, readWrite) {
 }
 
 function updateDownloadProgress() {
+    // console.log(filesDownloaded.toString()+', '+filesToDownload.toString())
     progBar = document.getElementById('progBar'+downloadingTask)
     progBar.setAttribute("aria-valuenow", filesDownloaded);
     progBar.setAttribute("aria-valuemax", filesToDownload);
@@ -580,22 +581,24 @@ function resetDownloadState() {
 }
 
 async function wrapUpDownload() {
-    fetch('/download_complete', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            task_id: downloadingTask,
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-    }).then(
-        resetDownloadState()
-    ).catch( (error) => {
-        wrapUpDownload()
-    })
+    if (downloadingTask != null) {
+        fetch('/download_complete', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                task_id: downloadingTask,
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            }
+        }).then(
+            resetDownloadState()
+        ).catch( (error) => {
+            wrapUpDownload()
+        })
+    }
 }

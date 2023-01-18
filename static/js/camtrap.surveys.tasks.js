@@ -63,6 +63,8 @@ function buildTaskProgress(newTaskDiv,survey,task,progressType) {
         newProgInner.setAttribute("aria-valuemax", task.total);
         newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
         newProgInner.innerHTML = task.remaining
+    } else if (progressType=='downloading') {
+        updateDownloadProgress()
     }
 
     newProg.appendChild(newProgInner);
