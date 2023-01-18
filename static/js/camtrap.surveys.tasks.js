@@ -13,7 +13,7 @@
 // limitations under the License.
 var downloadsAvailable = []
 
-function buildTaskProgress(newTaskDiv,survey,task,progressType) {
+function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
     /** Builds a task progress bar depending on the type required. */
 
     taskProgressBarCol = document.createElement('div')
@@ -121,6 +121,9 @@ function buildTaskProgress(newTaskDiv,survey,task,progressType) {
         tagTaskCol.appendChild(tagTaskLink)
         newTaskDiv.appendChild(tagTaskCol)
     }
+
+    newTaskDiv.setAttribute('style',"margin-right:10px")
+    taskDiv.appendChild(newTaskDiv)
 }
 
 function buildTask(taskDiv, task, disableSurvey, survey) {
@@ -172,9 +175,9 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     }      
 
     if ((task.status=='PROGRESS')) {
-        buildTaskProgress(newTaskDiv,survey,task,'launched')
+        buildTaskProgress(taskDiv,newTaskDiv,survey,task,'launched')
     } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
-        buildTaskProgress(newTaskDiv,survey,task,'downloading')
+        buildTaskProgress(taskDiv,newTaskDiv,survey,task,'downloading')
     } else {
         taskInfoCol = document.createElement('div')
         taskInfoCol.classList.add('col-lg-2');
@@ -299,10 +302,9 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
             }
         }(task.id, task.name));
 
+        newTaskDiv.setAttribute('style',"margin-right:10px")
+        taskDiv.appendChild(newTaskDiv)
     }
-
-    taskDiv.appendChild(newTaskDiv)
-    newTaskDiv.setAttribute('style',"margin-right:10px")
 }
 
 function confirmTaskDelete() {
