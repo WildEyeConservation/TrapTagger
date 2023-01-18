@@ -2184,3 +2184,8 @@ def buildDirectoryTree(path):
         directories[folder] = buildDirectoryTree(path+'/'+folder)
         
     return directories
+
+def s3_folder_exists(path):
+    '''Returns true if the folder exists'''
+    resp = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=path.rstrip('/'), Delimiter='/',MaxKeys=1)
+    return 'CommonPrefixes' in resp

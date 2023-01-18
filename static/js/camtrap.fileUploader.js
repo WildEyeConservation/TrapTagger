@@ -316,22 +316,36 @@ var filesDownloaded
 var filesToDownload
 var filesActuallyDownloaded
 var globalTopLevelHandle
+var errorEcountered = false
+var finishedIteratingDirectories = false
 
-function getBlob(url) {
-    const blob = fetch(url).then(data => data.blob());
+async function getBlob(url) {
+    const blob = await fetch(url
+    ).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
+        return response.blob()
+    }).catch( (error) => {
+        errorEcountered = true
+        return 'error'
+    })
     return blob;
 }
 
-async function downloadFile(fileName,URL,dirHandle) {
-    var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-    if (await verifyPermission(fileHandle, true)) {
-        const writable = await fileHandle.createWritable();
-        await writable.write(await getBlob(URL));
-        await writable.close();
-        filesDownloaded += 1
-        filesActuallyDownloaded += 1
-        updateDownloadProgress()
+async function downloadFile(fileName,url,dirHandle) {
+    var blob = await getBlob(url)
+    if (blob!='error') {
+        var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+        if (await verifyPermission(fileHandle, true)) {
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            filesActuallyDownloaded += 1
+        }
     }
+    filesDownloaded += 1
+    updateDownloadProgress()
 }
 
 async function deleteFolder(dirHandle,parentHandle=null) {
@@ -409,9 +423,18 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
             path: path
         }),
     }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
         return response.json()
     }).then((files) => {
-        return checkFiles(files,dirHandle,expectedDirectories,path)
+        if (files=='error') {
+            location.reload()
+        } else {
+            return checkFiles(files,dirHandle,expectedDirectories,path)
+        }
+    }).catch( (error) => {
+        errorEcountered = true
     })
 }
 
@@ -442,13 +465,21 @@ async function iterateDirectories(directories,dirHandle,path='') {
 
 async function startDownload() {
     downloadingTask = selectedTask
+    finishedIteratingDirectories = false
+    errorEcountered = false
     filesDownloaded = 0
     filesToDownload = 0
     filesActuallyDownloaded = 0
     currentDownloadTasks.push(taskName)
     currentDownloads.push(surveyName)
+
+    url = generate_url()
+    updatePage(url)
+    // updateDownloadProgress()
+    modalResults.modal('hide')
+
     // Fetch directory tree and start
-    fetch('/get_download_directories', {
+    directories = await fetch('/get_download_directories', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -459,14 +490,22 @@ async function startDownload() {
             taskName: taskName
         }),
     }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
         return response.json()
     }).then((directories) => {
-        iterateDirectories(directories,globalTopLevelHandle)
+        if (directories=='error') {
+            location.reload()
+        } else {
+            return directories
+        }
+    }).catch( (error) => {
+        errorEcountered = true
+        startDownload()
     })
-    url = generate_url()
-    updatePage(url)
-    // updateDownloadProgress()
-    modalResults.modal('hide')
+    await iterateDirectories(directories,globalTopLevelHandle)
+    finishedIteratingDirectories = true
 }
 
 async function initiateDownload() {
@@ -501,8 +540,8 @@ function updateDownloadProgress() {
 }
 
 function checkDownloadStatus() {
-    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)) {
-        if (filesActuallyDownloaded==0) {
+    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories) {
+        if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
             // finished
             wrapUpDownload()
         } else {
@@ -536,9 +575,15 @@ async function wrapUpDownload() {
         body: JSON.stringify({
             task_id: downloadingTask,
         }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
     }).then(
         await resetDownloadState()
     ).then(
         updatePage(current_page)
-    )
+    ).catch( (error) => {
+        wrapUpDownload()
+    })
 }

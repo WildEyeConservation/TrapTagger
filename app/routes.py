@@ -6171,9 +6171,11 @@ def get_download_directories():
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     if survey:
         path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
-        directories = {surveyName: {taskName: buildDirectoryTree(path)}}
+        if s3_folder_exists(path):
+            directories = {surveyName: {taskName: buildDirectoryTree(path)}}
+            return json.dumps(directories)
 
-    return json.dumps(directories)
+    return json.dumps('error')
 
 @app.route('/get_directory_files', methods=['POST'])
 @login_required
@@ -6186,16 +6188,18 @@ def get_directory_files():
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     if survey:
         path = current_user.folder+'/Downloads/'+path
-        folders,filenames = list_all(Config.BUCKET,path+'/')
-        for fileName in filenames:
-            URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+path+'/'+fileName
-            # URL = urllib.parse.quote(URL, safe="~()*!.'")
-            files.append({
-                'fileName': fileName,
-                'URL': URL
-            })
+        if s3_folder_exists(path):
+            folders,filenames = list_all(Config.BUCKET,path+'/')
+            for fileName in filenames:
+                URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+path+'/'+fileName
+                # URL = urllib.parse.quote(URL, safe="~()*!.'")
+                files.append({
+                    'fileName': fileName,
+                    'URL': URL
+                })
+            return json.dumps(files)
 
-    return json.dumps(files)
+    return json.dumps('error')
 
 @app.route('/download_complete', methods=['POST'])
 @login_required
