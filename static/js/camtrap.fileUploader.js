@@ -318,6 +318,7 @@ var filesActuallyDownloaded
 var globalTopLevelHandle
 var errorEcountered = false
 var finishedIteratingDirectories = false
+var pathsBeingChecked = []
 
 async function getBlob(url) {
     const blob = await fetch(url
@@ -412,7 +413,9 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 }
 
 async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
-    fetch('/get_directory_files', {
+    pathsBeingChecked.push(path)
+
+    files = await fetch('/get_directory_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -431,11 +434,18 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
         if (files=='error') {
             location.reload()
         } else {
-            return checkFiles(files,dirHandle,expectedDirectories,path)
+            return files
         }
     }).catch( (error) => {
         errorEcountered = true
     })
+
+    await checkFiles(files,dirHandle,expectedDirectories,path)
+
+    var index = pathsBeingChecked.indexOf(path)
+    if (index > -1) {
+        pathsBeingChecked.splice(index, 1)
+    }
 }
 
 async function iterateDirectories(directories,dirHandle,path='') {
@@ -466,6 +476,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
 async function startDownload() {
     downloadingTask = selectedTask
     finishedIteratingDirectories = false
+    pathsBeingChecked = []
     errorEcountered = false
     filesDownloaded = 0
     filesToDownload = 0
@@ -540,7 +551,7 @@ function updateDownloadProgress() {
 }
 
 function checkDownloadStatus() {
-    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories) {
+    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
         if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
             // finished
             wrapUpDownload()
