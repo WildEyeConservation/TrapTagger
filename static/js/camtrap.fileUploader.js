@@ -446,6 +446,7 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
     if (index > -1) {
         pathsBeingChecked.splice(index, 1)
     }
+    checkDownloadStatus()
 }
 
 async function iterateDirectories(directories,dirHandle,path='') {
