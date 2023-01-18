@@ -548,7 +548,7 @@ function updateDownloadProgress() {
     progBar.setAttribute("aria-valuenow", filesDownloaded);
     progBar.setAttribute("aria-valuemax", filesToDownload);
     progBar.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
-    progBar.innerHTML = (filesToDownload-filesDownloaded).toString() + " files remaining"
+    newProgInner.innerHTML = filesToDownload.toString() + '/' + filesDownloaded.toString() + ' files downloaded'
     checkDownloadStatus()
 }
 

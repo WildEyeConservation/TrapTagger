@@ -67,7 +67,7 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
         newProgInner.setAttribute("aria-valuenow", filesDownloaded);
         newProgInner.setAttribute("aria-valuemax", filesToDownload);
         newProgInner.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
-        newProgInner.innerHTML = (filesToDownload-filesDownloaded).toString() + " files remaining"
+        newProgInner.innerHTML = filesToDownload.toString() + '/' + filesDownloaded.toString() + ' files downloaded'
     }
 
     newProg.appendChild(newProgInner);
