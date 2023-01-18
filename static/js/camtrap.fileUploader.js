@@ -563,7 +563,7 @@ function checkDownloadStatus() {
     }
 }
 
-async function resetDownloadState() {
+function resetDownloadState() {
     downloadingTask = null
 
     var index = currentDownloadTasks.indexOf(taskName)
@@ -575,6 +575,8 @@ async function resetDownloadState() {
     if (index > -1) {
         currentDownloads.splice(index, 1)
     }
+
+    updatePage()
 }
 
 async function wrapUpDownload() {
@@ -592,9 +594,7 @@ async function wrapUpDownload() {
             throw new Error(response.statusText)
         }
     }).then(
-        await resetDownloadState()
-    ).then(
-        updatePage(current_page)
+        resetDownloadState()
     ).catch( (error) => {
         wrapUpDownload()
     })
