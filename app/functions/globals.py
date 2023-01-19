@@ -2180,10 +2180,12 @@ def buildDirectoryTree(path):
 
     directories = {}
     folders,filenames = list_all(Config.BUCKET,path+'/')
+    total_count = len(filenames)
     for folder in folders:
-        directories[folder] = buildDirectoryTree(path+'/'+folder)
+        directories[folder], count = buildDirectoryTree(path+'/'+folder)
+        total_count += count
         
-    return directories
+    return directories, total_count
 
 def s3_folder_exists(path):
     '''Returns true if the folder exists'''

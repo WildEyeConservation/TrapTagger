@@ -319,6 +319,7 @@ var globalTopLevelHandle
 var errorEcountered = false
 var finishedIteratingDirectories = false
 var pathsBeingChecked = []
+var checkingDownload = false
 
 async function getBlob(url) {
     const blob = await fetch(url
@@ -367,7 +368,7 @@ async function deleteFolder(dirHandle,parentHandle=null) {
 
 async function checkFiles(files,dirHandle,expectedDirectories,path) {
     // Get list of files that already exist in folder
-    filesToDownload += files.length
+    // filesToDownload += files.length
     updateDownloadProgress()
     var existingFiles = []
     var existingDirectories = []
@@ -482,8 +483,11 @@ async function startDownload() {
     filesDownloaded = 0
     filesToDownload = 0
     filesActuallyDownloaded = 0
-    currentDownloadTasks.push(taskName)
-    currentDownloads.push(surveyName)
+
+    if (!currentDownloadTasks.includes(taskName)) {
+        currentDownloadTasks.push(taskName)
+        currentDownloads.push(surveyName)
+    }
 
     url = generate_url()
     updatePage(url)
@@ -506,11 +510,12 @@ async function startDownload() {
             throw new Error(response.statusText)
         }
         return response.json()
-    }).then((directories) => {
-        if (directories=='error') {
+    }).then((data) => {
+        if (data=='error') {
             location.reload()
         } else {
-            return directories
+            filesToDownload = data.fileCount
+            return data.directories
         }
     }).catch( (error) => {
         errorEcountered = true
@@ -525,6 +530,7 @@ async function initiateDownload() {
     globalTopLevelHandle = await window.showDirectoryPicker({
         writable: true //ask for write permission
     });
+    checkingDownload = false
     startDownload()
 }
 
@@ -548,7 +554,13 @@ function updateDownloadProgress() {
     progBar.setAttribute("aria-valuenow", filesDownloaded);
     progBar.setAttribute("aria-valuemax", filesToDownload);
     progBar.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
-    progBar.innerHTML = filesDownloaded.toString() + '/' + filesToDownload.toString() + ' files downloaded'
+
+    if (checkingDownload) {
+        progBar.innerHTML = 'Checking files... ' + filesDownloaded.toString() + '/' + filesToDownload.toString()
+    } else {
+        progBar.innerHTML = filesDownloaded.toString() + '/' + filesToDownload.toString() + ' files downloaded'
+    }
+    
     checkDownloadStatus()
 }
 
@@ -559,6 +571,7 @@ function checkDownloadStatus() {
             wrapUpDownload()
         } else {
             // check download
+            checkingDownload = true
             startDownload()
         }
     }

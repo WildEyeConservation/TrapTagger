@@ -6172,8 +6172,9 @@ def get_download_directories():
     if survey:
         path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
         if s3_folder_exists(path):
-            directories = {surveyName: {taskName: buildDirectoryTree(path)}}
-            return json.dumps(directories)
+            directories, fileCount = buildDirectoryTree(path)
+            directories = {surveyName: {taskName: directories}}
+            return json.dumps({'directories': directories, 'fileCount': fileCount})
 
     return json.dumps('error')
 

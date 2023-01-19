@@ -1283,7 +1283,9 @@ def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual
                         filename += '_' + str(image.id) + '.jpg'
                         destinationKey += '/' + filename
                     else:
-                        for split in splitPath[1:]: destinationKey += '/' + split
+                        startPoint = 1
+                        if splitPath[1]==surveyName: startPoint=2
+                        for split in splitPath[startPoint:]: destinationKey += '/' + split
                         destinationKey += '/' +image.filename
                     destinationKeys.append(destinationKey)
 

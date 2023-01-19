@@ -157,7 +157,7 @@ modalResults.on('shown.bs.modal', function(){
             btn = document.createElement('btn')
             btn.setAttribute('class','btn btn-success btn-block btn-sm')
             btn.setAttribute('onclick','initiateDownload()')
-            btn.innerHTML = 'Retrieve Download'
+            btn.innerHTML = 'Download'
             col.appendChild(btn)
 
             availableDownloadDiv.appendChild(document.createElement('br'))
