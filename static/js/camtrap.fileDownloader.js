@@ -90,11 +90,11 @@ async function verifyPermission(fileHandle) {
     if ((await fileHandle.queryPermission(options)) === 'granted') {
         console.log('Permission obtained')
         downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
-    }
-    if ((await fileHandle.requestPermission(options)) === 'granted') {
+    } else if ((await fileHandle.requestPermission(options)) === 'granted') {
         console.log('Permission obtained')
         downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
+    } else {
+        console.log('Permission NOT obtained')
+        downloadWorker.postMessage({'func': 'permissionGiven', 'args': false})
     }
-    console.log('Permission NOT obtained')
-    downloadWorker.postMessage({'func': 'permissionGiven', 'args': false})
 }
