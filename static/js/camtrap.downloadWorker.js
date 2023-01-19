@@ -262,12 +262,14 @@ async function permissionGiven() {
 
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
-    const timer = ms => new Promise(res => setTimeout(res, ms))
-    waitingForPermission = true
-    postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
-    while (waitingForPermission) {
-        await timer(3000);
-    }
+
+    // const timer = ms => new Promise(res => setTimeout(res, ms))
+    // waitingForPermission = true
+    // postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
+    // while (waitingForPermission) {
+    //     await timer(3000);
+    // }
+
     // console.log('Verifying Permission')
     // const options = {}
     // options.mode = 'readwrite'

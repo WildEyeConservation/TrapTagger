@@ -39,6 +39,8 @@ async function initiateDownload() {
         writable: true //ask for write permission
     });
 
+    await verifyPermission(topLevelHandle)
+
     checkingDownload = false
     if (!currentDownloadTasks.includes(taskName)) {
         currentDownloadTasks.push(taskName)
@@ -82,6 +84,23 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
     downloadWorker.postMessage({'func': 'checkDownloadStatus', 'args': null})
 }
 
+// async function verifyPermission(fileHandle) {
+//     /** Checks for the necessary file/folder permissions and requests them if necessary */
+//     console.log('Verifying Permission')
+//     const options = {}
+//     options.mode = 'readwrite'
+//     if ((await fileHandle.queryPermission(options)) === 'granted') {
+//         console.log('Permission obtained')
+//         downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
+//     } else if ((await fileHandle.requestPermission(options)) === 'granted') {
+//         console.log('Permission obtained')
+//         downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
+//     } else {
+//         console.log('Permission NOT obtained')
+//         downloadWorker.postMessage({'func': 'permissionGiven', 'args': false})
+//     }
+// }
+
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
     console.log('Verifying Permission')
@@ -89,12 +108,12 @@ async function verifyPermission(fileHandle) {
     options.mode = 'readwrite'
     if ((await fileHandle.queryPermission(options)) === 'granted') {
         console.log('Permission obtained')
-        downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
-    } else if ((await fileHandle.requestPermission(options)) === 'granted') {
-        console.log('Permission obtained')
-        downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
-    } else {
-        console.log('Permission NOT obtained')
-        downloadWorker.postMessage({'func': 'permissionGiven', 'args': false})
+        return true
     }
+    if ((await fileHandle.requestPermission(options)) === 'granted') {
+        console.log('Permission obtained')
+        return true
+    }
+    console.log('Permission NOT obtained')
+    return false
 }
