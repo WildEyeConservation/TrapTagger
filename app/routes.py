@@ -6210,11 +6210,11 @@ def download_complete():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
+        task.download_available = False
+        db.session.commit()
+
         s3 = boto3.resource('s3')
         # bucketObject = s3.Bucket(Config.BUCKET)
         # bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
-
-        task.download_available = False
-        db.session.commit()
 
     return json.dumps('success')
