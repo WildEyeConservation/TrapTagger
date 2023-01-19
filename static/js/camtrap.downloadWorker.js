@@ -57,7 +57,7 @@ async function downloadFile(fileName,url,dirHandle) {
     var blob = await getBlob(url)
     if (blob!='error') {
         var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-        if (await verifyPermission(fileHandle, true)) {
+        if (await verifyPermission(fileHandle)) {
             const writable = await fileHandle.createWritable();
             await writable.write(blob);
             await writable.close();
@@ -71,7 +71,7 @@ async function downloadFile(fileName,url,dirHandle) {
 async function deleteFolder(dirHandle,parentHandle=null) {
     /** Recursive function for deleting an unwanted folder and all of its contents */
     console.log('Deleting folder')
-    if (await verifyPermission(dirHandle, true)) {
+    if (await verifyPermission(dirHandle)) {
         for await (const entry of dirHandle.values()) {
             if (entry.kind=='directory') {
                 await deleteFolder(entry)
@@ -80,7 +80,7 @@ async function deleteFolder(dirHandle,parentHandle=null) {
         }
     }
     if (parentHandle) {
-        if (await verifyPermission(parentHandle, true)) {
+        if (await verifyPermission(parentHandle)) {
             parentHandle.removeEntry(dirHandle.name)
         }
     }
@@ -95,7 +95,7 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
     updateDownloadProgress()
     var existingFiles = []
     var existingDirectories = []
-    if (await verifyPermission(dirHandle, true)) {
+    if (await verifyPermission(dirHandle)) {
         for await (const entry of dirHandle.values()) {
             if (entry.kind=='file') {
                 existingFiles.push(entry.name)
@@ -125,7 +125,7 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 
     // Delete the remaining files that shouldn't be there
     if (path.split('/').length!=1) {
-        if (await verifyPermission(dirHandle, true)) {
+        if (await verifyPermission(dirHandle)) {
             for (var index=0; index<existingFiles.length; index++) {
                 dirHandle.removeEntry(existingFiles[index])
             }
@@ -190,9 +190,9 @@ async function iterateDirectories(directories,dirHandle,path='') {
     getDirectoryFiles(path,dirHandle,expectedDirectories)
 
     for (item in directories) {
-        if (await verifyPermission(dirHandle, true)) {
+        if (await verifyPermission(dirHandle)) {
             var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
-            if (await verifyPermission(newDirHandle, true)) {
+            if (await verifyPermission(newDirHandle)) {
                 var newDirectories = directories[item]
                 if (path=='') {
                     var newPath = item
@@ -254,20 +254,20 @@ async function startDownload(selectedTask,taskName) {
 
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
-    postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
-    // console.log('Verifying Permission')
-    // const options = {}
-    // options.mode = 'readwrite'
-    // if ((await fileHandle.queryPermission(options)) === 'granted') {
-    //     console.log('Permission obtained')
-    //     return true
-    // }
-    // if ((await fileHandle.requestPermission(options)) === 'granted') {
-    //     console.log('Permission obtained')
-    //     return true
-    // }
-    // console.log('Permission NOT obtained')
-    // return false
+    // postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
+    console.log('Verifying Permission')
+    const options = {}
+    options.mode = 'readwrite'
+    if ((await fileHandle.queryPermission(options)) === 'granted') {
+        console.log('Permission obtained')
+        return true
+    }
+    if ((await fileHandle.requestPermission(options)) === 'granted') {
+        console.log('Permission obtained')
+        return true
+    }
+    console.log('Permission NOT obtained')
+    return false
 }
 
 function updateDownloadProgress() {
