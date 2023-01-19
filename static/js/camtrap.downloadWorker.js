@@ -21,7 +21,7 @@ var errorEcountered = false
 var finishedIteratingDirectories = false
 var pathsBeingChecked = []
 var surveyName
-var waitingForPermission = false
+var downloadingTaskName
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -33,8 +33,6 @@ onmessage = function (evt) {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
         updateDownloadProgress()
-    } else if (evt.data.func=='permissionGiven') {
-        permissionGiven()
     }
 };
 
@@ -60,12 +58,10 @@ async function downloadFile(fileName,url,dirHandle) {
     var blob = await getBlob(url)
     if (blob!='error') {
         var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-        if (await verifyPermission(fileHandle)) {
-            const writable = await fileHandle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-            filesActuallyDownloaded += 1
-        }
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        filesActuallyDownloaded += 1
     }
     filesDownloaded += 1
     updateDownloadProgress()
@@ -74,18 +70,14 @@ async function downloadFile(fileName,url,dirHandle) {
 async function deleteFolder(dirHandle,parentHandle=null) {
     /** Recursive function for deleting an unwanted folder and all of its contents */
     console.log('Deleting folder')
-    if (await verifyPermission(dirHandle)) {
-        for await (const entry of dirHandle.values()) {
-            if (entry.kind=='directory') {
-                await deleteFolder(entry)
-            }
-            await dirHandle.removeEntry(entry.name)
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind=='directory') {
+            await deleteFolder(entry)
         }
+        await dirHandle.removeEntry(entry.name)
     }
     if (parentHandle) {
-        if (await verifyPermission(parentHandle)) {
-            parentHandle.removeEntry(dirHandle.name)
-        }
+        parentHandle.removeEntry(dirHandle.name)
     }
 }
 
@@ -98,14 +90,12 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
     updateDownloadProgress()
     var existingFiles = []
     var existingDirectories = []
-    if (await verifyPermission(dirHandle)) {
-        for await (const entry of dirHandle.values()) {
-            if (entry.kind=='file') {
-                existingFiles.push(entry.name)
-            } else if (entry.kind=='directory') {
-                if (!expectedDirectories.includes(entry.name)) {
-                    existingDirectories.push(entry)
-                }
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind=='file') {
+            existingFiles.push(entry.name)
+        } else if (entry.kind=='directory') {
+            if (!expectedDirectories.includes(entry.name)) {
+                existingDirectories.push(entry)
             }
         }
     }
@@ -128,13 +118,11 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 
     // Delete the remaining files that shouldn't be there
     if (path.split('/').length!=1) {
-        if (await verifyPermission(dirHandle)) {
-            for (var index=0; index<existingFiles.length; index++) {
-                dirHandle.removeEntry(existingFiles[index])
-            }
-            for (var index=0; index<existingDirectories.length; index++) {
-                deleteFolder(existingDirectories[index],dirHandle)
-            }
+        for (var index=0; index<existingFiles.length; index++) {
+            dirHandle.removeEntry(existingFiles[index])
+        }
+        for (var index=0; index<existingDirectories.length; index++) {
+            deleteFolder(existingDirectories[index],dirHandle)
         }
     }
 }
@@ -193,19 +181,15 @@ async function iterateDirectories(directories,dirHandle,path='') {
     getDirectoryFiles(path,dirHandle,expectedDirectories)
 
     for (item in directories) {
-        if (await verifyPermission(dirHandle)) {
-            var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
-            if (await verifyPermission(newDirHandle)) {
-                var newDirectories = directories[item]
-                if (path=='') {
-                    var newPath = item
-                } else {
-                    var newPath = path + '/' + item
-                }
-                await iterateDirectories(newDirectories,newDirHandle,newPath)
-            }
-            expectedDirectories.push(item)
+        var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
+        var newDirectories = directories[item]
+        if (path=='') {
+            var newPath = item
+        } else {
+            var newPath = path + '/' + item
         }
+        await iterateDirectories(newDirectories,newDirHandle,newPath)
+        expectedDirectories.push(item)
     }
 }
 
@@ -215,13 +199,13 @@ async function startDownload(selectedTask,taskName) {
     console.log('Started Download')
 
     downloadingTask = selectedTask
+    downloadingTaskName = taskName
     finishedIteratingDirectories = false
     pathsBeingChecked = []
     errorEcountered = false
     filesDownloaded = 0
     filesToDownload = 0
     filesActuallyDownloaded = 0
-    waitingForPermission = false
 
     postMessage({'func': 'initDisplayForDownload', 'args': null})
 
@@ -250,40 +234,10 @@ async function startDownload(selectedTask,taskName) {
         }
     }).catch( (error) => {
         errorEcountered = true
-        startDownload()
+        startDownload(downloadingTask,downloadingTaskName)
     })
     await iterateDirectories(directories,globalTopLevelHandle)
     finishedIteratingDirectories = true
-}
-
-async function permissionGiven() {
-    waitingForPermission = false
-}
-
-async function verifyPermission(fileHandle) {
-    /** Checks for the necessary file/folder permissions and requests them if necessary */
-
-    // const timer = ms => new Promise(res => setTimeout(res, ms))
-    // waitingForPermission = true
-    // postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
-    // while (waitingForPermission) {
-    //     await timer(3000);
-    // }
-
-    // console.log('Verifying Permission')
-    // const options = {}
-    // options.mode = 'readwrite'
-    // if ((await fileHandle.queryPermission(options)) === 'granted') {
-    //     console.log('Permission obtained')
-    //     return true
-    // }
-    // if ((await fileHandle.requestPermission(options)) === 'granted') {
-    //     console.log('Permission obtained')
-    //     return true
-    // }
-    // console.log('Permission NOT obtained')
-    // return false
-    return true
 }
 
 function updateDownloadProgress() {
@@ -300,7 +254,7 @@ function checkDownloadStatus() {
         } else {
             // check download
             checkingDownload = true
-            startDownload()
+            startDownload(downloadingTask,downloadingTaskName)
         }
     }
 }
