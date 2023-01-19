@@ -151,7 +151,7 @@ function submitDownloadRequest() {
             if (reply=='Success') {
                 updatePage(current_page)
                 document.getElementById('modalPWH').innerHTML = 'Success'
-                document.getElementById('modalPWB').innerHTML = 'Your dataset is being prepared. Once it is ready, the status of your survey will change, and the results button will change colour. You can then that button, and there will then be an option to download your prepared dataset.'
+                document.getElementById('modalPWB').innerHTML = 'Your dataset is being prepared. Depending on the size of your survey, this may take a while. Once it is ready, the status of your survey will change along with the colour of its results button, indicating an available download. If you then click that button, you will find an option to download your prepared dataset.'
             } else {
                 document.getElementById('modalPWH').innerHTML = 'Error'
                 document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'

@@ -1589,7 +1589,8 @@ limitations under the License. -->
 {% block page_scripts %}
 <script>
     // Web worker is necessary to avoid browser throttling when it is in the background
-    worker = new Worker('js/camtrap.fileWorker.v{{ version }}.js')
+    uploadWorker = new Worker('js/camtrap.uploadWorker.v{{ version }}.js')
+    downloadWorker = new Worker('js/camtrap.downloadWorker.v{{ version }}.js')
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
 <link href="https://releases.transloadit.com/uppy/v3.3.1/uppy.min.css" rel="stylesheet">
@@ -1606,6 +1607,7 @@ limitations under the License. -->
 <script src="js/camtrap.surveys.results.statistics.v{{ version }}.js"></script>
 <script src="js/camtrap.surveys.tasks.v{{ version }}.js"></script>
 <script src="js/camtrap.fileUploader.v{{ version }}.js"></script>
+<script src="js/camtrap.fileDownloader.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
    integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
    crossorigin=""/>

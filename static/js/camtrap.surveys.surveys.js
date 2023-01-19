@@ -357,7 +357,7 @@ function buildSurveys(survey,disableSurvey) {
         addTaskBtn = null
         
         if (uploading) {
-            worker.postMessage({'func': 'buildUploadProgress', 'args': null});
+            uploadWorker.postMessage({'func': 'buildUploadProgress', 'args': null});
             disableSurvey = true
         } else {
             row = document.createElement('div')
