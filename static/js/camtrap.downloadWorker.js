@@ -37,6 +37,7 @@ onmessage = function (evt) {
 
 async function getBlob(url) {
     /** Returns the data from a specified url */
+    console.log('Fetching blob')
     const blob = await fetch(url
     ).then((response) => {
         if (!response.ok) {
@@ -52,6 +53,7 @@ async function getBlob(url) {
 
 async function downloadFile(fileName,url,dirHandle) {
     /** Downloads the specified file to the diven directory handle */
+    console.log('Downloading file')
     var blob = await getBlob(url)
     if (blob!='error') {
         var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
@@ -68,6 +70,7 @@ async function downloadFile(fileName,url,dirHandle) {
 
 async function deleteFolder(dirHandle,parentHandle=null) {
     /** Recursive function for deleting an unwanted folder and all of its contents */
+    console.log('Deleting folder')
     if (await verifyPermission(dirHandle, true)) {
         for await (const entry of dirHandle.values()) {
             if (entry.kind=='directory') {
@@ -85,6 +88,8 @@ async function deleteFolder(dirHandle,parentHandle=null) {
 
 async function checkFiles(files,dirHandle,expectedDirectories,path) {
     /** Compares the given files against the contents of the given directory and downloads or deletes accordingly*/
+
+    console.log('Checking files')
 
     // Get list of files that already exist in folder
     updateDownloadProgress()
@@ -133,6 +138,8 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 
 async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
     /** Fetches a list of files for the given directory */
+
+    console.log('Fetching files')
     
     pathsBeingChecked.push(path)
 
@@ -172,6 +179,8 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
 
 async function iterateDirectories(directories,dirHandle,path='') {
     /** Recursive function for iterating through the given directories and downloading the necessary files */
+
+    console.log('Iterating directory')
 
     var expectedDirectories = []
     for (item in directories) {
@@ -245,15 +254,20 @@ async function startDownload(selectedTask,taskName) {
 
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
-    const options = {}
-    options.mode = 'readwrite'
-    if ((await fileHandle.queryPermission(options)) === 'granted') {
-        return true
-    }
-    if ((await fileHandle.requestPermission(options)) === 'granted') {
-        return true
-    }
-    return false
+    postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
+    // console.log('Verifying Permission')
+    // const options = {}
+    // options.mode = 'readwrite'
+    // if ((await fileHandle.queryPermission(options)) === 'granted') {
+    //     console.log('Permission obtained')
+    //     return true
+    // }
+    // if ((await fileHandle.requestPermission(options)) === 'granted') {
+    //     console.log('Permission obtained')
+    //     return true
+    // }
+    // console.log('Permission NOT obtained')
+    // return false
 }
 
 function updateDownloadProgress() {
