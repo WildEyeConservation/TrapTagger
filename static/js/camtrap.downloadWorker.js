@@ -254,20 +254,20 @@ async function startDownload(selectedTask,taskName) {
 
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
-    // postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
-    console.log('Verifying Permission')
-    const options = {}
-    options.mode = 'readwrite'
-    if ((await fileHandle.queryPermission(options)) === 'granted') {
-        console.log('Permission obtained')
-        return true
-    }
-    if ((await fileHandle.requestPermission(options)) === 'granted') {
-        console.log('Permission obtained')
-        return true
-    }
-    console.log('Permission NOT obtained')
-    return false
+    postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
+    // console.log('Verifying Permission')
+    // const options = {}
+    // options.mode = 'readwrite'
+    // if ((await fileHandle.queryPermission(options)) === 'granted') {
+    //     console.log('Permission obtained')
+    //     return true
+    // }
+    // if ((await fileHandle.requestPermission(options)) === 'granted') {
+    //     console.log('Permission obtained')
+    //     return true
+    // }
+    // console.log('Permission NOT obtained')
+    // return false
 }
 
 function updateDownloadProgress() {
