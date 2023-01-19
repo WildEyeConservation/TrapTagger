@@ -590,7 +590,7 @@ function resetDownloadState() {
         currentDownloads.splice(index, 1)
     }
 
-    updatePage()
+    updatePage(generate_url())
 }
 
 async function wrapUpDownload() {

@@ -120,8 +120,8 @@ modalIndividual.on('shown.bs.modal', function(){
 modalResults.on('shown.bs.modal', function(){
     /** Initialises the results modal when opened. */
     availableDownloadDiv = document.getElementById('availableDownloadDiv')
-    while(individualsDiv.firstChild){
-        individualsDiv.removeChild(individualsDiv.firstChild);
+    while(availableDownloadDiv.firstChild){
+        availableDownloadDiv.removeChild(availableDownloadDiv.firstChild);
     }
 
     // <h5 style="margin-bottom: 2px">Explore Survey</h5>
