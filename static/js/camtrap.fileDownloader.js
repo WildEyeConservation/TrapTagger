@@ -22,6 +22,8 @@ downloadWorker.onmessage = function(evt){
         initDisplayForDownload()
     } else if (evt.data.func=='resetDownloadState') {
         resetDownloadState()
+    } else if (evt.data.func=='checkingDownload') {
+        checkingDownload = evt.data.args[0]
     }
 }
 

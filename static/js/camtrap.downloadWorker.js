@@ -38,7 +38,6 @@ onmessage = function (evt) {
 
 async function getBlob(url) {
     /** Returns the data from a specified url */
-    console.log('Fetching blob')
     const blob = await fetch(url
     ).then((response) => {
         if (!response.ok) {
@@ -54,7 +53,6 @@ async function getBlob(url) {
 
 async function downloadFile(fileName,url,dirHandle) {
     /** Downloads the specified file to the diven directory handle */
-    console.log('Downloading file')
     var blob = await getBlob(url)
     if (blob!='error') {
         var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
@@ -69,7 +67,6 @@ async function downloadFile(fileName,url,dirHandle) {
 
 async function deleteFolder(dirHandle,parentHandle=null) {
     /** Recursive function for deleting an unwanted folder and all of its contents */
-    console.log('Deleting folder')
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory') {
             await deleteFolder(entry)
@@ -83,8 +80,6 @@ async function deleteFolder(dirHandle,parentHandle=null) {
 
 async function checkFiles(files,dirHandle,expectedDirectories,path) {
     /** Compares the given files against the contents of the given directory and downloads or deletes accordingly*/
-
-    console.log('Checking files')
 
     // Get list of files that already exist in folder
     updateDownloadProgress()
@@ -129,8 +124,6 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 
 async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
     /** Fetches a list of files for the given directory */
-
-    console.log('Fetching files')
     
     pathsBeingChecked.push(path)
 
@@ -170,8 +163,6 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
 
 async function iterateDirectories(directories,dirHandle,path='') {
     /** Recursive function for iterating through the given directories and downloading the necessary files */
-
-    console.log('Iterating directory')
 
     var expectedDirectories = []
     for (item in directories) {
@@ -253,7 +244,7 @@ function checkDownloadStatus() {
             wrapUpDownload()
         } else {
             // check download
-            checkingDownload = true
+            postMessage({'func': 'checkingDownload', 'args': true})
             startDownload(downloadingTask,downloadingTaskName)
         }
     }
