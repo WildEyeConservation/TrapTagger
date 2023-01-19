@@ -20,11 +20,13 @@ var globalTopLevelHandle
 var errorEcountered = false
 var finishedIteratingDirectories = false
 var pathsBeingChecked = []
+var surveyName
 
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='startDownload') {
         globalTopLevelHandle = evt.data.args[0]
+        surveyName = evt.data.args[2]
         startDownload(evt.data.args[1])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
