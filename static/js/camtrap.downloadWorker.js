@@ -286,7 +286,7 @@ async function verifyPermission(fileHandle) {
 
 function updateDownloadProgress() {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
 }
 
 function checkDownloadStatus() {
