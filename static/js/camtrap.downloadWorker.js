@@ -21,6 +21,7 @@ var errorEcountered = false
 var finishedIteratingDirectories = false
 var pathsBeingChecked = []
 var surveyName
+var waitingForPermission = false
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -32,6 +33,8 @@ onmessage = function (evt) {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
         updateDownloadProgress()
+    } else if (evt.data.func=='permissionGiven') {
+        permissionGiven()
     }
 };
 
@@ -218,6 +221,7 @@ async function startDownload(selectedTask,taskName) {
     filesDownloaded = 0
     filesToDownload = 0
     filesActuallyDownloaded = 0
+    waitingForPermission = false
 
     postMessage({'func': 'initDisplayForDownload', 'args': null})
 
@@ -252,9 +256,18 @@ async function startDownload(selectedTask,taskName) {
     finishedIteratingDirectories = true
 }
 
+async function permissionGiven() {
+    waitingForPermission = false
+}
+
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
+    const timer = ms => new Promise(res => setTimeout(res, ms))
+    waitingForPermission = true
     postMessage({'func': 'verifyPermission', 'args': [fileHandle]})
+    while (waitingForPermission) {
+        await timer(3000);
+    }
     // console.log('Verifying Permission')
     // const options = {}
     // options.mode = 'readwrite'
@@ -268,6 +281,7 @@ async function verifyPermission(fileHandle) {
     // }
     // console.log('Permission NOT obtained')
     // return false
+    return true
 }
 
 function updateDownloadProgress() {

@@ -89,12 +89,12 @@ async function verifyPermission(fileHandle) {
     options.mode = 'readwrite'
     if ((await fileHandle.queryPermission(options)) === 'granted') {
         console.log('Permission obtained')
-        return true
+        downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
     }
     if ((await fileHandle.requestPermission(options)) === 'granted') {
         console.log('Permission obtained')
-        return true
+        downloadWorker.postMessage({'func': 'permissionGiven', 'args': true})
     }
     console.log('Permission NOT obtained')
-    return false
+    downloadWorker.postMessage({'func': 'permissionGiven', 'args': false})
 }
