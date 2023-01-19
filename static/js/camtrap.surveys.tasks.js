@@ -107,6 +107,10 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
                 xhttp.send();
             }
         }(task.id));
+    } else if (progressType=='downloading') {
+        stopTaskBtn.addEventListener('click', function(wrapTaskId) {
+            location.reload()
+        })
     }
 
     if (progressType=='launched') {
