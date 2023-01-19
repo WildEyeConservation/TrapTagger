@@ -555,10 +555,12 @@ function updateDownloadProgress() {
     progBar.setAttribute("aria-valuemax", filesToDownload);
     progBar.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
 
-    if (checkingDownload) {
-        progBar.innerHTML = 'Checking files... ' + filesDownloaded.toString() + '/' + filesToDownload.toString()
-    } else {
-        progBar.innerHTML = filesDownloaded.toString() + '/' + filesToDownload.toString() + ' files downloaded'
+    if (filesToDownload!=0) {
+        if (checkingDownload) {
+            progBar.innerHTML = 'Checking files... ' + filesDownloaded.toString() + '/' + filesToDownload.toString()
+        } else {
+            progBar.innerHTML = filesDownloaded.toString() + '/' + filesToDownload.toString() + ' files downloaded'
+        }
     }
     
     checkDownloadStatus()
