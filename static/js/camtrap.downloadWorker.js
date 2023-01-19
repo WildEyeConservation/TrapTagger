@@ -20,28 +20,21 @@ var globalTopLevelHandle
 var errorEcountered = false
 var finishedIteratingDirectories = false
 var pathsBeingChecked = []
-var checkingDownload = false
 
 onmessage = function (evt) {
     /** Take instructions from main js */
-    if (evt.data.func=='selectFiles') {
-        surveyName = evt.data.args[2]
-        selectFiles(evt.data.args[0],evt.data.args[1])
-    } else if (evt.data.func=='uploadFiles') {
-        surveyName = evt.data.args
-        uploadFiles()
-    } else if (evt.data.func=='checkFinishedUpload') {
-        checkFinishedUpload()
-    } else if (evt.data.func=='fileUploadedSuccessfully') {
-        fileUploadedSuccessfully()
-    } else if (evt.data.func=='resetUploadStatusVariables') {
-        resetUploadStatusVariables()
-    } else if (evt.data.func=='buildUploadProgress') {
-        buildUploadProgress()
+    if (evt.data.func=='startDownload') {
+        globalTopLevelHandle = evt.data.args[0]
+        startDownload(evt.data.args[1])
+    } else if (evt.data.func=='checkDownloadStatus') {
+        checkDownloadStatus()
+    } else if (evt.data.func=='updateDownloadProgress') {
+        updateDownloadProgress()
     }
 };
 
 async function getBlob(url) {
+    /** Returns the data from a specified url */
     const blob = await fetch(url
     ).then((response) => {
         if (!response.ok) {
@@ -56,6 +49,7 @@ async function getBlob(url) {
 }
 
 async function downloadFile(fileName,url,dirHandle) {
+    /** Downloads the specified file to the diven directory handle */
     var blob = await getBlob(url)
     if (blob!='error') {
         var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
@@ -71,6 +65,7 @@ async function downloadFile(fileName,url,dirHandle) {
 }
 
 async function deleteFolder(dirHandle,parentHandle=null) {
+    /** Recursive function for deleting an unwanted folder and all of its contents */
     if (await verifyPermission(dirHandle, true)) {
         for await (const entry of dirHandle.values()) {
             if (entry.kind=='directory') {
@@ -87,8 +82,9 @@ async function deleteFolder(dirHandle,parentHandle=null) {
 }
 
 async function checkFiles(files,dirHandle,expectedDirectories,path) {
+    /** Compares the given files against the contents of the given directory and downloads or deletes accordingly*/
+
     // Get list of files that already exist in folder
-    // filesToDownload += files.length
     updateDownloadProgress()
     var existingFiles = []
     var existingDirectories = []
@@ -134,6 +130,8 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 }
 
 async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
+    /** Fetches a list of files for the given directory */
+    
     pathsBeingChecked.push(path)
 
     files = await fetch('/get_directory_files', {
@@ -171,6 +169,8 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
 }
 
 async function iterateDirectories(directories,dirHandle,path='') {
+    /** Recursive function for iterating through the given directories and downloading the necessary files */
+
     var expectedDirectories = []
     for (item in directories) {
         expectedDirectories.push(item)
@@ -195,7 +195,9 @@ async function iterateDirectories(directories,dirHandle,path='') {
     }
 }
 
-async function startDownload() {
+async function startDownload(selectedTask) {
+    /** Begins the download */
+
     downloadingTask = selectedTask
     finishedIteratingDirectories = false
     pathsBeingChecked = []
@@ -204,15 +206,7 @@ async function startDownload() {
     filesToDownload = 0
     filesActuallyDownloaded = 0
 
-    if (!currentDownloadTasks.includes(taskName)) {
-        currentDownloadTasks.push(taskName)
-        currentDownloads.push(surveyName)
-    }
-
-    url = generate_url()
-    updatePage(url)
-    // updateDownloadProgress()
-    modalResults.modal('hide')
+    postMessage({'func': 'initDisplayForDownload', 'args': null})
 
     // Fetch directory tree and start
     directories = await fetch('/get_download_directories', {
@@ -245,48 +239,26 @@ async function startDownload() {
     finishedIteratingDirectories = true
 }
 
-async function initiateDownload() {
-    // Select the download folder & get access
-    globalTopLevelHandle = await window.showDirectoryPicker({
-        writable: true //ask for write permission
-    });
-    checkingDownload = false
-    startDownload()
-}
-
-async function verifyPermission(fileHandle, readWrite) {
-    const options = {};
-    if (readWrite) {
-        options.mode = 'readwrite';
-    }
+async function verifyPermission(fileHandle) {
+    /** Checks for the necessary file/folder permissions and requests them if necessary */
+    const options = {}
+    options.mode = 'readwrite'
     if ((await fileHandle.queryPermission(options)) === 'granted') {
-        return true;
+        return true
     }
     if ((await fileHandle.requestPermission(options)) === 'granted') {
-        return true;
+        return true
     }
-    return false;
+    return false
 }
 
 function updateDownloadProgress() {
-    // console.log(filesDownloaded.toString()+', '+filesToDownload.toString())
-    progBar = document.getElementById('progBar'+downloadingTask)
-    progBar.setAttribute("aria-valuenow", filesDownloaded);
-    progBar.setAttribute("aria-valuemax", filesToDownload);
-    progBar.setAttribute("style", "width:"+(filesDownloaded/filesToDownload)*100+"%;transition:none");
-
-    if (filesToDownload!=0) {
-        if (checkingDownload) {
-            progBar.innerHTML = 'Checking files... ' + filesDownloaded.toString() + '/' + filesToDownload.toString()
-        } else {
-            progBar.innerHTML = filesDownloaded.toString() + '/' + filesToDownload.toString() + ' files downloaded'
-        }
-    }
-    
-    checkDownloadStatus()
+    /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
+    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
 }
 
 function checkDownloadStatus() {
+    /** Checks the status of the download. Wraps up if finished. */
     if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
         if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
             // finished
@@ -300,22 +272,13 @@ function checkDownloadStatus() {
 }
 
 function resetDownloadState() {
+    /** Wrapper function for resetDownloadState so that the main js can update the page. */
     downloadingTask = null
-
-    var index = currentDownloadTasks.indexOf(taskName)
-    if (index > -1) {
-        currentDownloadTasks.splice(index, 1)
-    }
-
-    var index = currentDownloads.indexOf(surveyName)
-    if (index > -1) {
-        currentDownloads.splice(index, 1)
-    }
-
-    updatePage(generate_url())
+    postMessage({'func': 'resetDownloadState', 'args': null})
 }
 
 async function wrapUpDownload() {
+    /** Wraps up the download by letting the server know that the client download is finished */
     if (downloadingTask != null) {
         fetch('/download_complete', {
             method: 'post',
