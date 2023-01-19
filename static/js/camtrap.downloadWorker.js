@@ -27,7 +27,7 @@ onmessage = function (evt) {
     if (evt.data.func=='startDownload') {
         globalTopLevelHandle = evt.data.args[0]
         surveyName = evt.data.args[2]
-        startDownload(evt.data.args[1])
+        startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
@@ -197,7 +197,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
     }
 }
 
-async function startDownload(selectedTask) {
+async function startDownload(selectedTask,taskName) {
     /** Begins the download */
 
     downloadingTask = selectedTask

@@ -43,7 +43,7 @@ async function initiateDownload() {
         currentDownloads.push(surveyName)
     }
 
-    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName]})
+    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName]})
 }
 
 function resetDownloadState() {
