@@ -200,6 +200,8 @@ async function iterateDirectories(directories,dirHandle,path='') {
 async function startDownload(selectedTask,taskName) {
     /** Begins the download */
 
+    console.log('Started Download')
+
     downloadingTask = selectedTask
     finishedIteratingDirectories = false
     pathsBeingChecked = []
