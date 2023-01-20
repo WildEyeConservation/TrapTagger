@@ -253,7 +253,7 @@ function checkDownloadStatus() {
 function resetDownloadState() {
     /** Wrapper function for resetDownloadState so that the main js can update the page. */
     downloadingTask = null
-    postMessage({'func': 'resetDownloadState', 'args': null})
+    postMessage({'func': 'resetDownloadState', 'args': [surveyName,downloadingTaskName]})
 }
 
 async function wrapUpDownload() {

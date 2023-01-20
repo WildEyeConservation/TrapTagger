@@ -21,7 +21,7 @@ downloadWorker.onmessage = function(evt){
     } else if (evt.data.func=='initDisplayForDownload') {
         initDisplayForDownload()
     } else if (evt.data.func=='resetDownloadState') {
-        resetDownloadState()
+        resetDownloadState(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='checkingDownload') {
         checkingDownload = evt.data.args[0]
     }
@@ -53,17 +53,17 @@ async function initiateDownload() {
     }
 }
 
-function resetDownloadState() {
+function resetDownloadState(survey,task) {
     /** Cleans up after a download is complete */
 
     checkingDownload = false
 
-    var index = currentDownloadTasks.indexOf(taskName)
+    var index = currentDownloadTasks.indexOf(task)
     if (index > -1) {
         currentDownloadTasks.splice(index, 1)
     }
 
-    var index = currentDownloads.indexOf(surveyName)
+    var index = currentDownloads.indexOf(survey)
     if (index > -1) {
         currentDownloads.splice(index, 1)
     }
