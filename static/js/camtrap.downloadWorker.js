@@ -51,7 +51,7 @@ async function getBlob(url) {
     return blob;
 }
 
-async function downloadFile(fileName,url,dirHandle) {
+async function downloadFile(fileName,url,dirHandle,count=0) {
     /** Downloads the specified file to the diven directory handle */
     var blob = await getBlob(url)
     if (blob!='error') {
@@ -60,8 +60,12 @@ async function downloadFile(fileName,url,dirHandle) {
         await writable.write(blob);
         await writable.close();
         filesActuallyDownloaded += 1
+        filesDownloaded += 1
+    } else if (count>=3) {
+        filesDownloaded += 1
+    } else {
+        setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 5000);
     }
-    filesDownloaded += 1
     updateDownloadProgress()
 }
 
@@ -225,7 +229,7 @@ async function startDownload(selectedTask,taskName) {
         }
     }).catch( (error) => {
         errorEcountered = true
-        startDownload(downloadingTask,downloadingTaskName)
+        setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
     })
     await iterateDirectories(directories,globalTopLevelHandle)
     finishedIteratingDirectories = true
@@ -273,7 +277,7 @@ async function wrapUpDownload() {
                 throw new Error(response.statusText)
             }
         }).catch( (error) => {
-            wrapUpDownload()
+            setTimeout(function() { wrapUpDownload(); }, 5000);
         })
         resetDownloadState()
     }
