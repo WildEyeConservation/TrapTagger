@@ -259,7 +259,7 @@ function resetDownloadState() {
 async function wrapUpDownload() {
     /** Wraps up the download by letting the server know that the client download is finished */
     if (downloadingTask != null) {
-        fetch('/download_complete', {
+        await fetch('/download_complete', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -272,10 +272,9 @@ async function wrapUpDownload() {
             if (!response.ok) {
                 throw new Error(response.statusText)
             }
-        }).then(
-            resetDownloadState()
-        ).catch( (error) => {
+        }).catch( (error) => {
             wrapUpDownload()
         })
+        resetDownloadState()
     }
 }
