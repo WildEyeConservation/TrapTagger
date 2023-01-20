@@ -29,8 +29,10 @@ downloadWorker.onmessage = function(evt){
 
 async function initDisplayForDownload() {
     /** Prepares the display for download status */
-    updatePage(generate_url())
-    modalResults.modal('hide')
+    if (!checkingDownload) {
+        updatePage(generate_url())
+        modalResults.modal('hide')
+    }
 }
 
 async function initiateDownload() {
