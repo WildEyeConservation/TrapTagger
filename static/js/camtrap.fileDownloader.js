@@ -35,19 +35,22 @@ async function initDisplayForDownload() {
 
 async function initiateDownload() {
     // Select the download folder & get access
-    var topLevelHandle = await window.showDirectoryPicker({
-        writable: true //ask for write permission
-    });
 
-    await verifyPermission(topLevelHandle)
-
-    checkingDownload = false
-    if (!currentDownloadTasks.includes(taskName)) {
-        currentDownloadTasks.push(taskName)
-        currentDownloads.push(surveyName)
+    if (currentDownloads.length==0) {
+        var topLevelHandle = await window.showDirectoryPicker({
+            writable: true //ask for write permission
+        });
+    
+        await verifyPermission(topLevelHandle)
+    
+        checkingDownload = false
+        if (!currentDownloadTasks.includes(taskName)) {
+            currentDownloadTasks.push(taskName)
+            currentDownloads.push(surveyName)
+        }
+    
+        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName]})
     }
-
-    downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName]})
 }
 
 function resetDownloadState() {
@@ -71,15 +74,17 @@ function resetDownloadState() {
 function updateDownloadProgress(task_id,downloaded,toDownload) {
     /** Updates the download progress bar with the given information */
     progBar = document.getElementById('progBar'+task_id)
-    progBar.setAttribute("aria-valuenow", downloaded);
-    progBar.setAttribute("aria-valuemax", toDownload);
-    progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
-
-    if (toDownload!=0) {
-        if (checkingDownload) {
-            progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
-        } else {
-            progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
+    if (progBar) {
+        progBar.setAttribute("aria-valuenow", downloaded);
+        progBar.setAttribute("aria-valuemax", toDownload);
+        progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
+    
+        if (toDownload!=0) {
+            if (checkingDownload) {
+                progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
+            } else {
+                progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
+            }
         }
     }
     
