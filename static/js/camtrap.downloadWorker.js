@@ -244,7 +244,7 @@ function checkDownloadStatus() {
             wrapUpDownload()
         } else {
             // check download
-            postMessage({'func': 'checkingDownload', 'args': true})
+            postMessage({'func': 'checkingDownload', 'args': [true]})
             startDownload(downloadingTask,downloadingTaskName)
         }
     }

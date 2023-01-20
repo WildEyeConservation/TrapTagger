@@ -53,6 +53,8 @@ async function initiateDownload() {
 function resetDownloadState() {
     /** Cleans up after a download is complete */
 
+    checkingDownload = false
+
     var index = currentDownloadTasks.indexOf(taskName)
     if (index > -1) {
         currentDownloadTasks.splice(index, 1)
@@ -86,17 +88,13 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
 
 async function verifyPermission(fileHandle) {
     /** Checks for the necessary file/folder permissions and requests them if necessary */
-    console.log('Verifying Permission')
     const options = {}
     options.mode = 'readwrite'
     if ((await fileHandle.queryPermission(options)) === 'granted') {
-        console.log('Permission obtained')
         return true
     }
     if ((await fileHandle.requestPermission(options)) === 'granted') {
-        console.log('Permission obtained')
         return true
     }
-    console.log('Permission NOT obtained')
     return false
 }
