@@ -2416,12 +2416,12 @@ def getHomeSurveys():
         page = request.args.get('page', 1, type=int)
         order = request.args.get('order', 5, type=int)
         search = request.args.get('search', '', type=str)
-        downloads = request.args.get('downloads', '', type=str)
+        current_downloads = request.args.get('downloads', '', type=str)
 
         surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
 
-        if downloads != '':
-            downloads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name.in_(re.split('[,]',downloads))).distinct().all()
+        if current_downloads != '':
+            downloads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name.in_(re.split('[,]',current_downloads))).distinct().all()
             surveys = surveys.filter(~Survey.id.in_([r.id for r in downloads]))
             for survey in downloads:
                 survey_list.append(getSurveyInfo(survey))
@@ -2453,8 +2453,8 @@ def getHomeSurveys():
             for survey in surveys.items:
                 survey_list.append(getSurveyInfo(survey))
 
-            next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order) if surveys.has_next else None
-            prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order) if surveys.has_prev else None
+            next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order, downloads=current_downloads) if surveys.has_next else None
+            prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order, downloads=current_downloads) if surveys.has_prev else None
         else:
             next_url = None
             prev_url = None
