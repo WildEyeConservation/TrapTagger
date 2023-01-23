@@ -133,7 +133,9 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
     /** Fetches a list of files for the given directory */
     
-    pathsBeingChecked.push(path)
+    if (!pathsBeingChecked.includes(path)) {
+        pathsBeingChecked.push(path)
+    }
 
     files = await fetch('/get_directory_files', {
         method: 'post',
