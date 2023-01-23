@@ -1188,6 +1188,11 @@ def checkTrapgroupCode():
         task_id = request.form['task_id']
     else:
         task_id = None
+        
+    if 'surveyName' in request.form:
+        surveyName = request.form['surveyName']
+    else:
+        surveyName = None
 
     if current_user.is_authenticated and current_user.admin:
         if 'revoke_id' in request.form:
@@ -1200,7 +1205,7 @@ def checkTrapgroupCode():
             if task_id == 'none':
                 tgCode = request.form['tgCode']
                 folder = request.form['folder']
-                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id})
+                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id,'surveyName':surveyName})
                 task_id = task.id
                 status = 'PENDING'
             else:

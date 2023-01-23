@@ -1386,7 +1386,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
         jpegs = list(filter(isjpeg.search, filenames))
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
-            tags = tag.findall(dirpath)
+            tags = tag.findall(dirpath.replace(survey.name+'/',''))
             
             if len(tags) > 0:
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
@@ -1495,7 +1495,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     batch = []
     chunk_size = round(Config.QUEUES['parallel']['rate']/2)
     for dirpath in df['dirpath'].unique():
-        tags = tgcode.findall(dirpath)
+        tags = tgcode.findall(dirpath.replace(survey.name+'/',''))
 
         if len(tags) and not any(exclusion in dirpath for exclusion in exclusions):
             tag = tags[0]

@@ -1116,7 +1116,7 @@ def generateLabels(labels, task_id):
     return True
 
 @celery.task(bind=True,max_retries=29)
-def findTrapgroupTags(self,tgCode,folder,user_id):
+def findTrapgroupTags(self,tgCode,folder,user_id,surveyName):
     '''Celery task that does the trapgroup code check. Returns the user message.'''
 
     try:
@@ -1129,7 +1129,7 @@ def findTrapgroupTags(self,tgCode,folder,user_id):
             for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder+'/'+folder):
                 # jpegs = list(filter(isjpeg.search, filenames))
                 # if len(jpegs):
-                tags = tgCode.findall(dirpath)
+                tags = tgCode.findall(dirpath.replace(surveyName+'/',''))
                 if len(tags) > 0:
                     tag = tags[0]
                     if tag not in allTags:

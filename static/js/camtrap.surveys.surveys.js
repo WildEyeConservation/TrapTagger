@@ -847,7 +847,12 @@ function pingTgCheck() {
                 var formData = new FormData()
                 if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
                     // Still the same - just checking status
+                    if (modalNewSurvey.is(':visible')) {
+                        surveyName = document.getElementById('newSurveyName').value
+                    }
+                    
                     formData.append("task_id", tgCheckID)
+                    formData.append("surveyName", surveyName)
                 } else {
                     // changed - revoke old task
                     formData.append("revoke_id", tgCheckID)
