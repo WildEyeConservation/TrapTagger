@@ -5856,33 +5856,33 @@ def getHelp():
     else:
         return json.dumps('Error')
 
-@app.route('/uploadImageToCloud', methods=['POST'])
-@login_required
-def uploadImageToCloud():
-    '''
-    Uploads the sent image to AWS S3 on behalf of the user to enure they only access their own folder.
-    '''
+# @app.route('/uploadImageToCloud', methods=['POST'])
+# @login_required
+# def uploadImageToCloud():
+#     '''
+#     Uploads the sent image to AWS S3 on behalf of the user to enure they only access their own folder.
+#     '''
 
-    if current_user.admin:
+#     if current_user.admin:
 
-        if 'surveyName' in request.form:
-            surveyName = request.form['surveyName']
-        else:
-            surveyName = None
+#         if 'surveyName' in request.form:
+#             surveyName = request.form['surveyName']
+#         else:
+#             surveyName = None
         
-        if surveyName and ('image' in request.files):
-            uploaded_file = request.files['image']
-            key = current_user.folder + '/' + surveyName + '/' + uploaded_file.filename
+#         if surveyName and ('image' in request.files):
+#             uploaded_file = request.files['image']
+#             key = current_user.folder + '/' + surveyName + '/' + uploaded_file.filename
             
-            temp_file = BytesIO()
-            uploaded_file.save(temp_file)
-            temp_file.seek(0)
-            response = GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
-            hash = response['ETag'][1:-1]
+#             temp_file = BytesIO()
+#             uploaded_file.save(temp_file)
+#             temp_file.seek(0)
+#             response = GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
+#             hash = response['ETag'][1:-1]
             
-            return json.dumps({'status': 'success', 'hash': hash})
+#             return json.dumps({'status': 'success', 'hash': hash})
 
-    return json.dumps({'status': 'error'})
+#     return json.dumps({'status': 'error'})
 
 @app.route('/checkNotifications', methods=['POST'])
 @login_required

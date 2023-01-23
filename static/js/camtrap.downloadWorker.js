@@ -15,6 +15,7 @@
 var downloadingTask
 var filesDownloaded
 var filesToDownload
+var totalFilesToDownload
 var filesActuallyDownloaded
 var globalTopLevelHandle
 var errorEcountered = false
@@ -22,6 +23,7 @@ var finishedIteratingDirectories = false
 var pathsBeingChecked = []
 var surveyName
 var downloadingTaskName
+var filesSucceeded
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -60,6 +62,7 @@ async function downloadFile(fileName,url,dirHandle,count=0) {
         await writable.write(blob);
         await writable.close();
         filesActuallyDownloaded += 1
+        filesSucceeded =+ 1
         filesDownloaded += 1
     } else if (count>=3) {
         filesDownloaded += 1
@@ -107,6 +110,7 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
         } else {
             // if it does exist and is supposed to be there, remove it from the list
             filesDownloaded += 1
+            filesSucceeded += 1
             updateDownloadProgress()
             var fileIndex = existingFiles.indexOf(file.fileName)
             if (fileIndex > -1) {
@@ -126,7 +130,7 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
     }
 }
 
-async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
+async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
     /** Fetches a list of files for the given directory */
     
     pathsBeingChecked.push(path)
@@ -153,15 +157,26 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories) {
             return files
         }
     }).catch( (error) => {
-        errorEcountered = true
+        if (count>=3) {
+            errorEcountered = true
+            var index = pathsBeingChecked.indexOf(path)
+            if (index > -1) {
+                pathsBeingChecked.splice(index, 1)
+            }
+        } else {
+            setTimeout(function() { getDirectoryFiles(path,dirHandle,expectedDirectories,count+1); }, 5000);
+        }
     })
 
-    await checkFiles(files,dirHandle,expectedDirectories,path)
-
-    var index = pathsBeingChecked.indexOf(path)
-    if (index > -1) {
-        pathsBeingChecked.splice(index, 1)
+    if (files) {
+        filesToDownload += files.length
+        await checkFiles(files,dirHandle,expectedDirectories,path)
+        var index = pathsBeingChecked.indexOf(path)
+        if (index > -1) {
+            pathsBeingChecked.splice(index, 1)
+        }
     }
+
     checkDownloadStatus()
 }
 
@@ -200,7 +215,9 @@ async function startDownload(selectedTask,taskName) {
     errorEcountered = false
     filesDownloaded = 0
     filesToDownload = 0
+    totalFilesToDownload = 0
     filesActuallyDownloaded = 0
+    filesSucceeded = 0
 
     postMessage({'func': 'initDisplayForDownload', 'args': null})
 
@@ -224,25 +241,28 @@ async function startDownload(selectedTask,taskName) {
         if (data=='error') {
             location.reload()
         } else {
-            filesToDownload = data.fileCount
+            totalFilesToDownload = data.fileCount
             return data.directories
         }
     }).catch( (error) => {
         errorEcountered = true
         setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
     })
-    await iterateDirectories(directories,globalTopLevelHandle)
-    finishedIteratingDirectories = true
+
+    if (directories) {
+        await iterateDirectories(directories,globalTopLevelHandle)
+        finishedIteratingDirectories = true
+    }
 }
 
 function updateDownloadProgress() {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesSucceeded,totalFilesToDownload]})
 }
 
 function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished. */
-    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
+    if ((filesDownloaded==filesToDownload)&&(totalFilesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
         if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
             // finished
             wrapUpDownload()
@@ -275,10 +295,11 @@ async function wrapUpDownload() {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else {
+                resetDownloadState()
             }
         }).catch( (error) => {
             setTimeout(function() { wrapUpDownload(); }, 5000);
         })
-        resetDownloadState()
     }
 }
