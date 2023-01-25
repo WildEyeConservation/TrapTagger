@@ -62,7 +62,7 @@ function prepareTable() {
                             tableCol.setAttribute('scope','col')
                             tableCol.setAttribute('style','border-bottom: 1px solid white;width: 10%')
                             tableRow.appendChild(tableCol)
-                            for (key in confusionLabels) {
+                            for (let key in confusionLabels) {
                                 tableCol = document.createElement('th')
                                 tableCol.setAttribute('scope','col')
                                 tableCol.setAttribute('style','border-bottom: 1px solid white')
@@ -80,7 +80,7 @@ function prepareTable() {
                             table.appendChild(tbody)
 
                             rowIndex = 2
-                            for (row in confusionMatrix) {
+                            for (let row in confusionMatrix) {
                                 if (row != 'multi') {
                                     tableRow = document.createElement('tr')
                                     tableCol = document.createElement('th')
@@ -89,7 +89,7 @@ function prepareTable() {
                                     tableRow.appendChild(tableCol)
                                     tbody.appendChild(tableRow)
                                     colIndex = 2
-                                    for (col in confusionMatrix[row]) {
+                                    for (let col in confusionMatrix[row]) {
                                         tableCol = document.createElement('td')
                                         tableCol.innerHTML = confusionMatrix[row][col].length
                                         if (rowIndex==colIndex) {
@@ -182,7 +182,7 @@ modalDisplay.on('shown.bs.modal', function(){
         clusterIndex['map1'] = 0
         imageIndex['map1'] = 0
         
-        for (i=0;i<3;i++){
+        for (let i=0;i<3;i++){
             loadNewCluster()
         }
     }

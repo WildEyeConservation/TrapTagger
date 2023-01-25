@@ -73,7 +73,7 @@ function buildSurveyRow(survey) {
 
     taskNames = []
     taskValues = []
-    for (i=0;i<survey.tasks.length;i++) {
+    for (let i=0;i<survey.tasks.length;i++) {
         task = survey.tasks[i]
         taskNames.push(task.name)
         taskValues.push(task.value)
@@ -92,8 +92,8 @@ function buildSurveys() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             surveys = JSON.parse(this.responseText);
-            for (n=0;n<surveys.length;n++) {
-                buildSurveyRow(surveys[n])
+            for (let i=0;i<surveys.length;i++) {
+                buildSurveyRow(surveys[i])
             }
         }
     }
@@ -128,11 +128,11 @@ function submitRequest() {
     // Extract survey & task info
     tasks = []
     taskSelectors = document.querySelectorAll('[id^=taskSelector]');
-    for (b=0;b<taskSelectors.length;b++) {
-        IDNum = taskSelectors[b].id.split('-')[taskSelectors[b].id.split('-').length-1]
+    for (let i=0;i<taskSelectors.length;i++) {
+        IDNum = taskSelectors[i].id.split('-')[taskSelectors[i].id.split('-').length-1]
         checkBox = document.getElementById('surveyCheckBox-'+IDNum)
         if (checkBox.checked) {
-            tasks.push(taskSelectors[b].options[taskSelectors[b].selectedIndex].value)
+            tasks.push(taskSelectors[i].options[taskSelectors[i].selectedIndex].value)
         }
     }
 

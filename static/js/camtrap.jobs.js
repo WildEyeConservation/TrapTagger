@@ -150,9 +150,9 @@ function updatePage(url){
                 document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
-            for (iii=0;iii<reply.jobs.length;iii++) {
-                buildJob(reply.jobs[iii])
-                // if (iii < reply.jobs.length-1) {
+            for (let i=0;i<reply.jobs.length;i++) {
+                buildJob(reply.jobs[i])
+                // if (i < reply.jobs.length-1) {
                 //     jobListDiv.appendChild(document.createElement('br'))
                 // }
             }
@@ -182,11 +182,11 @@ function updateJobProgressBar() {
     jobProgressBarDivs = document.querySelectorAll('[id^=jobProgressBarDiv]');
 
     tskds = []
-    for (i = 0; i < jobProgressBarDivs.length; i++) {
+    for (let i = 0; i < jobProgressBarDivs.length; i++) {
         tskds.push(jobProgressBarDivs[i].id.split('jobProgressBarDiv')[1])
     }
 
-    for (b=0;b<tskds.length;b++) {
+    for (let i=0;i<tskds.length;i++) {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapTaskID) {
@@ -211,8 +211,8 @@ function updateJobProgressBar() {
                     progBar.innerHTML = reply.remaining
                 }
             }
-        }(tskds[b]);
-        xhttp.open("GET", '/updateTaskProgressBar/'+tskds[b]);
+        }(tskds[i]);
+        xhttp.open("GET", '/updateTaskProgressBar/'+tskds[i]);
         xhttp.send();
     }
 }

@@ -285,16 +285,16 @@ function undoPreviousSuggestion() {
 function goToMax() {
     /** Focuses on the pair of images with the greates similarity score. */
     maximums = clusters['map2'][clusterIndex['map2']].max_pair
-    for (mi=0;mi<clusters['map1'][clusterIndex['map1']].images.length;mi++) {
-        if (maximums.includes(clusters['map1'][clusterIndex['map1']].images[mi].detections[0].id)) {
-            clusterPositionSplide['map1'].go(mi)
+    for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+        if (maximums.includes(clusters['map1'][clusterIndex['map1']].images[i].detections[0].id)) {
+            clusterPositionSplide['map1'].go(i)
             update('map1')
             break
         }
     }
-    for (mi=0;mi<clusters['map2'][clusterIndex['map2']].images.length;mi++) {
-        if (maximums.includes(clusters['map2'][clusterIndex['map2']].images[mi].detections[0].id)) {
-            clusterPositionSplide['map2'].go(mi)
+    for (let i=0;i<clusters['map2'][clusterIndex['map2']].images.length;i++) {
+        if (maximums.includes(clusters['map2'][clusterIndex['map2']].images[i].detections[0].id)) {
+            clusterPositionSplide['map2'].go(i)
             update('map2')
             break
         }
@@ -378,8 +378,8 @@ function loadNewCluster(mapID = 'map1') {
                             info = JSON.parse(this.responseText);
             
                             if (clusterRequests[wrapMapID].includes(parseInt(info.id))) {
-                                for (nc=0;nc<info.info.length;nc++) {
-                                    newcluster = info.info[nc];
+                                for (let i=0;i<info.info.length;i++) {
+                                    newcluster = info.info[i];
 
                                     if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                         knockedTG=null
@@ -405,7 +405,7 @@ function loadNewCluster(mapID = 'map1') {
                                                 if (document.getElementById('btnSendToBack')!=null) {
                                                     individuals = [{}]
                                                     individualIndex = 0
-                                                    for (colour in colours) {
+                                                    for (let colour in colours) {
                                                         colours[colour] = false
                                                     }
                                                     buildIndividualsObject()
@@ -455,9 +455,9 @@ function idKeys(key) {
                 }
             } else {
                 if ((document.activeElement != document.getElementById('newIndividualName')) && (document.activeElement != document.getElementById('notebox'))) { // disable hotkeys while typing
-                    for (ta=0;ta<globalTags.length;ta++) {
-                        if (globalTags[ta].hotkey == key) {
-                            box = document.getElementById(globalTags[ta].tag+'box')
+                    for (let i=0;i<globalTags.length;i++) {
+                        if (globalTags[i].hotkey == key) {
+                            box = document.getElementById(globalTags[i].tag+'box')
                             if (box.checked) {
                                 box.checked = false
                             } else {
@@ -540,7 +540,7 @@ function generateName() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             uniqueName = JSON.parse(this.responseText);
-            for (individualID in individuals[individualIndex]) {
+            for (let individualID in individuals[individualIndex]) {
                 if (uniqueName == individuals[individualIndex][individualID].name) {
                     uniqueName = String(Object.keys(individuals[individualIndex]).length+parseInt(uniqueName)-1)
                     break
@@ -577,9 +577,9 @@ function prepIndividualModal() {
         div.innerHTML = '<i>Select the applicable characteristics for this individual.</i>'
         characteristicsDiv.appendChild(div)
     
-        for (ta=0;ta<globalTags.length;ta++) {
-            tag = globalTags[ta].tag
-            hotkey = globalTags[ta].hotkey
+        for (let i=0;i<globalTags.length;i++) {
+            tag = globalTags[i].tag
+            hotkey = globalTags[i].hotkey
     
             checkDiv = document.createElement('div')
             checkDiv.setAttribute('class','custom-control custom-checkbox')
@@ -611,26 +611,26 @@ function buildIndividuals() {
     /** Builds the individuals' bounding boxes in the currently-viewed images. */
 
     // Clear all
-    for (mapID in dbDetIds) {
-        for (leafletID in dbDetIds[mapID]) {
+    for (let mapID in dbDetIds) {
+        for (let leafletID in dbDetIds[mapID]) {
             drawnItems[mapID]._layers[leafletID].unbindTooltip()
             drawnItems[mapID]._layers[leafletID].setStyle({color: "rgba(223,105,26,1)"})
         }
 
-        for (imidx=0;imidx<clusters[mapID][clusterIndex[mapID]].images.length;imidx++) {
-            for (indindx=0;indindx<clusters[mapID][clusterIndex[mapID]].images[imidx].detections.length;indindx++) {
-                clusters[mapID][clusterIndex[mapID]].images[imidx].detections[indindx].individual = '-1'
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            for (let n=0;n<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;n++) {
+                clusters[mapID][clusterIndex[mapID]].images[i].detections[n].individual = '-1'
             }
         }
     }
 
-    for (individualID in individuals[individualIndex]) {
+    for (let individualID in individuals[individualIndex]) {
         colour = individuals[individualIndex][individualID].colour
         individualName = individuals[individualIndex][individualID].name
 
         // Tooltips and recolour
-        for (mapID in dbDetIds) {
-            for (leafletID in dbDetIds[mapID]) {
+        for (let mapID in dbDetIds) {
+            for (let leafletID in dbDetIds[mapID]) {
                 if (individuals[individualIndex][individualID].detections.includes(parseInt(dbDetIds[mapID][leafletID]))) {
                     drawnItems[mapID]._layers[leafletID].setStyle({color: colour})
                     drawnItems[mapID]._layers[leafletID].bindTooltip(individualName,{permanent: true, direction:"center"})
@@ -652,11 +652,11 @@ function buildIndividuals() {
         }
 
         // Set in pools
-        for (mapID in clusters) {
-            for (imidx=0;imidx<clusters[mapID][clusterIndex[mapID]].images.length;imidx++) {
-                for (indindx=0;indindx<clusters[mapID][clusterIndex[mapID]].images[imidx].detections.length;indindx++) {
-                    if (individuals[individualIndex][individualID].detections.includes(clusters[mapID][clusterIndex[mapID]].images[imidx].detections[indindx].id)) {
-                        clusters[mapID][clusterIndex[mapID]].images[imidx].detections[indindx].individual = individualID
+        for (let mapID in clusters) {
+            for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                for (let n=0;n<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;n++) {
+                    if (individuals[individualIndex][individualID].detections.includes(clusters[mapID][clusterIndex[mapID]].images[i].detections[n].id)) {
+                        clusters[mapID][clusterIndex[mapID]].images[i].detections[n].individual = individualID
                     }
                 }
             }   
@@ -666,10 +666,10 @@ function buildIndividuals() {
     // If finished and not on an undo: auto-submit
     if (backIndex==0) {
         allow = true
-        for (tempMapID in clusters) {
-            for (imidx=0;imidx<clusters[tempMapID][clusterIndex[tempMapID]].images.length;imidx++) {
-                for (indindx=0;indindx<clusters[tempMapID][clusterIndex[tempMapID]].images[imidx].detections.length;indindx++) {
-                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[imidx].detections[indindx].individual=='-1') {
+        for (let tempMapID in clusters) {
+            for (let i=0;i<clusters[tempMapID][clusterIndex[tempMapID]].images.length;i++) {
+                for (let n=0;n<clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections.length;n++) {
+                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
                         allow = false
                     }
                 }
@@ -684,20 +684,20 @@ function buildIndividuals() {
 function buildIndividualsObject() {
     /** Builds the individuals object that contains all required info for the current clusters. */
     individualsReady = false
-    for (mapID in clusters) {
-        for (imIndx=0;imIndx<clusters[mapID][clusterIndex[mapID]].images.length;imIndx++) {
-            for (detIndx=0;detIndx<clusters[mapID][clusterIndex[mapID]].images[imIndx].detections.length;detIndx++) {
-                individualID = clusters[mapID][clusterIndex[mapID]].images[imIndx].detections[detIndx].individual
+    for (let mapID in clusters) {
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            for (let n=0;n<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;n++) {
+                individualID = clusters[mapID][clusterIndex[mapID]].images[i].detections[n].individual
                 if ((individualID!='-1') && ((typeof(individualID)=='string')&&(!individualID.includes('n')) )) {
                     if (!(individualID in individuals[individualIndex])) {
 
-                        for (colour in colours) {
+                        for (var colour in colours) {
                             if (colours[colour]==false) {
                                 colours[colour] = true
                                 break
                             }
                         }
-                        individuals[individualIndex][individualID] = {"colour": colour, "detections": [clusters[mapID][clusterIndex[mapID]].images[imIndx].detections[detIndx].id], "images": [clusters[mapID][clusterIndex[mapID]].images[imIndx].id]}
+                        individuals[individualIndex][individualID] = {"colour": colour, "detections": [clusters[mapID][clusterIndex[mapID]].images[i].detections[n].id], "images": [clusters[mapID][clusterIndex[mapID]].images[i].id]}
 
                         var xhttp = new XMLHttpRequest();
                         xhttp.onreadystatechange =
@@ -715,7 +715,7 @@ function buildIndividualsObject() {
                                     buildIndividuals()
 
                                     stat = true
-                                    for (individualID in individuals[individualIndex]) {
+                                    for (let individualID in individuals[individualIndex]) {
                                         if (!('name' in individuals[individualIndex][individualID])) {
                                             stat = false
                                         }
@@ -727,10 +727,10 @@ function buildIndividualsObject() {
                         xhttp.send();
 
                     } else {
-                        individuals[individualIndex][individualID].detections.push(clusters[mapID][clusterIndex[mapID]].images[imIndx].detections[detIndx].id)
+                        individuals[individualIndex][individualID].detections.push(clusters[mapID][clusterIndex[mapID]].images[i].detections[n].id)
                         individuals[individualIndex][individualID].detections = [...new Set(individuals[individualIndex][individualID].detections)]
 
-                        individuals[individualIndex][individualID].images.push(clusters[mapID][clusterIndex[mapID]].images[imIndx].id)
+                        individuals[individualIndex][individualID].images.push(clusters[mapID][clusterIndex[mapID]].images[i].id)
                         individuals[individualIndex][individualID].images = [...new Set(individuals[individualIndex][individualID].images)]
                     }
                 }
@@ -739,7 +739,7 @@ function buildIndividualsObject() {
     }
 
     stat = true
-    for (individualID in individuals[individualIndex]) {
+    for (let individualID in individuals[individualIndex]) {
         if (!('name' in individuals[individualIndex][individualID])) {
             stat = false
         }
@@ -754,8 +754,8 @@ function createSingleIndividual() {
     if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false) && (!['-101','-99','-782'].includes(clusters['map1'][clusterIndex['map1']].id))) {
         
         allow = true
-        for (imIdx2=0;imIdx2<clusters['map1'][clusterIndex['map1']].images.length;imIdx2++) {
-            if (clusters['map1'][clusterIndex['map1']].images[imIdx2].detections.length > 1) {
+        for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+            if (clusters['map1'][clusterIndex['map1']].images[i].detections.length > 1) {
                 allow = false
             }
         }
@@ -764,14 +764,14 @@ function createSingleIndividual() {
             if (Object.keys(individuals[individualIndex]).length==0) {
                 newSet = {}
 
-                for (imIdx2=0;imIdx2<clusters['map1'][clusterIndex['map1']].images.length;imIdx2++) {
-                    if (clusters['map1'][clusterIndex['map1']].images[imIdx2].detections.length >= 1) {
-                        newID = 'n' + clusters['map1'][clusterIndex['map1']].images[imIdx2].detections[0].id.toString()
+                for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+                    if (clusters['map1'][clusterIndex['map1']].images[i].detections.length >= 1) {
+                        newID = 'n' + clusters['map1'][clusterIndex['map1']].images[i].detections[0].id.toString()
                         break
                     }
                 }
                 
-                for (colour in colours) {
+                for (var colour in colours) {
                     if (colours[colour]==false) {
                         colours[colour] = true
                         break
@@ -780,10 +780,10 @@ function createSingleIndividual() {
 
                 detIdList=[]
                 imIdList=[]
-                for (imIdx2=0;imIdx2<clusters['map1'][clusterIndex['map1']].images.length;imIdx2++) {
-                    imIdList.push(clusters['map1'][clusterIndex['map1']].images[imIdx2].id)
-                    for (detIdx2=0;detIdx2<clusters['map1'][clusterIndex['map1']].images[imIdx2].detections.length;detIdx2++) {
-                        detIdList.push(clusters['map1'][clusterIndex['map1']].images[imIdx2].detections[detIdx2].id)
+                for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+                    imIdList.push(clusters['map1'][clusterIndex['map1']].images[i].id)
+                    for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
+                        detIdList.push(clusters['map1'][clusterIndex['map1']].images[i].detections[n].id)
                     }
                 }
     
@@ -822,7 +822,7 @@ function undo() {
     } else {
         individuals = [{}]
         individualIndex = 0
-        for (colour in colours) {
+        for (let colour in colours) {
             colours[colour] = false
         }
         buildIndividuals()
@@ -889,11 +889,11 @@ function activateUnidentifiable() {
                 // if only one, then mark it as unidentifiable
                 detCount = 0
                 if (Object.keys(individuals[individualIndex]).length==0) {
-                    for (imIdx2=0;imIdx2<clusters['map1'][clusterIndex['map1']].images.length;imIdx2++) {
-                        for (detIdx2=0;detIdx2<clusters['map1'][clusterIndex['map1']].images[imIdx2].detections.length;detIdx2++) {
+                    for (let i=0;i<clusters['map1'][clusterIndex['map1']].images.length;i++) {
+                        for (let n=0;n<clusters['map1'][clusterIndex['map1']].images[i].detections.length;n++) {
                             detCount += 1
-                            imID = clusters['map1'][clusterIndex['map1']].images[imIdx2].id
-                            detID = clusters['map1'][clusterIndex['map1']].images[imIdx2].detections[detIdx2].id
+                            imID = clusters['map1'][clusterIndex['map1']].images[i].id
+                            detID = clusters['map1'][clusterIndex['map1']].images[i].detections[n].id
                         }
                     }
                 }
@@ -901,7 +901,7 @@ function activateUnidentifiable() {
                     newSet = {}
         
                     newID = 'n' + detID.toString()
-                    for (colour in colours) {
+                    for (var colour in colours) {
                         if (colours[colour]==false) {
                             colours[colour] = true
                             break
@@ -950,10 +950,10 @@ function submitIndividuals() {
     /** Submits all current individuals in the cluster for cluster ID. */
     if ((finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
         allow = true
-        for (tempMapID in clusters) {
-            for (imidx=0;imidx<clusters[tempMapID][clusterIndex[tempMapID]].images.length;imidx++) {
-                for (indindx=0;indindx<clusters[tempMapID][clusterIndex[tempMapID]].images[imidx].detections.length;indindx++) {
-                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[imidx].detections[indindx].individual=='-1') {
+        for (let tempMapID in clusters) {
+            for (let i=0;i<clusters[tempMapID][clusterIndex[tempMapID]].images.length;i++) {
+                for (let n=0;n<clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections.length;n++) {
+                    if (clusters[tempMapID][clusterIndex[tempMapID]].images[i].detections[n].individual=='-1') {
                         allow = false
                     }
                 }
@@ -995,9 +995,9 @@ function submitIndividuals() {
                             nextCluster()
                             translations = reply.translations
         
-                            for (imIndx=0;imIndx<clusters['map1'][wrapIndex].images.length;imIndx++) {
-                                for (detIndx=0;detIndx<clusters['map1'][wrapIndex].images[imIndx].detections.length;detIndx++) {
-                                    clusters['map1'][wrapIndex].images[imIndx].detections[detIndx].individual = translations[clusters['map1'][wrapIndex].images[imIndx].detections[detIndx].individual]
+                            for (let i=0;i<clusters['map1'][wrapIndex].images.length;i++) {
+                                for (let n=0;n<clusters['map1'][wrapIndex].images[i].detections.length;n++) {
+                                    clusters['map1'][wrapIndex].images[i].detections[n].individual = translations[clusters['map1'][wrapIndex].images[i].detections[n].individual]
                                 }
                             }
         
@@ -1010,7 +1010,7 @@ function submitIndividuals() {
                                 modalDuplicateDiv.removeChild(modalDuplicateDiv.firstChild);
                             }
     
-                            for (nameIndx=0;nameIndx<reply.data.length;nameIndx++) {
+                            for (let i=0;i<reply.data.length;i++) {
                                 row = document.createElement('div')
                                 row.classList.add('row')
                                 modalDuplicateDiv.appendChild(row)
@@ -1022,8 +1022,8 @@ function submitIndividuals() {
                                 input = document.createElement('input')
                                 input.setAttribute('type','text')
                                 input.setAttribute('class','form-control')
-                                input.setAttribute('id',reply.data[nameIndx])
-                                input.value = reply.data[nameIndx]
+                                input.setAttribute('id',reply.data[i])
+                                input.value = reply.data[i]
                                 input.required = true
                                 col.appendChild(input)
     
@@ -1054,10 +1054,10 @@ function submitIndividual(){
         if (!['','dummy','unidentifiable'].includes(document.getElementById('newIndividualName').value.toLowerCase())) {
             document.getElementById('newIndividualErrors').innerHTML = ''
             tags = []
-            for (ta=0;ta<globalTags.length;ta++) {
-                box = document.getElementById(globalTags[ta].tag+'box')
+            for (let i=0;i<globalTags.length;i++) {
+                box = document.getElementById(globalTags[i].tag+'box')
                 if (box.checked) {
-                    tags.push(globalTags[ta].tag)
+                    tags.push(globalTags[i].tag)
                 }
             }
             individuals[individualIndex][globalIndividual]['tags'] = tags
@@ -1098,7 +1098,7 @@ btnNoteRecon.addEventListener('click', ()=>{
 btnDuplicate.addEventListener('click', ()=>{
     /** Submits the new name for an idividual with a suplicated name. */
     newSet = JSON.parse(JSON.stringify(individuals[individualIndex]))
-    for (individualID in newSet) {
+    for (let individualID in newSet) {
         element = document.getElementById(newSet[individualID].name)
         if (element!=null) {
             newSet[individualID].name = element.value
@@ -1113,8 +1113,8 @@ btnDuplicate.addEventListener('click', ()=>{
 
 function hideBoundingLabels() {
     /** Hides/shows the bounding box labels. */
-    for (mapID in drawnItems) {
-        for (layer in drawnItems[mapID]._layers) {
+    for (let mapID in drawnItems) {
+        for (let layer in drawnItems[mapID]._layers) {
             if (drawnItems[mapID]._layers[layer].isTooltipOpen()) {
                 toolTipsOpen = false
                 drawnItems[mapID]._layers[layer].closeTooltip()
@@ -1138,10 +1138,10 @@ function dissociateDetection(detID,mapID="map1") {
                 } else if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
                     if (reply.status == 'success') {
-                        for (ai=0;ai<clusters[wrapMapID][clusterIndex[wrapMapID]].images.length;ai++) {
-                            if (wrapDetID==clusters[wrapMapID][clusterIndex[wrapMapID]].images[ai].detections[0].id) {
-                                actions.push(['dissociation',wrapDetID,JSON.parse(JSON.stringify(clusters[wrapMapID][clusterIndex[wrapMapID]].images[ai])),wrapMapID,clusters[wrapMapID][clusterIndex[wrapMapID]].id])
-                                clusters[wrapMapID][clusterIndex[wrapMapID]].images.splice(ai, 1)
+                        for (let i=0;i<clusters[wrapMapID][clusterIndex[wrapMapID]].images.length;i++) {
+                            if (wrapDetID==clusters[wrapMapID][clusterIndex[wrapMapID]].images[i].detections[0].id) {
+                                actions.push(['dissociation',wrapDetID,JSON.parse(JSON.stringify(clusters[wrapMapID][clusterIndex[wrapMapID]].images[i])),wrapMapID,clusters[wrapMapID][clusterIndex[wrapMapID]].id])
+                                clusters[wrapMapID][clusterIndex[wrapMapID]].images.splice(i, 1)
                                 break
                             }
                         }

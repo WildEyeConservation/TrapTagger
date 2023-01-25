@@ -149,9 +149,9 @@ function updatePage(url){
                 document.getElementById('mainCard').setAttribute('style','min-height:400px')
             }
 
-            for (iii=0;iii<reply.workers.length;iii++) {
-                buildWorker(reply.workers[iii])
-                // if (iii < reply.workers.length-1) {
+            for (let i=0;i<reply.workers.length;i++) {
+                buildWorker(reply.workers[i])
+                // if (i < reply.workers.length-1) {
                 //     workerListDiv.appendChild(document.createElement('br'))
                 // }
             }
@@ -252,7 +252,7 @@ modalDetails.on('shown.bs.modal', function(){
             optionTexts = ['None']
             optionValues = ["-99999"]             
             
-            for (i=0;i<surveys.length;i++) {
+            for (let i=0;i<surveys.length;i++) {
                 optionTexts.push(surveys[i][1])
                 optionValues.push(surveys[i][0])
             }
@@ -278,7 +278,7 @@ surveySelect.addEventListener('change', ()=>{
                 tasks = JSON.parse(this.responseText);  
                 optionTexts = ['None']
                 optionValues = ["-99999"]             
-                for (i=0;i<tasks.length;i++) {
+                for (let i=0;i<tasks.length;i++) {
                     optionTexts.push(tasks[i][1])
                     optionValues.push(tasks[i][0])
                 }
@@ -311,7 +311,7 @@ taskSelect.addEventListener('change', ()=>{
                 
                 if (reply != 'error') {
                     tableDiv = document.getElementById('statsTable')
-                    for (key in reply.headings) {
+                    for (let key in reply.headings) {
                         row = document.createElement('div')
                         row.classList.add('row')
                         tableDiv.appendChild(row)

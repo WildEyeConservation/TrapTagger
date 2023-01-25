@@ -83,9 +83,9 @@ function removePolarData(colour) {
     if (pieces.length>1) {
         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
     }
-    for (index=0;index<chart.data.datasets.length;index++) {
-        if (chart.data.datasets[index].backgroundColor==colour) {
-            chart.data.datasets.splice(index, 1);
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets.splice(i, 1);
             break
         }
     }
@@ -103,9 +103,9 @@ function removeBarData(colour) {
     if (pieces.length>1) {
         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
     }
-    for (index=0;index<chart.data.datasets.length;index++) {
-        if (chart.data.datasets[index].backgroundColor==colour) {
-            chart.data.datasets.splice(index, 1);
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets.splice(i, 1);
             break
         }
     }
@@ -115,14 +115,14 @@ function removeBarData(colour) {
 
 function clearPolarColours() {
     /** Clears the polarColours object */
-    for (key in polarColours) {
+    for (let key in polarColours) {
         polarColours[key] = false
     }
 }
 
 function clearBarColours() {
     /** Clears the barColours object */
-    for (key in polarColours) {
+    for (let key in barColours) {
         barColours[key] = false
     }
 }
@@ -138,9 +138,9 @@ function editPolarData(data,colour) {
     if (pieces.length>1) {
         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
     }
-    for (index=0;index<chart.data.datasets.length;index++) {
-        if (chart.data.datasets[index].backgroundColor==colour) {
-            chart.data.datasets[index].data=data
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets[i].data=data
             break
         }
     }
@@ -161,14 +161,14 @@ function editBarData(data,colour) {
     if (pieces.length>1) {
         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
     }
-    for (index=0;index<chart.data.datasets.length;index++) {
-        if (chart.data.datasets[index].backgroundColor==colour) {
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
             if (xAxisSelection=='1') {
-                chart.data.datasets[index].hoverBackgroundColor = chart.data.datasets[index].backgroundColor
+                chart.data.datasets[i].hoverBackgroundColor = chart.data.datasets[i].backgroundColor
             } else {
-                chart.data.datasets[index].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
+                chart.data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
             }
-            chart.data.datasets[index].data=data
+            chart.data.datasets[i].data=data
             break
         }
     }
@@ -191,8 +191,8 @@ function updatePolarDisplay(IDNum) {
     if (normalisationSelection == '2') { //Normalised
         total = polarData[IDkey]['total']
         if (total != 0) {
-            for (ix=0;ix<data.length;ix++) {
-                newData.push(+((data[ix]/total).toFixed(2)))
+            for (let i=0;i<data.length;i++) {
+                newData.push(+((data[i]/total).toFixed(2)))
             }
         }
     } else {
@@ -229,8 +229,8 @@ function updateBarDisplay(IDNum) {
         if (normalisationSelection == '2') { //Normalised
             total = barData[IDkey]['total']
             if (total != 0) {
-                for (ix=0;ix<data.length;ix++) {
-                    newData.push(+((data[ix]/total).toFixed(2)))
+                for (let i=0;i<data.length;i++) {
+                    newData.push(+((data[i]/total).toFixed(2)))
                 }
             }
         } else {
@@ -256,7 +256,7 @@ function updatePolarErrors() {
 
     if (baseUnitSelection == '3') {
         species_count_warning = false
-        for (IDNum in polarData) {
+        for (let IDNum in polarData) {
             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
             species = speciesSelector.options[speciesSelector.selectedIndex].text
             var xhttp = new XMLHttpRequest();
@@ -287,7 +287,7 @@ function updateBarErrors() {
 
     if (baseUnitSelection == '3') {
         species_count_warning = false
-        for (IDNum in barData) {
+        for (let IDNum in barData) {
             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
             species = speciesSelector.options[speciesSelector.selectedIndex].text
             var xhttp = new XMLHttpRequest();
@@ -332,7 +332,7 @@ function updatePolarData(IDNum) {
         
                         if (!polarData.hasOwnProperty(IDkey)) {
                             colour = null
-                            for (key in polarColours) {
+                            for (let key in polarColours) {
                                 if (polarColours[key]==false) {
                                     polarColours[key] = true
                                     colour = key
@@ -351,8 +351,8 @@ function updatePolarData(IDNum) {
                         polarData[IDkey]['data'] = reply
         
                         total = 0
-                        for (x=0;x<reply.length;x++) {
-                            total += reply[x]
+                        for (let i=0;i<reply.length;i++) {
+                            total += reply[i]
                         }
                         polarData[IDkey]['total'] = total
         
@@ -395,7 +395,7 @@ function updateBarData(IDNum) {
     
                     if (!barData.hasOwnProperty(IDkey)) {
                         colour = null
-                        for (key in barColours) {
+                        for (let key in barColours) {
                             if (barColours[key]==false) {
                                 barColours[key] = true
                                 colour = key
@@ -414,8 +414,8 @@ function updateBarData(IDNum) {
                     barData[IDkey]['data'] = reply
     
                     total = 0
-                    for (x=0;x<reply.length;x++) {
-                        total += reply[x]
+                    for (let i=0;i<reply.length;i++) {
+                        total += reply[i]
                     }
                     barData[IDkey]['total'] = total
     
@@ -434,14 +434,14 @@ function updateBarData(IDNum) {
 
 function normalisePolar() {
     /** Normalises the polar chart data. */
-    for (IDNum in polarData) {
+    for (let IDNum in polarData) {
         updatePolarDisplay(IDNum)
     }
 }
 
 function normaliseBar() {
     /** Normalises the bar chart data */
-    for (IDNum in barData) {
+    for (let IDNum in barData) {
         updateBarDisplay(IDNum)
     }
 }
@@ -451,7 +451,7 @@ function updateBaseUnitPolar() {
 
     document.getElementById('statisticsErrors').innerHTML = ''
     species_count_warning = false
-    for (IDNum in polarData) {
+    for (let IDNum in polarData) {
         updatePolarData(IDNum)
 
         if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
@@ -479,7 +479,7 @@ function updateBaseUnitBar() {
 
     document.getElementById('statisticsErrors').innerHTML = ''
     species_count_warning = false
-    for (IDNum in barData) {
+    for (let IDNum in barData) {
         updateBarData(IDNum)
 
         if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
@@ -944,7 +944,7 @@ function createBar() {
                         document.getElementById('statisticsErrors').innerHTML = ''
                     
                         species_count_warning = false
-                        for (IDNum in barData) {
+                        for (let IDNum in barData) {
                             updateBarData(IDNum)
                     
                             if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
@@ -1137,12 +1137,12 @@ function reScaleNormalisation(newScale) {
     invHeatmapLayer._update()
 
     maxVal = 0
-    for (dx=0;dx<reply.data.length;dx++) {
-        value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[dx].lat, lng:reply.data[dx].lng})))
+    for (let i=0;i<reply.data.length;i++) {
+        value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[i].lat, lng:reply.data[i].lng})))
         if (value!=0) {
-            reply.data[dx].count = (1000*reply.data[dx].count)/value
-            if (reply.data[dx].count>maxVal) {
-                maxVal = reply.data[dx].count
+            reply.data[i].count = (1000*reply.data[i].count)/value
+            if (reply.data[i].count>maxVal) {
+                maxVal = reply.data[i].count
             }
         }
     }
@@ -1209,12 +1209,12 @@ function updateHeatMap() {
                     }
                     map.addLayer(invHeatmapLayer)
                     maxVal = 0
-                    for (dx=0;dx<reply.data.length;dx++) {
-                        value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[dx].lat, lng:reply.data[dx].lng})))
+                    for (let i=0;i<reply.data.length;i++) {
+                        value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[i].lat, lng:reply.data[i].lng})))
                         if (value!=0) {
-                            reply.data[dx].count = (1000*reply.data[dx].count)/value
-                            if (reply.data[dx].count>maxVal) {
-                                maxVal = reply.data[dx].count
+                            reply.data[i].count = (1000*reply.data[i].count)/value
+                            if (reply.data[i].count>maxVal) {
+                                maxVal = reply.data[i].count
                             }
                         }
                     }
@@ -1346,18 +1346,18 @@ function createMap() {
 
             markers = []
             refMarkers = []
-            for (l=0;l<trapgroupInfo.length;l++) {
-                marker = L.marker([trapgroupInfo[l].latitude, trapgroupInfo[l].longitude]).addTo(map)
+            for (let i=0;i<trapgroupInfo.length;i++) {
+                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
                 markers.push(marker)
                 map.addLayer(marker)
-                marker.bindPopup(trapgroupInfo[l].name);
+                marker.bindPopup(trapgroupInfo[i].name);
                 marker.on('mouseover', function (e) {
                     this.openPopup();
                 });
                 marker.on('mouseout', function (e) {
                     this.closePopup();
                 });
-                refMarkers.push({lat:trapgroupInfo[l].latitude,lng:trapgroupInfo[l].longitude,count:1000,tag:trapgroupInfo[l].name})
+                refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].name})
             }
             refData = {max:2000,data:refMarkers}
             invHeatmapLayer.setData(refData)
@@ -1595,15 +1595,15 @@ function createMap() {
         
                     $("#markerCheckBox").change( function() {
                         if (document.getElementById('markerCheckBox').checked) {
-                            for (mx=0;mx<markers.length;mx++) {
-                                if (!map.hasLayer(markers[mx])) {
-                                    map.addLayer(markers[mx])
+                            for (let i=0;i<markers.length;i++) {
+                                if (!map.hasLayer(markers[i])) {
+                                    map.addLayer(markers[i])
                                 }
                             }
                         } else {
-                            for (mx=0;mx<markers.length;mx++) {
-                                if (map.hasLayer(markers[mx])) {
-                                    map.removeLayer(markers[mx])
+                            for (let i=0;i<markers.length;i++) {
+                                if (map.hasLayer(markers[i])) {
+                                    map.removeLayer(markers[i])
                                 }
                             }
                         }

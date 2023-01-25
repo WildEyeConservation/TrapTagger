@@ -102,8 +102,8 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
         }
     }
 
-    for (var index=0; index<files.length; index++) {
-        var file = files[index]
+    for (let i=0; i<files.length; i++) {
+        var file = files[i]
         if (!existingFiles.includes(file.fileName)) {
             // If file doesn't already exist, download it
             downloadFile(file.fileName,file.URL,dirHandle)
@@ -121,11 +121,11 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 
     // Delete the remaining files that shouldn't be there
     if (path.split('/').length!=1) {
-        for (var index=0; index<existingFiles.length; index++) {
-            dirHandle.removeEntry(existingFiles[index])
+        for (let i=0; i<existingFiles.length; i++) {
+            dirHandle.removeEntry(existingFiles[i])
         }
-        for (var index=0; index<existingDirectories.length; index++) {
-            deleteFolder(existingDirectories[index],dirHandle)
+        for (let i=0; i<existingDirectories.length; i++) {
+            deleteFolder(existingDirectories[i],dirHandle)
         }
     }
 }
@@ -186,13 +186,13 @@ async function iterateDirectories(directories,dirHandle,path='') {
     /** Recursive function for iterating through the given directories and downloading the necessary files */
 
     var expectedDirectories = []
-    for (item in directories) {
+    for (let item in directories) {
         expectedDirectories.push(item)
     }
 
     getDirectoryFiles(path,dirHandle,expectedDirectories)
 
-    for (item in directories) {
+    for (let item in directories) {
         var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
         var newDirectories = directories[item]
         if (path=='') {

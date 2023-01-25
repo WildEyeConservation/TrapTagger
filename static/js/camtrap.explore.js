@@ -64,12 +64,12 @@ function getKeys() {
                     if (this.readyState == 4 && this.status == 200) {
                         globalKeys = JSON.parse(this.responseText);
 
-                        for (tl in globalKeys) {
-                            if (globalKeys[tl].length!=0) {
-                                for (ln=0;ln<globalKeys[tl][1].length;ln++) {
-                                    if (['Skip', 'Wrong', 'Knocked Down'].includes(globalKeys[tl][1][ln])) {
-                                        globalKeys[tl][1][ln] = 'N'
-                                        globalKeys[tl][0][ln] = -967
+                        for (let key in globalKeys) {
+                            if (globalKeys[key].length!=0) {
+                                for (let i=0;i<globalKeys[key][1].length;i++) {
+                                    if (['Skip', 'Wrong', 'Knocked Down'].includes(globalKeys[key][1][i])) {
+                                        globalKeys[key][1][i] = 'N'
+                                        globalKeys[key][0][i] = -967
                                     }
                                 }
                             }
@@ -97,13 +97,13 @@ function populateLevels() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             species = JSON.parse(this.responseText);
-            for (ii=0;ii<species.length;ii++) {
+            for (let i=0;i<species.length;i++) {
                 ss = document.getElementById('level-selector')
                 a = document.createElement('button')
                 a.classList.add('dropdown-item');
                 a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'switchTaggingLevel('+species[ii][0] +')')
-                a.innerHTML = species[ii][1]
+                a.setAttribute('onclick', 'switchTaggingLevel('+species[i][0] +')')
+                a.innerHTML = species[i][1]
                 ss.appendChild(a)
             }
             switchTaggingLevel(species[0][0])
@@ -125,7 +125,7 @@ function getClusterIDs(mapID = 'map1'){
                 imageIndex[mapID] = 0
                 updateClusterLabels()
                 clusterIDs = JSON.parse(this.responseText);
-                for (i=0;i<3;i++){
+                for (let i=0;i<3;i++){
                     loadNewCluster()
                 }
             }
@@ -146,7 +146,7 @@ function populateSpeciesSelector(label, mapID = 'map1'){
                 divSelector.removeChild(divSelector.firstChild);
             }
 
-            for (n=0;n<response.length;n++) {
+            for (let i=0;i<response.length;i++) {
                 newdiv = document.createElement('div');
                 newdiv.classList.add('dropdown');
                 
@@ -159,7 +159,7 @@ function populateSpeciesSelector(label, mapID = 'map1'){
                 newbtn.setAttribute("type", 'button');
                 newbtn.setAttribute("data-toggle", 'dropdown');
 
-                if (n==0) {
+                if (i==0) {
                     newbtn.innerHTML = 'Select Species to be Explored';
                 } else {
                     newbtn.innerHTML = 'Select Sub-Species to be Explored';
@@ -168,12 +168,12 @@ function populateSpeciesSelector(label, mapID = 'map1'){
                 newul = document.createElement('div');
                 newul.classList.add('dropdown-menu');
 
-                for (iii=0;iii<response[n].length;iii++) {
+                for (let n=0;n<response[i].length;n++) {
                     a = document.createElement('button');
                     a.classList.add('dropdown-item');
                     a.setAttribute('type', 'button')
-                    a.setAttribute('onclick', 'populateSpeciesSelector('+response[n][iii][0]+')');
-                    a.innerHTML = "Show "+response[n][iii][1];
+                    a.setAttribute('onclick', 'populateSpeciesSelector('+response[i][n][0]+')');
+                    a.innerHTML = "Show "+response[i][n][1];
                     newul.appendChild(a);
                 }
 
@@ -219,12 +219,12 @@ function populateTagSelector() {
             newul = document.createElement('div');
             newul.classList.add('dropdown-menu');
 
-            for (iii=0;iii<response.length;iii++) {
+            for (let i=0;i<response.length;i++) {
                 a = document.createElement('button');
                 a.classList.add('dropdown-item');
                 a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'selectTag('+response[iii][0]+')');
-                a.innerHTML = "Show "+response[iii][1];
+                a.setAttribute('onclick', 'selectTag('+response[i][0]+')');
+                a.innerHTML = "Show "+response[i][1];
                 newul.appendChild(a);
             }
 

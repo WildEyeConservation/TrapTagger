@@ -21,13 +21,13 @@ function waitForDownload() {
     if ((csv_task_ids.length==0)&&(excel_task_ids.length==0)&&(export_task_ids.length==0)) {
         clearInterval(waitForDownloadTimer)
     } else {
-        for (i = 0; i < csv_ids_to_remove.length; i++){
+        for (let i = 0; i < csv_ids_to_remove.length; i++){
             var index = csv_task_ids.indexOf(csv_ids_to_remove[i]);
             if (index !== -1) csv_task_ids.splice(index, 1);
         }
 
         csv_ids_to_remove = []
-        for (i = 0; i < csv_task_ids.length; i++){
+        for (let i = 0; i < csv_task_ids.length; i++){
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/checkDownload/csv/'+csv_task_ids[i]);
             xhttp.onreadystatechange =
@@ -48,13 +48,13 @@ function waitForDownload() {
             xhttp.send();
         }
 
-        for (i = 0; i < excel_ids_to_remove.length; i++){
+        for (let i = 0; i < excel_ids_to_remove.length; i++){
             var index = excel_task_ids.indexOf(excel_ids_to_remove[i]);
             if (index !== -1) excel_task_ids.splice(index, 1);
         }
 
         excel_ids_to_remove = []
-        for (i = 0; i < excel_task_ids.length; i++){
+        for (let i = 0; i < excel_task_ids.length; i++){
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/checkDownload/excel/'+excel_task_ids[i]);
             xhttp.onreadystatechange =
@@ -75,13 +75,13 @@ function waitForDownload() {
             xhttp.send();
         }
 
-        for (i = 0; i < export_ids_to_remove.length; i++){
+        for (let i = 0; i < export_ids_to_remove.length; i++){
             var index = export_task_ids.indexOf(export_ids_to_remove[i]);
             if (index !== -1) export_task_ids.splice(index, 1);
         }
 
         export_ids_to_remove = []
-        for (i = 0; i < export_task_ids.length; i++){
+        for (let i = 0; i < export_task_ids.length; i++){
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/checkDownload/export/'+export_task_ids[i]);
             xhttp.onreadystatechange =

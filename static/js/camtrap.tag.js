@@ -38,8 +38,8 @@ function loadNewCluster(mapID = 'map1') {
                     info = JSON.parse(this.responseText);
     
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
-                        for (nc=0;nc<info.info.length;nc++) {
-                            newcluster = info.info[nc];
+                        for (let i=0;i<info.info.length;i++) {
+                            newcluster = info.info[i];
 
                             if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                 knockedTG=null
@@ -111,12 +111,12 @@ function populateLevels() {
                 ss.removeChild(ss.firstChild);
             }
 
-            for (ii=0;ii<species.length;ii++) {
+            for (let i=0;i<species.length;i++) {
                 a = document.createElement('button')
                 a.classList.add('dropdown-item');
                 a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'switchTaggingLevel('+species[ii][0] +')')
-                a.innerHTML = species[ii][1]
+                a.setAttribute('onclick', 'switchTaggingLevel('+species[i][0] +')')
+                a.innerHTML = species[i][1]
                 ss.appendChild(a)
             }
             switchTaggingLevel(species[0][0])

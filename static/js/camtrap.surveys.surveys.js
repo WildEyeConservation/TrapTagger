@@ -380,9 +380,9 @@ function buildSurveys(survey,disableSurvey) {
         }
     } else {
         taskDivHeading.innerHTML = 'Annotation Sets:'
-        for (ii=0;ii<survey.tasks.length;ii++) {
-            buildTask(taskDiv, survey.tasks[ii], disableSurvey, survey)
-            if (ii < survey.tasks.length-1) {
+        for (let i=0;i<survey.tasks.length;i++) {
+            buildTask(taskDiv, survey.tasks[i], disableSurvey, survey)
+            if (i < survey.tasks.length-1) {
                 taskDiv.appendChild(document.createElement('br'))
             }
         }
@@ -499,20 +499,20 @@ function updatePage(url){
 
             downloadsAvailable = []
             taskProcessing = false
-            for (iii=0;iii<reply.surveys.length;iii++) {
+            for (let i=0;i<reply.surveys.length;i++) {
                 disableSurvey = false
-                for (z=0;z<reply.surveys[iii].tasks.length;z++) {
-                    if ((diabledTaskStatuses.includes(reply.surveys[iii].tasks[z].status.toLowerCase()))||(reply.surveys[iii].tasks[z].disabledLaunch=='true')) {
+                for (let n=0;n<reply.surveys[i].tasks.length;n++) {
+                    if ((diabledTaskStatuses.includes(reply.surveys[i].tasks[n].status.toLowerCase()))||(reply.surveys[i].tasks[n].disabledLaunch=='true')) {
                         disableSurvey = true
                         taskProcessing = true
                     }
                 }
-                if (disabledSurveyStatuses.includes(reply.surveys[iii].status.toLowerCase())||(currentDownloads.includes(reply.surveys[iii].name))) {
+                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].name))) {
                     disableSurvey = true
                     taskProcessing = true
                 }
-                buildSurveys(reply.surveys[iii],disableSurvey)
-                // if (iii < reply.surveys.length-1) {
+                buildSurveys(reply.surveys[i],disableSurvey)
+                // if (i < reply.surveys.length-1) {
                 //     surveyListDiv.appendChild(document.createElement('br'))
                 // }
             }
@@ -619,9 +619,9 @@ function updateSurveys(surveyElement) {
             surveys = JSON.parse(this.responseText);  
             optionTexts = ['None','Templates']
             optionValues = ["-99999",'-1']           
-            for (iiiiii=0;iiiiii<surveys.length;iiiiii++) {
-                optionTexts.push(surveys[iiiiii][1])
-                optionValues.push(surveys[iiiiii][0])
+            for (let i=0;i<surveys.length;i++) {
+                optionTexts.push(surveys[i][1])
+                optionValues.push(surveys[i][0])
             }
             clearSelect(surveyElement)
             fillSelect(surveyElement, optionTexts, optionValues)
@@ -642,9 +642,9 @@ function updateTasks(surveyElement, taskElement) {
             tasks = JSON.parse(this.responseText);  
             optionTexts = ['None']
             optionValues = ["-99999"]             
-            for (iiiiiii=0;iiiiiii<tasks.length;iiiiiii++) {
-                optionTexts.push(tasks[iiiiiii][1])
-                optionValues.push(tasks[iiiiiii][0])
+            for (let i=0;i<tasks.length;i++) {
+                optionTexts.push(tasks[i][1])
+                optionValues.push(tasks[i][0])
             }
             clearSelect(taskElement)
             fillSelect(taskElement, optionTexts, optionValues)
@@ -777,10 +777,10 @@ function buildBrowserUpload(divID) {
     // input2.addEventListener( 'input', () => {
     //     inputFile = document.getElementById('inputFile')
     //     selectFiles = document.getElementById('selectFiles')
-    //     for (let idx = 0; idx < inputFile.files.length; idx++){
+    //     for (let i = 0; i < inputFile.files.length; i++){
     //         let option = document.createElement('option');
-    //         option.text = inputFile.files[idx].webkitRelativePath;
-    //         option.value = idx;
+    //         option.text = inputFile.files[i].webkitRelativePath;
+    //         option.value = i;
     //         selectFiles.add(option);
     //     }
     //     checkTrapgroupCode()
@@ -940,8 +940,8 @@ function checkTrapgroupCode() {
             pattern = new RegExp(tgCode)
     
             tgs = []
-            for (fi=2;fi<pathDisplay.options.length;fi++) {
-                matches = pathDisplay.options[fi].text.match(pattern)
+            for (let i=2;i<pathDisplay.options.length;i++) {
+                matches = pathDisplay.options[i].text.match(pattern)
                 if (matches!=null) {
                     tg = matches[0]
                     if (!tgs.includes(tg)) {
@@ -1006,10 +1006,10 @@ function updateTgCode() {
 
     tgCode = ''
     charSelects = document.querySelectorAll('[id^=charSelect-]')
-    for (cs=0;cs<charSelects.length;cs++) {
-        IDNum = charSelects[cs].id.split("-")[charSelects[cs].id.split("-").length-1]
+    for (let i=0;i<charSelects.length;i++) {
+        IDNum = charSelects[i].id.split("-")[charSelects[i].id.split("-").length-1]
         
-        selection = charSelects[cs].options[charSelects[cs].selectedIndex].text
+        selection = charSelects[i].options[charSelects[i].selectedIndex].text
         if (selection=='Any Digit') {
             tgCode += '[0-9]'
         } else if (selection=='Any Letter (Upper)') {
@@ -1592,13 +1592,13 @@ function buildCameras(camera_url='/getCameraStamps') {
                 h5.innerHTML = 'Corrected'
                 col.appendChild(h5)
             
-                for (trapgroup=0;trapgroup<reply.length;trapgroup++) {
+                for (let trapgroup=0;trapgroup<reply.length;trapgroup++) {
                     h5 = document.createElement('h5')
                     h5.setAttribute('style','margin-bottom: 2px')
                     h5.innerHTML = reply[trapgroup].tag
                     addImagesCamerasDiv.appendChild(h5)
     
-                    for (camera=0;camera<reply[trapgroup].cameras.length;camera++) {
+                    for (let camera=0;camera<reply[trapgroup].cameras.length;camera++) {
                         row = document.createElement('div')
                         row.setAttribute('class','row center')
                         addImagesCamerasDiv.appendChild(row)
@@ -1823,8 +1823,8 @@ function buildManualCoords() {
             headingCol.innerHTML = 'Altitude'
             headingRow.appendChild(headingCol)            
 
-            for (tg=0;tg<reply.length;tg++) {
-                trapgroup = reply[tg]
+            for (let i=0;i<reply.length;i++) {
+                trapgroup = reply[i]
 
                 row = document.createElement('div')
                 row.setAttribute('class','row')
@@ -2216,9 +2216,9 @@ function buildStatusRow(info,tableRow,headings) {
     tableCol.innerHTML = label
     tableRow.appendChild(tableCol)
 
-    for (heading in headings) {
-        for (qq=0;qq<headings[heading].length;qq++) {
-            heading2 = headings[heading][qq]
+    for (let heading in headings) {
+        for (leti=0;i<headings[heading].length;i++) {
+            heading2 = headings[heading][i]
             tableCol = document.createElement('td')
             tableCol.innerHTML = info[heading][heading2]
             tableCol.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
@@ -2229,7 +2229,7 @@ function buildStatusRow(info,tableRow,headings) {
 
 function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
     /** Iterates through the selected row and its children, changing their visibility as needed. */
-    for (label in labels) {
+    for (let label in labels) {
         tableRow = document.getElementById('detailedStatusRow-'+label.toString())
         if (init) {
             if (tableRow.style.display == 'none') {
@@ -2267,7 +2267,7 @@ function changeRowVisibility(labels,init=false,multi=false,rootLabel=null) {
 
 function iterateRows(labels,targetRow) {
     /** Iterates through the detailed status rows and if it finds the target row, it changes that row's visibility */
-    for (label in labels) {
+    for (let label in labels) {
         if (label==targetRow) {
             if (Object.keys(labels[label]).length!=0) {
                 multi = true
@@ -2284,7 +2284,7 @@ function iterateRows(labels,targetRow) {
 function iterateLabels(labels,headings,init=false) {
     /** Iterates through a nested labels object and builds the detailled status table. */
 
-    for (label in labels) {
+    for (let label in labels) {
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         if (Object.keys(labels[label]).length!=0) {
@@ -2356,7 +2356,7 @@ function buildStatusTable(labels,headings) {
     tableCol.setAttribute('style','border-bottom: 1px solid white;width: 20%')
     tableRow.appendChild(tableCol)
 
-    for (heading in headings) {
+    for (let heading in headings) {
         tableCol = document.createElement('th')
         tableCol.setAttribute('scope','col')
         tableCol.setAttribute('style','border-bottom: 1px solid white')
@@ -2378,15 +2378,15 @@ function buildStatusTable(labels,headings) {
     tableCol.innerHTML = 'Label'
     tableRow.appendChild(tableCol)
 
-    for (heading in headings) {
-        for (hi=0;hi<headings[heading].length;hi++) {
+    for (let heading in headings) {
+        for (let i=0;i<headings[heading].length;i++) {
             tableCol = document.createElement('th')
             tableCol.setAttribute('scope','col')
             tableCol.setAttribute('style','border-bottom: 1px solid white')
             tableRow.appendChild(tableCol)
     
             thdiv = document.createElement('div')
-            thdiv.innerHTML = headings[heading][hi]
+            thdiv.innerHTML = headings[heading][i]
             tableCol.appendChild(thdiv)
         }
     }
@@ -2488,8 +2488,8 @@ function updateClassifierTable(url=null) {
                 classifierSelectionTableInfo.removeChild(classifierSelectionTableInfo.firstChild);
             }
 
-            for (row=0;row<data.length;row++) {
-                datum = data[row]
+            for (let i=0;i<data.length;i++) {
+                datum = data[i]
                 tr = document.createElement('tr')
 
                 td = document.createElement('td')
@@ -2950,8 +2950,8 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         if (document.getElementById('addCoordinatesManualMethod').checked) {
             coordData = []
             allLatitudes = document.querySelectorAll('[id^=latitude-]');
-            for (tg=0;tg<allLatitudes.length;tg++) {
-                item = allLatitudes[tg]
+            for (let i=0;i<allLatitudes.length;i++) {
+                item = allLatitudes[i]
                 tag = item.id.split("latitude-")[item.id.split("latitude-").length-1]
                 latitude = document.getElementById('latitude-'+tag).value
                 longitude = document.getElementById('longitude-'+tag).value

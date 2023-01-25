@@ -473,26 +473,26 @@ function updateAllParentSelects() {
     allLabels = document.querySelectorAll('[id^=labeldescription-]');
     optionTexts = ['None', 'Vehicles/Humans/Livestock']
     optionValues = ["-99999", "-100000"]
-    for (idx = 0; idx < allLabels.length; idx++){
-        if ((allLabels[idx].value != '')&&(!optionTexts.includes(allLabels[idx].value))) {
-            optionTexts.push(allLabels[idx].value)
-            optionValues.push(allLabels[idx].id.replace(/.*-(\d{1,4}).*/m, '$1'))
+    for (let i = 0; i < allLabels.length; i++){
+        if ((allLabels[i].value != '')&&(!optionTexts.includes(allLabels[i].value))) {
+            optionTexts.push(allLabels[i].value)
+            optionValues.push(allLabels[i].id.replace(/.*-(\d{1,4}).*/m, '$1'))
         }
     }
 
     allSelectors = document.querySelectorAll('[id^=labelparent-]');
-    for (n = 0; n < allSelectors.length; n++){
-        if (allSelectors[n].options.length == 0) {
-            clearSelect(allSelectors[n])
-            fillSelect(allSelectors[n], optionTexts, optionValues)
+    for (let i = 0; i < allSelectors.length; i++){
+        if (allSelectors[i].options.length == 0) {
+            clearSelect(allSelectors[i])
+            fillSelect(allSelectors[i], optionTexts, optionValues)
         } else {
-            storedVal = allSelectors[n].options[allSelectors[n].selectedIndex].value;
-            clearSelect(allSelectors[n])
-            fillSelect(allSelectors[n], optionTexts, optionValues)
+            storedVal = allSelectors[i].options[allSelectors[i].selectedIndex].value;
+            clearSelect(allSelectors[i])
+            fillSelect(allSelectors[i], optionTexts, optionValues)
             if (!optionValues.includes(storedVal)) {
-                allSelectors[n].value = "-99999"
+                allSelectors[i].value = "-99999"
             } else {
-                allSelectors[n].value = storedVal
+                allSelectors[i].value = storedVal
             }
         }
     }
@@ -521,11 +521,11 @@ function checkLabels(editing) {
     dict['none'] = []
     dict['vehicles/humans/livestock'] = []
     if (editing) {
-        for (oT=0;oT<optionTexts.length;oT++) {
-            dict[optionTexts[oT].toLowerCase()] = []
+        for (let i=0;i<optionTexts.length;i++) {
+            dict[optionTexts[i].toLowerCase()] = []
         }
     }
-    for (n = 0; n < allDescriptions.length; n++){
+    for (let n = 0; n < allDescriptions.length; n++){
         if (allDescriptions[n].value != '') {
             description = allDescriptions[n].value.toLowerCase()
 
@@ -553,7 +553,7 @@ function checkLabels(editing) {
         }
     }
 
-    for (n = 0; n < allDescriptions.length; n++){
+    for (let n = 0; n < allDescriptions.length; n++){
         IDNum = allDescriptions[n].id.split("-")[allDescriptions[n].id.split("-").length-1]
 
         if (editing) {
@@ -615,7 +615,7 @@ function checkLabels(editing) {
     if (duplicateDescriptions.length != 0) {
         newdiv = document.createElement('div')
         labtext = 'Duplicate Labels: '
-        for (n = 0; n < duplicateDescriptions.length; n++){
+        for (let n = 0; n < duplicateDescriptions.length; n++){
             labtext += duplicateDescriptions[n]
             if (n != duplicateDescriptions.length-1) {
                 labtext += ', '
@@ -630,7 +630,7 @@ function checkLabels(editing) {
 
         Object.entries(duplicateKeys).forEach(([key, value]) => {
             hotext += '(' + key + ': '
-            for (n = 0; n < value.length; n++){
+            for (let n = 0; n < value.length; n++){
                 hotext += value[n]
                 if (n != value.length-1) {
                     hotext += ', '
@@ -646,7 +646,7 @@ function checkLabels(editing) {
     if (globalDescriptionsUsed.length != 0) {
         newdiv = document.createElement('div')
         labtext = 'Disallowed Labels Used: '
-        for (n = 0; n < globalDescriptionsUsed.length; n++){
+        for (let n = 0; n < globalDescriptionsUsed.length; n++){
             labtext += globalDescriptionsUsed[n]
             if (n != globalDescriptionsUsed.length-1) {
                 labtext += ', '
@@ -659,7 +659,7 @@ function checkLabels(editing) {
     if (globalHotkeysUsed.length != 0) {
         newdiv = document.createElement('div')
         labtext = 'Disallowed Hotkeys Used: '
-        for (n = 0; n < globalHotkeysUsed.length; n++){
+        for (let n = 0; n < globalHotkeysUsed.length; n++){
             labtext += globalHotkeysUsed[n]
             if (n != globalHotkeysUsed.length-1) {
                 labtext += ', '
@@ -714,23 +714,23 @@ function populatePreviousLabels() {
 
                 optionTexts = ['None', 'Vehicles/Humans/Livestock']
                 optionValues = ["-99999", "-100000"]
-                for (iiii=0;iiii<labels.length;iiii++) {
-                    optionTexts.push(labels[iiii][0])
-                    optionValues.push(iiii.toString())
+                for (let i=0;i<labels.length;i++) {
+                    optionTexts.push(labels[i][0])
+                    optionValues.push(i.toString())
                 }
 
-                for (iiiii=0;iiiii<labels.length;iiiii++) {
-                    labelDescription = labels[iiiii][0]
-                    labelHotkey = labels[iiiii][1]
-                    labelParent = labels[iiiii][2]
+                for (let i=0;i<labels.length;i++) {
+                    labelDescription = labels[i][0]
+                    labelHotkey = labels[i][1]
+                    labelParent = labels[i][2]
 
                     IDNum = getIdNumforNext('labeldescription');
                     BuildLabelRow(IDNum, true, 'divLabel', true)
 
-                    document.getElementById('labeldescription-'+iiiii.toString()).value = labelDescription
-                    document.getElementById('labelhotkey-'+iiiii.toString()).value = labelHotkey
+                    document.getElementById('labeldescription-'+i.toString()).value = labelDescription
+                    document.getElementById('labelhotkey-'+i.toString()).value = labelHotkey
 
-                    selector = document.getElementById('labelparent-'+iiiii.toString())
+                    selector = document.getElementById('labelparent-'+i.toString())
                     clearSelect(selector)
                     fillSelect(selector, optionTexts, optionValues)
 
@@ -769,8 +769,8 @@ function populateTaskNames() {
         if (this.readyState == 4 && this.status == 200) {
             tasks = JSON.parse(this.responseText);  
             taskNames = []            
-            for (iiiiiiii=0;iiiiiiii<tasks.length;iiiiiiii++) {
-                taskNames.push(tasks[iiiiiiii][1])
+            for (let i=0;i<tasks.length;i++) {
+                taskNames.push(tasks[i][1])
             }
         }
     }
@@ -1042,29 +1042,29 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
         allHotkeys = document.querySelectorAll('[id^=labelhotkey-]');
         allDescriptions = document.querySelectorAll('[id^=labeldescription-]');
 
-        for (iiiiiiiii=0;iiiiiiiii<sessionDeletes.length;iiiiiiiii++) {
-            if (sessionDeletes[iiiiiiiii].includes('s')) {
+        for (let i=0;i<sessionDeletes.length;i++) {
+            if (sessionDeletes[i].includes('s')) {
                 // Session label deleted
-                if (sessionDeletes[iiiiiiiii] in taskEditDict[parent]['additional']) {
-                    delete taskEditDict[parent]['additional'][sessionDeletes[iiiiiiiii]]
+                if (sessionDeletes[i] in taskEditDict[parent]['additional']) {
+                    delete taskEditDict[parent]['additional'][sessionDeletes[i]]
                 }
             }
         }
 
         taskEditDict[parent]['edits']['delete'].push(...sessionDeletes)
 
-        for (iiiiiiiiii=0;iiiiiiiiii<allDescriptions.length;iiiiiiiiii++) {
-            if ((allDescriptions[iiiiiiiiii].value!='')&&(allHotkeys[iiiiiiiiii].value!='')) {
-                if (allDescriptions[iiiiiiiiii].parentNode.parentNode.parentNode.parentNode==document.getElementById('AddLabelDiv')) {
+        for (let i=0;i<allDescriptions.length;i++) {
+            if ((allDescriptions[i].value!='')&&(allHotkeys[i].value!='')) {
+                if (allDescriptions[i].parentNode.parentNode.parentNode.parentNode==document.getElementById('AddLabelDiv')) {
                     //new labels
-                    NID = 's'+allDescriptions[iiiiiiiiii].id.split("-")[allDescriptions[iiiiiiiiii].id.split("-").length-1]
+                    NID = 's'+allDescriptions[i].id.split("-")[allDescriptions[i].id.split("-").length-1]
                     while (sessionIDs.includes(NID)) {
                         NID = 's'+NID
                     }
                     sessionIDs.push(NID)
                     taskEditDict[parent]['additional'][NID] = {}
-                    taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[iiiiiiiiii].value
-                    taskEditDict[parent]['additional'][NID]['hotkey'] = allHotkeys[iiiiiiiiii].value
+                    taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[i].value
+                    taskEditDict[parent]['additional'][NID]['hotkey'] = allHotkeys[i].value
     
                     if (!(NID in taskEditDict)) {
                         taskEditDict[NID] = {}
@@ -1075,18 +1075,18 @@ btnSaveLabelChanges.addEventListener('click', ()=>{
                     }
                 } else {
                     //edited labels
-                    if (allDescriptions[iiiiiiiiii].getAttribute('data-edited')=='true') {
-                        NID = allDescriptions[iiiiiiiiii].id.split("-")[allDescriptions[iiiiiiiiii].id.split("-").length-1]
+                    if (allDescriptions[i].getAttribute('data-edited')=='true') {
+                        NID = allDescriptions[i].id.split("-")[allDescriptions[i].id.split("-").length-1]
     
                         if (NID.includes('s')) {
                             // Edited new label, so edit original additional
-                            taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[iiiiiiiiii].value
-                            taskEditDict[parent]['additional'][NID]['hotkey'] = allHotkeys[iiiiiiiiii].value
+                            taskEditDict[parent]['additional'][NID]['description'] = allDescriptions[i].value
+                            taskEditDict[parent]['additional'][NID]['hotkey'] = allHotkeys[i].value
                         } else {
                             // Multiple edits in the same session just overwrite each other
                             taskEditDict[parent]['edits']['modify'][NID] = {}
-                            taskEditDict[parent]['edits']['modify'][NID]['description'] = allDescriptions[iiiiiiiiii].value
-                            taskEditDict[parent]['edits']['modify'][NID]['hotkey'] = allHotkeys[iiiiiiiiii].value
+                            taskEditDict[parent]['edits']['modify'][NID]['description'] = allDescriptions[i].value
+                            taskEditDict[parent]['edits']['modify'][NID]['hotkey'] = allHotkeys[i].value
                         }
                     }
                 }
@@ -1135,18 +1135,18 @@ btnCreateTask3.addEventListener('click', ()=>{
 
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]')
     includes = []
-    for (cbno=0;cbno<allCheckBoxes.length;cbno++) {
-        if (allCheckBoxes[cbno].checked) {
-            classification = allCheckBoxes[cbno].parentNode.children[1].innerHTML
+    for (let i=0;i<allCheckBoxes.length;i++) {
+        if (allCheckBoxes[i].checked) {
+            classification = allCheckBoxes[i].parentNode.children[1].innerHTML
             includes.push(classification)
         }
     }
     
     allTranslations = document.querySelectorAll('[id^=classTranslationText-]')
     translationInfo = {}
-    for (cbno=0;cbno<allTranslations.length;cbno++) {
-        IDNum = allTranslations[cbno].id.split("-")[allTranslations[cbno].id.split("-").length-1]
-        classification = allTranslations[cbno].innerHTML
+    for (let i=0;i<allTranslations.length;i++) {
+        IDNum = allTranslations[i].id.split("-")[allTranslations[i].id.split("-").length-1]
+        classification = allTranslations[i].innerHTML
 
         translationSelect = document.getElementById('classTranslationSelect-'+IDNum)
         translation = translationSelect.options[translationSelect.selectedIndex].text
@@ -1220,7 +1220,7 @@ btnCreateTask.addEventListener('click', ()=>{
                 addTaskDescriptions = []
                 addTaskDescriptions.push('nothing (ignore)')
                 addTaskDescriptions.push('vehicles/humans/livestock')
-                for (i = 0; i < labelDescriptions.length; i++){
+                for (let i = 0; i < labelDescriptions.length; i++){
                     if ((labelDescriptions[i].value!='')&&(labelHotkeys[i].value!='')) {
                         addTaskDescriptions.push(labelDescriptions[i].value.toLowerCase())
                         info += '["'+labelDescriptions[i].value+'","'+labelHotkeys[i].value+'","'+labelParents[i].options[labelParents[i].selectedIndex].text.replace(/\//g, '*****')
@@ -1398,8 +1398,8 @@ function buildTranslationRow(IDNum,classification,translationDiv,taskLabels) {
     col3.appendChild(select)
 
     optionValues = []
-    for (vb=0;vb<taskLabels.length;vb++) {
-        optionValues.push(vb)
+    for (let i=0;i<taskLabels.length;i++) {
+        optionValues.push(i)
     }
 
     fillSelect(select, taskLabels, optionValues)
@@ -1411,22 +1411,22 @@ function updateTranslationMatrix() {
     document.getElementById('btnCreateTask2').disabled=true
     
     optionValues = []
-    for (vb=0;vb<addTaskDescriptions.length;vb++) {
-        optionValues.push(vb)
+    for (let i=0;i<addTaskDescriptions.length;i++) {
+        optionValues.push(i)
     }
     classTranslationSelects = document.querySelectorAll('[id^=classTranslationSelect');
-    for (jj=0;jj<classTranslationSelects.length;jj++) {
-        selection = classTranslationSelects[jj].options[classTranslationSelects[jj].selectedIndex].text;
+    for (let i=0;i<classTranslationSelects.length;i++) {
+        selection = classTranslationSelects[i].options[classTranslationSelects[i].selectedIndex].text;
         updatedIndex = addTaskDescriptions.indexOf(selection)
-        clearSelect(classTranslationSelects[jj])
-        fillSelect(classTranslationSelects[jj], addTaskDescriptions, optionValues)
-        classTranslationSelects[jj].selectedIndex = updatedIndex
+        clearSelect(classTranslationSelects[i])
+        fillSelect(classTranslationSelects[i], addTaskDescriptions, optionValues)
+        classTranslationSelects[i].selectedIndex = updatedIndex
     }
 
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
-    for (cbno=0;cbno<allCheckBoxes.length;cbno++) {
-        IDNum = allCheckBoxes[cbno].id.split("-")[allCheckBoxes[cbno].id.split("-").length-1]
-        classification = allCheckBoxes[cbno].parentNode.children[1].innerHTML
+    for (let i=0;i<allCheckBoxes.length;i++) {
+        IDNum = allCheckBoxes[i].id.split("-")[allCheckBoxes[i].id.split("-").length-1]
+        classification = allCheckBoxes[i].parentNode.children[1].innerHTML
         if ((!addTaskDescriptions.includes(classification.toLowerCase()))&&(classification!='Vehicles/Humans/Livestock')&&(classification!='Nothing')) {
             if (!addTaskHeading) {
                 classTranslationHeading = document.getElementById('classTranslationHeading')
@@ -1480,9 +1480,9 @@ function updateClassificationBoxes() {
 
     allTranslations = document.querySelectorAll('[id^=classTranslationText-]')
     ignores = []
-    for (cbno=0;cbno<allTranslations.length;cbno++) {
-        IDNum = allTranslations[cbno].id.split("-")[allTranslations[cbno].id.split("-").length-1]
-        classification = allTranslations[cbno].innerHTML
+    for (let i=0;i<allTranslations.length;i++) {
+        IDNum = allTranslations[i].id.split("-")[allTranslations[i].id.split("-").length-1]
+        classification = allTranslations[i].innerHTML
 
         translationSelect = document.getElementById('classTranslationSelect-'+IDNum)
         translation = translationSelect.options[translationSelect.selectedIndex].text
@@ -1493,11 +1493,11 @@ function updateClassificationBoxes() {
     }
 
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
-    for (cbno=0;cbno<allCheckBoxes.length;cbno++) {
-        IDNum = allCheckBoxes[cbno].id.split("-")[allCheckBoxes[cbno].id.split("-").length-1]
-        classification = allCheckBoxes[cbno].parentNode.children[1].innerHTML
+    for (let i=0;i<allCheckBoxes.length;i++) {
+        IDNum = allCheckBoxes[i].id.split("-")[allCheckBoxes[i].id.split("-").length-1]
+        classification = allCheckBoxes[i].parentNode.children[1].innerHTML
         if (ignores.includes(classification)) {
-            allCheckBoxes[cbno].parentNode.remove()
+            allCheckBoxes[i].parentNode.remove()
         }
     }
 }
@@ -1517,7 +1517,7 @@ function buildClassificationCheckBoxes() {
         classificationSelection.removeChild(classificationSelection.firstChild);
     }
 
-    for (cno=0;cno<surveyClassifications.length;cno++) {
+    for (let i=0;i<surveyClassifications.length;i++) {
         IDNum = getIdNumforNext('classificationSelection-')
 
         div = document.createElement('div')
@@ -1534,7 +1534,7 @@ function buildClassificationCheckBoxes() {
         label = document.createElement('label')
         label.setAttribute('class','custom-control-label')
         label.setAttribute('for','classificationSelection-'+IDNum)
-        label.innerHTML = surveyClassifications[cno]
+        label.innerHTML = surveyClassifications[i]
         div.appendChild(label)
     }
 }
@@ -1566,12 +1566,12 @@ $("#selectAllClassifications").change( function() {
     /** Listener on the select all species-classification selector on the add-task modal that checks all the boxes if selected, and clears otherwise. */
     allCheckBoxes = document.querySelectorAll('[id^=classificationSelection-]');
     if (document.getElementById('selectAllClassifications').checked) {
-        for (sAc=0;sAc<allCheckBoxes.length;sAc++) {
-            allCheckBoxes[sAc].checked = true
+        for (let i=0;i<allCheckBoxes.length;i++) {
+            allCheckBoxes[i].checked = true
         }
     } else {
-        for (sAc=0;sAc<allCheckBoxes.length;sAc++) {
-            allCheckBoxes[sAc].checked = false
+        for (let i=0;i<allCheckBoxes.length;i++) {
+            allCheckBoxes[i].checked = false
         }
     }
 })
@@ -1597,23 +1597,23 @@ function updateEditLabelDisplay() {
     optionTexts = ['None','Vehicles/Humans/Livestock']
     optionValues = ['-99999','-100000']
 
-    for (iiiiiiiiiii=0;iiiiiiiiiii<globalLabels.length;iiiiiiiiiii++) {
+    for (let i=0;i<globalLabels.length;i++) {
         labelDeleted = false
         labelEdited = false
-        labelDescription = globalLabels[iiiiiiiiiii][0]
-        labelHotkey = globalLabels[iiiiiiiiiii][1]
-        labelParent = globalLabels[iiiiiiiiiii][2]
-        labelID = globalLabels[iiiiiiiiiii][3]
-        ParentID = globalLabels[iiiiiiiiiii][4]
+        labelDescription = globalLabels[i][0]
+        labelHotkey = globalLabels[i][1]
+        labelParent = globalLabels[i][2]
+        labelID = globalLabels[i][3]
+        ParentID = globalLabels[i][4]
 
-        for (level in taskEditDict) {
+        for (let level in taskEditDict) {
             if (taskEditDict[level]['edits']['delete'].includes(String(labelID))) {
                 labelDeleted = true
             }
         }
 
         if (!labelDeleted) {
-            for (level in taskEditDict) {
+            for (let level in taskEditDict) {
                 if (labelID in taskEditDict[level]['edits']['modify']) {
                     optionTexts.push(taskEditDict[level]['edits']['modify'][labelID]['description'])
                     optionValues.push(labelID)
@@ -1640,8 +1640,8 @@ function updateEditLabelDisplay() {
         }
     }
 
-    for (level in taskEditDict) {
-        for (NID in taskEditDict[level]['additional']) {
+    for (let level in taskEditDict) {
+        for (let NID in taskEditDict[level]['additional']) {
             optionTexts.push(taskEditDict[level]['additional'][NID]['description'])
             optionValues.push(NID)
             if (level==selectedLevel) {
@@ -1654,9 +1654,9 @@ function updateEditLabelDisplay() {
 
     clearSelect(LabelLevelSelector)
     fillSelect(LabelLevelSelector, optionTexts, optionValues)
-    for (iiiiiiiiiiii=0;iiiiiiiiiiii<LabelLevelSelector.options.length;iiiiiiiiiiii++) {
-        if (LabelLevelSelector.options[iiiiiiiiiiii].value==selectedLevel) {
-            LabelLevelSelector.selectedIndex = iiiiiiiiiiii
+    for (let i=0;i<LabelLevelSelector.options.length;i++) {
+        if (LabelLevelSelector.options[i].value==selectedLevel) {
+            LabelLevelSelector.selectedIndex = i
         }
     }
 
@@ -1683,9 +1683,9 @@ modalEditTask.on('shown.bs.modal', function(){
     
                 optionTexts = ['None','Vehicles/Humans/Livestock']
                 optionValues = ['-99999','-100000']
-                for (iiiiiiiiiiiii=0;iiiiiiiiiiiii<globalLabels.length;iiiiiiiiiiiii++) {
-                    optionTexts.push(globalLabels[iiiiiiiiiiiii][0])
-                    optionValues.push(globalLabels[iiiiiiiiiiiii][3])
+                for (let i=0;i<globalLabels.length;i++) {
+                    optionTexts.push(globalLabels[i][0])
+                    optionValues.push(globalLabels[i][3])
                 }
     
                 LabelLevelSelector = document.getElementById('LabelLevelSelector')
@@ -1696,12 +1696,12 @@ modalEditTask.on('shown.bs.modal', function(){
                     updateEditLabelDisplay()
                 });
     
-                for (iiiiiiiiiiiiii=0;iiiiiiiiiiiiii<optionValues.length;iiiiiiiiiiiiii++) {
-                    taskEditDict[optionValues[iiiiiiiiiiiiii]] = {}
-                    taskEditDict[optionValues[iiiiiiiiiiiiii]]['edits'] = {}
-                    taskEditDict[optionValues[iiiiiiiiiiiiii]]['edits']['delete'] = []
-                    taskEditDict[optionValues[iiiiiiiiiiiiii]]['edits']['modify'] = {}
-                    taskEditDict[optionValues[iiiiiiiiiiiiii]]['additional'] = {}
+                for (let i=0;i<optionValues.length;i++) {
+                    taskEditDict[optionValues[i]] = {}
+                    taskEditDict[optionValues[i]]['edits'] = {}
+                    taskEditDict[optionValues[i]]['edits']['delete'] = []
+                    taskEditDict[optionValues[i]]['edits']['modify'] = {}
+                    taskEditDict[optionValues[i]]['additional'] = {}
                 }
     
                 updateEditLabelDisplay()

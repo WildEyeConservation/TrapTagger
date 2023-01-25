@@ -97,8 +97,8 @@ function requestLabels() {
         if (this.readyState == 4 && this.status == 200) {
             labels = JSON.parse(this.responseText);
             clearLabels()
-            for (n=0;n<labels.length;n++) {
-                buildLabelRow(labels[n])
+            for (let i=0;i<labels.length;i++) {
+                buildLabelRow(labels[i])
             }
         }
     }
@@ -117,12 +117,12 @@ function submitRequest() {
     // Extract survey & task info
     translations = {}
     desiredLabels = document.querySelectorAll('[id^=desiredLabel]');
-    for (b=0;b<desiredLabels.length;b++) {
-        IDNum = desiredLabels[b].id.split('-')[desiredLabels[b].id.split('-').length-1]
+    for (let i=0;i<desiredLabels.length;i++) {
+        IDNum = desiredLabels[i].id.split('-')[desiredLabels[i].id.split('-').length-1]
         checkBox = document.getElementById('labelCheckBox-'+IDNum)
         if (!checkBox.checked) {
             originalLabel = document.getElementById('originalLabel-'+IDNum).innerHTML
-            desiredLabel = desiredLabels[b].value
+            desiredLabel = desiredLabels[i].value
             if (!translations.hasOwnProperty(desiredLabel)) {
                 translations[desiredLabel] = []
             }

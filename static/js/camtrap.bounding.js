@@ -51,8 +51,8 @@ function loadNewCluster(mapID = 'map1') {
                     info = JSON.parse(this.responseText);
     
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
-                        for (nc=0;nc<info.info.length;nc++) {
-                            newcluster = info.info[nc];
+                        for (let i=0;i<info.info.length;i++) {
+                            newcluster = info.info[i];
 
                             if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                 knockedTG=null
@@ -61,16 +61,16 @@ function loadNewCluster(mapID = 'map1') {
                             if (knockedTG==null) {
                                 if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
                                     clisterIdList.push(newcluster.id)
-                                    for (v=0;v<newcluster.images.length;v++) {
+                                    for (let n=0;n<newcluster.images.length;n++) {
                                         var newsubcluster = {
                                             id: newcluster.id, 
-                                            images: [newcluster.images[v]],
+                                            images: [newcluster.images[n]],
                                             label: newcluster.label,
                                             tags: newcluster.tags,
                                             groundTruth: newcluster.groundTruth,
                                             trapGroup: newcluster.trapGroup,
                                             clusterLength: newcluster.images.length,
-                                            imageIndex: v,
+                                            imageIndex: n,
                                             ready: true,
                                             required: []
                                         }
@@ -159,7 +159,7 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
     map[mapID].on("draw:editstart", function(e) {
         if (toolTipsOpen) {
-            for (layer in drawnItems[mapID]._layers) {
+            for (let layer in drawnItems[mapID]._layers) {
                 drawnItems[mapID]._layers[layer].closeTooltip()
             }
         }
@@ -170,7 +170,7 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
     map[mapID].on("draw:editstop", function(e) {
         if (toolTipsOpen) {
-            for (layer in drawnItems[mapID]._layers) {
+            for (let layer in drawnItems[mapID]._layers) {
                 drawnItems[mapID]._layers[layer].openTooltip()
             }
         }
@@ -239,8 +239,8 @@ function plusFunc(labelText,mapID = 'map1') {
     */
    
     currentLevel = JSON.parse(JSON.stringify(labelHierarchy))
-    for (b=0;b<currentHierarchicalLevel.length;b++) {
-        currentLevel = JSON.parse(JSON.stringify(currentLevel[currentHierarchicalLevel[b]]))
+    for (let i=0;i<currentHierarchicalLevel.length;i++) {
+        currentLevel = JSON.parse(JSON.stringify(currentLevel[currentHierarchicalLevel[i]]))
     }
 
     if (labelText != '+') {
@@ -262,7 +262,7 @@ function plusFunc(labelText,mapID = 'map1') {
         subDividedContList = []
         tempList = []
         counter = 0
-        for (label in currentLevel) {
+        for (let label in currentLevel) {
             tempList.push(label)
             counter += 1
             if (counter==10) {
@@ -298,16 +298,16 @@ function buildContextMenu(mapID = 'map1') {
         map[mapID].contextmenu.addItem(item)
     }
 
-    for (ll=0;ll<subDividedContList[multiContextVal].length;ll++) {
+    for (let i=0;i<subDividedContList[multiContextVal].length;i++) {
         item = {
-            text: subDividedContList[multiContextVal][ll],
+            text: subDividedContList[multiContextVal][i],
             index: indexNum,
             callback: updateTargetRect
         }
         indexNum += 1
         map[mapID].contextmenu.addItem(item)
 
-        if (ll < subDividedContList[multiContextVal].length-1) {
+        if (i < subDividedContList[multiContextVal].length-1) {
             item = {
                 separator: true,
                 index: indexNum,
@@ -342,9 +342,9 @@ function setRectOptions(mapID = 'map1') {
 
     menuItems = []
     indexNum = 0
-    for (vv=0;vv<clusters[mapID][clusterIndex[mapID]].label.length;vv++) {
+    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
         item = {
-            text: clusters[mapID][clusterIndex[mapID]].label[vv],
+            text: clusters[mapID][clusterIndex[mapID]].label[i],
             index: indexNum,
             callback: updateTargetRect
         }
@@ -408,7 +408,7 @@ function submitChanges(mapID = 'map1') {
     if ((!map[mapID].contextmenu.isVisible())&&(finishedDisplaying[mapID] == true)&&(editingEnabled == false)&&(clusters[mapID][clusterIndex[mapID]].ready)) {
         output = {}
         idList = []
-        for (leafletID in drawnItems[mapID]._layers) {
+        for (let leafletID in drawnItems[mapID]._layers) {
             idList.push(dbDetIds[mapID][leafletID])
             output[dbDetIds[mapID][leafletID]] = {
                 label: drawnItems[mapID]._layers[leafletID]._tooltip._content,
@@ -432,27 +432,27 @@ function submitChanges(mapID = 'map1') {
                 }
                 clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.push(det)
             } else {
-                for (de=0;de<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;de++) {
-                    if (dbDetIds[mapID][leafletID]==clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[de].id.toString()) {
-                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[de].label = drawnItems[mapID]._layers[leafletID]._tooltip._content,
-                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[de].top = drawnItems[mapID]._layers[leafletID]._bounds._northEast.lat/mapHeight[mapID],
-                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[de].bottom = drawnItems[mapID]._layers[leafletID]._bounds._southWest.lat/mapHeight[mapID],
-                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[de].left = drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng/mapWidth[mapID],
-                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[de].right = drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng/mapWidth[mapID]
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+                    if (dbDetIds[mapID][leafletID]==clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id.toString()) {
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].label = drawnItems[mapID]._layers[leafletID]._tooltip._content,
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].top = drawnItems[mapID]._layers[leafletID]._bounds._northEast.lat/mapHeight[mapID],
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].bottom = drawnItems[mapID]._layers[leafletID]._bounds._southWest.lat/mapHeight[mapID],
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].left = drawnItems[mapID]._layers[leafletID]._bounds._southWest.lng/mapWidth[mapID],
+                        clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].right = drawnItems[mapID]._layers[leafletID]._bounds._northEast.lng/mapWidth[mapID]
                     }
                 }
             }
         }
 
         to_remove = []
-        for (xq=0;xq<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;xq++) {
-            if (!idList.includes(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[xq].id.toString())) {
-                to_remove.push(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[xq])
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.length;i++) {
+            if (!idList.includes(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i].id.toString())) {
+                to_remove.push(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections[i])
             }
         }
 
-        for (xq=0;xq<to_remove.length;xq++) {
-            index = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.indexOf(to_remove[xq])
+        for (let i=0;i<to_remove.length;i++) {
+            index = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.indexOf(to_remove[i])
             clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.splice(index, 1)
         }
 
@@ -466,10 +466,10 @@ function submitChanges(mapID = 'map1') {
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText)
-                    for (key in reply.detIDs) {
-                        for (de=0;de<clusters[wrapMapID][wrapClusterID].images[0].detections.length;de++) {
-                            if (clusters[wrapMapID][wrapClusterID].images[0].detections[de].id==key) {
-                                clusters[wrapMapID][wrapClusterID].images[0].detections[de].id = reply.detIDs[key]
+                    for (let key in reply.detIDs) {
+                        for (let i=0;i<clusters[wrapMapID][wrapClusterID].images[0].detections.length;i++) {
+                            if (clusters[wrapMapID][wrapClusterID].images[0].detections[i].id==key) {
+                                clusters[wrapMapID][wrapClusterID].images[0].detections[i].id = reply.detIDs[key]
                             }
                         }
                     }
@@ -565,7 +565,7 @@ function hideBoundingLabels(mapID = 'map1') {
     }
 
     if (!editActive) {
-        for (layer in drawnItems[mapID]._layers) {
+        for (let layer in drawnItems[mapID]._layers) {
             if (drawnItems[mapID]._layers[layer].isTooltipOpen()) {
                 toolTipsOpen = false
                 drawnItems[mapID]._layers[layer].closeTooltip()

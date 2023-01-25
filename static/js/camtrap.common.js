@@ -153,22 +153,22 @@ function preload(mapID = 'map1') {
     if (bucketName!=null) {
         if (isKnockdown) {
             if (clusters[mapID][clusterIndex[mapID]].images.length > 1) {
-                for (ii=0;ii<clusters[mapID][clusterIndex[mapID]].images.length;ii++) {
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
                     if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
                         im = new Image();
-                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[ii].url)
+                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
                     }
                 }
             }
         } else if (clusters[mapID].length > 1) {
-            for (i=1;i<=3;i++) {
+            for (let i=1;i<=3;i++) {
                 if (clusters[mapID].length > clusterIndex[mapID] + i) {
                     if ((clusters[mapID][clusterIndex[mapID] + i].id != '-99')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-101')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-782')) {
                         if (clusters[mapID][clusterIndex[mapID] + i].required.length==0) {
                             im = new Image();
                             im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[0].url)
                         } else {
-                            for (requiredIndex=0;requiredIndex<clusters[mapID][clusterIndex[mapID] + i].required.length;requiredIndex++) {
+                            for (let requiredIndex=0;requiredIndex<clusters[mapID][clusterIndex[mapID] + i].required.length;requiredIndex++) {
                                 im = new Image();
                                 req = clusters[mapID][clusterIndex[mapID] + i].required[requiredIndex]
                                 im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[req].url)
@@ -244,7 +244,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 return function() {
                     if (individualsReady) {
                         wrapIndividual = '-1'
-                        for (individualID in individuals[individualIndex]) {
+                        for (let individualID in individuals[individualIndex]) {
                             if (individuals[individualIndex][individualID].detections.includes(wrapDetectionID)) {
                                 wrapIndividual = individualID
                                 break
@@ -262,7 +262,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                 colours[newSet[wrapIndividual].colour]=false
                                 delete newSet[wrapIndividual]
 
-                                for (individualID in newSet) {
+                                for (let individualID in newSet) {
                                     index = newSet[individualID].family.indexOf(wrapIndividual);
                                     if (index > -1) {
                                         newSet[individualID].family.splice(index, 1);
@@ -292,7 +292,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                 }
 
                                 newID = 'n' + wrapDetectionID.toString()
-                                for (colour in colours) {
+                                for (var colour in colours) {
                                     if (colours[colour]==false) {
                                         colours[colour] = true
                                         break
@@ -320,8 +320,8 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                     wrapList = [wrapImageID]
                                 }
                                 
-                                for (dx=0;dx<prevList.length;dx++) {
-                                    if (wrapList.includes(prevList[dx])) {
+                                for (let i=0;i<prevList.length;i++) {
+                                    if (wrapList.includes(prevList[i])) {
                                         disallow = true
                                     }
                                 }
@@ -349,7 +349,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                                 if ((previousClick.individual=='-1')&&(wrapIndividual=='-1')) { //if new
                                     if (!parentMode) {
                                         newID = 'n' + previousClick.detID.toString()
-                                        for (colour in colours) {
+                                        for (var colour in colours) {
                                             if (colours[colour]==false) {
                                                 colours[colour] = true
                                                 break
@@ -482,7 +482,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                 return function() {
 
                     alreadyAllocated = false
-                    for (individualID in individuals[individualIndex]) {
+                    for (let individualID in individuals[individualIndex]) {
                         if (individuals[individualIndex][individualID].detections.includes(wrapDetID)) {
                             alreadyAllocated = true
                         }
@@ -495,7 +495,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                             newSet = {}
                         }
                         newID = 'n' + wrapDetID.toString()
-                        for (colour in colours) {
+                        for (var colour in colours) {
                             if (colours[colour]==false) {
                                 colours[colour] = true
                                 break
@@ -544,12 +544,12 @@ function addDetections(mapID = 'map1') {
         map[mapID].setZoom(map[mapID].getMinZoom())
         fullRes[mapID] = false
         drawnItems[mapID].clearLayers()
-        for (iii=0;iii<image.detections.length;iii++) {
-            buildDetection(image,image.detections[iii],mapID)
+        for (let i=0;i<image.detections.length;i++) {
+            buildDetection(image,image.detections[i],mapID)
         }
         if ('comparison' in image) {
-            for (iii=0;iii<image.comparison.length;iii++) {
-                buildDetection(image,image.comparison[iii],mapID,'rgba(26,105,223,1)')
+            for (let i=0;i<image.comparison.length;i++) {
+                buildDetection(image,image.comparison[i],mapID,'rgba(26,105,223,1)')
             }
         }
         if (isBounding) {
@@ -617,7 +617,7 @@ function updateCanvas(mapID = 'map1') {
                         if (cirNum > 10) {
                             circles = ' '
                         } else {
-                            for (i=0;i<cirNum;i++) {
+                            for (let i=0;i<cirNum;i++) {
                                 if (i == imageIndex[mapID]) {
                                     circles += '&#9679;'
                                 } else {
@@ -630,7 +630,7 @@ function updateCanvas(mapID = 'map1') {
                         if (cirNum > 72) {
                             cirNum = 72
                         }
-                        for (i=0;i<cirNum;i++) {
+                        for (let i=0;i<cirNum;i++) {
                             if (i == clusters[mapID][clusterIndex[mapID]].imageIndex) {
                                 circles += '&#9679;'
                             } else {
@@ -642,7 +642,7 @@ function updateCanvas(mapID = 'map1') {
                         if (cirNum > 72) {
                             cirNum = 72
                         }
-                        for (i=0;i<cirNum;i++) {
+                        for (let i=0;i<cirNum;i++) {
                             if (i == imageIndex[mapID]) {
                                 circles += '&#9679;'
                             } else {
@@ -859,7 +859,7 @@ function goToPrevCluster(mapID = 'map1') {
 
     if (multipleStatus && (divBtns != null)) {
         // if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-        //     for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+        //     for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
         //         idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
         //         if (idx > -1) {
         //             var btn = document.getElementById(hotkeys[idx]);
@@ -882,11 +882,11 @@ function goToPrevCluster(mapID = 'map1') {
     }
 
     if ((document.getElementById('btnSendToBack')!=null)&&(!['-101','-99','-782'].includes(clusters[mapID][clusterIndex[mapID]].id))) {
-        for (imInd=0;imInd<clusters[mapID][clusterIndex[mapID]].images.length;imInd++) {
-            for (detInd=0;detInd<clusters[mapID][clusterIndex[mapID]].images[imInd].detections.length;detInd++) {
+        for (let imInd=0;imInd<clusters[mapID][clusterIndex[mapID]].images.length;imInd++) {
+            for (let detInd=0;detInd<clusters[mapID][clusterIndex[mapID]].images[imInd].detections.length;detInd++) {
                 if (clusters[mapID][clusterIndex[mapID]].images[imInd].detections[detInd].individual.includes('n')||clusters[mapID][clusterIndex[mapID]].images[imInd].detections[detInd].individual.includes('e')) {
                     newID = '-1'
-                    for (individualID in individuals[0]) {
+                    for (let individualID in individuals[0]) {
                         if (individuals[0][individualID].detections.includes(clusters[mapID][clusterIndex[mapID]].images[imInd].detections[detInd].id)) {
                             newID = individualID
                             break
@@ -910,7 +910,7 @@ function goToPrevCluster(mapID = 'map1') {
         getSuggestions()
         individuals = [{}]
         individualIndex = 0
-        for (colour in colours) {
+        for (let colour in colours) {
             colours[colour] = false
         }
         previousClick = null
@@ -976,7 +976,7 @@ function updateClusterLabels(mapID = 'map1') {
     /** Updates the global list of labels for the current cluster. */
     clusterLabels[mapID] = []
     if ((clusters[mapID][clusterIndex[mapID]]!=undefined)&&(clusters[mapID][clusterIndex[mapID]][ITEM_IDS]!=undefined)) {
-        for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEM_IDS].length;i++) {
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEM_IDS].length;i++) {
             label_id = clusters[mapID][clusterIndex[mapID]][ITEM_IDS][i]
             if (parseInt(label_id) != 0) {
                 clusterLabels[mapID].push(label_id)
@@ -1006,7 +1006,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
                 classifierLabels.innerHTML = 'Suggestion:'
 
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].classification.length;i++) {
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].classification.length;i++) {
                     span = document.createElement('span')
                     if (i!=0) {
                         span.setAttribute('style','font-size: 80%;color: rgba(150,150,150,100)')
@@ -1022,7 +1022,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             
             if (updateLabels) {
                 var temp =''
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
                     temp += clusters[mapID][clusterIndex[mapID]].label[i]
                     if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
                         temp += ', '
@@ -1033,7 +1033,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
             if (document.getElementById('groundLabels')) {
                 var temp =''
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].groundTruth[imageIndex[mapID]].length;i++) {
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].groundTruth[imageIndex[mapID]].length;i++) {
                     temp += clusters[mapID][clusterIndex[mapID]].groundTruth[imageIndex[mapID]][i]
                     if (i != clusters[mapID][clusterIndex[mapID]].groundTruth[imageIndex[mapID]].length-1) {
                         temp += ', '
@@ -1044,7 +1044,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
             if (!isClassCheck&&document.getElementById('classifierLabels')) {
                 var temp =''
-                for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++) {
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++) {
                     temp += clusters[mapID][clusterIndex[mapID]].tags[i]
                     if (i != clusters[mapID][clusterIndex[mapID]].tags.length-1) {
                         temp += ', '
@@ -1057,7 +1057,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
     if (multipleStatus) {
         if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-            for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+            for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
                 idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
                 if (idx > -1) {
                     var btn = document.getElementById(hotkeys[idx]);
@@ -1150,8 +1150,8 @@ function updateSlider(mapID = 'map1') {
         while(clusterPosition[mapID].firstChild){
             clusterPosition[mapID].removeChild(clusterPosition[mapID].firstChild);
         }
-        for (ndx=0;ndx<clusters[mapID][clusterIndex[mapID]].images.length;ndx++) {
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[ndx].url)
+        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
             img = document.createElement('img')
             img.setAttribute('src',imageUrl)
             imgli = document.createElement('li')
@@ -1245,7 +1245,7 @@ function nextCluster(mapID = 'map1') {
                 if (document.getElementById('btnSendToBack')!=null) {
                     individuals = [{}]
                     individualIndex = 0
-                    for (colour in colours) {
+                    for (let colour in colours) {
                         colours[colour] = false
                     }
                     buildIndividualsObject()
@@ -1512,10 +1512,10 @@ function assignLabel(label,mapID = 'map1'){
                         if (idx > -1) {
 
                             if (wrongStatus) {
-                                for (tl in globalKeys) {
-                                    for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
-                                        if (globalKeys[tl][0][tl2]==label) {
-                                            labelName = globalKeys[tl][1][tl2]
+                                for (let key in globalKeys) {
+                                    for (let i=0;i<globalKeys[key][0].length;i++) {
+                                        if (globalKeys[key][0][i]==label) {
+                                            labelName = globalKeys[key][1][i]
                                             break
                                         }
                                     }
@@ -1574,10 +1574,10 @@ function assignLabel(label,mapID = 'map1'){
                                         clusterLabels[mapID] = []
                                     } else {
                                         // Clear other current-level labels
-                                        for (tl=0;tl<globalKeys[taggingLevel][0].length;tl++) {
-                                            label_id = globalKeys[taggingLevel][0][tl].toString()
+                                        for (let i=0;i<globalKeys[taggingLevel][0].length;i++) {
+                                            label_id = globalKeys[taggingLevel][0][i].toString()
                                             if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
-                                                label_name = globalKeys[taggingLevel][1][tl]
+                                                label_name = globalKeys[taggingLevel][1][i]
                                                 clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
                                                 clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
                                                 clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
@@ -1586,10 +1586,10 @@ function assignLabel(label,mapID = 'map1'){
 
                                         // Clear other same-level labels in wrong mode
                                         if (wrongStatus) {
-                                            for (tl=0;tl<globalKeys[tempTaggingLevel][0].length;tl++) {
-                                                label_id = globalKeys[tempTaggingLevel][0][tl].toString()
+                                            for (let i=0;i<globalKeys[tempTaggingLevel][0].length;i++) {
+                                                label_id = globalKeys[tempTaggingLevel][0][i].toString()
                                                 if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
-                                                    label_name = globalKeys[tempTaggingLevel][1][tl]
+                                                    label_name = globalKeys[tempTaggingLevel][1][i]
                                                     clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
                                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
                                                     clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
@@ -1920,7 +1920,7 @@ function onload (){
         if (isIDing && (document.getElementById('btnSendToBack')==null)) {
             loadNewCluster()
         } else {
-            for (i=0;i<1;i++){
+            for (let i=0;i<1;i++){
                 loadNewCluster()
             }
         }
@@ -1998,7 +1998,7 @@ function activateMultiple(mapID = 'map1') {
                     multipleStatus = true
         
                     if (taggingLevel.includes('-2')) {
-                        for (i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
+                        for (let i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
                             idx = names.indexOf(clusters[mapID][clusterIndex[mapID]].tags[i])
                             if (idx > -1) {
                                 var btn = document.getElementById(hotkeys[idx]);
@@ -2006,7 +2006,7 @@ function activateMultiple(mapID = 'map1') {
                             }
                         }
                     } else {
-                        for (i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
+                        for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
                             idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
                             if (idx > -1) {
                                 var btn = document.getElementById(hotkeys[idx]);
@@ -2151,7 +2151,7 @@ function initKeys(res){
         names = res[1]
 
         // Add other important buttons
-        for (i=0;i<labs.length;i++) {
+        for (let i=0;i<labs.length;i++) {
             if (((names[i]=='Wrong')||(names[i]=='Skip'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
@@ -2162,10 +2162,10 @@ function initKeys(res){
                         labelName = 'Back'
                     }
                 } else if ((names[i]=='Skip')&&(wrongStatus)) {
-                    for (tl in globalKeys) {
-                        for (tl2=0;tl2<globalKeys[tl][0].length;tl2++) {
-                            if (globalKeys[tl][0][tl2]==tempTaggingLevel) {
-                                labelName = globalKeys[tl][1][tl2]
+                    for (let key in globalKeys) {
+                        for (let n=0;n<globalKeys[key][0].length;n++) {
+                            if (globalKeys[key][0][n]==tempTaggingLevel) {
+                                labelName = globalKeys[key][1][n]
                                 hotkeys[i] = tempTaggingLevel.toString()
                                 break
                             }
@@ -2197,7 +2197,7 @@ function initKeys(res){
         }
 
         // Add other buttons
-        for (i=0;i<labs.length;i++) {
+        for (let i=0;i<labs.length;i++) {
             if ((names[i]!='Wrong')&&(names[i]!='Skip')) {
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
@@ -2461,7 +2461,7 @@ document.onclick = function (event){
     /** Closes the context menu on click when editing the bounding boxes, or whilst doing individual ID. */
     activity = true
     if (isBounding) {
-        for (mapID in map) {
+        for (let mapID in map) {
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
                 plusInProgress = false
@@ -2470,7 +2470,7 @@ document.onclick = function (event){
             }
         }
     } else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-        for (mapID in map) {
+        for (let mapID in map) {
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
             }

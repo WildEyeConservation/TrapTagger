@@ -21,9 +21,9 @@ function getActiveModal() {
     /** Returns the ID of the currently active modal. Returns null otherwise. */
     activeModal = null
     allModals = document.querySelectorAll('[id^=modal]');
-    for (am=0;am<allModals.length;am++) {
-        if (allModals[am].classList.contains('show')) {
-            activeModal = allModals[am].id
+    for (let i=0;i<allModals.length;i++) {
+        if (allModals[i].classList.contains('show')) {
+            activeModal = allModals[i].id
             break
         }
     }

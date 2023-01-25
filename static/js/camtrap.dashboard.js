@@ -122,32 +122,32 @@ function getUserInfo(url=null) {
                     userInfoTableBody.removeChild(userInfoTableBody.firstChild);
                 }
                 
-                for (uii=0;uii<reply.data.length;uii++) {
+                for (let i=0;i<reply.data.length;i++) {
                     tr=document.createElement('tr')
 
                     th=document.createElement('th')
                     th.setAttribute('scope','row')
-                    th.innerHTML = reply.data[uii]['account']
+                    th.innerHTML = reply.data[i]['account']
                     tr.appendChild(th)
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-                    td.innerHTML = reply.data[uii]['affiliation']
+                    td.innerHTML = reply.data[i]['affiliation']
                     tr.appendChild(td)
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-                    td.innerHTML = reply.data[uii]['surveys']
+                    td.innerHTML = reply.data[i]['surveys']
                     tr.appendChild(td)
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-                    td.innerHTML = reply.data[uii]['images']
+                    td.innerHTML = reply.data[i]['images']
                     tr.appendChild(td)
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
-                    td.innerHTML = reply.data[uii]['regions']
+                    td.innerHTML = reply.data[i]['regions']
                     tr.appendChild(td)
 
                     userInfoTableBody.appendChild(tr)
@@ -188,7 +188,7 @@ function initMap() {
             reply = JSON.parse(this.responseText);
             if (reply.status=='success') {
                 var markers = L.markerClusterGroup();
-                for (i=0;i<reply.data.length;i++) {
+                for (let i=0;i<reply.data.length;i++) {
                     markers.addLayer(L.marker(reply.data[i]));
                 }
                 map.addLayer(markers)

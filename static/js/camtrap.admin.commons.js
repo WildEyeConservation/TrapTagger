@@ -33,7 +33,7 @@ function fillSelect(selectElement, optionTexts, optionValues, optionColours=null
   
 function clearSelect(selectElement){
     /** Clears the supplied select element. */
-    for(idx = selectElement.options.length - 1; idx >= 0; idx--){
+    for (let idx = selectElement.options.length - 1; idx >= 0; idx--){
         selectElement.remove(idx);
     }
 }
@@ -44,7 +44,7 @@ function getIdNumforNext(text) {
     mcInputs = document.querySelectorAll('[id^='+text+']');
     if (mcInputs.length > 0) {
         maxNum = 0;
-        for (idx = 0; idx < mcInputs.length; idx++){
+        for (let idx = 0; idx < mcInputs.length; idx++){
             // idNum = parseInt(mcInputs[idx].id.replace(/.*-(\d{1,4}).*/m, '$1'));
             idNum = mcInputs[idx].id.split("-")[mcInputs[idx].id.split("-").length-1]
             if (idNum.includes('s')) {

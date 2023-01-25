@@ -86,9 +86,9 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                     while(translationsDiv.firstChild){
                         translationsDiv.removeChild(translationsDiv.firstChild);
                     }
-                    for (jj=0;jj<reply.untranslated.length;jj++) {
+                    for (let i=0;i<reply.untranslated.length;i++) {
                         IDNum = getIdNumforNext('classTranslationSelect-')
-                        buildTranslationRow(IDNum,reply.untranslated[jj],'translationsDiv',reply.labels)
+                        buildTranslationRow(IDNum,reply.untranslated[i],'translationsDiv',reply.labels)
                     }
                     editTranslationsSubmitted = false
                     modalLaunchTask.modal('hide')
@@ -105,17 +105,17 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                     if (tags.length == 0) {
                         BuildTagRow(0, 'divTag')
                     } else {
-                        for (iiiii=0;iiiii<tags.length;iiiii++) {
-                            tagDescription = tags[iiiii][0]
-                            tagHotkey = tags[iiiii][1]
-                            tagID = tags[iiiii][2]
+                        for (let i=0;i<tags.length;i++) {
+                            tagDescription = tags[i][0]
+                            tagHotkey = tags[i][1]
+                            tagID = tags[i][2]
         
                             IDNum = getIdNumforNext('tagdescription');
                             BuildTagRow(IDNum, 'divTag')
                             tagIdTranslate[IDNum.toString()] = tagID
         
-                            document.getElementById('tagdescription-'+iiiii.toString()).value = tagDescription
-                            document.getElementById('taghotkey-'+iiiii.toString()).value = tagHotkey
+                            document.getElementById('tagdescription-'+i.toString()).value = tagDescription
+                            document.getElementById('taghotkey-'+i.toString()).value = tagHotkey
                         }   
                     }
 
@@ -150,9 +150,9 @@ submitTagsBtn.addEventListener('click', ()=>{
         editedTags = []
         newTags = []
         allDescriptions = document.querySelectorAll('[id^=tagdescription-]');
-        for (tag=0;tag<allDescriptions.length;tag++) {
-            IDNum = allDescriptions[tag].id.split("-")[allDescriptions[tag].id.split("-").length-1]
-            description = allDescriptions[tag].value
+        for (let i=0;i<allDescriptions.length;i++) {
+            IDNum = allDescriptions[i].id.split("-")[allDescriptions[i].id.split("-").length-1]
+            description = allDescriptions[i].value
             hotkey = document.getElementById('taghotkey-'+IDNum).value
             if ((description!='')&&(hotkey!='')) {
                 if (Object.keys(tagIdTranslate).includes(IDNum.toString())) {
@@ -201,22 +201,22 @@ function checkTags() {
 
     var usedDescriptions = []
     var usedHotkeys = []
-    for (n = 0; n < allDescriptions.length; n++){
-        description = allDescriptions[n].value.toLowerCase()
-        hotkey = allHotkeys[n].value.toLowerCase()
+    for (let i = 0; i < allDescriptions.length; i++){
+        description = allDescriptions[i].value.toLowerCase()
+        hotkey = allHotkeys[i].value.toLowerCase()
 
-        if (allDescriptions[n].value != '') {
+        if (allDescriptions[i].value != '') {
             if (hotkey=='') {
                 emptyHotkey = true
             }
         } else {
-            if (allHotkeys[n].value!='') {
+            if (allHotkeys[i].value!='') {
                 emptyDescription = true
             }
         }
 
-        if (allDescriptions[n].value != '') {
-            if (allHotkeys[n].value!='') {
+        if (allDescriptions[i].value != '') {
+            if (allHotkeys[i].value!='') {
     
                 if ((description.includes('/'))||(description.includes('\\'))) {
                     descriptionSlash = true
@@ -254,9 +254,9 @@ function checkTags() {
     if (duplicateDescriptions.length != 0) {
         newdiv = document.createElement('div')
         labtext = 'Duplicate Tags: '
-        for (n = 0; n < duplicateDescriptions.length; n++){
-            labtext += duplicateDescriptions[n]
-            if (n != duplicateDescriptions.length-1) {
+        for (let i = 0; i < duplicateDescriptions.length; i++){
+            labtext += duplicateDescriptions[i]
+            if (i != duplicateDescriptions.length-1) {
                 labtext += ', '
             }
         }
@@ -267,9 +267,9 @@ function checkTags() {
     if (duplicateKeys.length != 0) {
         newdiv = document.createElement('div')
         labtext = 'Duplicate Hotkeys: '
-        for (n = 0; n < duplicateKeys.length; n++){
-            labtext += duplicateKeys[n]
-            if (n != duplicateKeys.length-1) {
+        for (let i = 0; i < duplicateKeys.length; i++){
+            labtext += duplicateKeys[i]
+            if (i != duplicateKeys.length-1) {
                 labtext += ', '
             }
         }
@@ -374,11 +374,11 @@ function updateTaskProgressBar() {
 
     taskProgressBarDivs = document.querySelectorAll('[id^=taskProgressBarDiv]');
     tskds = []
-    for (i = 0; i < taskProgressBarDivs.length; i++) {
+    for (let i = 0; i < taskProgressBarDivs.length; i++) {
         tskds.push(taskProgressBarDivs[i].id.split('taskProgressBarDiv')[1])
     }
 
-    for (b=0;b<tskds.length;b++) {
+    for (let i=0;i<tskds.length;i++) {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapTaskID) {
@@ -395,8 +395,8 @@ function updateTaskProgressBar() {
                     progBar.innerHTML = reply.remaining
                 }
             }
-        }(tskds[b]);
-        xhttp.open("GET", '/updateTaskProgressBar/'+tskds[b]);
+        }(tskds[i]);
+        xhttp.open("GET", '/updateTaskProgressBar/'+tskds[i]);
         xhttp.send();
     }
 }
@@ -406,11 +406,11 @@ function updateTaskStatus() {
     
     taskProgressBarDivs = document.querySelectorAll('[id^=taskProgressBarDiv]');
     tskds = []
-    for (i = 0; i < taskProgressBarDivs.length; i++) {
+    for (let i = 0; i < taskProgressBarDivs.length; i++) {
         tskds.push(taskProgressBarDivs[i].id.split('taskProgressBarDiv')[1])
     }
 
-    for (i = 0; i < tskds.length; i++) {
+    for (let i = 0; i < tskds.length; i++) {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -904,9 +904,9 @@ btnSubmitTranslaions.addEventListener('click', ()=>{
     
     allTranslations = document.querySelectorAll('[id^=classTranslationText-]')
     translationInfo = {}
-    for (cbno=0;cbno<allTranslations.length;cbno++) {
-        IDNum = allTranslations[cbno].id.split("-")[allTranslations[cbno].id.split("-").length-1]
-        classification = allTranslations[cbno].innerHTML
+    for (let i=0;i<allTranslations.length;i++) {
+        IDNum = allTranslations[i].id.split("-")[allTranslations[i].id.split("-").length-1]
+        classification = allTranslations[i].innerHTML
 
         translationSelect = document.getElementById('classTranslationSelect-'+IDNum)
         translation = translationSelect.options[translationSelect.selectedIndex].text

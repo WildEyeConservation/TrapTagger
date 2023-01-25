@@ -27,7 +27,7 @@ function onload(){
             optionTexts = ['None']
             optionValues = ["-99999"]             
             
-            for (i=0;i<surveys.length;i++) {
+            for (let i=0;i<surveys.length;i++) {
                 optionTexts.push(surveys[i][1])
                 optionValues.push(surveys[i][0])
             }
@@ -52,7 +52,7 @@ surveySelect.addEventListener('click', ()=>{
                 tasks = JSON.parse(this.responseText);  
                 optionTexts = ['None']
                 optionValues = ["-99999"]             
-                for (i=0;i<tasks.length;i++) {
+                for (let i=0;i<tasks.length;i++) {
                     optionTexts.push(tasks[i][1])
                     optionValues.push(tasks[i][0])
                 }
@@ -93,7 +93,7 @@ taskSelect.addEventListener('click', ()=>{
                     table.appendChild(thead)
                     
                     tableRow = document.createElement('tr')
-                    for (key in reply.headings) {
+                    for (let key in reply.headings) {
                         tableCol = document.createElement('th')
                         tableCol.setAttribute('scope','col')
                         tableCol.setAttribute('style','border-bottom: 1px solid white')
@@ -108,8 +108,8 @@ taskSelect.addEventListener('click', ()=>{
                     tbody = document.createElement('tbody')
                     table.appendChild(tbody)
                     
-                    for (n=0;n<reply.data.length;n++) {
-                        for (key in reply.headings) {
+                    for (let i=0;i<reply.data.length;i++) {
+                        for (let key in reply.headings) {
                             if (key=='username') {
                                 tableRow = document.createElement('tr')
                                 tableCol = document.createElement('th')
@@ -117,7 +117,7 @@ taskSelect.addEventListener('click', ()=>{
                             } else {
                                 tableCol = document.createElement('td')
                             }
-                            tableCol.innerHTML = reply.data[n][key]
+                            tableCol.innerHTML = reply.data[i][key]
                             tableRow.appendChild(tableCol)
                         }
                         tbody.appendChild(tableRow)

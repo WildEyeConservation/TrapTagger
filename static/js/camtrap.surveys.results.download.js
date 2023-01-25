@@ -130,8 +130,8 @@ function submitDownloadRequest() {
 
     species = []
     downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
-    for (ds=0;ds<downloadSpecies.length;ds++) {
-        species.push(downloadSpecies[ds].options[downloadSpecies[ds].selectedIndex].value)
+    for (let i=0;i<downloadSpecies.length;i++) {
+        species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
     }
 
     var formData = new FormData()

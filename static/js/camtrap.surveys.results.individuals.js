@@ -27,9 +27,9 @@ function updateSlider() {
         imageSplide.removeChild(imageSplide.firstChild);
     }
 
-    for (ndx=0;ndx<individualImages.length;ndx++) {
+    for (let i=0;i<individualImages.length;i++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[ndx].url))
+        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
@@ -133,8 +133,8 @@ modalResults.on('shown.bs.modal', function(){
     // </div>
     // <br>
 
-    for (var dai=0; dai<downloadsAvailable.length; dai++) {
-        if ((downloadsAvailable[dai].survey==surveyName)&&(downloadsAvailable[dai].task==taskName)) {
+    for (let i=0; i<downloadsAvailable.length; i++) {
+        if ((downloadsAvailable[i].survey==surveyName)&&(downloadsAvailable[i].task==taskName)) {
             //set up download button
             h5 = document.createElement('h5')
             h5.innerHTML = 'Download Available!'
@@ -171,8 +171,8 @@ function addDetections(image) {
         map.setZoom(map.getMinZoom())
         fullRes = false
         drawnItems.clearLayers()
-        for (iii=0;iii<image.detections.length;iii++) {
-            detection = image.detections[iii]
+        for (let i=0;i<image.detections.length;i++) {
+            detection = image.detections[i]
             if (detection.static == false) {
                 rectOptions.color = "rgba(223,105,26,1)"
                 rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
@@ -338,8 +338,8 @@ function getIndividuals(page = null) {
             individualsDiv.appendChild(row)
 
             runningCount = 0
-            for (newInd=0;newInd<individuals.length;newInd++) {
-                newIndividual = individuals[newInd]
+            for (let i=0;i<individuals.length;i++) {
+                newIndividual = individuals[i]
 
                 if (runningCount%4==0) {
                     runningCount = 0

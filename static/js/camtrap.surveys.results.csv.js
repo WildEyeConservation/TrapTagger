@@ -16,14 +16,14 @@ function updateCustomColNames() {
     /** Updates the custom column names in the csv custom column selectors. */
     
     allLevels = document.querySelectorAll('[id^=csvColLevelElement-]')
-    for (i=0;i<allLevels.length;i++) {
+    for (let i=0;i<allLevels.length;i++) {
         level = allLevels[i].options[allLevels[i].selectedIndex].text
         if (level == 'Custom') {
             IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
             csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
 
-            for (deo=0;deo<csvColDataElement.options.length;deo++) {
-                csvColDataElement.options[deo].text = customColumns[csvColDataElement.options[deo].value]
+            for (let n=0;n<csvColDataElement.options.length;n++) {
+                csvColDataElement.options[n].text = customColumns[csvColDataElement.options[n].value]
             }
         }
     }
@@ -38,8 +38,8 @@ function updateCustomRows() {
     allTaskIDs = []
     allCustColumnID1s = []
     allCustCoumnID2s = []
-    for (cti=0;cti<allccTextInputs.length;cti++) {
-        splits = allccTextInputs[cti].id.split('-')
+    for (let i=0;i<allccTextInputs.length;i++) {
+        splits = allccTextInputs[i].id.split('-')
         allTaskIDs.push(splits[3])
         allCustColumnID1s.push(splits[1])
         allCustCoumnID2s.push(splits[1]+'-'+splits[2])
@@ -48,7 +48,7 @@ function updateCustomRows() {
     handledTaskIDs = []
     handledCustColumnID1s = []
     handledCustCoumnID2s = []
-    for (i=0;i<allLevels.length;i++) {
+    for (let i=0;i<allLevels.length;i++) {
         IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
         CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
         level = allLevels[i].options[allLevels[i].selectedIndex].text
@@ -61,8 +61,8 @@ function updateCustomRows() {
             allSurveys = document.querySelectorAll('[id^=csvSurveySelect-]')
         
             hasText = false
-            for (ccl=0;ccl<custColLevels.length;ccl++) {
-                data = custColLevels[ccl].options[custColLevels[ccl].selectedIndex].text
+            for (let n=0;n<custColLevels.length;n++) {
+                data = custColLevels[n].options[custColLevels[n].selectedIndex].text
                 if (data=='Text') {
                     hasText = true
                     break
@@ -71,24 +71,24 @@ function updateCustomRows() {
         
             if (hasText) {
                 handledCustColumnID1s.push(ccID)
-                for (aT=0;aT<allTasks.length;aT++) {
-                    taskID = allTasks[aT].options[allTasks[aT].selectedIndex].value
+                for (let n=0;n<allTasks.length;n++) {
+                    taskID = allTasks[n].options[allTasks[n].selectedIndex].value
                     if (taskID != '-99999') {
                         handledTaskIDs.push(taskID)
                         text_field_count = 0
-                        for (ccl=0;ccl<custColLevels.length;ccl++) {
-                            data = custColLevels[ccl].options[custColLevels[ccl].selectedIndex].text
+                        for (let k=0;k<custColLevels.length;k++) {
+                            data = custColLevels[k].options[custColLevels[k].selectedIndex].text
                             if (data=='Text') {
                                 text_field_count += 1
-                                idNum2 = custColLevels[ccl].id.split('custColLevelElement-'+String(ccID)+'-')[1]
+                                idNum2 = custColLevels[k].id.split('custColLevelElement-'+String(ccID)+'-')[1]
                                 handledCustCoumnID2s.push(ccID+'-'+idNum2)
                                 objectID = 'ccTextInput-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)
                                 if (document.getElementById(objectID)==null) {
                                     // Doesn't exist -> build it
                                     ccTaskDiv = document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID))
                                     if (ccTaskDiv==null) {
-                                        taskName = allTasks[aT].options[allTasks[aT].selectedIndex].text
-                                        surveyName = allSurveys[aT].options[allSurveys[aT].selectedIndex].text
+                                        taskName = allTasks[n].options[allTasks[n].selectedIndex].text
+                                        surveyName = allSurveys[n].options[allSurveys[n].selectedIndex].text
                         
                                         ccTaskDiv = document.createElement('div')
                                         ccTaskDiv.id = 'ccTaskDiv-'+String(ccID)+'-'+String(taskID)
@@ -159,46 +159,46 @@ function updateCustomRows() {
     }
 
     // Remove excess ID2s
-    for (rem=0;rem<allCustCoumnID2s.length;rem++) {
-        if (!handledCustCoumnID2s.includes(allCustCoumnID2s[rem])) {
+    for (let i=0;i<allCustCoumnID2s.length;i++) {
+        if (!handledCustCoumnID2s.includes(allCustCoumnID2s[i])) {
             // ID2 has been removed
-            ccID = allCustCoumnID2s[rem].split('-')[0]
-            idNum2 = allCustCoumnID2s[rem].split('-')[1]
-            for (aT=0;aT<allTasks.length;aT++) {
-                taskID = allTasks[aT].options[allTasks[aT].selectedIndex].value
+            ccID = allCustCoumnID2s[i].split('-')[0]
+            idNum2 = allCustCoumnID2s[i].split('-')[1]
+            for (let n=0;n<allTasks.length;n++) {
+                taskID = allTasks[n].options[allTasks[n].selectedIndex].value
                 document.getElementById('ccTaskRow-'+String(ccID)+'-'+String(idNum2)+'-'+String(taskID)).remove()
             }
         }
     }
 
     // Remove excess tasks
-    for (rem=0;rem<allTaskIDs.length;rem++) {
-        if (!handledTaskIDs.includes(allTaskIDs[rem])) {
-            taskID = allTaskIDs[rem]
-            for (ccID in customColumns) {
+    for (let i=0;i<allTaskIDs.length;i++) {
+        if (!handledTaskIDs.includes(allTaskIDs[i])) {
+            taskID = allTaskIDs[i]
+            for (let ccID in customColumns) {
                 document.getElementById('ccTaskDiv-'+String(ccID)+'-'+String(taskID)).remove()
             }
         }
     }
 
     // Remove excess ID1s
-    for (rem=0;rem<allCustColumnID1s.length;rem++) {
-        if (!handledCustColumnID1s.includes(allCustColumnID1s[rem])) {
-            for (i=0;i<allLevels.length;i++) {
-                level = allLevels[i].options[allLevels[i].selectedIndex].text
+    for (let i=0;i<allCustColumnID1s.length;i++) {
+        if (!handledCustColumnID1s.includes(allCustColumnID1s[i])) {
+            for (let n=0;n<allLevels.length;n++) {
+                level = allLevels[n].options[allLevels[n].selectedIndex].text
         
                 if (level == 'Custom') {
-                    IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
+                    IDNum = allLevels[n].id.split("-")[allLevels[n].id.split("-").length-1]
                     csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
                     ccID = csvColDataElement.options[csvColDataElement.selectedIndex].value
 
-                    if (ccID==allCustColumnID1s[rem]) {
+                    if (ccID==allCustColumnID1s[i]) {
                         CSVCustColParDiv = document.getElementById('CSVCustColParDiv-'+String(IDNum))
                         while(CSVCustColParDiv.firstChild){
                             CSVCustColParDiv.removeChild(CSVCustColParDiv.firstChild);
                         }
 
-                        allLevels[i].selectedIndex = 0
+                        allLevels[n].selectedIndex = 0
                     }
                 }
             }
@@ -226,8 +226,8 @@ function checkCSV() {
     // Handle include/exclude
     if (document.getElementById('excludeLabels').checked) {
         includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
-        for (tas=0;tas<includeSelectors.length;tas++) {
-            label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+        for (let i=0;i<includeSelectors.length;i++) {
+            label = includeSelectors[i].options[includeSelectors[i].selectedIndex].text
             if (label == 'All') {
                 excludeProblem = true
                 break
@@ -236,7 +236,7 @@ function checkCSV() {
     }
 
     species_count_warning = false
-    for (i=0;i<allLevels.length;i++) {
+    for (let i=0;i<allLevels.length;i++) {
         IDNum = allLevels[i].id.split("-")[allLevels[i].id.split("-").length-1]
         csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
         level = allLevels[i].options[allLevels[i].selectedIndex].text
@@ -385,7 +385,7 @@ btnCsvDownload.addEventListener('click', ()=>{
         }
     
         columns = []
-        for (i=0;i<allColumns.length;i++) {
+        for (let i=0;i<allColumns.length;i++) {
             IDNum = allColumns[i].id.split("-")[allColumns[i].id.split("-").length-1]
             csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
             levelSelection = allColumns[i].options[allColumns[i].selectedIndex].text.toLowerCase()
@@ -425,8 +425,8 @@ btnCsvDownload.addEventListener('click', ()=>{
 
         selectedTasks = []
         allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-        for (tas=0;tas<allTasks.length;tas++) {
-            task_id = allTasks[tas].options[allTasks[tas].selectedIndex].value
+        for (let i=0;i<allTasks.length;i++) {
+            task_id = allTasks[i].options[allTasks[i].selectedIndex].value
             if (task_id != '-99999') {
                 selectedTasks.push(task_id)
             }
@@ -436,8 +436,8 @@ btnCsvDownload.addEventListener('click', ()=>{
         includes = []
         excludes = []
         includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
-        for (tas=0;tas<includeSelectors.length;tas++) {
-            label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+        for (let i=0;i<includeSelectors.length;i++) {
+            label = includeSelectors[i].options[includeSelectors[i].selectedIndex].text
             if (label == 'All') {
                 includes = []
                 excludes = []
@@ -451,15 +451,15 @@ btnCsvDownload.addEventListener('click', ()=>{
         }
 
         custom_columns = {}
-        for (tid=0;tid<selectedTasks.length;tid++) {
-            task_id = selectedTasks[tid]
+        for (let n=0;n<selectedTasks.length;n++) {
+            task_id = selectedTasks[n]
             custom_columns[task_id] = {}
-            for (IDNum1 in customColumns) {
+            for (let IDNum1 in customColumns) {
                 custColLevelElements = document.querySelectorAll('[id^=custColLevelElement-'+String(IDNum1)+'-]');
                 custom_name = customColumns[IDNum1]
                 
                 custom_column = ''
-                for (i=0;i<custColLevelElements.length;i++) {
+                for (let i=0;i<custColLevelElements.length;i++) {
                     IDNum2 = custColLevelElements[i].id.split('custColLevelElement-'+String(IDNum1)+'-')[1]
                     custColDataElement = document.getElementById('custColDataElement-'+String(IDNum1)+'-'+String(IDNum2))
                     levelSelection = custColLevelElements[i].options[custColLevelElements[i].selectedIndex].text.toLowerCase()
@@ -632,7 +632,7 @@ function updateDataElement(IDNum) {
         // Custom
         optionTexts = []
         optionValues = []
-        for (IDNum in customColumns) {
+        for (let IDNum in customColumns) {
             optionValues.push(IDNum)
             optionTexts.push(customColumns[IDNum])
         }
@@ -911,9 +911,9 @@ function buildCustColRow(IDNum1,IDNum2) {
             if ((level != '-99999')&&(level != '-100')) {
                 optionTexts = []
                 optionValues = []
-                for (cic=0;cic<csvInfo[level].columns.length;cic++) {
-                    if (csvInfo[level].columns[cic]!='Species Count') {
-                        optionTexts.push(csvInfo[level].columns[cic])
+                for (let i=0;i<csvInfo[level].columns.length;i++) {
+                    if (csvInfo[level].columns[i]!='Species Count') {
+                        optionTexts.push(csvInfo[level].columns[i])
                     }
                 }
                 fillSelect(custColDataElement, optionTexts, [...Array(optionTexts.length).keys()])
@@ -977,9 +977,9 @@ function buildCSVsurveyRow() {
         } else {
             optionTexts = ['None']
             optionValues = ["-99999"]           
-            for (sur=0;sur<surveys.length;sur++) {
-                optionTexts.push(surveys[sur][1])
-                optionValues.push(surveys[sur][0])
+            for (let i=0;i<surveys.length;i++) {
+                optionTexts.push(surveys[i][1])
+                optionValues.push(surveys[i][0])
             }
             clearSelect(csvSurveySelect)
             fillSelect(csvSurveySelect, optionTexts, optionValues)
@@ -1017,9 +1017,9 @@ function buildCSVsurveyRow() {
                             tasks = JSON.parse(this.responseText);  
                             optionTexts = []      
                             optionValues = []
-                            for (tas=0;tas<tasks.length;tas++) {
-                                optionTexts.push(tasks[tas][1])
-                                optionValues.push(tasks[tas][0])
+                            for (let i=0;i<tasks.length;i++) {
+                                optionTexts.push(tasks[i][1])
+                                optionValues.push(tasks[i][0])
                             }
                             clearSelect(wrapCsvTaskSelect)
                             fillSelect(wrapCsvTaskSelect, optionTexts, optionValues)
@@ -1041,22 +1041,22 @@ function buildCSVsurveyRow() {
 function updateIncludeFields() {
     /** Updates all include/exclude fields */
     includeSelectors = document.querySelectorAll('[id^=includeSelect-]')
-    for (tas=0;tas<includeSelectors.length;tas++) {
-        if (includeSelectors[tas].selectedIndex == -1) {
+    for (let i=0;i<includeSelectors.length;i++) {
+        if (includeSelectors[i].selectedIndex == -1) {
             label = null
         } else {
-            label = includeSelectors[tas].options[includeSelectors[tas].selectedIndex].text
+            label = includeSelectors[i].options[includeSelectors[i].selectedIndex].text
         }
-        clearSelect(includeSelectors[tas])
+        clearSelect(includeSelectors[i])
         texts = speciesChoiceTexts
         texts.splice(1, 0, 'Nothing')
         values = speciesChoiceValues
         values.splice(1, 0, '-98')
-        fillSelect(includeSelectors[tas],texts,values)
+        fillSelect(includeSelectors[i],texts,values)
         if (label != null) {
-            for (gh=0;gh<includeSelectors[tas].options.length;gh++) {
-                if (includeSelectors[tas].options[gh].text == label) {
-                    includeSelectors[tas].selectedIndex = gh
+            for (let n=0;n<includeSelectors[i].options.length;n++) {
+                if (includeSelectors[i].options[n].text == label) {
+                    includeSelectors[i].selectedIndex = n
                     break
                 }
             }
@@ -1070,8 +1070,8 @@ function csvSurveyUpdates() {
 
     selectedTasks = []
     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
-    for (tas=0;tas<allTasks.length;tas++) {
-        task_id = allTasks[tas].options[allTasks[tas].selectedIndex].value
+    for (let i=0;i<allTasks.length;i++) {
+        task_id = allTasks[i].options[allTasks[i].selectedIndex].value
         if (task_id != '-99999') {
             selectedTasks.push(task_id)
         }
@@ -1090,8 +1090,8 @@ function csvSurveyUpdates() {
             speciesChoiceValues = reply.ids
             
             csvColSpeciesElements = document.querySelectorAll('[id^=csvColSpeciesElement-]');
-            for (ccse=0;ccse<csvColSpeciesElements.length;ccse++) {
-                csvColSpeciesElement = csvColSpeciesElements[ccse]
+            for (let i=0;i<csvColSpeciesElements.length;i++) {
+                csvColSpeciesElement = csvColSpeciesElements[i]
                 species = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
                 index = speciesChoiceTexts.indexOf(species)
                 clearSelect(csvColSpeciesElement)
@@ -1205,7 +1205,7 @@ function finishCSVprep() {
     CSVlevelSelector = document.getElementById('CSVlevelSelector')
     var optionTexts=[]
     var optionValues=[]
-    for (var key in csvInfo) {
+    for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
             if (csvInfo[key].name != 'Custom') {
                 optionTexts.push(csvInfo[key].name)
@@ -1221,7 +1221,7 @@ function finishCSVprep() {
     levelChoiceTexts = ['']
     levelChoiceValues = ['-99999']
     levelInt = parseInt(level)
-    for (var key in csvInfo) {
+    for (let key in csvInfo) {
         if (csvInfo.hasOwnProperty(key)) {
             if (parseInt(key)>=levelInt) {
                 levelChoiceTexts.push(csvInfo[key].name)
@@ -1269,7 +1269,7 @@ function finishCSVprep() {
         levelChoiceTexts = ['']
         levelChoiceValues = ['-99999']
         levelInt = parseInt(level)
-        for (var key in csvInfo) {
+        for (let key in csvInfo) {
             if (csvInfo.hasOwnProperty(key)) {
                 if (parseInt(key)>=levelInt) {
                     levelChoiceTexts.push(csvInfo[key].name)

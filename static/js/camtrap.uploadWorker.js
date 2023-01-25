@@ -68,8 +68,8 @@ async function checkFileBatch() {
             }).then((response) => {
                 return response.json()
             }).then((data) => {
-                for (let itemIdx=0;itemIdx<items.length;itemIdx++) {
-                    let item = items[itemIdx]
+                for (let i=0;i<items.length;i++) {
+                    let item = items[i]
                     if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
                         uploadQueue.push(item)
                     } else {

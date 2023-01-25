@@ -47,7 +47,7 @@ btnSubmitCompare.addEventListener('click', ()=>{
     }
 
     legalTranslations = true
-    for (i=0;i<categoryNames.length;i++) {
+    for (let i=0;i<categoryNames.length;i++) {
         if (categoryNames[i].value.length==0) {
             legalTranslations = false
             newdiv = document.createElement('div')
@@ -71,7 +71,7 @@ btnSubmitCompare.addEventListener('click', ()=>{
             comparisonErrors.appendChild(newdiv)
         }
     }
-    for (i=0;i<categoryNames.length;i++) {
+    for (let i=0;i<categoryNames.length;i++) {
         IDNum = categoryNames[i].id.split('-')[categoryNames[i].id.split('-').length-1]
         leftSelectors = document.querySelectorAll('[id^=leftComp-'+IDNum+']');        
         rightSelectors = document.querySelectorAll('[id^=rightComp-'+IDNum+']');
@@ -101,7 +101,7 @@ btnSubmitCompare.addEventListener('click', ()=>{
     if (legalTranslations&&legalGTs&&legalTask) {
         // Build dictionary
         translations = {}
-        for (i=0;i<categoryNames.length;i++) {
+        for (let i=0;i<categoryNames.length;i++) {
             catName = categoryNames[i].value.replace(/\//g, '*****')
             translations[catName] = {}
             translations[catName][selectedTask] = []
@@ -110,12 +110,12 @@ btnSubmitCompare.addEventListener('click', ()=>{
             IDNum = categoryNames[i].id.split('-')[categoryNames[i].id.split('-').length-1]
 
             leftSelectors = document.querySelectorAll('[id^=leftComp-'+IDNum+']');
-            for (n=0;n<leftSelectors.length;n++) {
+            for (let n=0;n<leftSelectors.length;n++) {
                 translations[catName][selectedTask].push(leftSelectors[n].options[leftSelectors[n].selectedIndex].value)
             }
             
             rightSelectors = document.querySelectorAll('[id^=rightComp-'+IDNum+']');
-            for (n=0;n<rightSelectors.length;n++) {
+            for (let n=0;n<rightSelectors.length;n++) {
                 translations[catName][selectedCompTask].push(rightSelectors[n].options[rightSelectors[n].selectedIndex].value)
             }
         }
@@ -158,7 +158,7 @@ function populateCompSelectorsRight() {
 
     emptySelectors = []
     usedLabels = []
-    for (i=0;i<selectors.length;i++) {
+    for (let i=0;i<selectors.length;i++) {
         if (selectors[i].selectedIndex != -1) {
             usedLabels.push(parseInt(selectors[i].options[selectors[i].selectedIndex].value))
         } else {
@@ -168,14 +168,14 @@ function populateCompSelectorsRight() {
 
     unusedTexts = []
     unusedValues = []
-    for (iiiiiiiiiiiiiii=0;iiiiiiiiiiiiiii<allLabelsComp.two.length;iiiiiiiiiiiiiii++) {
-        if (!usedLabels.includes(allLabelsComp.two[iiiiiiiiiiiiiii][0])) {
-            unusedValues.push(allLabelsComp.two[iiiiiiiiiiiiiii][0])
-            unusedTexts.push(allLabelsComp.two[iiiiiiiiiiiiiii][1])
+    for (let i=0;i<allLabelsComp.two.length;i++) {
+        if (!usedLabels.includes(allLabelsComp.two[i][0])) {
+            unusedValues.push(allLabelsComp.two[i][0])
+            unusedTexts.push(allLabelsComp.two[i][1])
         }
     }
     
-    for (i=0;i<emptySelectors.length;i++) {
+    for (let i=0;i<emptySelectors.length;i++) {
         if (unusedValues.length > 0) {
             fillSelect(emptySelectors[i], [unusedTexts.shift()], [unusedValues.shift()])
         }
@@ -183,7 +183,7 @@ function populateCompSelectorsRight() {
 
     globalUnusedTextsRight = unusedTexts
 
-    for (i=0;i<selectors.length;i++) {
+    for (let i=0;i<selectors.length;i++) {
         optionTexts = unusedTexts.slice(0)
         optionValues = unusedValues.slice(0)
         if (selectors[i].selectedIndex != -1) {
@@ -203,7 +203,7 @@ function populateCompSelectorsLeft() {
 
     emptySelectors = []
     usedLabels = []
-    for (i=0;i<selectors.length;i++) {
+    for (let i=0;i<selectors.length;i++) {
         if (selectors[i].selectedIndex != -1) {
             usedLabels.push(parseInt(selectors[i].options[selectors[i].selectedIndex].value))
         } else {
@@ -213,14 +213,14 @@ function populateCompSelectorsLeft() {
 
     unusedTexts = []
     unusedValues = []
-    for (iiiiiiiiiiiiiiii=0;iiiiiiiiiiiiiiii<allLabelsComp.one.length;iiiiiiiiiiiiiiii++) {
-        if (!usedLabels.includes(allLabelsComp.one[iiiiiiiiiiiiiiii][0])) {
-            unusedValues.push(allLabelsComp.one[iiiiiiiiiiiiiiii][0])
-            unusedTexts.push(allLabelsComp.one[iiiiiiiiiiiiiiii][1])
+    for (let i=0;i<allLabelsComp.one.length;i++) {
+        if (!usedLabels.includes(allLabelsComp.one[i][0])) {
+            unusedValues.push(allLabelsComp.one[i][0])
+            unusedTexts.push(allLabelsComp.one[i][1])
         }
     }
 
-    for (i=0;i<emptySelectors.length;i++) {
+    for (let i=0;i<emptySelectors.length;i++) {
         if (unusedValues.length > 0) {
             fillSelect(emptySelectors[i], [unusedTexts.shift()], [unusedValues.shift()])
         }
@@ -228,7 +228,7 @@ function populateCompSelectorsLeft() {
 
     globalUnusedTextsLeft = unusedTexts
 
-    for (i=0;i<selectors.length;i++) {
+    for (let i=0;i<selectors.length;i++) {
         optionTexts = unusedTexts.slice(0)
         optionValues = unusedValues.slice(0)
         if (selectors[i].selectedIndex != -1) {
@@ -247,7 +247,7 @@ function checkForDuplicates() {
     selectors = document.querySelectorAll('[id^=leftComp-]');
     usedLabels = []
     duplicateLabels = false
-    for (i=0;i<selectors.length;i++) {
+    for (let i=0;i<selectors.length;i++) {
         if (selectors[i].selectedIndex != -1) {
             selection = parseInt(selectors[i].options[selectors[i].selectedIndex].value)
             if (usedLabels.includes(selection)) {
@@ -260,7 +260,7 @@ function checkForDuplicates() {
 
     selectors = document.querySelectorAll('[id^=rightComp-]');
     usedLabels = []
-    for (i=0;i<selectors.length;i++) {
+    for (let i=0;i<selectors.length;i++) {
         if (selectors[i].selectedIndex != -1) {
             selection = parseInt(selectors[i].options[selectors[i].selectedIndex].value)
             if (usedLabels.includes(selection)) {
@@ -656,12 +656,12 @@ modalCompare.on('shown.bs.modal', function(){
 
             optionTexts = ['']
             optionValues = ['0']
-            for (iiiiiiiiiiiiiiiii=0;iiiiiiiiiiiiiiiii<reply.length;iiiiiiiiiiiiiiiii++) {
-                if (reply[iiiiiiiiiiiiiiiii][0] != selectedTask) {
-                    optionTexts.push(reply[iiiiiiiiiiiiiiiii][1])
-                    optionValues.push(reply[iiiiiiiiiiiiiiiii][0])
+            for (let i=0;i<reply.length;i++) {
+                if (reply[i][0] != selectedTask) {
+                    optionTexts.push(reply[i][1])
+                    optionValues.push(reply[i][0])
                 } else {
-                    selectedTaskName = reply[iiiiiiiiiiiiiiiii][1]
+                    selectedTaskName = reply[i][1]
                 }
             }
 
