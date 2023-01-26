@@ -269,53 +269,56 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
 async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
     /** Fetches a list of files for the given directory */
     
-    if (!pathsBeingChecked.includes(path)) {
-        pathsBeingChecked.push(path)
-    }
-
-    files = await limitTT(()=> fetch('/get_directory_files', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            surveyName: surveyName,
-            path: path
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
+    //need this check to make sure it doesn't download other annotation sets, or overwrite them locally
+    if (path != surveyName) {
+        if (!pathsBeingChecked.includes(path)) {
+            pathsBeingChecked.push(path)
         }
-        return response.json()
-    }).then((files) => {
-        if (files=='error') {
-            location.reload()
-        } else {
-            return files
-        }
-    }).catch( (error) => {
-        if (count>=3) {
-            errorEcountered = true
+    
+        files = await limitTT(()=> fetch('/get_directory_files', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                surveyName: surveyName,
+                path: path
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            }
+            return response.json()
+        }).then((files) => {
+            if (files=='error') {
+                location.reload()
+            } else {
+                return files
+            }
+        }).catch( (error) => {
+            if (count>=3) {
+                errorEcountered = true
+                var index = pathsBeingChecked.indexOf(path)
+                if (index > -1) {
+                    pathsBeingChecked.splice(index, 1)
+                }
+            } else {
+                setTimeout(function() { getDirectoryFiles(path,dirHandle,expectedDirectories,count+1); }, 5000);
+            }
+        }))
+    
+        if (files) {
+            filesToDownload += files.length
+            await checkFiles(files,dirHandle,expectedDirectories,path)
             var index = pathsBeingChecked.indexOf(path)
             if (index > -1) {
                 pathsBeingChecked.splice(index, 1)
             }
-        } else {
-            setTimeout(function() { getDirectoryFiles(path,dirHandle,expectedDirectories,count+1); }, 5000);
         }
-    }))
-
-    if (files) {
-        filesToDownload += files.length
-        await checkFiles(files,dirHandle,expectedDirectories,path)
-        var index = pathsBeingChecked.indexOf(path)
-        if (index > -1) {
-            pathsBeingChecked.splice(index, 1)
-        }
+    
+        checkDownloadStatus()
     }
-
-    checkDownloadStatus()
 }
 
 async function iterateDirectories(directories,dirHandle,path='') {
