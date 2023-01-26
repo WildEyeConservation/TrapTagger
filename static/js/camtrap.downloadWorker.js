@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import pLimit from 'p-limit'
+const limitAWS=pLimit(6)
+
 var downloadingTask
 var filesDownloaded
 var filesToDownload
@@ -40,7 +43,7 @@ onmessage = function (evt) {
 
 async function getBlob(url) {
     /** Returns the data from a specified url */
-    const blob = await fetch(url
+    const blob = await limitAWS(()=> fetch(url
     ).then((response) => {
         if (!response.ok) {
             throw new Error(response.statusText)
@@ -49,7 +52,7 @@ async function getBlob(url) {
     }).catch( (error) => {
         errorEcountered = true
         return 'error'
-    })
+    }))
     return blob;
 }
 
