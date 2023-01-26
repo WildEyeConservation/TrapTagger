@@ -19,7 +19,7 @@ downloadWorker.onmessage = function(evt){
     if (evt.data.func=='updateDownloadProgress') {
         updateDownloadProgress(evt.data.args[0],evt.data.args[1],evt.data.args[2])
     } else if (evt.data.func=='initDisplayForDownload') {
-        initDisplayForDownload()
+        initDisplayForDownload(evt.data.args[0])
     } else if (evt.data.func=='resetDownloadState') {
         resetDownloadState(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='checkingDownload') {
@@ -27,11 +27,15 @@ downloadWorker.onmessage = function(evt){
     }
 }
 
-async function initDisplayForDownload() {
+async function initDisplayForDownload(task_id) {
     /** Prepares the display for download status */
     if (!checkingDownload) {
-        updatePage(generate_url())
+        await updatePage(generate_url())
         modalResults.modal('hide')
+    }
+    progBar = document.getElementById('progBar'+task_id)
+    if (progBar) {
+        progBar.innerHTML = 'Initialising...'
     }
 }
 

@@ -360,7 +360,7 @@ async function startDownload(selectedTask,taskName) {
     filesActuallyDownloaded = 0
     filesSucceeded = 0
 
-    postMessage({'func': 'initDisplayForDownload', 'args': null})
+    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
     // Fetch directory tree and start
     directories = await limitTT(()=> fetch('/get_download_directories', {

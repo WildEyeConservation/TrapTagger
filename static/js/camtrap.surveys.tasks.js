@@ -156,28 +156,10 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
     taskStatusElement.setAttribute("style","padding-left: 15px; font-size: 70%")
     col.appendChild(taskStatusElement)
 
-    if (task.status==null) {
-        taskStatusElement.innerHTML = 'Unlaunched'
-    } else {
-        if (task.status == 'PROGRESS') {
-            status = 'In Progress'
-        } else if (task.status == 'FAILURE') {
-            status = 'Error'
-        } else if ((task.status == 'REVOKED')||(task.status == 'Stopped')) {
-            status = 'Stopped'
-        } else if ((task.status == 'PENDING')||(task.status == 'Started')) {
-            status = 'Initialising'
-        } else if ((task.status == 'SUCCESS')||(task.status == 'successInitial')) {
-            status = 'Success'
-        } else {
-            status = task.status
-        }
-        taskStatusElement.innerHTML = status
-    }      
-
     if ((task.status=='PROGRESS')) {
         buildTaskProgress(taskDiv,newTaskDiv,survey,task,'launched')
     } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
+        taskStatusElement.innerHTML = 'Downloading'
         buildTaskProgress(taskDiv,newTaskDiv,survey,task,'downloading')
     } else {
         taskInfoCol = document.createElement('div')
@@ -305,6 +287,27 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
 
         newTaskDiv.setAttribute('style',"margin-right:10px")
         taskDiv.appendChild(newTaskDiv)
+    }
+
+    if (taskStatusElement.innerHTML=='') {
+        if (task.status==null) {
+            taskStatusElement.innerHTML = 'Unlaunched'
+        } else {
+            if (task.status == 'PROGRESS') {
+                status = 'In Progress'
+            } else if (task.status == 'FAILURE') {
+                status = 'Error'
+            } else if ((task.status == 'REVOKED')||(task.status == 'Stopped')) {
+                status = 'Stopped'
+            } else if ((task.status == 'PENDING')||(task.status == 'Started')) {
+                status = 'Initialising'
+            } else if ((task.status == 'SUCCESS')||(task.status == 'successInitial')) {
+                status = 'Success'
+            } else {
+                status = task.status
+            }
+            taskStatusElement.innerHTML = status
+        }
     }
 }
 
