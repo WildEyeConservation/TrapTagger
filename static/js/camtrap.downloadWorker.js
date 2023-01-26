@@ -24,7 +24,7 @@ class Node {
 	}
 }
 
-export default class Queue {
+class Queue {
 	#head;
 	#tail;
 	#size;
@@ -78,7 +78,7 @@ export default class Queue {
 	}
 }
 
-export default function pLimit(concurrency) {
+function pLimit(concurrency) {
 	if (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {
 		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
 	}
