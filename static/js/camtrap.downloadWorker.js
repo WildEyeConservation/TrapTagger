@@ -190,7 +190,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
         expectedDirectories.push(item)
     }
 
-    getDirectoryFiles(path,dirHandle,expectedDirectories)
+    await getDirectoryFiles(path,dirHandle,expectedDirectories)
 
     for (let item in directories) {
         var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
