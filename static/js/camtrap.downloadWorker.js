@@ -146,6 +146,7 @@ function pLimit(concurrency) {
 }
 
 const limitAWS=pLimit(6)
+const limitTT=pLimit(6)
 
 var downloadingTask
 var filesDownloaded
@@ -272,7 +273,7 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
         pathsBeingChecked.push(path)
     }
 
-    files = await fetch('/get_directory_files', {
+    files = await limitTT(()=> fetch('/get_directory_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -303,7 +304,7 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
         } else {
             setTimeout(function() { getDirectoryFiles(path,dirHandle,expectedDirectories,count+1); }, 5000);
         }
-    })
+    }))
 
     if (files) {
         filesToDownload += files.length
@@ -359,7 +360,7 @@ async function startDownload(selectedTask,taskName) {
     postMessage({'func': 'initDisplayForDownload', 'args': null})
 
     // Fetch directory tree and start
-    directories = await fetch('/get_download_directories', {
+    directories = await limitTT(()=> fetch('/get_download_directories', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -384,7 +385,7 @@ async function startDownload(selectedTask,taskName) {
     }).catch( (error) => {
         errorEcountered = true
         setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
-    })
+    }))
 
     if (directories) {
         await iterateDirectories(directories,globalTopLevelHandle)
@@ -420,7 +421,7 @@ function resetDownloadState() {
 async function wrapUpDownload() {
     /** Wraps up the download by letting the server know that the client download is finished */
     if (downloadingTask != null) {
-        await fetch('/download_complete', {
+        await limitTT(()=> fetch('/download_complete', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -437,6 +438,6 @@ async function wrapUpDownload() {
             }
         }).catch( (error) => {
             setTimeout(function() { wrapUpDownload(); }, 5000);
-        })
+        }))
     }
 }
