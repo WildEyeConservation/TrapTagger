@@ -197,7 +197,7 @@ async function downloadFile(fileName,url,dirHandle,count=0) {
         await writable.write(blob);
         await writable.close();
         filesActuallyDownloaded += 1
-        filesSucceeded =+ 1
+        filesSucceeded += 1
         filesDownloaded += 1
     } else if (count>=3) {
         filesDownloaded += 1
@@ -325,7 +325,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
         expectedDirectories.push(item)
     }
 
-    await getDirectoryFiles(path,dirHandle,expectedDirectories)
+    getDirectoryFiles(path,dirHandle,expectedDirectories)
 
     for (let item in directories) {
         var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
