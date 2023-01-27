@@ -148,6 +148,8 @@
 // const limitAWS=pLimit(6)
 // const limitTT=pLimit(6)
 
+importScripts('pLimit.js')
+
 var downloadingTask
 var filesDownloaded
 var filesToDownload
