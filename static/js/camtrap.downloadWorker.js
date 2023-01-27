@@ -145,10 +145,9 @@
 // 	return generator;
 // }
 
-// const limitAWS=pLimit(6)
-// const limitTT=pLimit(6)
-
 importScripts('pLimit.js')
+const limitAWS=pLimit(6)
+const limitTT=pLimit(6)
 
 var downloadingTask
 var filesDownloaded
