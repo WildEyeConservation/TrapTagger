@@ -15,138 +15,141 @@
 // import pLimit from 'p-limit'
 // const limitAWS=pLimit(6)
 
-class Node {
-	value;
-	next;
+// class Node {
+// 	value;
+// 	next;
 
-	constructor(value) {
-		this.value = value;
-	}
-}
+// 	constructor(value) {
+// 		this.value = value;
+// 	}
+// }
 
-class Queue {
-	#head;
-	#tail;
-	#size;
+// class Queue {
+// 	#head;
+// 	#tail;
+// 	#size;
 
-	constructor() {
-		this.clear();
-	}
+// 	constructor() {
+// 		this.clear();
+// 	}
 
-	enqueue(value) {
-		const node = new Node(value);
+// 	enqueue(value) {
+// 		const node = new Node(value);
 
-		if (this.#head) {
-			this.#tail.next = node;
-			this.#tail = node;
-		} else {
-			this.#head = node;
-			this.#tail = node;
-		}
+// 		if (this.#head) {
+// 			this.#tail.next = node;
+// 			this.#tail = node;
+// 		} else {
+// 			this.#head = node;
+// 			this.#tail = node;
+// 		}
 
-		this.#size++;
-	}
+// 		this.#size++;
+// 	}
 
-	dequeue() {
-		const current = this.#head;
-		if (!current) {
-			return;
-		}
+// 	dequeue() {
+// 		const current = this.#head;
+// 		if (!current) {
+// 			return;
+// 		}
 
-		this.#head = this.#head.next;
-		this.#size--;
-		return current.value;
-	}
+// 		this.#head = this.#head.next;
+// 		this.#size--;
+// 		return current.value;
+// 	}
 
-	clear() {
-		this.#head = undefined;
-		this.#tail = undefined;
-		this.#size = 0;
-	}
+// 	clear() {
+// 		this.#head = undefined;
+// 		this.#tail = undefined;
+// 		this.#size = 0;
+// 	}
 
-	get size() {
-		return this.#size;
-	}
+// 	get size() {
+// 		return this.#size;
+// 	}
 
-	* [Symbol.iterator]() {
-		let current = this.#head;
+// 	* [Symbol.iterator]() {
+// 		let current = this.#head;
 
-		while (current) {
-			yield current.value;
-			current = current.next;
-		}
-	}
-}
+// 		while (current) {
+// 			yield current.value;
+// 			current = current.next;
+// 		}
+// 	}
+// }
 
-function pLimit(concurrency) {
-	if (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {
-		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
-	}
+// function pLimit(concurrency) {
+// 	if (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {
+// 		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
+// 	}
 
-	const queue = new Queue();
-	let activeCount = 0;
+// 	const queue = new Queue();
+// 	let activeCount = 0;
 
-	const next = () => {
-		activeCount--;
+// 	const next = () => {
+// 		activeCount--;
 
-		if (queue.size > 0) {
-			queue.dequeue()();
-		}
-	};
+// 		if (queue.size > 0) {
+// 			queue.dequeue()();
+// 		}
+// 	};
 
-	const run = async (fn, resolve, args) => {
-		activeCount++;
+// 	const run = async (fn, resolve, args) => {
+// 		activeCount++;
 
-		const result = (async () => fn(...args))();
+// 		const result = (async () => fn(...args))();
 
-		resolve(result);
+// 		resolve(result);
 
-		try {
-			await result;
-		} catch {}
+// 		try {
+// 			await result;
+// 		} catch {}
 
-		next();
-	};
+// 		next();
+// 	};
 
-	const enqueue = (fn, resolve, args) => {
-		queue.enqueue(run.bind(undefined, fn, resolve, args));
+// 	const enqueue = (fn, resolve, args) => {
+// 		queue.enqueue(run.bind(undefined, fn, resolve, args));
 
-		(async () => {
-			// This function needs to wait until the next microtask before comparing
-			// `activeCount` to `concurrency`, because `activeCount` is updated asynchronously
-			// when the run function is dequeued and called. The comparison in the if-statement
-			// needs to happen asynchronously as well to get an up-to-date value for `activeCount`.
-			await Promise.resolve();
+// 		(async () => {
+// 			// This function needs to wait until the next microtask before comparing
+// 			// `activeCount` to `concurrency`, because `activeCount` is updated asynchronously
+// 			// when the run function is dequeued and called. The comparison in the if-statement
+// 			// needs to happen asynchronously as well to get an up-to-date value for `activeCount`.
+// 			await Promise.resolve();
 
-			if (activeCount < concurrency && queue.size > 0) {
-				queue.dequeue()();
-			}
-		})();
-	};
+// 			if (activeCount < concurrency && queue.size > 0) {
+// 				queue.dequeue()();
+// 			}
+// 		})();
+// 	};
 
-	const generator = (fn, ...args) => new Promise(resolve => {
-		enqueue(fn, resolve, args);
-	});
+// 	const generator = (fn, ...args) => new Promise(resolve => {
+// 		enqueue(fn, resolve, args);
+// 	});
 
-	Object.defineProperties(generator, {
-		activeCount: {
-			get: () => activeCount,
-		},
-		pendingCount: {
-			get: () => queue.size,
-		},
-		clearQueue: {
-			value: () => {
-				queue.clear();
-			},
-		},
-	});
+// 	Object.defineProperties(generator, {
+// 		activeCount: {
+// 			get: () => activeCount,
+// 		},
+// 		pendingCount: {
+// 			get: () => queue.size,
+// 		},
+// 		clearQueue: {
+// 			value: () => {
+// 				queue.clear();
+// 			},
+// 		},
+// 	});
 
-	return generator;
-}
+// 	return generator;
+// }
 
-const limitAWS=pLimit(6)
-const limitTT=pLimit(6)
+// const limitAWS=pLimit(6)
+// const limitTT=pLimit(6)
+
+var limitAWS
+var limitTT
 
 var downloadingTask
 var filesDownloaded
@@ -171,6 +174,12 @@ onmessage = function (evt) {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
         updateDownloadProgress()
+    } else if (evt.data.func=='returnPLimit') {
+        if (evt.data.args[1]=='AWS') {
+            limitAWS=evt.data.args[0]
+        } else if (evt.data.args[1]=='TT') {
+            limitTT=evt.data.args[0]
+        }
     }
 };
 
@@ -359,6 +368,9 @@ async function startDownload(selectedTask,taskName) {
     totalFilesToDownload = 0
     filesActuallyDownloaded = 0
     filesSucceeded = 0
+
+    postMessage({'func': 'pLimit', 'args': ['AWS']})
+    postMessage({'func': 'pLimit', 'args': ['TT']})
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
