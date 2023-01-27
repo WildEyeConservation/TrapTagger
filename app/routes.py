@@ -2981,7 +2981,7 @@ def exploreKnockdowns():
 @app.route('/js/<path>')
 def send_js(path):
     '''Serves all JavaScript files after removing their version numbers.'''
-    print('js Request for: {}'.format(path))
+    app.logger.info('js Request for: {}'.format(path))
     directory = '../static/js'
     
     if 'camtrap' in path:
@@ -2993,7 +2993,7 @@ def send_js(path):
         directory += '/' + '/'.join(path.split('/')[:-1])
         path = path.split('/')[-1]
 
-    print('js returning: {} {}'.format(directory, path))
+    app.logger.info('js returning: {} {}'.format(directory, path))
     return send_from_directory(directory, path)
 
 @app.route('/images/<path:path>')
