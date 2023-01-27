@@ -148,9 +148,6 @@
 // const limitAWS=pLimit(6)
 // const limitTT=pLimit(6)
 
-var limitAWS
-var limitTT
-
 var downloadingTask
 var filesDownloaded
 var filesToDownload
@@ -174,12 +171,6 @@ onmessage = function (evt) {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
         updateDownloadProgress()
-    } else if (evt.data.func=='returnPLimit') {
-        if (evt.data.args[1]=='AWS') {
-            limitAWS=evt.data.args[0]
-        } else if (evt.data.args[1]=='TT') {
-            limitTT=evt.data.args[0]
-        }
     }
 };
 
@@ -368,9 +359,6 @@ async function startDownload(selectedTask,taskName) {
     totalFilesToDownload = 0
     filesActuallyDownloaded = 0
     filesSucceeded = 0
-
-    postMessage({'func': 'pLimit', 'args': ['AWS']})
-    postMessage({'func': 'pLimit', 'args': ['TT']})
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
