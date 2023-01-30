@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-importScripts('yocto-queue/index.js')
-importScripts('p-limit/index.js')
+importScripts('yoctoQueue.js')
+importScripts('pLimit.js')
 const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
 
