@@ -4,9 +4,3 @@
 [submodule "wildbook-ia"]
 	path = wildbook-ia
 	url = https://github.com/WildMeOrg/wildbook-ia
-[submodule "static/js/yocto-queue"]
-	path = static/js/yocto-queue
-	url = https://github.com/sindresorhus/yocto-queue
-[submodule "static/js/p-limit"]
-	path = static/js/p-limit
-	url = https://github.com/sindresorhus/p-limit
