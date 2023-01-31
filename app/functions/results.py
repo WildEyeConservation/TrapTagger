@@ -1066,8 +1066,14 @@ def generate_excel(self,task_id):
             for label in labels:
                 clusterCount = db.session.query(Cluster) \
                                     .join(Image, Cluster.images) \
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.static==False)\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Cluster.task_id==task_id) \
-                                    .filter(Cluster.labels.contains(label)) \
+                                    .filter(Labelgroup.labels.contains(label)) \
                                     .filter(Image.camera_id==camera.id) \
                                     .distinct(Cluster.id) \
                                     .count()
@@ -1129,8 +1135,14 @@ def generate_excel(self,task_id):
         for label in labels:
             clusterCount = db.session.query(Cluster) \
                                     .join(Image, Cluster.images) \
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.static==False)\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Cluster.task_id==task_id) \
-                                    .filter(Cluster.labels.contains(label)) \
+                                    .filter(Labelgroup.labels.contains(label)) \
                                     .distinct(Cluster.id) \
                                     .count()
 
@@ -1167,16 +1179,28 @@ def generate_excel(self,task_id):
             count = 0
             count += db.session.query(Cluster) \
                             .join(Image, Cluster.images) \
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(Cluster.task_id==task_id) \
-                            .filter(Cluster.labels.contains(label)) \
+                            .filter(Labelgroup.labels.contains(label)) \
                             .distinct(Cluster.id) \
                             .count()
 
             for child in label.children:
                 count += db.session.query(Cluster) \
                             .join(Image, Cluster.images) \
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
                             .filter(Cluster.task_id==task_id) \
-                            .filter(Cluster.labels.contains(child)) \
+                            .filter(Labelgroup.labels.contains(child)) \
                             .distinct(Cluster.id) \
                             .count()
 

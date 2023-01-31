@@ -651,6 +651,7 @@ def removeFalseDetections(self,cluster_id,undo):
             db.session.commit()
 
             trapgroup = cluster.images[0].camera.trapgroup
+            
             re_evaluate_trapgroup_examined(trapgroup.id,cluster.task_id)
 
             trapgroup.processing = False
@@ -1257,7 +1258,17 @@ def updateLabelCompletionStatus(task_id):
     # Complete + Species annotation
     parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
     for label in parentLabels:
-        count = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.labels.contains(label)).distinct().count()
+        count = db.session.query(Cluster)\
+                        .join(Image,Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==int(task_id))\
+                        .filter(Cluster.task_id==int(task_id))\
+                        .filter(Labelgroup.labels.contains(label))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .distinct().count()
         if count == 0:
             label.complete = True
         else:
@@ -1312,9 +1323,16 @@ def updateLabelCompletionStatus(task_id):
 
         # Info tagging
         count = db.session.query(Cluster)\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Labelgroup.task_id==int(task_id))\
                             .filter(Cluster.task_id==int(task_id))\
-                            .filter(Cluster.labels.contains(label))\
-                            .filter(~Cluster.tags.any())\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Labelgroup.tags.any())\
                             .distinct().count() 
 
         label.info_tag_count = count
@@ -1587,11 +1605,15 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                             .subquery()
             sq = sq.join(Labelgroup).join(subq, subq.c.clusterID==Cluster.id).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False).filter(subq.c.labelCount>1)
         else:
-            sq = sq.filter(~Cluster.labels.any())
+            sq = sq.join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(~Labelgroup.labels.any())
     elif (taggingLevel == '-2'):
         # info tagging
-        sq = sq.filter(Cluster.labels.any()) \
-                .join(Label,Cluster.labels) \
+        sq = sq.join(Labelgroup)\
+                .filter(Labelgroup.task_id==task_id)\
+                .filter(Labelgroup.labels.any()) \
+                .join(Label,Labelgroup.labels) \
                 .filter(~Label.id.in_([GLOBALS.nothing_id,GLOBALS.knocked_id])) \
                 .filter(Cluster.skipped==False)
                 # .filter(~Cluster.tags.any())                                    
@@ -1605,7 +1627,6 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .join(Survey)\
                                 .join(Classifier)\
                                 .join(Detection)\
-                                .filter(Label.task_id==task_id)\
                                 .filter(Cluster.task_id==task_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
@@ -1664,12 +1685,14 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                 sq = sq.join(Labelgroup)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(label))\
-                        .filter(~Detection.id.in_([r.id for r in identified]))\
-                        .filter(Cluster.labels.contains(label))
+                        .filter(~Detection.id.in_([r.id for r in identified]))
 
             elif tL[0] == '-2':
                 # Species-level informational tagging
-                sq = sq.filter(Cluster.labels.contains(label)).filter(Cluster.skipped==False)
+                sq = sq.join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(label))\
+                        .filter(Cluster.skipped==False)
 
         # Species-level labelling
         else:
@@ -1677,7 +1700,10 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
             if isBounding:
                 sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.labels.contains(label)).filter(Labelgroup.checked==False)
             else:
-                sq = sq.filter(Cluster.labels.contains(label)).filter(Cluster.skipped==False)
+                sq = sq.join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(label))\
+                        .filter(Cluster.skipped==False)
 
     return sq
 
