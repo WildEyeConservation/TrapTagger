@@ -583,6 +583,9 @@ def removeFalseDetections(self,cluster_id,undo):
 
     try:
         cluster = db.session.query(Cluster).get(cluster_id)
+        task_id = cluster.task_id
+        trapgroup_id = cluster.images[0].camera.trapgroup.id
+
         if cluster:
             detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
 
@@ -646,14 +649,40 @@ def removeFalseDetections(self,cluster_id,undo):
 
                     db.session.commit()
 
+            # TODO: add a user interface to check user-labelled clusters that have all their detections removed?
+            # For now just adding back all of the detections if the above happens
+            clusters = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .outerjoin(Detection)\
+                                .filter(Camera.trapgroup==trapgroup)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.static==False)\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(Detection.id==None)\
+                                .filter(Cluster.user_id!=1)\
+                                .filter(Cluster.labels.any())\
+                                .distinct().all()
+
+            for cluster in clusters:
+                detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .filter(Image.clusters.contains(cluster))\
+                                    .filter(Detection.static==True)\
+                                    .distinct().all()
+                
+                for detection in detections:
+                    detection.static=False
+                    
+            db.session.commit()
+
             for image in set(images):
                 image.detection_rating = detection_rating(image)
             db.session.commit()
-
-            trapgroup = cluster.images[0].camera.trapgroup
             
-            re_evaluate_trapgroup_examined(trapgroup.id,cluster.task_id)
+            re_evaluate_trapgroup_examined(trapgroup_id,task_id)
 
+            trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
             trapgroup.processing = False
             trapgroup.active = True
             db.session.commit()
