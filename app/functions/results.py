@@ -325,9 +325,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Image.corrected_timestamp.label('timestamp'), \
                 Image.timestamp.label('original_timestamp'), \
                 Detection.id.label('detection'), \
-                Individual.name.label('individual'), \
-                Individual.active.label('individual_active'), \
-                Individual.task_id.label('individual_task_id'), \
                 Cluster.notes.label('notes'), \
                 Cluster.id.label('cluster'), \
                 Label.description.label('label'), \
@@ -344,7 +341,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Survey.description.label('survey_description')) \
                 .join(Image,Cluster.images) \
                 .join(Detection,Detection.image_id==Image.id) \
-                .join(Individual,Detection.individuals,isouter=True) \
                 .join(Labelgroup,Labelgroup.detection_id==Detection.id) \
                 .join(Label,Labelgroup.labels,isouter=True) \
                 .join(Tag,Labelgroup.tags,isouter=True) \
@@ -410,17 +406,33 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
             df2['label'] = 'None'
             df2['tag'] = 'None'
-            df2['individual'] = 'None'
+            # df2['individual'] = 'None'
             df = pd.concat([df,df2]).reset_index()
+
+    # Add individuals (they don't want to outer join)
+    # What about multiple individuals for a detection?
+    if individual_levels:
+        query  = db.session.query( \
+                    Detection.id.label('detection'), \
+                    Individual.name.label('individual')) \
+                    .join(Individual,Detection.individuals) \
+                    .filter(Individual.task_id==task_id) \
+                    .filter(Individual.active==True)
+
+        if include:
+            query = query.filter(Individual.label_id.in_(include))
+
+        if exclude:
+            query = query.filter(~Individual.label_id.in_(exclude))
+
+        df3 = pd.read_sql(query.statement,db.session.bind)
+        df = pd.merge(df, df3, on='detecton', how='outer')
 
     #Combine file paths
     df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
 
     #Remove nulls
     df.fillna('None', inplace=True)
-
-    #Remove inactive individuals and those from other tasks
-    df = df[(df['individual']=='None') | ((df['individual']!='None') & (df['individual_task_id']==task_id) & (df['individual_active']==True))]
 
     #Replace nothings
     df['label'] = df['label'].replace({'Nothing': 'None'}, regex=True)
@@ -513,7 +525,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
     # del df['image_id']
     del df['trapgroup_id']
     del df['survey_id']
-    del df['individual']
+    if individual_levels: del df['individual']
 
     #Add image counts
     df['capture_image_count'] = df.groupby('unique_capture')['unique_capture'].transform('count')
