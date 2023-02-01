@@ -426,7 +426,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             query = query.filter(~Individual.label_id.in_(exclude))
 
         df3 = pd.read_sql(query.statement,db.session.bind)
-        df = pd.merge(df, df3, on='detecton', how='outer')
+        df = pd.merge(df, df3, on='detection', how='outer')
 
     #Combine file paths
     df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
