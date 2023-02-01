@@ -406,16 +406,16 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
 
             df2['label'] = 'None'
             df2['tag'] = 'None'
-            # df2['individual'] = 'None'
             df = pd.concat([df,df2]).reset_index()
 
     # Add individuals (they don't want to outer join)
-    # What about multiple individuals for a detection?
     if individual_levels:
         query  = db.session.query( \
                     Detection.id.label('detection'), \
-                    Individual.name.label('individual')) \
+                    Individual.name.label('individual'),\
+                    Label.description.label('label')) \
                     .join(Individual,Detection.individuals) \
+                    .join(Label) \
                     .filter(Individual.task_id==task_id) \
                     .filter(Individual.active==True)
 
@@ -426,7 +426,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             query = query.filter(~Individual.label_id.in_(exclude))
 
         df3 = pd.read_sql(query.statement,db.session.bind)
-        df = pd.merge(df, df3, on='detection', how='outer')
+        df = pd.merge(df, df3, on=['detection','label'], how='outer')
 
     #Combine file paths
     df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
