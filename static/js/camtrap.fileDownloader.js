@@ -82,16 +82,19 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
     progBar = document.getElementById('progBar'+task_id)
     if (progBar) {
         progBar.setAttribute("aria-valuenow", downloaded);
-        progBar.setAttribute("aria-valuemax", toDownload);
-        progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
     
         if (toDownload!=0) {
+            progBar.setAttribute("aria-valuemax", toDownload);
+            progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
+
             if (checkingDownload) {
                 progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
             } else {
                 progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
             }
         } else {
+            progBar.setAttribute("aria-valuemax", 100);
+            progBar.setAttribute("style", "width:0%;transition:none");
             progBar.innerHTML = 'Initialising...'
         }
     }
