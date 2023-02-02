@@ -5858,9 +5858,9 @@ def knockdown(imageId, clusterId):
                         .order_by(desc(Image.corrected_timestamp)) \
                         .first()
 
-        if ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=2)) or ((last_im.corrected_timestamp - rootImage.corrected_timestamp) < timedelta(hours=2)):
+        if (rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1):
             #Still setting up
-            print('Still setting up or being taken down.')
+            print('Still setting up.')
             if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < aCluster.task.size) or (current_user.admin == True):
