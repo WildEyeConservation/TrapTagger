@@ -6247,7 +6247,10 @@ def get_download_directories():
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     
     if survey:
-        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName + '/' + path
+        if path=='':
+            path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
+        else:
+            path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName + '/' + path
         
         if s3_folder_exists(path):
             folders,filenames = list_all(Config.BUCKET,path+'/')
