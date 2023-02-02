@@ -2230,18 +2230,6 @@ def checkFile(file,folder):
         # file does not exist
         return None
 
-def buildDirectoryTree(path):
-    '''Builds a directory tree for a given folder in S3'''
-
-    directories = {}
-    folders,filenames = list_all(Config.BUCKET,path+'/')
-    total_count = len(filenames)
-    for folder in folders:
-        directories[folder], count = buildDirectoryTree(path+'/'+folder)
-        total_count += count
-        
-    return directories, total_count
-
 def s3_folder_exists(path):
     '''Returns true if the folder exists'''
     resp = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=path.rstrip('/'), Delimiter='/',MaxKeys=1)

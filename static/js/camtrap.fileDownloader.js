@@ -87,7 +87,9 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
             progBar.setAttribute("aria-valuemax", toDownload);
             progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
 
-            if (checkingDownload) {
+            if (downloaded==0) {
+                progBar.innerHTML = 'Initialising... ' + toDownload.toString()
+            } else if (checkingDownload) {
                 progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
             } else {
                 progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'

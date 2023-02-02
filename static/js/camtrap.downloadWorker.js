@@ -213,6 +213,49 @@ async function iterateDirectories(directories,dirHandle,path='') {
     }
 }
 
+async function fetchDirectories(path) {
+    /** Recursive function that fetches the directories to be downloaded from. */
+
+    directories = await limitTT(()=> fetch('/get_download_directories', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            surveyName: surveyName,
+            taskName: downloadingTaskName,
+            path: path
+        }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
+        return response.json()
+    }).then((data) => {
+        if (data=='error') {
+            location.reload()
+        } else {
+            totalFilesToDownload += data.fileCount
+            updateDownloadProgress()
+            return data.directories
+        }
+    }).catch( (error) => {
+        errorEcountered = true
+        // setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
+    }))
+
+    if (directories) {
+        for (item in directories) {
+            directories[item] = await fetchDirectories(path+'/'+item)
+        }
+    } else {
+        directories = {}
+    }
+
+    return directories
+}
+
 async function startDownload(selectedTask,taskName) {
     /** Begins the download */
 
@@ -232,32 +275,7 @@ async function startDownload(selectedTask,taskName) {
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
     // Fetch directory tree and start
-    directories = await limitTT(()=> fetch('/get_download_directories', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            surveyName: surveyName,
-            taskName: taskName
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-        return response.json()
-    }).then((data) => {
-        if (data=='error') {
-            location.reload()
-        } else {
-            totalFilesToDownload = data.fileCount
-            return data.directories
-        }
-    }).catch( (error) => {
-        errorEcountered = true
-        setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
-    }))
+    directories = {surveyName: {taskName: await fetchDirectories('')}}
 
     if (directories) {
         await iterateDirectories(directories,globalTopLevelHandle)

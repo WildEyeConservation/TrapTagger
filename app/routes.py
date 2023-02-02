@@ -6243,13 +6243,19 @@ def get_download_directories():
     directories = {}
     surveyName = request.json['surveyName']
     taskName = request.json['taskName']
+    path = request.json['path']
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
+    
     if survey:
-        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
+        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName + '/' + path
+        
         if s3_folder_exists(path):
-            directories, fileCount = buildDirectoryTree(path)
-            directories = {surveyName: {taskName: directories}}
-            return json.dumps({'directories': directories, 'fileCount': fileCount})
+            folders,filenames = list_all(Config.BUCKET,path+'/')
+            
+            for folder in folders:
+                directories[folder] = {}
+
+            return json.dumps({'directories': directories, 'fileCount': len(filenames)})
 
     return json.dumps('error')
 
