@@ -20,7 +20,6 @@ const limitTT=pLimit(6)
 var downloadingTask
 var filesDownloaded
 var filesToDownload
-var totalFilesToDownload
 var filesActuallyDownloaded
 var globalTopLevelHandle
 var errorEcountered = false
@@ -271,7 +270,6 @@ async function startDownload(selectedTask,taskName) {
     errorEcountered = false
     filesDownloaded = 0
     filesToDownload = 0
-    totalFilesToDownload = 0
     filesActuallyDownloaded = 0
     filesSucceeded = 0
 
@@ -289,12 +287,12 @@ async function startDownload(selectedTask,taskName) {
 
 function updateDownloadProgress() {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesSucceeded,totalFilesToDownload]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesSucceeded,filesToDownload]})
 }
 
 function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished. */
-    if ((filesDownloaded==filesToDownload)&&(totalFilesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
+    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
         if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
             // finished
             wrapUpDownload()
