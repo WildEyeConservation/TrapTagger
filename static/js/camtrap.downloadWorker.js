@@ -280,13 +280,11 @@ async function startDownload(selectedTask,taskName) {
     // Fetch directory tree and start
     // var directories = await fetchDirectories('')
 
-    if (directories) {
-        // await iterateDirectories({surveyName: {taskName: directories}},globalTopLevelHandle)
-        var surveyDirHandle = await globalTopLevelHandle.getDirectoryHandle(surveyName, { create: true })
-        var taskDirHandle = await surveyDirHandle.getDirectoryHandle(taskName, { create: true })
-        await getDirectoryFiles(surveyName+'/'+taskName,taskDirHandle)
-        finishedIteratingDirectories = true
-    }
+    // await iterateDirectories({surveyName: {taskName: directories}},globalTopLevelHandle)
+    var surveyDirHandle = await globalTopLevelHandle.getDirectoryHandle(surveyName, { create: true })
+    var taskDirHandle = await surveyDirHandle.getDirectoryHandle(taskName, { create: true })
+    await getDirectoryFiles(surveyName+'/'+taskName,taskDirHandle)
+    finishedIteratingDirectories = true
 }
 
 function updateDownloadProgress() {
