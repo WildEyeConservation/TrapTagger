@@ -6224,37 +6224,37 @@ def check_upload_files():
 
     return json.dumps(already_uploaded)
 
-@app.route('/get_presigned_download_url', methods=['POST'])
-@login_required
-def get_presigned_download_url():
-    """Returns a presigned URL in order to download a file directly from S3."""
-    if current_user.admin:
-        return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='get_object',
-                                                                Params={'Bucket': Config.BUCKET,
-                                                                        'Key': current_user.folder + '/' + request.json['filename'].strip('/')})
-    else:
-        return 'error'
+# @app.route('/get_presigned_download_url', methods=['POST'])
+# @login_required
+# def get_presigned_download_url():
+#     """Returns a presigned URL in order to download a file directly from S3."""
+#     if current_user.admin:
+#         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='get_object',
+#                                                                 Params={'Bucket': Config.BUCKET,
+#                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/')})
+#     else:
+#         return 'error'
 
-@app.route('/get_download_directories', methods=['POST'])
-@login_required
-def get_download_directories():
-    """Returns the directory structure to be downloaded."""
+# @app.route('/get_download_directories', methods=['POST'])
+# @login_required
+# def get_download_directories():
+#     """Returns the directory structure to be downloaded."""
 
-    directories = {}
-    surveyName = request.json['surveyName']
-    taskName = request.json['taskName']
-    requestedPath = request.json['path']
-    survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
+#     directories = {}
+#     surveyName = request.json['surveyName']
+#     taskName = request.json['taskName']
+#     requestedPath = request.json['path']
+#     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     
-    if survey:
-        folders,filenames = list_all(Config.BUCKET,current_user.folder+'/Downloads/'+surveyName+'/'+taskName + requestedPath + '/')
+#     if survey:
+#         folders,filenames = list_all(Config.BUCKET,current_user.folder+'/Downloads/'+surveyName+'/'+taskName + requestedPath + '/')
         
-        for folder in folders:
-            directories[folder] = {}
+#         for folder in folders:
+#             directories[folder] = {}
 
-        return json.dumps({'directories': directories, 'fileCount': len(filenames)})
+#         return json.dumps({'directories': directories, 'fileCount': len(filenames)})
 
-    return json.dumps('error')
+#     return json.dumps('error')
 
 @app.route('/get_directory_files', methods=['POST'])
 @login_required
@@ -6276,7 +6276,7 @@ def get_directory_files():
                     'fileName': fileName,
                     'URL': URL
                 })
-            return json.dumps(files)
+            return json.dumps({'files': files, 'folders': folders})
 
     return json.dumps('error')
 

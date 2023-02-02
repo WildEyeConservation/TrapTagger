@@ -90,7 +90,7 @@ async function deleteFolder(dirHandle,parentHandle=null) {
     }
 }
 
-async function checkFiles(files,dirHandle,expectedDirectories,path) {
+async function checkFiles(files,dirHandle,folders) {
     /** Compares the given files against the contents of the given directory and downloads or deletes accordingly*/
 
     // Get list of files that already exist in folder
@@ -101,7 +101,7 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
         if (entry.kind=='file') {
             existingFiles.push(entry.name)
         } else if (entry.kind=='directory') {
-            if (!expectedDirectories.includes(entry.name)) {
+            if (!folders.includes(entry.name)) {
                 existingDirectories.push(entry)
             }
         }
@@ -124,18 +124,16 @@ async function checkFiles(files,dirHandle,expectedDirectories,path) {
         }
     }
 
-    // Delete the remaining files that shouldn't be there
-    if (path.split('/').length!=1) {
-        for (let i=0; i<existingFiles.length; i++) {
-            dirHandle.removeEntry(existingFiles[i])
-        }
-        for (let i=0; i<existingDirectories.length; i++) {
-            deleteFolder(existingDirectories[i],dirHandle)
-        }
+    // Delete the remaining files and folders that shouldn't be there
+    for (let i=0; i<existingFiles.length; i++) {
+        dirHandle.removeEntry(existingFiles[i])
+    }
+    for (let i=0; i<existingDirectories.length; i++) {
+        deleteFolder(existingDirectories[i],dirHandle)
     }
 }
 
-async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
+async function getDirectoryFiles(path,dirHandle,count=0) {
     /** Fetches a list of files for the given directory */
     
     //need this check to make sure it doesn't download other annotation sets, or overwrite them locally
@@ -144,7 +142,7 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
             pathsBeingChecked.push(path)
         }
     
-        files = await limitTT(()=> fetch('/get_directory_files', {
+        var data = await limitTT(()=> fetch('/get_directory_files', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -159,11 +157,11 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
                 throw new Error(response.statusText)
             }
             return response.json()
-        }).then((files) => {
-            if (files=='error') {
+        }).then((data) => {
+            if (data=='error') {
                 location.reload()
             } else {
-                return files
+                return data
             }
         }).catch( (error) => {
             if (count>=3) {
@@ -173,13 +171,18 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
                     pathsBeingChecked.splice(index, 1)
                 }
             } else {
-                setTimeout(function() { getDirectoryFiles(path,dirHandle,expectedDirectories,count+1); }, 5000);
+                setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 5000);
             }
         }))
-    
-        if (files) {
-            filesToDownload += files.length
-            await checkFiles(files,dirHandle,expectedDirectories,path)
+
+        for (let i=0; i<data.folders.length; i++) {
+            var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
+            getDirectoryFiles(path+'/'+data.folders[0],newDirHandle)
+        }
+        
+        if (data.files) {
+            filesToDownload += data.files.length
+            await checkFiles(data.files,dirHandle,data.folders)
             var index = pathsBeingChecked.indexOf(path)
             if (index > -1) {
                 pathsBeingChecked.splice(index, 1)
@@ -190,71 +193,71 @@ async function getDirectoryFiles(path,dirHandle,expectedDirectories,count=0) {
     }
 }
 
-async function iterateDirectories(directories,dirHandle,path='') {
-    /** Recursive function for iterating through the given directories and downloading the necessary files */
+// async function iterateDirectories(directories,dirHandle,path='') {
+//     /** Recursive function for iterating through the given directories and downloading the necessary files */
 
-    var expectedDirectories = []
-    for (let item in directories) {
-        expectedDirectories.push(item)
-    }
+//     var expectedDirectories = []
+//     for (let item in directories) {
+//         expectedDirectories.push(item)
+//     }
 
-    getDirectoryFiles(path,dirHandle,expectedDirectories)
+//     getDirectoryFiles(path,dirHandle,expectedDirectories)
 
-    for (let item in directories) {
-        var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
-        var newDirectories = directories[item]
-        if (path=='') {
-            var newPath = item
-        } else {
-            var newPath = path + '/' + item
-        }
-        await iterateDirectories(newDirectories,newDirHandle,newPath)
-        expectedDirectories.push(item)
-    }
-}
+//     for (let item in directories) {
+//         var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
+//         var newDirectories = directories[item]
+//         if (path=='') {
+//             var newPath = item
+//         } else {
+//             var newPath = path + '/' + item
+//         }
+//         await iterateDirectories(newDirectories,newDirHandle,newPath)
+//         expectedDirectories.push(item)
+//     }
+// }
 
-async function fetchDirectories(path) {
-    /** Recursive function that fetches the directories to be downloaded from. */
+// async function fetchDirectories(path) {
+//     /** Recursive function that fetches the directories to be downloaded from. */
 
-    var directories = await limitTT(()=> fetch('/get_download_directories', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            surveyName: surveyName,
-            taskName: downloadingTaskName,
-            path: path
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-        return response.json()
-    }).then((data) => {
-        if (data=='error') {
-            location.reload()
-        } else {
-            totalFilesToDownload += data.fileCount
-            updateDownloadProgress()
-            return data.directories
-        }
-    }).catch( (error) => {
-        errorEcountered = true
-        // setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
-    }))
+//     var directories = await limitTT(()=> fetch('/get_download_directories', {
+//         method: 'post',
+//         headers: {
+//             accept: 'application/json',
+//             'content-type': 'application/json',
+//         },
+//         body: JSON.stringify({
+//             surveyName: surveyName,
+//             taskName: downloadingTaskName,
+//             path: path
+//         }),
+//     }).then((response) => {
+//         if (!response.ok) {
+//             throw new Error(response.statusText)
+//         }
+//         return response.json()
+//     }).then((data) => {
+//         if (data=='error') {
+//             location.reload()
+//         } else {
+//             totalFilesToDownload += data.fileCount
+//             updateDownloadProgress()
+//             return data.directories
+//         }
+//     }).catch( (error) => {
+//         errorEcountered = true
+//         // setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
+//     }))
 
-    if (directories) {
-        for (item in directories) {
-            directories[item] = await fetchDirectories(path+'/'+item)
-        }
-    } else {
-        directories = {}
-    }
+//     if (directories) {
+//         for (item in directories) {
+//             directories[item] = await fetchDirectories(path+'/'+item)
+//         }
+//     } else {
+//         directories = {}
+//     }
 
-    return directories
-}
+//     return directories
+// }
 
 async function startDownload(selectedTask,taskName) {
     /** Begins the download */
@@ -275,10 +278,13 @@ async function startDownload(selectedTask,taskName) {
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
     // Fetch directory tree and start
-    directories = await fetchDirectories('')
+    // var directories = await fetchDirectories('')
 
     if (directories) {
-        await iterateDirectories({surveyName: {taskName: directories}},globalTopLevelHandle)
+        // await iterateDirectories({surveyName: {taskName: directories}},globalTopLevelHandle)
+        var surveyDirHandle = await globalTopLevelHandle.getDirectoryHandle(surveyName, { create: true })
+        var taskDirHandle = await surveyDirHandle.getDirectoryHandle(taskName, { create: true })
+        await getDirectoryFiles(surveyName+'/'+taskName,taskDirHandle)
         finishedIteratingDirectories = true
     }
 }
