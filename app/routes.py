@@ -6247,8 +6247,8 @@ def get_download_directories():
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     
     if survey:
-        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
-        if requestedPath: path += '/' + requestedPath
+        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName + requestedPath
+        # if requestedPath: path += '/' + requestedPath
 
         app.logger.info('Directories requested for {}'.format(path))
         
