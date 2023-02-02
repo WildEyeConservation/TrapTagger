@@ -216,7 +216,7 @@ async function iterateDirectories(directories,dirHandle,path='') {
 async function fetchDirectories(path) {
     /** Recursive function that fetches the directories to be downloaded from. */
 
-    directories = await limitTT(()=> fetch('/get_download_directories', {
+    var directories = await limitTT(()=> fetch('/get_download_directories', {
         method: 'post',
         headers: {
             accept: 'application/json',
