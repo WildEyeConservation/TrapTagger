@@ -6243,14 +6243,14 @@ def get_download_directories():
     directories = {}
     surveyName = request.json['surveyName']
     taskName = request.json['taskName']
-    path = request.json['path']
+    requestedPath = request.json['path']
     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
     
     if survey:
-        if path=='':
-            path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
-        else:
-            path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName + '/' + path
+        path = current_user.folder+'/Downloads/'+surveyName+'/'+taskName
+        if requestedPath: path += '/' + requestedPath
+
+        app.logger.info('Directories requested for {}'.format(path))
         
         if s3_folder_exists(path):
             folders,filenames = list_all(Config.BUCKET,path+'/')
