@@ -91,6 +91,8 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
             } else {
                 progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
             }
+        } else {
+            progBar.innerHTML = 'Initialising...'
         }
     }
     
