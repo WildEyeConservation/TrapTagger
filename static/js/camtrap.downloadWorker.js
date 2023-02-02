@@ -176,8 +176,8 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
         }))
 
         for (let i=0; i<data.folders.length; i++) {
-            var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
-            getDirectoryFiles(path+'/'+data.folders[0],newDirHandle)
+            var newDirHandle = await dirHandle.getDirectoryHandle(data.folders[i], { create: true })
+            getDirectoryFiles(path+'/'+data.folders[i],newDirHandle)
         }
         
         if (data.files) {
