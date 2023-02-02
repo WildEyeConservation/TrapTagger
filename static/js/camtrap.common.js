@@ -579,7 +579,7 @@ function updateCanvas(mapID = 'map1') {
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
-            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString()))) {
+            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString())) && (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel.toString()))) {
                 redirectToDone()
             } else {
                 prevCluster(mapID)

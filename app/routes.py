@@ -5870,6 +5870,7 @@ def knockdown(imageId, clusterId):
                     cluster.labels = [newLabel]
                     cluster.user_id = current_user.id
                     cluster.timestamp = datetime.utcnow()
+                    cluster.examined = True
 
                     # Copy labels over to labelgroups
                     labelgroups = db.session.query(Labelgroup) \

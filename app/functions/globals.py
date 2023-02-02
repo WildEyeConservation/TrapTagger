@@ -673,7 +673,7 @@ def removeFalseDetections(self,cluster_id,undo):
                 
                 for detection in detections:
                     detection.static=False
-                    
+
             db.session.commit()
 
             for image in set(images):
@@ -2246,3 +2246,9 @@ def s3_folder_exists(path):
     '''Returns true if the folder exists'''
     resp = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=path.rstrip('/'), Delimiter='/',MaxKeys=1)
     return 'CommonPrefixes' in resp
+
+def rDets(sq):
+    '''Adds the necessary SQLAlchemy filters for a detection to be considered 'relevent'. ie. non-static, not deleted and of sufficient confidence.'''
+    return sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                .filter(Detection.static==False)\
+                .filter(~Detection.status.in_(['deleted','hidden']))
