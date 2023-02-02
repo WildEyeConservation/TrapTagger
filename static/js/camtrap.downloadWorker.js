@@ -275,10 +275,10 @@ async function startDownload(selectedTask,taskName) {
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
     // Fetch directory tree and start
-    directories = {surveyName: {taskName: await fetchDirectories('')}}
+    directories = await fetchDirectories('')
 
     if (directories) {
-        await iterateDirectories(directories,globalTopLevelHandle)
+        await iterateDirectories({surveyName: {taskName: directories}},globalTopLevelHandle)
         finishedIteratingDirectories = true
     }
 }
