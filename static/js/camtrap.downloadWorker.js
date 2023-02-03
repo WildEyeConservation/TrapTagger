@@ -68,10 +68,10 @@ async function downloadFile(fileName,url,dirHandle,count=0) {
         filesActuallyDownloaded += 1
         filesSucceeded += 1
         filesDownloaded += 1
-    } else if (count>=3) {
+    } else if (count>5) {
         filesDownloaded += 1
     } else {
-        setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 10000);
+        setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 1000*(5**count));
     }
     updateDownloadProgress()
 }
@@ -163,14 +163,14 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
                 return data
             }
         }).catch( (error) => {
-            if (count>=3) {
+            if (count>5) {
                 errorEcountered = true
                 var index = pathsBeingChecked.indexOf(path)
                 if (index > -1) {
                     pathsBeingChecked.splice(index, 1)
                 }
             } else {
-                setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 10000);
+                setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 1000*(5**count));
             }
         }))
 
@@ -243,9 +243,9 @@ function resetDownloadState() {
     postMessage({'func': 'resetDownloadState', 'args': [surveyName,downloadingTaskName]})
 }
 
-async function wrapUpDownload() {
+async function wrapUpDownload(count=0) {
     /** Wraps up the download by letting the server know that the client download is finished */
-    if (downloadingTask != null) {
+    if (downloadingTask) {
         await limitTT(()=> fetch('/download_complete', {
             method: 'post',
             headers: {
@@ -262,7 +262,9 @@ async function wrapUpDownload() {
                 resetDownloadState()
             }
         }).catch( (error) => {
-            setTimeout(function() { wrapUpDownload(); }, 10000);
+            if (count<=5) {
+                setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
+            }
         }))
     }
 }
