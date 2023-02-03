@@ -71,7 +71,7 @@ async function downloadFile(fileName,url,dirHandle,count=0) {
     } else if (count>=3) {
         filesDownloaded += 1
     } else {
-        setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 5000);
+        setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 10000);
     }
     updateDownloadProgress()
 }
@@ -170,93 +170,29 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
                     pathsBeingChecked.splice(index, 1)
                 }
             } else {
-                setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 5000);
+                setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 10000);
             }
         }))
 
-        for (let i=0; i<data.folders.length; i++) {
-            var newDirHandle = await dirHandle.getDirectoryHandle(data.folders[i], { create: true })
-            getDirectoryFiles(path+'/'+data.folders[i],newDirHandle)
-        }
-        
-        if (data.files) {
-            filesToDownload += data.files.length
-            await checkFiles(data.files,dirHandle,data.folders)
-            var index = pathsBeingChecked.indexOf(path)
-            if (index > -1) {
-                pathsBeingChecked.splice(index, 1)
+        if (data) {
+            for (let i=0; i<data.folders.length; i++) {
+                var newDirHandle = await dirHandle.getDirectoryHandle(data.folders[i], { create: true })
+                getDirectoryFiles(path+'/'+data.folders[i],newDirHandle)
+            }
+            
+            if (data.files) {
+                filesToDownload += data.files.length
+                await checkFiles(data.files,dirHandle,data.folders)
+                var index = pathsBeingChecked.indexOf(path)
+                if (index > -1) {
+                    pathsBeingChecked.splice(index, 1)
+                }
             }
         }
     
         checkDownloadStatus()
     }
 }
-
-// async function iterateDirectories(directories,dirHandle,path='') {
-//     /** Recursive function for iterating through the given directories and downloading the necessary files */
-
-//     var expectedDirectories = []
-//     for (let item in directories) {
-//         expectedDirectories.push(item)
-//     }
-
-//     getDirectoryFiles(path,dirHandle,expectedDirectories)
-
-//     for (let item in directories) {
-//         var newDirHandle = await dirHandle.getDirectoryHandle(item, { create: true })
-//         var newDirectories = directories[item]
-//         if (path=='') {
-//             var newPath = item
-//         } else {
-//             var newPath = path + '/' + item
-//         }
-//         await iterateDirectories(newDirectories,newDirHandle,newPath)
-//         expectedDirectories.push(item)
-//     }
-// }
-
-// async function fetchDirectories(path) {
-//     /** Recursive function that fetches the directories to be downloaded from. */
-
-//     var directories = await limitTT(()=> fetch('/get_download_directories', {
-//         method: 'post',
-//         headers: {
-//             accept: 'application/json',
-//             'content-type': 'application/json',
-//         },
-//         body: JSON.stringify({
-//             surveyName: surveyName,
-//             taskName: downloadingTaskName,
-//             path: path
-//         }),
-//     }).then((response) => {
-//         if (!response.ok) {
-//             throw new Error(response.statusText)
-//         }
-//         return response.json()
-//     }).then((data) => {
-//         if (data=='error') {
-//             location.reload()
-//         } else {
-//             totalFilesToDownload += data.fileCount
-//             updateDownloadProgress()
-//             return data.directories
-//         }
-//     }).catch( (error) => {
-//         errorEcountered = true
-//         // setTimeout(function() { startDownload(downloadingTask,downloadingTaskName); }, 5000);
-//     }))
-
-//     if (directories) {
-//         for (item in directories) {
-//             directories[item] = await fetchDirectories(path+'/'+item)
-//         }
-//     } else {
-//         directories = {}
-//     }
-
-//     return directories
-// }
 
 async function startDownload(selectedTask,taskName) {
     /** Begins the download */
@@ -275,12 +211,9 @@ async function startDownload(selectedTask,taskName) {
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
-    // Fetch directory tree and start
-    // var directories = await fetchDirectories('')
-
-    // await iterateDirectories({surveyName: {taskName: directories}},globalTopLevelHandle)
     var surveyDirHandle = await globalTopLevelHandle.getDirectoryHandle(surveyName, { create: true })
     var taskDirHandle = await surveyDirHandle.getDirectoryHandle(taskName, { create: true })
+    
     await getDirectoryFiles(surveyName+'/'+taskName,taskDirHandle)
     finishedIteratingDirectories = true
 }
@@ -329,7 +262,7 @@ async function wrapUpDownload() {
                 resetDownloadState()
             }
         }).catch( (error) => {
-            setTimeout(function() { wrapUpDownload(); }, 5000);
+            setTimeout(function() { wrapUpDownload(); }, 10000);
         }))
     }
 }
