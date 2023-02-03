@@ -28,6 +28,7 @@ var pathsBeingChecked = []
 var surveyName
 var downloadingTaskName
 var filesSucceeded
+var wrappingUp
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -208,6 +209,7 @@ async function startDownload(selectedTask,taskName) {
     filesToDownload = 0
     filesActuallyDownloaded = 0
     filesSucceeded = 0
+    wrappingUp = false
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
@@ -245,7 +247,8 @@ function resetDownloadState() {
 
 async function wrapUpDownload(count=0) {
     /** Wraps up the download by letting the server know that the client download is finished */
-    if (downloadingTask) {
+    if (downloadingTask&&!wrappingUp) {
+        wrappingUp = true
         await limitTT(()=> fetch('/download_complete', {
             method: 'post',
             headers: {
@@ -266,5 +269,6 @@ async function wrapUpDownload(count=0) {
                 setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
             }
         }))
+        wrappingUp = false
     }
 }
