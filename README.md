@@ -440,6 +440,7 @@ Simply follow the instructions on how to use [certbot](https://certbot.eff.org/)
 
 - Start the application with the command `docker-compose up`.
 - You can stop the process by first entering `docker stop flask` and subsequently `docker-compose down`. The first command will reschedule any long-running tasks to be performed once the application is up and running again.
+- Please note the first time you start the application, you must do so in maintenance mode. This is achieved by setting the MAINTENANCE variable in the config file to True. This will allow the application to initialise your database. Once it has done so, you can reset the application with maintenance mode switched off.
 
 # Using the Site
 
