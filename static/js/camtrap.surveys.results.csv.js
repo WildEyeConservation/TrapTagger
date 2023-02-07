@@ -348,8 +348,12 @@ function translateCsvInfo(levelSelection,dataSelection) {
         levelSelection='detection'
     }
 
-    if (['Name','ID'].includes(dataSelection)&&(!['capture','image'].includes(levelSelection))) {
-        dataSelection = levelSelection
+    if (['Name','ID'].includes(dataSelection)) {
+        if ((levelSelection=='image')&&(dataSelection=='ID')) {
+            dataSelection = 'image_id'
+        } else if (levelSelection!='capture') {
+            dataSelection = levelSelection
+        }
     }
 
     if (dataSelection=='Description') {

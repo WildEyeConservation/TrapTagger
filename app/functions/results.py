@@ -681,11 +681,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 custom_split = [r for r in re.split('%%%%',custom) if r != '']
                 df[custom_name] = df.apply(lambda x: handle_custom_columns(df.columns,x,custom_split), axis=1)
 
-            if 'boxes' in requestedColumns:
-                df = df.drop_duplicates(subset=['detection'], keep='first')
-                df = df[df['detection']!='None']
-            else:
-                df = df.drop_duplicates(subset=[selectedLevel], keep='first')
+            df = df.drop_duplicates(subset=[selectedLevel], keep='first')
+
+            if selectedLevel=='detection': df = df[df['detection']!='None']
 
             if outputDF is not None:
                 outputDF = pd.concat([outputDF, df], ignore_index=True)
@@ -696,7 +694,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         # Handle bounding boxes
         if 'boxes' in requestedColumns:
             index = requestedColumns.index('boxes')
-            requestedColumns[index:index] = ['left','right','top','bottom','det_conf']
+            requestedColumns[index:index] = ['left','right','top','bottom','score']
             requestedColumns.remove('boxes')
 
         for allLevel in allLevels:
