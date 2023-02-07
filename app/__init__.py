@@ -77,9 +77,10 @@ def make_celery(flask_app):
         Queue('parallel',     routing_key='parallel.#'),
     ]
 
-    from app.models import Classifier
-    for classifier in db.session.query(Classifier).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').all():
-        task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
+    if not Config.MAINTENANCE:
+        from app.models import Classifier
+        for classifier in db.session.query(Classifier).filter(Classifier.active==True).filter(Classifier.name!='MegaDetector').all():
+            task_queues.append(Queue(classifier.name,routing_key=classifier.name+'.#'))
 
     ####
     celery.conf.task_acks_late = True
