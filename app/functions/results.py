@@ -325,6 +325,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Image.corrected_timestamp.label('timestamp'), \
                 Image.timestamp.label('original_timestamp'), \
                 Detection.id.label('detection'), \
+                Detection.left.label('left'), \
+                Detection.right.label('right'), \
+                Detection.top.label('top'), \
+                Detection.bottom.label('bottom'), \
+                Detection.confidence.label('det_conf'), \
                 Cluster.notes.label('notes'), \
                 Cluster.id.label('cluster'), \
                 Label.description.label('label'), \
@@ -683,6 +688,12 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF.fillna(0, inplace=True)
             else:
                 outputDF = df
+
+        # Handle bounding boxes
+        if 'image_boxes' in requestedColumns:
+            index = requestedColumns.index('image_boxes')
+            requestedColumns[index:index] = ['left','right','top','bottom','det_conf']
+            requestedColumns.remove('image_boxes')
 
         for allLevel in allLevels:
             column = allLevel+'_all_count'
