@@ -683,6 +683,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
             if 'boxes' in requestedColumns:
                 df = df.drop_duplicates(subset=['detection'], keep='first')
+                df = df[df['detection']!='None']
             else:
                 df = df.drop_duplicates(subset=[selectedLevel], keep='first')
 
