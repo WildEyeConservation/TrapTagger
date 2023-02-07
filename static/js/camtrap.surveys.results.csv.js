@@ -350,7 +350,7 @@ function translateCsvInfo(levelSelection,dataSelection) {
 
     if (['Name','ID'].includes(dataSelection)) {
         if ((levelSelection=='image')&&(dataSelection=='ID')) {
-            dataSelection = 'image_id'
+            dataSelection = 'id'
         } else if (levelSelection!='capture') {
             dataSelection = levelSelection
         }
