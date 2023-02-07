@@ -503,8 +503,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         df[level_name+'_tags'] = df.apply(lambda x: drop_nones(x[level_name+'_tags_temp']), axis=1)
         del df[level_name+'_tags_temp']
     
-    #Drop suplicate images
-    df = df.drop_duplicates(subset=['image'], keep='first').reset_index()
+    #Drop duplicate images
+    # df = df.drop_duplicates(subset=['image'], keep='first').reset_index()
 
     #Generate necessary urls
     rootUrl = 'https://' + Config.DNS + '/imageViewer?type='
