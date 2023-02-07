@@ -1893,8 +1893,8 @@ def generate_coco(self,task_id):
 
         # The _writing is necessary to prevent premature downloads
         os.makedirs('docs', exist_ok=True)
-        with open(fileName+'_writing.json') as f:
-            f.write(json.dumps(output))
+        with open(fileName+'_writing.json', 'w') as f:
+            json.dump(output, f)
         os.rename(fileName+'_writing.json', fileName+'.json')
 
     except Exception as exc:
