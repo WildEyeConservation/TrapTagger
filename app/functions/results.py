@@ -690,10 +690,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF = df
 
         # Handle bounding boxes
-        if 'image_boxes' in requestedColumns:
-            index = requestedColumns.index('image_boxes')
+        if 'boxes' in requestedColumns:
+            index = requestedColumns.index('boxes')
             requestedColumns[index:index] = ['left','right','top','bottom','det_conf']
-            requestedColumns.remove('image_boxes')
+            requestedColumns.remove('boxes')
 
         for allLevel in allLevels:
             column = allLevel+'_all_count'
