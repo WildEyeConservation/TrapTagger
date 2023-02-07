@@ -329,7 +329,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Detection.right.label('right'), \
                 Detection.top.label('top'), \
                 Detection.bottom.label('bottom'), \
-                Detection.score.label('det_conf'), \
+                Detection.score.label('score'), \
                 Cluster.notes.label('notes'), \
                 Cluster.id.label('cluster'), \
                 Label.description.label('label'), \
@@ -388,6 +388,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                             Image.corrected_timestamp.label('timestamp'), \
                             Image.timestamp.label('original_timestamp'), \
                             Detection.id.label('detection'), \
+                            Detection.left.label('left'), \
+                            Detection.right.label('right'), \
+                            Detection.top.label('top'), \
+                            Detection.bottom.label('bottom'), \
+                            Detection.score.label('score'), \
                             Cluster.notes.label('notes'), \
                             Cluster.id.label('cluster'), \
                             Camera.id.label('camera'), \
