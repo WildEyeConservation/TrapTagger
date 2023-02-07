@@ -593,6 +593,41 @@ function downloadPreFormattedCSV() {
     xhttp.send(formData);
 }
 
+function downloadCOCO() {
+    /** requests a COCO file for the currently selected task. */
+    var formData = new FormData()
+    formData.append("task_id", JSON.stringify(selectedTask))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/generateCOCO');
+    xhttp.onreadystatechange =
+    function(selectedtask){
+        return function() {
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                if (reply=='success') {
+                    document.getElementById('modalPWH').innerHTML = 'Please Wait'
+                    document.getElementById('modalPWB').innerHTML = 'Your COCO file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
+                    modalResults.modal('hide')
+                    modalPW.modal({keyboard: true});
+                    coco_task_ids.push(selectedtask)
+                    if (waitForDownloadTimer != null) {
+                        clearInterval(waitForDownloadTimer)
+                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
+                    } else {
+                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
+                    }
+                } else {
+                    document.getElementById('modalPWH').innerHTML = 'Error'
+                    document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    modalPW.modal({keyboard: true});
+                }
+            }
+        }
+    }(selectedTask)
+    xhttp.send(formData);
+}
+
 btnAddCSVCol.addEventListener('click', ()=>{
     /** Adds a csv column to the csv form. */
     IDNum = getIdNumforNext('csvColLevelElement');

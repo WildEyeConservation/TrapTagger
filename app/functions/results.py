@@ -795,6 +795,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             except:
                 pass
 
+        # The _writing is necessary to prevent premature downloads
         os.makedirs('docs', exist_ok=True)
         outputDF.to_csv(fileName+'_writing.csv',index=False,date_format="%Y-%m-%d %H:%M:%S")
         os.rename(fileName+'_writing.csv', fileName+'.csv')
@@ -1787,6 +1788,114 @@ def generate_label_spec(self,sourceBucket,translations):
             f.write(json.dumps(label_index).encode())
             f.seek(0)
             GLOBALS.s3client.put_object(Bucket=sourceBucket,Key='label_index.json',Body=f)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=1,ignore_result=True)
+def generate_coco(self,task_id):
+    '''Generates a COCO export of a task.'''
+
+    try:
+        task = db.session.query(Task)
+
+        info = {
+            "version" : 1,
+            "description" : task.survey.description,
+            "year" : datetime.utcnow().year,
+            "contributor" : task.survey.user.username,
+            "date_created" : datetime.utcnow()
+        }
+        
+        images = []
+        for cluster in task.clusters:
+            for image in cluster.images:
+                images.append({
+                    "id" : str(image.id),
+                    "file_name" : image.camera.path+'/'+image.filename,
+                    "datetime": image.corrected_timestamp,  
+                    "seq_id": str(cluster.id),
+                    "seq_num_frames": len(cluster.images[:]),
+                    "location": image.camera.trapgroup.tag,
+                    "corrupt": False
+                })
+
+        labels = [db.session.query(Label).get(GLOBALS.nothing_id)]
+        labels.extend(db.session.query(Label)\
+                        .join(Labelgroup,Label.labelgroups)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Label.id!=GLOBALS.nothing_id)\
+                        .distinct().all())
+
+        categories = []   
+        for label in labels:
+            categories.append({
+                "id" : label.id,
+                "name" : label.description  
+            })
+
+        labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .filter(Labelgroup.task==task)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .distinct().all()
+
+        annotations = []
+        for labelgroup in labelgroups:
+            bbox = [labelgroup.detection.left,
+                    labelgroup.detection.top,
+                    labelgroup.detection.right-labelgroup.detection.left,
+                    labelgroup.detection.bottom-labelgroup.detection.top]
+            if labelgroup.labels:
+                for label in labelgroup.labels:
+                    annotations.append({
+                        "id" : str(labelgroup.detection.id),
+                        "image_id" : str(labelgroup.detection.image_id),  
+                        "category_id" : label.id,
+                        "bbox": bbox,
+                        "sequence_level_annotation" : False
+                    })
+            else:
+                annotations.append({
+                    "id" : str(labelgroup.detection.id),
+                    "image_id" : str(labelgroup.detection.image_id),  
+                    "category_id" : GLOBALS.nothing_id,
+                    "bbox": bbox,
+                    "sequence_level_annotation" : False
+                })
+        
+        output = {
+            "info" : info,
+            "images" : images,
+            "categories" : categories,
+            "annotations" : annotations
+        }
+
+        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+
+        if os.path.isfile(fileName+'.json'):
+            try:
+                os.remove(fileName+'.json')
+            except:
+                pass
+
+        # The _writing is necessary to prevent premature downloads
+        os.makedirs('docs', exist_ok=True)
+        with open(fileName+'_writing.json') as f:
+            f.write(json.dumps(output))
+        os.rename(fileName+'_writing.json', fileName+'.json')
 
     except Exception as exc:
         app.logger.info(' ')

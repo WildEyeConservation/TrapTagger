@@ -5682,6 +5682,21 @@ def generateCSV():
 
     return json.dumps('success')
 
+@app.route('/generateCOCO', methods=['POST'])
+@login_required
+def generateCOCO():
+    '''Requests the generation of a COCO file for later download.'''
+
+    task_id = request.form['task_id']
+    task = db.session.query(Task).get(task_id)
+    
+    if (task == None) or (task.survey.user != current_user):
+        return json.dumps('error')
+
+    generate_coco.delay(task_id=task_id)
+
+    return json.dumps('success')
+
 @app.route('/getCSVinfo')
 @login_required
 def getCSVinfo():
@@ -5735,12 +5750,15 @@ def checkDownload(fileType,selectedTask):
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
+    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+        fileName += '.csv'
     elif fileType == 'excel':
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+        fileName += '.xlsx'
     elif fileType == 'export':
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.zip'
+        fileName += '.zip'
+    elif fileType == 'coco':
+        fileName += '.json'
 
     if os.path.isfile(fileName):
         return json.dumps('ready')
@@ -5758,15 +5776,20 @@ def Download(fileType,selectedTask):
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
+    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    filename = task.survey.name+'_'+task.name
     if fileType == 'csv':
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-        filename = task.survey.name+'_'+task.name+'.csv'
+        fileName += '.csv'
+        filename += '.csv'
     elif fileType == 'excel':
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
-        filename = task.survey.name+'_'+task.name+'.xlsx'
+        fileName += '.xlsx'
+        filename += '.xlsx'
     elif fileType == 'export':
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.zip'
-        filename = task.survey.name+'_'+task.name+'.zip'
+        fileName += '.zip'
+        filename += '.zip'
+    elif fileType == 'coco':
+        fileName += '.json'
+        filename += '.json'
 
     if os.path.isfile(fileName):
         deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600)

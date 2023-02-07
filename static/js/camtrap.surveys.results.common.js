@@ -18,7 +18,7 @@ function waitForDownload() {
      * Clears its own interval once all downloads are complete.
      * */
     
-    if ((csv_task_ids.length==0)&&(excel_task_ids.length==0)&&(export_task_ids.length==0)) {
+    if ((csv_task_ids.length==0)&&(excel_task_ids.length==0)&&(export_task_ids.length==0)&&(coco_task_ids.length==0)) {
         clearInterval(waitForDownloadTimer)
     } else {
         for (let i = 0; i < csv_ids_to_remove.length; i++){
@@ -45,6 +45,33 @@ function waitForDownload() {
                     }
                 }
             }(csv_task_ids[i]);
+            xhttp.send();
+        }
+
+        for (let i = 0; i < coco_ids_to_remove.length; i++){
+            var index = coco_task_ids.indexOf(coco_ids_to_remove[i]);
+            if (index !== -1) coco_task_ids.splice(index, 1);
+        }
+
+        coco_ids_to_remove = []
+        for (let i = 0; i < coco_task_ids.length; i++){
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/checkDownload/coco/'+coco_task_ids[i]);
+            xhttp.onreadystatechange =
+            function(wrapTaskID){
+                return function() {
+                    if (this.readyState == 4 && this.status == 200) { 
+                        if (this.responseText=='"ready"') {
+                            coco_ids_to_remove.push(wrapTaskID)
+                            window.location.href = '/Download/coco/'+wrapTaskID
+                            if (modalPW.is(':visible')) {
+                                modalPW.modal('hide')
+                                modalResults.modal({keyboard: true})
+                            }                
+                        }
+                    }
+                }
+            }(coco_task_ids[i]);
             xhttp.send();
         }
 
