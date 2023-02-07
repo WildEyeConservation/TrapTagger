@@ -1807,7 +1807,7 @@ def generate_coco(self,task_id):
     '''Generates a COCO export of a task.'''
 
     try:
-        task = db.session.query(Task)
+        task = db.session.query(Task).get(task_id)
 
         info = {
             "version" : 1,
