@@ -344,9 +344,11 @@ function translateCsvInfo(levelSelection,dataSelection) {
 
     if (levelSelection=='site') {
         levelSelection='trapgroup'
+    } else if (levelSelection=='sighting') {
+        levelSelection='detection'
     }
 
-    if (['Name','ID'].includes(dataSelection)&&(levelSelection!='capture')) {
+    if (['Name','ID'].includes(dataSelection)&&(!['capture','image'].includes(levelSelection))) {
         dataSelection = levelSelection
     }
 
@@ -373,6 +375,8 @@ btnCsvDownload.addEventListener('click', ()=>{
 
         if (level=='site') {
             level = 'trapgroup'
+        } else if (level=='sighting') {
+            level = 'detection'
         }
 
         //label_type
@@ -1215,6 +1219,7 @@ function finishCSVprep() {
     }
     clearSelect(CSVlevelSelector)
     fillSelect(CSVlevelSelector, optionTexts, optionValues)
+    CSVlevelSelector.value='1'
 
     // Update level choices
     level = CSVlevelSelector.options[CSVlevelSelector.selectedIndex].value;
