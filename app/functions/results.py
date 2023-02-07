@@ -1822,7 +1822,7 @@ def generate_coco(self,task_id):
             for image in cluster.images:
                 images.append({
                     "id" : str(image.id),
-                    "file_name" : image.camera.path+'/'+image.filename,
+                    "file_name" : '/'.join(image.camera.path.split('/')[1:])+'/'+image.filename,
                     "datetime": str(image.corrected_timestamp),
                     "seq_id": str(cluster.id),
                     "seq_num_frames": len(cluster.images[:]),
