@@ -1814,7 +1814,7 @@ def generate_coco(self,task_id):
             "description" : task.survey.description,
             "year" : datetime.utcnow().year,
             "contributor" : task.survey.user.username,
-            "date_created" : datetime.utcnow()
+            "date_created" : str(datetime.utcnow())
         }
         
         images = []
@@ -1823,7 +1823,7 @@ def generate_coco(self,task_id):
                 images.append({
                     "id" : str(image.id),
                     "file_name" : image.camera.path+'/'+image.filename,
-                    "datetime": image.corrected_timestamp,  
+                    "datetime": str(image.corrected_timestamp),
                     "seq_id": str(cluster.id),
                     "seq_num_frames": len(cluster.images[:]),
                     "location": image.camera.trapgroup.tag,
