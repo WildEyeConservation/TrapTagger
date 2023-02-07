@@ -1,5 +1,5 @@
 '''
-Copyright 2022
+Copyright 2023
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -5689,7 +5689,7 @@ def generateCOCO():
 
     task_id = request.form['task_id']
     task = db.session.query(Task).get(task_id)
-    
+
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
