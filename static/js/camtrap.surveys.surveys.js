@@ -2219,7 +2219,7 @@ function buildStatusRow(info,tableRow,headings) {
     tableRow.appendChild(tableCol)
 
     for (let heading in headings) {
-        for (leti=0;i<headings[heading].length;i++) {
+        for (let i=0;i<headings[heading].length;i++) {
             heading2 = headings[heading][i]
             tableCol = document.createElement('td')
             tableCol.innerHTML = info[heading][heading2]
