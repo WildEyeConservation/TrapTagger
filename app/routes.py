@@ -6315,7 +6315,7 @@ def download_complete():
         db.session.commit()
 
         s3 = boto3.resource('s3')
-        # bucketObject = s3.Bucket(Config.BUCKET)
-        # bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
+        bucketObject = s3.Bucket(Config.BUCKET)
+        bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
 
     return json.dumps('success')
