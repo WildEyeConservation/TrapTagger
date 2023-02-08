@@ -655,7 +655,7 @@ def removeFalseDetections(self,cluster_id,undo):
                                 .join(Image,Cluster.images)\
                                 .join(Camera)\
                                 .outerjoin(Detection)\
-                                .filter(Camera.trapgroup==trapgroup)\
+                                .filter(Camera.trapgroup_id==trapgroup_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
                                 .filter(~Detection.status.in_(['deleted','hidden']))\
