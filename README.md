@@ -539,4 +539,4 @@ its usage.
 
 # Contact
 
-Please feel free to contact us with any queries or feedback you may have at nic@innoventix.co.za.
+Please feel free to contact us with any queries or feedback you may have at nicholas@wildeyeconservation.org.
