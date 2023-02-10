@@ -857,6 +857,7 @@ function pingTgCheck() {
                     formData.append("surveyName", surveyName)
                 } else {
                     // changed - revoke old task
+                    formData.append("surveyName", surveyName)
                     formData.append("revoke_id", tgCheckID)
                     formData.append("task_id", 'none')
                     formData.append("tgCode", tgCode)
