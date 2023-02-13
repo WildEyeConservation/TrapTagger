@@ -22,7 +22,8 @@ class Config(object):
     LOAD_TESTING = False
     DEBUGGING = False
     MAINTENANCE = False
-    VERSION = 8
+    INITIAL_SETUP = False
+    VERSION = 9
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
