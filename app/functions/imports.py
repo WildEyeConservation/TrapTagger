@@ -671,7 +671,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
                                             .order_by(Image.corrected_timestamp)\
                                             .distinct().all()]
 
-        max_grouping = 10000
+        max_grouping = 7000
         for chunk in chunker(detections,max_grouping):
             if (len(chunk)<max_grouping) and (len(detections)>max_grouping):
                 chunk = detections[-max_grouping:]
