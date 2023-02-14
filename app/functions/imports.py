@@ -667,13 +667,14 @@ def processCameraStaticDetections(self,camera_id,imcount):
         detections = [r.id for r in db.session.query(Detection)\
                                             .join(Image)\
                                             .filter(Image.camera_id==camera_id)\
-                                            .filter(Detection.score>0.5)\
+                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                             .order_by(Image.corrected_timestamp)\
                                             .distinct().all()]
 
-        for chunk in chunker(detections,10000):
-            if (len(chunk)<10000) and (len(detections)>10000):
-                chunk = detections[-10000:]
+        max_grouping = 7000
+        for chunk in chunker(detections,max_grouping):
+            if (len(chunk)<max_grouping) and (len(detections)>max_grouping):
+                chunk = detections[-max_grouping:]
             det_ids = ','.join([str(r) for r in chunk])
             for det_id,matchcount in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,det_ids,det_ids)):
                 if matchcount>3 and matchcount/imcount>0.3:
