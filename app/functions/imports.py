@@ -656,8 +656,8 @@ def processCameraStaticDetections(self,camera_id,imcount):
                 WHERE
                     ({})
                     AND image1.camera_id = {}
-                    AND det1.id IN ({})
-                    AND det2.id IN ({})
+                    AND image1.id IN ({})
+                    AND image2.id IN ({})
                     ) AS sq1
             WHERE
                 area1 < 0.1
@@ -671,12 +671,13 @@ def processCameraStaticDetections(self,camera_id,imcount):
                                             .order_by(Image.corrected_timestamp)\
                                             .distinct().all()]
 
-        max_grouping = 7000
+        max_grouping = 10000
         for chunk in chunker(detections,max_grouping):
             if (len(chunk)<max_grouping) and (len(detections)>max_grouping):
                 chunk = detections[-max_grouping:]
-            det_ids = ','.join([str(r) for r in chunk])
-            for det_id,matchcount in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,det_ids,det_ids)):
+            images = db.session.query(Image).join(Detection).filter(Detection.id.in_(chunk)).distinct().all()
+            im_ids = ','.join([str(r.id) for r in images])
+            for det_id,matchcount in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,im_ids,im_ids)):
                 if matchcount>3 and matchcount/imcount>0.3:
                     detection = db.session.query(Detection).get(det_id)
                     detection.static = True
