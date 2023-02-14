@@ -480,7 +480,7 @@ def freeUpWork(self,task_id):
                             .filter(Individual.task_id==task_id)\
                             .filter(Individual.label_id==label.id)\
                             .filter(Individual.name!='unidentifiable')\
-                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Trapgroup.survey_id==task.survey_id)\
                             .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
                             .distinct().all()
 
