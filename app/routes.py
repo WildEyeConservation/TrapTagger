@@ -1015,6 +1015,11 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
 
+        test = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='Uploading').first()
+        if test and (newSurveyS3Folder=='none'):
+            status = 'error'
+            message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
+
         if status == 'success':
 
             if fileAttached:
