@@ -371,6 +371,19 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete trap groups.'
                 app.logger.info('Failed to delete Trapgroups')
 
+        #Delete images from S3
+        if status != 'error':
+            try:
+                survey = db.session.query(Survey).get(survey_id)
+                s3 = boto3.resource('s3')
+                bucketObject = s3.Bucket(Config.BUCKET)
+                bucketObject.objects.filter(Prefix=survey.user.folder+'/'+survey.name+'/').delete()
+                app.logger.info('images deleted from S3 successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete images from S3.'
+                app.logger.info('Could not delete images from S3')
+
         #Delete survey
         if status != 'error':
             try:
