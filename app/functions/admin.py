@@ -748,7 +748,7 @@ def reclusterAfterTimestampChange(survey_id):
             pool.join()
 
             #copy labels & tags
-            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).filter(Detection.static==False).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
+            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
             for labelgroup in labelgroups:
                 newGroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==newTask.id).filter(Labelgroup.detection_id==labelgroup.detection_id).first()
                 newGroup.checked = labelgroup.checked
