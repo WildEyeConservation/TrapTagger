@@ -51,6 +51,8 @@ First off, you must create an AWS account, and set up a number of instances. All
 To create a server for your instance of TrapTagger, navigate to EC2 on the AWS web console and do the following:
 
 - Launch a new instance by clicking on the appropriate button on the home page
+- Give your instance a name
+- Optionally add informational tags (but this is not necessary) 
 - Next you must select an AMI image
     - Any operating system will work if you are comfortable working with it, but an Ubuntu 20.04 AMI is recommended if you are following these instructions
     - Simply scroll down the quick start options and take the first Ubuntu 20.04 AMI
@@ -59,10 +61,14 @@ To create a server for your instance of TrapTagger, navigate to EC2 on the AWS w
     - This is the performance characteristics of your server
     - Select an instance based on the load you expect to encounter
     - t2.xlarge is recommended
-- Leave the default instance details and click next
-- Set the storage to 40GB and click next
-- Optionally add informational tags (but this is not necessary) and click next
-- Create a new security group
+- Create a key pair
+    - Select to create a new key pair
+    - Leave the default type
+    - Give it a name
+    - Download it
+- Set the storage to 40GB
+- Edit network settings
+    - Create security group
     - Optionallly give it a name and description
     - Add the following security group rules:
 
@@ -72,14 +78,9 @@ To create a server for your instance of TrapTagger, navigate to EC2 on the AWS w
         |HTTP       |80     |anywhere                                                        |
         |HTTPS      |443    |anywhere                                                        |
 
-- Click review and launch
-- Click launch
-- A key pair window will pop up
-    - Select to create a new key pair
-    - Leave the default type
-    - Give it a name
-    - Download it
-    - Launch your instance by clicking on the launch button
+- View summary
+- Click launch instance
+
 
 Once your server has launched:
 
@@ -105,10 +106,18 @@ Once your server has launched:
 
 ### Virtual Private Cloud (VPC)
 
-For security reasons, one wants to ensure that third-party classifiers do not have access to the internet. This is achived using your VPC by creating two different subnets - a private one without internet access and a public one with access. Begin by creating a new subnet:
+For security reasons, one wants to ensure that third-party classifiers do not have access to the internet. This is achived using your VPC by creating two different subnets - a private one without internet access and a public one with access. 
 
-- Open the AWS VPC console
-- Select the subnets option in the side tab
+- Open the AWS console. 
+- Select the subnets option in the side tab and view the list of subnets. 
+- Choose the subnet from the list that is the same as your subnet ID from your server as your public subnet
+- Give the subnet a useful name 
+- Save the name and ID of the subnet for later
+- Choose another subnet from the list as your private subnet
+- Give the subnet a useful name
+- Save the name and ID of the subnet for later
+
+If there are not enough default subnets created, create a new subnet:
 - Click the create subnet button
 - Select the VPC where you launched your server above
 - Give this private subnet a useful name
@@ -129,7 +138,7 @@ You now need to control what access those subnets have. This is done with route 
 - Find and select your private subnet and save the association
 - Select your default route table (it should be the only other one associated with your VPC)
 - Open the subnet associations tab and click on the edit associations button
-- Find and select your default subnet where you created your server
+- Find and select your default subnet (public subnet) where you created your server
 - Save this association
 
 Lastly, your instances typically connect to other AWS services through the internet, so in order for your classifiers in your private subnet to access your images in S3, you need to set up a private gateway to S3:
@@ -149,14 +158,14 @@ Open the RDS service on your AWS console, and create a new database. Use the fol
 
 - Engine type: Amazon Aurora
 - Edition: MySQL-compatible
-- Capacity type: Serverless
 - Version: Latest
 - Choose your own identifier, username and password
+- Instance configuration: Serverless (if not available choose a version that has the serverless option)
 - Leave the default capacity settings
 - Set the VPC, subnet, and security group to the ones associated with your server (the security group might be by name rather than ID)
 - Leave all other settings to their default
 
-Once you have created your instance, select it to see your database endpoint. Save this for later user - this forms the basis of your DATABASE_SERVER environmental variable.
+Once you have created your instance, select it to see your database endpoint. Save this for later user - this forms the basis of your DATABASE_SERVER environmental variable. If more than one endpoint available, save the endpoint of the writer instance.
 
 ### Domain
 
@@ -187,10 +196,14 @@ In order to prevent third-party classifier images from causing harm, these shoul
 - Select users in the side tab
 - Select add users
 - Give your S3-only user a useful name
-- Select the 'Access key - programmatic access' checkbox
 - Click next on each page until you get to the review stage
-- It will warn you that this user has no permissions - that's intentional. The user's permissions will be set up in the next step
-- Click create user and save the access key and secret access key for later
+- Click create user
+- Search for your user by username and select your user
+- Navigate to the security credentials tab
+- Click create access key
+- Select the use case of the access key 
+- Give description tag (optional)
+- Click create access key and save the access key and secret access key for later
 
 ### Bucket
 
@@ -199,7 +212,8 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
 - Go to the AWS S3 console in your browser
 - Click 'create bucket'
 - Give that bucket a useful name and save it for later
-- Select your desired AWS region and click 'create bucket'
+- Select your desired AWS region 
+- Unselect the 'Block all public access' option and click 'create bucket'
 - Select your newly created bucket and select the permissions tab
 - Set the bucket policy to the following, replacing:
 
@@ -295,9 +309,7 @@ TrapTagger uses an AWS S3 bucket to store user data. Each user will get two fold
 In order to manage the access permissions of you admin users, you must create a user group. Here you will give your users access to a folder that matched their username into which they can upload images.
 
 - Go to the AWS IAM web console
-- Select 'user groups' on the left-hand menu
-- Click 'create group'
-- Give your user group a useful name, and save it for later
+- Select 'policies' on the left-hand menu
 - Select 'create policy'
 - Select the JSON editor and enter the following, replacing 'bucketName' with your bucket name:
 ```
@@ -327,7 +339,9 @@ In order to manage the access permissions of you admin users, you must create a 
 - Click next (add tags)
 - Give the policy a useful name
 - Click create policy
-- Return to your user group creation
+- Select 'user groups' on the left-hand menu
+- Click 'create group'
+- Give your user group a useful name, and save it for later
 - Search for and select the policy you just created and click 'create group'
 
 ## System Email Support
@@ -406,7 +420,6 @@ env_variables.sh, and then simply set them using the command `. env_variables.sh
 - MAIN_GIT_REPO:                        The repository for the main application.
 - MONITORED_EMAIL_ADDRESS:              A monitored email address for user enquiries and questions.
 - BUCKET:                               The name of your bucket that you created for your images to be stored.
-- BRANCH:                               The branch of the repository that you would like to use (master).
 - DB_CLUSTER_NAME:                      The name of your aurora db instance.
 - IAM_ADMIN_GROUP:                      The name of the user group you created.
 - AWS_S3_DOWNLOAD_ACCESS_KEY_ID:        The AWS ID of your S3-only IAM user
