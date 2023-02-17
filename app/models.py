@@ -92,6 +92,7 @@ class Image(db.Model):
     corrected_timestamp = db.Column(db.DateTime, index=True)
     detection_rating = db.Column(db.Float, default=0, index=True)
     etag = db.Column(db.String(64), index=True)
+    hash = db.Column(db.String(64), index=True)
     detections = db.relationship('Detection', backref='image', lazy='dynamic')
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
 
