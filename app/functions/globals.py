@@ -48,6 +48,8 @@ import pyexifinfo
 import hashlib
 from multiprocessing.pool import ThreadPool as Pool
 from iptcinfo3 import IPTCInfo
+import piexif
+import io
 
 def cleanupWorkers(one, two):
     '''
@@ -1898,7 +1900,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                 # Get image hash
                 print('Updating image hash...')
                 try:
-                    image.hash = md5(temp_file.name)
+                    image.etag = md5(temp_file.name)
+                    image.hash = generate_raw_image_hash(temp_file.name)
                     db.session.commit()
                     print('Success')
                 except:
@@ -2240,3 +2243,13 @@ def rDets(sq):
     return sq.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                 .filter(Detection.static==False)\
                 .filter(~Detection.status.in_(['deleted','hidden']))
+
+def generate_raw_image_hash(filename):
+    '''Generates a hash of an image with no EXIF data in a format compatable with the front end.'''
+    
+    output=io.BytesIO()
+    with open('I__00014.jpeg', "rb") as f:
+        piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),f.read(),output)
+        hash = hashlib.md5(output.getbuffer()).hexdigest()
+    
+    return hash

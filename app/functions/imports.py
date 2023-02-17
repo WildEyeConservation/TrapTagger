@@ -843,12 +843,15 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         images = []
         for filename in filenames:
             hash = None
-            if not pipeline: hash = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
-            if pipeline or ((db.session.query(Image).filter(Image.camera_id==camera_id).filter(Image.filename==filename).first()==None) and (db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.hash==hash).first()==None)):
+            etag = None
+            if not pipeline: etag = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
+            if pipeline or ((db.session.query(Image).filter(Image.camera_id==camera_id).filter(Image.filename==filename).first()==None) and (db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.etag==etag).first()==None)):
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                     if not pipeline:
                         print('Downloading {}'.format(filename))
                         GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+
+                        hash = generate_raw_image_hash(temp_file.name)
                         
                         try:
                             print('Extracting time stamp from {}'.format(filename))
@@ -892,7 +895,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         #########Local Download
                         batch.append(dirpath + '/' + filename)
 
-                        image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash}
+                        image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
                         images.append(image)
                         
                     except:
