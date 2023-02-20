@@ -14,8 +14,9 @@
 
 importScripts('yoctoQueue.js')
 importScripts('pLimit.js')
-importScripts('piexif.js')
 importScripts('crypto-js.min.js')
+var exports
+importScripts('piexif.js')
 
 const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
@@ -285,7 +286,7 @@ async function wrapUpDownload(count=0) {
 
 function get_hash(jpegData) {
     /** Returns the hash of the EXIF-less image */
-    return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(piexif.insert(piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+    return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
 }
 
 async function handle_file(entry,dirHandle) {
@@ -356,14 +357,16 @@ async function write_local(jpegData,path,labels,fileName) {
     var folders = path.split('/')
     var dirHandle = globalTopLevelHandle
     for (var i=0;i<folders.length;i++) {
-        dirHandle = await dirHandle.getDirectoryHandle(folders[i], { create: true })
+        if (folders[i] != "") {
+            dirHandle = await dirHandle.getDirectoryHandle(folders[i], { create: true })
+        }
     }
 
     // EXIF
-    var exifObj = piexif.load(jpegData)
+    var exifObj = exports.piexif.load(jpegData)
     exifObj['Exif'][37510] = labels.toString()
-    var exifStr = piexif.dump(exifObj)
-    jpegData = piexif.insert(exifStr, jpegData)
+    var exifStr = exports.piexif.dump(exifObj)
+    jpegData = exports.piexif.insert(exifStr, jpegData)
 
     // Save
     var blob = new Uint8Array(jpegData.length);

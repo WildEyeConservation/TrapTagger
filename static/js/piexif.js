@@ -2476,7 +2476,7 @@ SOFTWARE.
         }
         exports.piexif = that;
     } else {
-        // window.piexif = that;
+        window.piexif = that;
     }
 
 })();
