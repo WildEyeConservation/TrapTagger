@@ -34,6 +34,9 @@ var downloadingTaskName
 var filesSucceeded
 var wrappingUp
 
+var localHashes = []
+var requiredImages = []
+
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='startDownload') {
@@ -47,39 +50,24 @@ onmessage = function (evt) {
     }
 };
 
-async function getBlob(url) {
-    /** Returns the data from a specified url */
-    const blob = await limitAWS(()=> fetch(url
-    ).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-        return response.blob()
-    }).catch( (error) => {
-        errorEcountered = true
-        return 'error'
-    }))
-    return blob;
-}
-
-async function downloadFile(fileName,url,dirHandle,count=0) {
-    /** Downloads the specified file to the diven directory handle */
-    var blob = await getBlob(url)
-    if (blob!='error') {
-        var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        filesActuallyDownloaded += 1
-        filesSucceeded += 1
-        filesDownloaded += 1
-    } else if (count>5) {
-        filesDownloaded += 1
-    } else {
-        setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 1000*(5**count));
-    }
-    updateDownloadProgress()
-}
+// async function downloadFile(fileName,url,dirHandle,count=0) {
+//     /** Downloads the specified file to the diven directory handle */
+//     var blob = await getBlob(url)
+//     if (blob!='error') {
+//         var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+//         const writable = await fileHandle.createWritable();
+//         await writable.write(blob);
+//         await writable.close();
+//         filesActuallyDownloaded += 1
+//         filesSucceeded += 1
+//         filesDownloaded += 1
+//     } else if (count>5) {
+//         filesDownloaded += 1
+//     } else {
+//         setTimeout(function() { downloadFile(fileName,url,dirHandle,count+1); }, 1000*(5**count));
+//     }
+//     updateDownloadProgress()
+// }
 
 async function deleteFolder(dirHandle,parentHandle=null) {
     /** Recursive function for deleting an unwanted folder and all of its contents */
@@ -284,6 +272,43 @@ async function wrapUpDownload(count=0) {
 
 // ///////////////////////////////////////////////////////////
 
+async function getBlob(url) {
+    /** Returns the data from a specified url */
+    const blob = await limitAWS(()=> fetch(url
+    ).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
+        return response.blob()
+    }).catch( (error) => {
+        errorEcountered = true
+        return 'error'
+    }))
+    return blob;
+}
+
+async function downloadFile(url,paths,labels,count=0) {
+    /** Downloads the specified file to the diven directory handle */
+    var blob = await getBlob(url)
+    if (blob!='error') {
+        for (let i=0;i<paths.length;i++) {
+            splits = paths[i].split('/')
+            fileName = splits[splits.length-1]
+            splits.pop()
+            path = splits.join('/')
+            write_local(blob,path,labels,fileName)
+            filesActuallyDownloaded += 1
+            filesSucceeded += 1
+            filesDownloaded += 1
+        }
+    } else if (count>5) {
+        filesDownloaded += 1
+    } else {
+        setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
+    }
+    updateDownloadProgress()
+}
+
 function get_hash(jpegData) {
     /** Returns the hash of the EXIF-less image */
     return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
@@ -296,6 +321,7 @@ async function handle_file(entry,dirHandle) {
         return async function() {
             var jpegData = wrapReader.result
             var hash = get_hash(jpegData)
+            localHashes.push(hash)
         
             await limitTT(()=> fetch('/get_image_info', {
                 method: 'post',
@@ -347,8 +373,45 @@ async function listFolder(dirHandle,path){
     }
 }
 
+async function get_required_images() {
+    for (let i=0;i<requiredImages.length;i++) {
+        imageInfo = requiredImages[i]
+        downloadFile(imageInfo.url,imageInfo.paths,imageInfo.labels)
+    }
+}
+
 async function start_download() {
     await listFolder(globalTopLevelHandle,globalTopLevelHandle.name)
+    
+    await limitTT(()=> fetch('/get_required_images', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            hashes: localHashes,
+            task_id: downloadingTask
+        }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
+        return response.json()
+    }).then((data) => {
+        requiredImages = data
+        get_required_images()
+    }).catch( (error) => {
+        // if (count>5) {
+        //     errorEcountered = true
+        //     var index = pathsBeingChecked.indexOf(path)
+        //     if (index > -1) {
+        //         pathsBeingChecked.splice(index, 1)
+        //     }
+        // } else {
+        //     setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 1000*(5**count));
+        // }
+    }))
 }
 
 async function write_local(jpegData,path,labels,fileName) {
@@ -384,5 +447,6 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 // jpegData transfer into write_local
 // Clean up folders when done?
-// Error handling
+// Error handling (esp look at how its done in downloadFile)
+// empty images?
 // server side: /get_image_info

@@ -6360,3 +6360,29 @@ def get_image_info():
                 reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':imageLabels,'fileName':path.split('/')[-1]})
 
     return json.dumps(reply)
+
+@app.route('/get_required_images', methods=['POST'])
+@login_required
+def get_required_images():
+    """Returns the labels for the specifief image and task."""
+
+    reply = []
+    task_id = request.json['task_id']
+    hashes = request.json['hashes']
+    task = db.session.query(Task).get(task_id)
+    if task and (task.survey.user==current_user):
+        images = db.session.query(Image).join(Camera).join(Trapgroup).join(Survey).join(Task).filter(Task.id==task_id).filter(~Image.hash.in_(hashes)).first()
+    
+        individual_sorted = False #request.json['individual_sorted']
+        species_sorted = True #request.json['species_sorted']
+        flat_structure = False #request.json['flat_structure']
+        labels = None #request.json['labels']
+        if not labels: labels = [r.id for r in task.labels]
+
+        for image in images:
+            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
+            imageLabels.extend(imageTags)
+
+            reply.append({'url':image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
+
+    return json.dumps(reply)
