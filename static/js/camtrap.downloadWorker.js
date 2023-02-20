@@ -15,7 +15,7 @@
 importScripts('yoctoQueue.js')
 importScripts('pLimit.js')
 importScripts('crypto-js.min.js')
-var exports
+var exports = {}
 importScripts('piexif.js')
 
 const limitAWS=pLimit(6)
