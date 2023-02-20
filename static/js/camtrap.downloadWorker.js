@@ -198,26 +198,28 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
 async function startDownload(selectedTask,taskName) {
     /** Begins the download */
 
-    console.log('Started Download')
+    start_download()
 
-    downloadingTask = selectedTask
-    downloadingTaskName = taskName
-    finishedIteratingDirectories = false
-    pathsBeingChecked = []
-    errorEcountered = false
-    filesDownloaded = 0
-    filesToDownload = 0
-    filesActuallyDownloaded = 0
-    filesSucceeded = 0
-    wrappingUp = false
+    // console.log('Started Download')
 
-    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
+    // downloadingTask = selectedTask
+    // downloadingTaskName = taskName
+    // finishedIteratingDirectories = false
+    // pathsBeingChecked = []
+    // errorEcountered = false
+    // filesDownloaded = 0
+    // filesToDownload = 0
+    // filesActuallyDownloaded = 0
+    // filesSucceeded = 0
+    // wrappingUp = false
 
-    var surveyDirHandle = await globalTopLevelHandle.getDirectoryHandle(surveyName, { create: true })
-    var taskDirHandle = await surveyDirHandle.getDirectoryHandle(taskName, { create: true })
+    // postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
+
+    // var surveyDirHandle = await globalTopLevelHandle.getDirectoryHandle(surveyName, { create: true })
+    // var taskDirHandle = await surveyDirHandle.getDirectoryHandle(taskName, { create: true })
     
-    await getDirectoryFiles(surveyName+'/'+taskName,taskDirHandle)
-    finishedIteratingDirectories = true
+    // await getDirectoryFiles(surveyName+'/'+taskName,taskDirHandle)
+    // finishedIteratingDirectories = true
 }
 
 function updateDownloadProgress() {
@@ -272,3 +274,107 @@ async function wrapUpDownload(count=0) {
         wrappingUp = false
     }
 }
+
+
+// ///////////////////////////////////////////////////////////
+
+function get_hash(jpegData) {
+    /** Returns the hash of the EXIF-less image */
+    return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(piexif.insert(piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+}
+
+async function handle_file(entry,dirHandle) {
+    var file = await entry.getFile()
+    var reader = new FileReader();
+    reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
+        return async function() {
+            var jpegData = wrapReader.result
+            var hash = get_hash(jpegData)
+        
+            await limitTT(()=> fetch('/get_image_info', {
+                method: 'post',
+                headers: {
+                    accept: 'application/json',
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    hash: hash,
+                    task_id: downloadingTask
+                }),
+            }).then((response) => {
+                if (!response.ok) {
+                    throw new Error(response.statusText)
+                }
+                return response.json()
+            }).then((data) => {
+                for (let i=0;i<data.length;i++) {
+                    write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
+                }
+
+                // Delete the original file when done
+                wrapDirHandle.removeEntry(wrapFileName)
+            }).catch( (error) => {
+                // if (count>5) {
+                //     errorEcountered = true
+                //     var index = pathsBeingChecked.indexOf(path)
+                //     if (index > -1) {
+                //         pathsBeingChecked.splice(index, 1)
+                //     }
+                // } else {
+                //     setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 1000*(5**count));
+                // }
+            }))
+
+        }
+    }(reader,dirHandle,entry.name));
+    reader.readAsBinaryString(file);
+}
+
+async function listFolder(dirHandle,path){
+    /** Iterates through a folder, adding the files to the upload queue */
+    for await (const entry of dirHandle.values()) {
+        if (entry.kind=='directory'){
+            await listFolder(entry,path+'/'+entry.name)
+        } else {
+            handle_file(entry,dirHandle)
+        }
+    }
+}
+
+async function start_download() {
+    await listFolder(globalTopLevelHandle,globalTopLevelHandle.name)
+}
+
+async function write_local(jpegData,path,labels,fileName) {
+
+    // Handle folders
+    var folders = path.split('/')
+    var dirHandle = globalTopLevelHandle
+    for (var i=0;i<folders.length;i++) {
+        dirHandle = await dirHandle.getDirectoryHandle(folders[i], { create: true })
+    }
+
+    // EXIF
+    var exifObj = piexif.load(jpegData)
+    exifObj['Exif'][37510] = labels.toString()
+    var exifStr = piexif.dump(exifObj)
+    jpegData = piexif.insert(exifStr, jpegData)
+
+    // Save
+    var blob = new Uint8Array(jpegData.length);
+    for (var i=0; i<jpegData.length; i++)
+        blob[i] = jpegData.charCodeAt(i);
+    writeBlob(dirHandle,blob,fileName)
+}
+
+async function writeBlob(dirHandle,blob,fileName) {
+	var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+	const writable = await fileHandle.createWritable();
+	await writable.write(blob);
+	await writable.close();
+}
+
+// jpegData transfer into write_local
+// Clean up folders when done?
+// Error handling
+// server side: /get_image_info
