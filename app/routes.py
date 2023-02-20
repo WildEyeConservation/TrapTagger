@@ -619,7 +619,17 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
             #VHL
             label = db.session.query(Label).get(GLOBALS.vhl_id)
-            count = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(label)).distinct().count()
+            count = db.session.query(Cluster)\
+                        .join(Image,Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==int(task_id))\
+                        .filter(Cluster.task_id==int(task_id))\
+                        .filter(Labelgroup.labels.contains(label))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .distinct().count()
             texts.append(label.description+' ('+str(count)+')')
             values.append(label.id)
 
