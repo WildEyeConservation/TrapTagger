@@ -6378,7 +6378,7 @@ def get_required_images():
                             .join(Task)\
                             .filter(Task.id==task_id)\
                             .filter(~Image.hash.in_(hashes))\
-                            .distinct().all()
+                            .distinct().limit(50).all()
     
         individual_sorted = False #request.json['individual_sorted']
         species_sorted = True #request.json['species_sorted']
