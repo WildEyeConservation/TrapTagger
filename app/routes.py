@@ -6371,7 +6371,14 @@ def get_required_images():
     hashes = request.json['hashes']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
-        images = db.session.query(Image).join(Camera).join(Trapgroup).join(Survey).join(Task).filter(Task.id==task_id).filter(~Image.hash.in_(hashes)).first()
+        images = db.session.query(Image)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .join(Survey)\
+                            .join(Task)\
+                            .filter(Task.id==task_id)\
+                            .filter(~Image.hash.in_(hashes))\
+                            .distinct().all()
     
         individual_sorted = False #request.json['individual_sorted']
         species_sorted = True #request.json['species_sorted']
