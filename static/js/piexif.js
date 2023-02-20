@@ -2474,9 +2474,9 @@ SOFTWARE.
         if (typeof module !== 'undefined' && module.exports) {
             exports = module.exports = that;
         }
-        exports.piexif = that;
+        // exports.piexif = that;
     } else {
-        window.piexif = that;
+        // window.piexif = that;
     }
 
 })();
