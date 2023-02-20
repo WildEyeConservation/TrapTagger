@@ -297,16 +297,16 @@ async function downloadFile(url,paths,labels,count=0) {
             splits.pop()
             path = splits.join('/')
             write_local(blob,path,labels,fileName)
-            filesActuallyDownloaded += 1
-            filesSucceeded += 1
-            filesDownloaded += 1
+            // filesActuallyDownloaded += 1
+            // filesSucceeded += 1
+            // filesDownloaded += 1
         }
     } else if (count>5) {
-        filesDownloaded += 1
+        // filesDownloaded += 1
     } else {
-        setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
+        // setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
     }
-    updateDownloadProgress()
+    // updateDownloadProgress()
 }
 
 function get_hash(jpegData) {
