@@ -2248,7 +2248,7 @@ def generate_raw_image_hash(filename):
     '''Generates a hash of an image with no EXIF data in a format compatable with the front end.'''
     
     output=io.BytesIO()
-    with open('I__00014.jpeg', "rb") as f:
+    with open(filename, "rb") as f:
         piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),f.read(),output)
         hash = hashlib.md5(output.getbuffer()).hexdigest()
     
