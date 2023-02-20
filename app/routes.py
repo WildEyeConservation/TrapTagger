@@ -6390,6 +6390,6 @@ def get_required_images():
             imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
             imageLabels.extend(imageTags)
 
-            reply.append({'url':image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
+            reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
 
     return json.dumps(reply)
