@@ -1274,6 +1274,63 @@ def generate_excel(self,task_id):
 
     return None
 
+def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels):
+    '''Returns the paths, labels and tags for a particular image and task for image sorting and EXIF labelling.'''
+
+    splitPath = re.split('/',image.camera.path)
+
+    imageLabels = db.session.query(Label)\
+                        .join(Labelgroup,Label.labelgroups)\
+                        .join(Detection)\
+                        .filter(Detection.image==image)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Labelgroup.task==task)\
+                        .distinct().order_by(Label.description).all()
+
+    imageTags = db.session.query(Tag)\
+                        .join(Labelgroup,Tag.labelgroups)\
+                        .join(Detection)\
+                        .filter(Detection.image==image)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Labelgroup.task==task)\
+                        .distinct().order_by(Tag.description).all()
+
+    imagePaths = []
+    baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
+    for label in imageLabels:
+        individuals = [None]
+        if individual_sorted:
+            individuals = db.session.query(Individual)\
+                                .join(Detection,Individual.detections)\
+                                .filter(Detection.image==image)\
+                                .filter(Individual.task==task)\
+                                .filter(Individual.label_id==label.id)\
+                                .filter(Individual.active==True)\
+                                .distinct().all()
+            if len(individuals)==0: individuals = [None]
+        for individual in individuals:
+            if not (species_sorted and (label.id not in labels)):
+                imagePath = ''
+                if species_sorted:  imagePath += '/' + label.description
+                if individual and individual_sorted: imagePath += '/' + individual.name
+                if flat_structure:
+                    filename = baseName
+                    for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
+                    filename += '_' + str(image.id) + '.jpg'
+                    imagePath += '/' + filename
+                else:
+                    startPoint = 1
+                    if splitPath[1]==task.survey.name: startPoint=2
+                    for split in splitPath[startPoint:]: imagePath += '/' + split
+                    imagePath += '/' +image.filename
+                imagePaths.append(imagePath)
+
+    return imagePaths, [label.description for label in imageLabels], [tag.description for tag in imageTags]
+
 def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
     '''
     Processes a single image for exif download by downloading the file locally, editing its metadata (without opening it) and saving it 
@@ -1290,59 +1347,14 @@ def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual
     '''
     try:
         image = db.session.query(Image).get(image_id)
-        splitPath = re.split('/',image.camera.path)
         sourceKey = image.camera.path + '/' + image.filename
         task = db.session.query(Task).get(task_id)
 
-        imageLabels = db.session.query(Label)\
-                            .join(Labelgroup,Label.labelgroups)\
-                            .join(Detection)\
-                            .filter(Detection.image==image)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .distinct().order_by(Label.description).all()
-
-        imageTags = db.session.query(Tag)\
-                            .join(Labelgroup,Tag.labelgroups)\
-                            .join(Detection)\
-                            .filter(Detection.image==image)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .distinct().order_by(Tag.description).all()
+        imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
 
         destinationKeys = []
-        baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
-        for label in imageLabels:
-            individuals = [None]
-            if individual_sorted:
-                individuals = db.session.query(Individual)\
-                                    .join(Detection,Individual.detections)\
-                                    .filter(Detection.image_id==image_id)\
-                                    .filter(Individual.task_id==task_id)\
-                                    .filter(Individual.label_id==label.id)\
-                                    .filter(Individual.active==True)\
-                                    .distinct().all()
-                if len(individuals)==0: individuals = [None]
-            for individual in individuals:
-                if not (species_sorted and (label.id not in labels)):
-                    destinationKey = splitPath[0] + '/Downloads/' + surveyName + '/' + task.name
-                    if species_sorted:  destinationKey += '/' + label.description
-                    if individual and individual_sorted: destinationKey += '/' + individual.name
-                    if flat_structure:
-                        filename = baseName
-                        for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
-                        filename += '_' + str(image.id) + '.jpg'
-                        destinationKey += '/' + filename
-                    else:
-                        startPoint = 1
-                        if splitPath[1]==surveyName: startPoint=2
-                        for split in splitPath[startPoint:]: destinationKey += '/' + split
-                        destinationKey += '/' +image.filename
-                    destinationKeys.append(destinationKey)
+        for path in imagePaths:
+            destinationKeys.append(task.survey.user.folder + '/Downloads/' + surveyName + '/' + task.name + '/' + path)
 
         # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
         # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
@@ -1355,9 +1367,9 @@ def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual
         # IPTCData = []
         imageLabels.extend(imageTags)
         for label in imageLabels:
-            xpKeywordData += label.description
-            exifData += label.description.encode()
-            # IPTCData.append(label.description.encode())
+            xpKeywordData += label
+            exifData += label.encode()
+            # IPTCData.append(label.encode())
             if label != imageLabels[-1]:
                 xpKeywordData += ','
                 exifData += b', '

@@ -6324,3 +6324,29 @@ def download_complete():
         bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
 
     return json.dumps('success')
+
+@app.route('/get_image_info', methods=['POST'])
+@login_required
+def get_image_info():
+    """Returns the labels for the specifief image and task."""
+
+    reply = []
+    task_id = request.json['task_id']
+    hash = request.json['hash']
+    task = db.session.query(Task).get(task_id)
+    if task and (task.survey.user==current_user):
+        image = db.session.query(Image).join(Camera).join(Trapgroup).join(Survey).join(Task).filter(Task.id==task_id).filter(Image.hash==hash).first()
+    
+        individual_sorted = False #request.json['individual_sorted']
+        species_sorted = True #request.json['species_sorted']
+        flat_structure = False #request.json['flat_structure']
+        labels = None #request.json['labels']
+        if not labels: labels = [r.id for r in task.labels]
+        if image:
+            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
+            imageLabels.extend(imageTags)
+
+            for path in imagePaths:
+                reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':imageLabels,'fileName':path.split('/')[-1]})
+
+    return json.dumps(reply)
