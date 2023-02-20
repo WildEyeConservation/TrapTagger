@@ -291,16 +291,26 @@ async function downloadFile(url,paths,labels,count=0) {
     /** Downloads the specified file to the diven directory handle */
     var blob = await getBlob(url)
     if (blob!='error') {
-        for (let i=0;i<paths.length;i++) {
-            splits = paths[i].split('/')
-            fileName = splits[splits.length-1]
-            splits.pop()
-            path = splits.join('/')
-            write_local(blob,path,labels,fileName)
-            // filesActuallyDownloaded += 1
-            // filesSucceeded += 1
-            // filesDownloaded += 1
-        }
+
+        var reader = new FileReader();
+        reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels) {
+            return async function() {
+                var jpegData = wrapReader.result
+
+                for (let i=0;i<wrapPaths.length;i++) {
+                    splits = wrapPaths[i].split('/')
+                    fileName = splits[splits.length-1]
+                    splits.pop()
+                    path = splits.join('/')
+                    write_local(jpegData,path,wrapLabels,fileName)
+                    // filesActuallyDownloaded += 1
+                    // filesSucceeded += 1
+                    // filesDownloaded += 1
+                }
+            }
+        }(reader,paths,labels));
+        reader.readAsBinaryString(blob);
+
     } else if (count>5) {
         // filesDownloaded += 1
     } else {
