@@ -198,6 +198,8 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
 async function startDownload(selectedTask,taskName) {
     /** Begins the download */
 
+    downloadingTask = selectedTask
+    downloadingTaskName = taskName
     start_download()
 
     // console.log('Started Download')
