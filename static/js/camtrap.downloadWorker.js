@@ -35,7 +35,7 @@ var filesSucceeded
 var wrappingUp
 
 var localHashes = []
-var requiredImages = []
+var finishedIterating = false
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -383,16 +383,14 @@ async function listFolder(dirHandle,path){
     }
 }
 
-async function get_required_images() {
+async function get_required_images(requiredImages) {
     for (let i=0;i<requiredImages.length;i++) {
         imageInfo = requiredImages[i]
         downloadFile(imageInfo.url,imageInfo.paths,imageInfo.labels)
     }
 }
 
-async function start_download() {
-    await listFolder(globalTopLevelHandle,globalTopLevelHandle.name)
-    
+async function fetch_remaining_images() {
     await limitTT(()=> fetch('/get_required_images', {
         method: 'post',
         headers: {
@@ -409,8 +407,12 @@ async function start_download() {
         }
         return response.json()
     }).then((data) => {
-        requiredImages = data
-        get_required_images()
+        if (data.hashes.length>0) {
+            localHashes.push(...data.hashes)
+            get_required_images(data.requiredImages)
+        } else {
+            finishedIterating = true
+        }
     }).catch( (error) => {
         // if (count>5) {
         //     errorEcountered = true
@@ -422,6 +424,14 @@ async function start_download() {
         //     setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 1000*(5**count));
         // }
     }))
+    if (!finishedIterating) {
+        fetch_remaining_images()
+    }
+}
+
+async function start_download() {
+    await listFolder(globalTopLevelHandle,globalTopLevelHandle.name)
+    fetch_remaining_images()
 }
 
 async function write_local(jpegData,path,labels,fileName) {

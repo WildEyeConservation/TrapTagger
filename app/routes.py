@@ -6367,6 +6367,7 @@ def get_required_images():
     """Returns the labels for the specifief image and task."""
 
     reply = []
+    supplied_hashes = []
     task_id = request.json['task_id']
     hashes = request.json['hashes']
     task = db.session.query(Task).get(task_id)
@@ -6389,7 +6390,7 @@ def get_required_images():
         for image in images:
             imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
             imageLabels.extend(imageTags)
-
+            supplied_hashes.append(image.hash)
             reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
 
-    return json.dumps(reply)
+    return json.dumps({'hashes':supplied_hashes,'requiredImages':reply})
