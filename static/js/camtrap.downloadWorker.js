@@ -34,14 +34,21 @@ var downloadingTaskName
 var filesSucceeded
 var wrappingUp
 
-var localHashes = []
 var finishedIterating = false
+var species
+var species_sorted
+var individual_sorted
+var flat_structure
 
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='startDownload') {
         globalTopLevelHandle = evt.data.args[0]
         surveyName = evt.data.args[2]
+        species = evt.data.args[4]
+        species_sorted = evt.data.args[5]
+        individual_sorted = evt.data.args[6]
+        flat_structure = evt.data.args[7]
         startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
@@ -187,12 +194,32 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
     }
 }
 
-async function startDownload(selectedTask,taskName) {
+async function startDownload(selectedTask,taskName,count=0) {
     /** Begins the download */
 
     downloadingTask = selectedTask
     downloadingTaskName = taskName
-    start_download()
+
+    await limitTT(()=> fetch('/reset_download_status', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            selectedTask: selectedTask
+        }),
+    })).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        } else {
+            start_download()
+        }
+    }).catch( (error) => {
+        if (count<=5) {
+            setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
+        }
+    })
 
     // console.log('Started Download')
 
@@ -331,7 +358,6 @@ async function handle_file(entry,dirHandle) {
         return async function() {
             var jpegData = wrapReader.result
             var hash = get_hash(jpegData)
-            localHashes.push(hash)
         
             await limitTT(()=> fetch('/get_image_info', {
                 method: 'post',
@@ -398,8 +424,11 @@ async function fetch_remaining_images() {
             'content-type': 'application/json',
         },
         body: JSON.stringify({
-            hashes: localHashes,
-            task_id: downloadingTask
+            task_id: downloadingTask,
+            species: species,
+            species_sorted: species_sorted,
+            individual_sorted: individual_sorted,
+            flat_structure: flat_structure
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -408,7 +437,6 @@ async function fetch_remaining_images() {
         return response.json()
     }).then((data) => {
         if (data.hashes.length>0) {
-            localHashes.push(...data.hashes)
             get_required_images(data.requiredImages)
         } else {
             finishedIterating = true

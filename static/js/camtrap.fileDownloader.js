@@ -43,6 +43,33 @@ async function initiateDownload() {
     // Select the download folder & get access
 
     if (currentDownloads.length==0) {
+
+        document.getElementById('btnDownloadStart').disabled = true
+        
+        if (document.getElementById('speciesSorted').checked) {
+            species_sorted = 'True'
+        } else {
+            species_sorted = 'False'
+        }
+
+        if (document.getElementById('individualSorted').checked) {
+            individual_sorted = 'True'
+        } else {
+            individual_sorted = 'False'
+        }
+
+        if (document.getElementById('flatStructure').checked) {
+            flat_structure = 'True'
+        } else {
+            flat_structure = 'False'
+        }
+
+        species = []
+        downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
+        for (let i=0;i<downloadSpecies.length;i++) {
+            species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
+        }
+
         var topLevelHandle = await window.showDirectoryPicker({
             writable: true //ask for write permission
         });
@@ -55,7 +82,7 @@ async function initiateDownload() {
             currentDownloads.push(surveyName)
         }
     
-        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName]})
+        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure]})
     }
 }
 

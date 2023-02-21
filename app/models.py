@@ -93,6 +93,7 @@ class Image(db.Model):
     detection_rating = db.Column(db.Float, default=0, index=True)
     etag = db.Column(db.String(64), index=True)
     hash = db.Column(db.String(64), index=True)
+    downloaded = db.Column(db.Boolean, default=False, index=True)
     detections = db.relationship('Detection', backref='image', lazy='dynamic')
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
 

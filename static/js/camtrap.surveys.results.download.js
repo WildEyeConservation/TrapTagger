@@ -104,62 +104,60 @@ function openDownloadModal() {
     modalDownload.modal({keyboard: true});
 }
 
-function submitDownloadRequest() {
-    /** Submits a download export request to the server. */
+// function submitDownloadRequest() {
+//     /** Submits a download export request to the server. */
 
-    document.getElementById('btnDownloadStart').disabled = true
+//     document.getElementById('btnDownloadStart').disabled = true
     
-    columns = []
-    if (document.getElementById('speciesSorted').checked) {
-        species_sorted = 'True'
-    } else {
-        species_sorted = 'False'
-    }
+//     if (document.getElementById('speciesSorted').checked) {
+//         species_sorted = 'True'
+//     } else {
+//         species_sorted = 'False'
+//     }
 
-    if (document.getElementById('individualSorted').checked) {
-        individual_sorted = 'True'
-    } else {
-        individual_sorted = 'False'
-    }
+//     if (document.getElementById('individualSorted').checked) {
+//         individual_sorted = 'True'
+//     } else {
+//         individual_sorted = 'False'
+//     }
 
-    if (document.getElementById('flatStructure').checked) {
-        flat_structure = 'True'
-    } else {
-        flat_structure = 'False'
-    }
+//     if (document.getElementById('flatStructure').checked) {
+//         flat_structure = 'True'
+//     } else {
+//         flat_structure = 'False'
+//     }
 
-    species = []
-    downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
-    for (let i=0;i<downloadSpecies.length;i++) {
-        species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
-    }
+//     species = []
+//     downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
+//     for (let i=0;i<downloadSpecies.length;i++) {
+//         species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
+//     }
 
-    var formData = new FormData()
-    formData.append("task", selectedTask)
-    formData.append("species", JSON.stringify(species))
-    formData.append("columns", JSON.stringify(columns))
-    formData.append("species_sorted", JSON.stringify(species_sorted))
-    formData.append("individual_sorted", JSON.stringify(individual_sorted))
-    formData.append("flat_structure", JSON.stringify(flat_structure))
+//     var formData = new FormData()
+//     formData.append("task", selectedTask)
+//     formData.append("species", JSON.stringify(species))
+//     formData.append("species_sorted", JSON.stringify(species_sorted))
+//     formData.append("individual_sorted", JSON.stringify(individual_sorted))
+//     formData.append("flat_structure", JSON.stringify(flat_structure))
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/RequestExif');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
-            if (reply=='Success') {
-                updatePage(current_page)
-                document.getElementById('modalPWH').innerHTML = 'Success'
-                document.getElementById('modalPWB').innerHTML = 'Your dataset is being prepared. Depending on the size of your survey, this may take a while. Once it is ready, the status of your survey will change along with the colour of its results button, indicating an available download. If you then click that button, you will find an option to download your prepared dataset.'
-            } else {
-                document.getElementById('modalPWH').innerHTML = 'Error'
-                document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
-                document.getElementById('btnDownloadStart').disabled = false
-            }
-            modalDownload.modal('hide')
-            modalPW.modal({keyboard: true});
-        }
-    }
-    xhttp.send(formData);
-}
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.open("POST", '/RequestExif');
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             reply = JSON.parse(this.responseText);  
+//             if (reply=='Success') {
+//                 updatePage(current_page)
+//                 document.getElementById('modalPWH').innerHTML = 'Success'
+//                 document.getElementById('modalPWB').innerHTML = 'Your dataset is being prepared. Depending on the size of your survey, this may take a while. Once it is ready, the status of your survey will change along with the colour of its results button, indicating an available download. If you then click that button, you will find an option to download your prepared dataset.'
+//             } else {
+//                 document.getElementById('modalPWH').innerHTML = 'Error'
+//                 document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+//                 document.getElementById('btnDownloadStart').disabled = false
+//             }
+//             modalDownload.modal('hide')
+//             modalPW.modal({keyboard: true});
+//         }
+//     }
+//     xhttp.send(formData);
+// }
