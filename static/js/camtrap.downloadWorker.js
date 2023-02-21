@@ -196,8 +196,12 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
 async function startDownload(selectedTask,taskName,count=0) {
     /** Begins the download */
 
+    console.log('Started Download')
+
     downloadingTask = selectedTask
     downloadingTaskName = taskName
+
+    postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
     await limitTT(()=> fetch('/reset_download_status', {
         method: 'post',
