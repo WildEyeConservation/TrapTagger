@@ -21,19 +21,18 @@ importScripts('piexif.js')
 const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
 
-var downloadingTask
-var filesDownloaded
-var filesToDownload
-var filesActuallyDownloaded
+
 var globalTopLevelHandle
 var errorEcountered = false
-var finishedIteratingDirectories = false
-var pathsBeingChecked = []
 var surveyName
 var downloadingTaskName
 var filesSucceeded
 var wrappingUp
 
+var downloadingTask
+var filesDownloaded
+var filesToDownload
+var filesActuallyDownloaded
 var finishedIterating = false
 var species
 var species_sorted
@@ -243,58 +242,13 @@ async function startDownload(selectedTask,taskName,count=0) {
     // finishedIteratingDirectories = true
 }
 
-function updateDownloadProgress() {
-    /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesSucceeded,filesToDownload]})
-}
-
-function checkDownloadStatus() {
-    /** Checks the status of the download. Wraps up if finished. */
-    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIteratingDirectories&&(pathsBeingChecked.length==0)) {
-        if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
-            // finished
-            wrapUpDownload()
-        } else {
-            // check download
-            postMessage({'func': 'checkingDownload', 'args': [true]})
-            startDownload(downloadingTask,downloadingTaskName)
-        }
-    }
-}
-
 function resetDownloadState() {
     /** Wrapper function for resetDownloadState so that the main js can update the page. */
     downloadingTask = null
     postMessage({'func': 'resetDownloadState', 'args': [surveyName,downloadingTaskName]})
 }
 
-async function wrapUpDownload(count=0) {
-    /** Wraps up the download by letting the server know that the client download is finished */
-    if (downloadingTask&&!wrappingUp) {
-        wrappingUp = true
-        await limitTT(()=> fetch('/download_complete', {
-            method: 'post',
-            headers: {
-                accept: 'application/json',
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                task_id: downloadingTask,
-            }),
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error(response.statusText)
-            } else {
-                resetDownloadState()
-            }
-        }).catch( (error) => {
-            if (count<=5) {
-                setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
-            }
-        }))
-        wrappingUp = false
-    }
-}
+
 
 
 // ///////////////////////////////////////////////////////////
@@ -330,7 +284,7 @@ async function downloadFile(url,paths,labels,count=0) {
                     splits.pop()
                     path = splits.join('/')
                     write_local(jpegData,path,wrapLabels,fileName)
-                    // filesActuallyDownloaded += 1
+                    filesActuallyDownloaded += 1
                     // filesSucceeded += 1
                     // filesDownloaded += 1
                 }
@@ -376,8 +330,10 @@ async function handle_file(entry,dirHandle) {
                 return response.json()
             }).then((data) => {
                 for (let i=0;i<data.length;i++) {
+                    filesToDownload += 1
                     write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
                 }
+                updateDownloadProgress()
 
                 // Delete the original file when done
                 wrapDirHandle.removeEntry(wrapFileName)
@@ -410,6 +366,8 @@ async function listFolder(dirHandle,path){
 }
 
 async function get_required_images(requiredImages) {
+    filesToDownload += requiredImages.length
+    updateDownloadProgress()
     for (let i=0;i<requiredImages.length;i++) {
         imageInfo = requiredImages[i]
         downloadFile(imageInfo.url,imageInfo.paths,imageInfo.labels)
@@ -454,10 +412,19 @@ async function fetch_remaining_images() {
     }))
     if (!finishedIterating) {
         fetch_remaining_images()
+    } else {
+        checkDownloadStatus()
     }
 }
 
 async function start_download() {
+    errorEcountered = false
+    filesActuallyDownloaded = 0
+    filesDownloaded = 0
+    filesToDownload = 0
+    updateDownloadProgress()
+    finishedIterating = false
+    wrappingUp = false
     await listFolder(globalTopLevelHandle,globalTopLevelHandle.name)
     fetch_remaining_images()
 }
@@ -484,6 +451,9 @@ async function write_local(jpegData,path,labels,fileName) {
     for (var i=0; i<jpegData.length; i++)
         blob[i] = jpegData.charCodeAt(i);
     writeBlob(dirHandle,blob,fileName)
+
+    filesDownloaded += 1
+    updateDownloadProgress()
 }
 
 async function writeBlob(dirHandle,blob,fileName) {
@@ -491,6 +461,53 @@ async function writeBlob(dirHandle,blob,fileName) {
 	const writable = await fileHandle.createWritable();
 	await writable.write(blob);
 	await writable.close();
+}
+
+function updateDownloadProgress() {
+    /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesSucceeded,filesToDownload]})
+}
+
+function checkDownloadStatus() {
+    /** Checks the status of the download. Wraps up if finished. */
+    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIterating) {
+        if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
+            // finished
+            wrapUpDownload()
+        } else {
+            // check download
+            postMessage({'func': 'checkingDownload', 'args': [true]})
+            startDownload(downloadingTask,downloadingTaskName)
+        }
+    }
+}
+
+async function wrapUpDownload(count=0) {
+    /** Wraps up the download by letting the server know that the client download is finished */
+    if (downloadingTask&&!wrappingUp) {
+        wrappingUp = true
+        await limitTT(()=> fetch('/download_complete', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                task_id: downloadingTask,
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
+                resetDownloadState()
+            }
+        }).catch( (error) => {
+            if (count<=5) {
+                setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
+            }
+        }))
+        wrappingUp = false
+    }
 }
 
 // jpegData transfer into write_local
