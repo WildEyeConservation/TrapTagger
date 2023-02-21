@@ -469,7 +469,7 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 function updateDownloadProgress() {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesSucceeded,filesToDownload]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
 }
 
 function checkDownloadStatus() {
