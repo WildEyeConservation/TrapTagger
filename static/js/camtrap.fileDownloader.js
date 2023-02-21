@@ -30,8 +30,8 @@ downloadWorker.onmessage = function(evt){
 async function initDisplayForDownload(task_id) {
     /** Prepares the display for download status */
     if (!checkingDownload) {
-        await updatePage(generate_url())
-        modalResults.modal('hide')
+        updatePage(generate_url())
+        modalDownload.modal('hide')
     }
     progBar = document.getElementById('progBar'+task_id)
     if (progBar) {

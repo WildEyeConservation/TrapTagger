@@ -315,7 +315,11 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
         },
         body: JSON.stringify({
             hash: hash,
-            task_id: downloadingTask
+            task_id: downloadingTask,
+            species: species,
+            species_sorted: species_sorted,
+            individual_sorted: individual_sorted,
+            flat_structure: flat_structure
         }),
     }).then((response) => {
         if (!response.ok) {
