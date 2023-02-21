@@ -456,8 +456,8 @@ def getCameraStamps():
 def getTaggingLevelsbyTask(task_id,task_type):
     '''Returns the available tagging levels and label-completion info for the specified task and tagging type.'''
 
-    admin=db.session.query(User).filter(User.username=='Admin').first()
     task_id = int(task_id)
+    task = db.session.query(Task).get(task_id)
 
     if task_type=='individualID':
         texts = []
@@ -480,30 +480,13 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 else:
                     colours.append('#000000')
             else:
-                identified = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Individual, Detection.individuals)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.label_id==label.id)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Individual.task_id==task_id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
+                if label.unidentified_count == None:
+                    if task_id not in GLOBALS.updateIndividualIdStatus_list:
+                        GLOBALS.updateIndividualIdStatus_list.append(task_id)
+                        updateIndividualIdStatus.delay(task_id=task_id)
+                    return json.dumps({'texts': [], 'values': [], 'disabled':{}, 'colours':[]})
 
-                count = db.session.query(Cluster)\
-                                    .join(Image,Cluster.images)\
-                                    .join(Detection)\
-                                    .join(Labelgroup)\
-                                    .filter(Cluster.task_id==task_id)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(~Detection.id.in_([r.id for r in identified]))\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().first()
+                count = label.unidentified_count
 
                 if count==0:
                     colours.append('#0A7850')
@@ -516,9 +499,13 @@ def getTaggingLevelsbyTask(task_id,task_type):
     elif task_type=='AIcheck':
         values = ['-3']
         disabled = 'true'
-        task = db.session.query(Task).get(task_id)
 
-        if task.class_check_count == None: updateLabelCompletionStatus(task_id)
+        if task.class_check_count == None:
+            if task_id not in GLOBALS.updateLabelCompletionStatus_list:
+                GLOBALS.updateLabelCompletionStatus_list.append(task_id)
+                updateLabelCompletionStatus.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
         check = task.class_check_count
 
         texts = ['Comparison ('+str(check)+')']
@@ -531,24 +518,13 @@ def getTaggingLevelsbyTask(task_id,task_type):
     elif task_type=='differentiation':
         disabled = 'true'
 
-        subq = db.session.query(detectionLabels.c.labelgroup_id.label('labelgroupID'), func.count(distinct(detectionLabels.c.label_id)).label('labelCount')) \
-                        .join(Labelgroup,Labelgroup.id==detectionLabels.c.labelgroup_id) \
-                        .filter(Labelgroup.task_id==task_id) \
-                        .group_by(detectionLabels.c.labelgroup_id) \
-                        .subquery()
-
-        uncheckedMulti = db.session.query(Cluster) \
-                        .join(Image,Cluster.images) \
-                        .join(Detection) \
-                        .join(Labelgroup) \
-                        .join(subq, subq.c.labelgroupID==Labelgroup.id) \
-                        .filter(Labelgroup.task_id==task_id) \
-                        .filter(Labelgroup.checked==False) \
-                        .filter(Cluster.task_id==task_id) \
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                        .filter(Detection.static==False) \
-                        .filter(~Detection.status.in_(['deleted','hidden'])) \
-                        .filter(subq.c.labelCount>1).distinct().count()
+        if task.class_check_count == None:
+            if task_id not in GLOBALS.updateTaskCompletionStatus_list:
+                GLOBALS.updateTaskCompletionStatus_list.append(task_id)
+                updateTaskCompletionStatus.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+    
+        uncheckedMulti = task.unchecked_multi_count
 
         if uncheckedMulti>0:
             colours = ['#000000']
@@ -564,11 +540,12 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts = []
         values = []
 
-        labels = db.session.query(Label).filter(Label.task_id==task_id).all()
-        labels.append(db.session.query(Label).get(GLOBALS.vhl_id))    
-
-        for label in labels:
-            if label.bounding_count == None: updateLabelCompletionStatus(task_id)
+        for label in task.labels:
+            if label.bounding_count == None:
+                if task_id not in GLOBALS.updateLabelCompletionStatus_list:
+                    GLOBALS.updateLabelCompletionStatus_list.append(task_id)
+                    updateLabelCompletionStatus.delay(task_id=task_id)
+                return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
 
             if label.bounding_count==0:
                 colours.append('#0A7850')
@@ -578,24 +555,31 @@ def getTaggingLevelsbyTask(task_id,task_type):
             texts.append(label.description+' ('+str(label.bounding_count)+')')
             values.append(label.id)
 
+        # VHL
+        if task.vhl_bounding_count == None:
+            if task_id not in GLOBALS.updateTaskCompletionStatus_list:
+                GLOBALS.updateTaskCompletionStatus_list.append(task_id)
+                updateTaskCompletionStatus.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        vhl_bounding_count = task.vhl_bounding_count
+        texts.append('Vehicles/Humans/Livestock ('+str(vhl_bounding_count)+')')
+        values.append(GLOBALS.vhl_id)
+
     elif task_type=='clusterTag':
-        check = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.any()).filter(Cluster.user_id!=admin.id).first()
-        if check == None:
+
+        if not task.init_complete:
             disabled = 'true'
         else:
             disabled = 'false'
 
-        check = db.session.query(Cluster)\
-                        .join(Image, Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .filter(Cluster.task_id==int(task_id))\
-                        .filter(~Labelgroup.labels.any())\
-                        .filter(Detection.static==False)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .distinct().count()
+        if task.unlabelled_animal_cluster_count == None:
+            if task_id not in GLOBALS.updateTaskCompletionStatus_list:
+                GLOBALS.updateTaskCompletionStatus_list.append(task_id)
+                updateTaskCompletionStatus.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        check = task.unlabelled_animal_cluster_count
 
         if check != 0:
             colours = ['#000000']
@@ -612,42 +596,36 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 else:
                     colours.append('#000000')
 
-                if label.cluster_count == None: updateLabelCompletionStatus(task_id)
+                if label.cluster_count == None:
+                    if task_id not in GLOBALS.updateLabelCompletionStatus_list:
+                        GLOBALS.updateLabelCompletionStatus_list.append(task_id)
+                        updateLabelCompletionStatus.delay(task_id=task_id)
+                    return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
                 
                 texts.append(label.description+' ('+str(label.cluster_count)+')')
                 values.append(label.id)
 
             #VHL
-            label = db.session.query(Label).get(GLOBALS.vhl_id)
-            count = db.session.query(Cluster)\
-                        .join(Image,Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .filter(Labelgroup.task_id==int(task_id))\
-                        .filter(Cluster.task_id==int(task_id))\
-                        .filter(Labelgroup.labels.contains(label))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .distinct().count()
+            if task.vhl_count == None:
+                if task_id not in GLOBALS.updateTaskCompletionStatus_list:
+                    GLOBALS.updateTaskCompletionStatus_list.append(task_id)
+                    updateTaskCompletionStatus.delay(task_id=task_id)
+                return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+            
+            count = task.vhl_count
             texts.append(label.description+' ('+str(count)+')')
             values.append(label.id)
 
     elif task_type=='infoTag':
         disabled = 'false'
         
-        check = db.session.query(Cluster)\
-                        .join(Image, Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .filter(Cluster.task_id==int(task_id))\
-                        .filter(Labelgroup.labels.any())\
-                        .filter(~Labelgroup.tags.any())\
-                        .filter(Detection.static==False)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .distinct().count()
+        if task.infoless_count == None:
+            if task_id not in GLOBALS.updateTaskCompletionStatus_list:
+                GLOBALS.updateTaskCompletionStatus_list.append(task_id)
+                updateTaskCompletionStatus.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        check = task.infoless_count
 
         if check != 0:
             colours = ['#000000']
@@ -656,9 +634,12 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         texts = ['All ('+str(check)+')']
         values = ['-2']
-        labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
-        for label in labels:
-            if label.info_tag_count == None: updateLabelCompletionStatus(task_id)
+        for label in task.labels:
+            if label.info_tag_count == None:
+                if task_id not in GLOBALS.updateLabelCompletionStatus_list:
+                    GLOBALS.updateLabelCompletionStatus_list.append(task_id)
+                    updateLabelCompletionStatus.delay(task_id=task_id)
+                return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
 
             if label.info_tag_count != 0:
                 colours.append('#000000')
@@ -669,19 +650,13 @@ def getTaggingLevelsbyTask(task_id,task_type):
             values.append('-2,'+str(label.id))
 
         # VHL
-        label = db.session.query(Label).get(GLOBALS.vhl_id)
-        count = db.session.query(Cluster)\
-                        .join(Image, Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .filter(Cluster.task_id==task_id)\
-                        .filter(Labelgroup.labels.contains(label))\
-                        .filter(~Labelgroup.tags.any())\
-                        .filter(Detection.static==False)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .distinct().count()
+        if (task.infoless_vhl_count == None) and (task.infoless_count != None):
+            if task_id not in GLOBALS.updateTaskCompletionStatus_list:
+                GLOBALS.updateTaskCompletionStatus_list.append(task_id)
+                updateTaskCompletionStatus.delay(task_id=task_id)
+            return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+        
+        count = task.infoless_vhl_count
         texts.append(label.description+' ('+str(count)+')')
         values.append('-2,'+str(label.id))
 
@@ -2801,47 +2776,47 @@ def classifySpecies():
 #         classifier = survey.classifier.name
 #     return json.dumps({'classifier': classifier})
 
-@app.route('/RequestExif', methods=['POST'])
-@login_required
-def RequestExif():
-    '''
-    Initiates the generation of an exif dataset for download. Returns a success/error status.
+# @app.route('/RequestExif', methods=['POST'])
+# @login_required
+# def RequestExif():
+#     '''
+#     Initiates the generation of an exif dataset for download. Returns a success/error status.
     
-        Parameters:
-            task_id (int): The task for which exif dataset is needed
-            species (list): The species for download
-            species_sorted (str): Whether the dataset should be sorted into species folders
-            flat_structure (str): Whether the folder structure should be flattened
-    '''
+#         Parameters:
+#             task_id (int): The task for which exif dataset is needed
+#             species (list): The species for download
+#             species_sorted (str): Whether the dataset should be sorted into species folders
+#             flat_structure (str): Whether the folder structure should be flattened
+#     '''
 
-    task_id = request.form['task']
-    species = ast.literal_eval(request.form['species'])
-    species_sorted = ast.literal_eval(request.form['species_sorted'])
-    flat_structure = ast.literal_eval(request.form['flat_structure'])
-    individual_sorted = ast.literal_eval(request.form['individual_sorted'])
+#     task_id = request.form['task']
+#     species = ast.literal_eval(request.form['species'])
+#     species_sorted = ast.literal_eval(request.form['species_sorted'])
+#     flat_structure = ast.literal_eval(request.form['flat_structure'])
+#     individual_sorted = ast.literal_eval(request.form['individual_sorted'])
 
-    if species_sorted.lower()=='true':
-        species_sorted = True
-    else:
-        species_sorted = False
+#     if species_sorted.lower()=='true':
+#         species_sorted = True
+#     else:
+#         species_sorted = False
 
-    if flat_structure.lower()=='true':
-        flat_structure = True
-    else:
-        flat_structure = False
+#     if flat_structure.lower()=='true':
+#         flat_structure = True
+#     else:
+#         flat_structure = False
 
-    if individual_sorted.lower()=='true':
-        individual_sorted = True
-    else:
-        individual_sorted = False
+#     if individual_sorted.lower()=='true':
+#         individual_sorted = True
+#     else:
+#         individual_sorted = False
 
-    task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES):
-        app.logger.info('exif request made: {}, {}, {}, {}, {}'.format(task_id,species,species_sorted,flat_structure,individual_sorted))
-        prepare_exif.delay(task_id=task_id,species=species,species_sorted=species_sorted,flat_structure=flat_structure,individual_sorted=individual_sorted)
-        return json.dumps('Success')
+#     task = db.session.query(Task).get(task_id)
+#     if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES):
+#         app.logger.info('exif request made: {}, {}, {}, {}, {}'.format(task_id,species,species_sorted,flat_structure,individual_sorted))
+#         prepare_exif.delay(task_id=task_id,species=species,species_sorted=species_sorted,flat_structure=flat_structure,individual_sorted=individual_sorted)
+#         return json.dumps('Success')
 
-    return json.dumps('Error')
+#     return json.dumps('Error')
 
 @app.route('/exportRequest', methods=['POST'])
 @login_required
@@ -6318,22 +6293,22 @@ def get_directory_files():
 
     return json.dumps('error')
 
-@app.route('/download_complete', methods=['POST'])
-@login_required
-def download_complete():
-    """Changes the download availablity status of a task and cleans up S3 accordingly."""
+# @app.route('/download_complete', methods=['POST'])
+# @login_required
+# def download_complete():
+#     """Changes the download availablity status of a task and cleans up S3 accordingly."""
 
-    task_id = request.json['task_id']
-    task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
-        task.download_available = False
-        db.session.commit()
+#     task_id = request.json['task_id']
+#     task = db.session.query(Task).get(task_id)
+#     if task and (task.survey.user==current_user):
+#         task.download_available = False
+#         db.session.commit()
 
-        s3 = boto3.resource('s3')
-        bucketObject = s3.Bucket(Config.BUCKET)
-        bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
+#         s3 = boto3.resource('s3')
+#         bucketObject = s3.Bucket(Config.BUCKET)
+#         bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
 
-    return json.dumps('success')
+#     return json.dumps('success')
 
 @app.route('/get_image_info', methods=['POST'])
 @login_required
@@ -6345,13 +6320,28 @@ def get_image_info():
     hash = request.json['hash']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
-        image = db.session.query(Image).join(Camera).join(Trapgroup).join(Survey).join(Task).filter(Task.id==task_id).filter(Image.hash==hash).first()
-    
-        individual_sorted = False #request.json['individual_sorted']
-        species_sorted = True #request.json['species_sorted']
-        flat_structure = False #request.json['flat_structure']
-        labels = None #request.json['labels']
-        if not labels: labels = [r.id for r in task.labels]
+        individual_sorted = request.json['individual_sorted']
+        species_sorted = request.json['species_sorted']
+        flat_structure = request.json['flat_structure']
+        
+        labels = request.json['species']
+        if '0' in labels: labels = [r.id for r in task.labels]
+        labels = [int(r) for r in labels]
+
+        image = rDets(db.session.query(Image)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .join(Label,Labelgroup.labels)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Task)\
+                        .filter(Task.id==task_id)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Image.hash==hash)\
+                        .filter(Label.id.in_(labels))\
+                        ).first()
+
         if image:
             image.downloaded = True
             imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
@@ -6381,10 +6371,12 @@ def get_required_images():
         
         labels = request.json['species']
         if '0' in labels: labels = [r.id for r in task.labels]
+        labels = [int(r) for r in labels]
 
-        images = db.session.query(Image)\
+        images = rDets(db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
+                            .join(Label,Labelgroup.labels)\
                             .join(Camera)\
                             .join(Trapgroup)\
                             .join(Survey)\
@@ -6392,7 +6384,8 @@ def get_required_images():
                             .filter(Task.id==task_id)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Image.downloaded==False)\
-                            .distinct().limit(50).all()
+                            .filter(Label.id.in_(labels))\
+                            ).distinct().limit(200).all()
 
         for image in images:
             image.downloaded = True

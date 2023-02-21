@@ -30,8 +30,8 @@ var filesSucceeded
 var wrappingUp
 
 var downloadingTask
-var filesDownloaded
-var filesToDownload
+var filesDownloaded = 0
+var filesToDownload = 0
 var filesActuallyDownloaded
 var finishedIterating = false
 var species
@@ -266,7 +266,7 @@ async function getBlob(url) {
         }
         return response.blob()
     }).catch( (error) => {
-        errorEcountered = true
+        // errorEcountered = true
         return 'error'
     }))
     return blob;
@@ -276,7 +276,6 @@ async function downloadFile(url,paths,labels,count=0) {
     /** Downloads the specified file to the diven directory handle */
     var blob = await getBlob(url)
     if (blob!='error') {
-
         var reader = new FileReader();
         reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels) {
             return async function() {
@@ -289,17 +288,15 @@ async function downloadFile(url,paths,labels,count=0) {
                     path = splits.join('/')
                     write_local(jpegData,path,wrapLabels,fileName)
                     filesActuallyDownloaded += 1
-                    // filesSucceeded += 1
-                    // filesDownloaded += 1
                 }
             }
         }(reader,paths,labels));
         reader.readAsBinaryString(blob);
-
     } else if (count>5) {
-        // filesDownloaded += 1
+        errorEcountered = true
+        filesDownloaded += 1
     } else {
-        // setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
+        setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
     }
     // updateDownloadProgress()
 }
@@ -309,60 +306,67 @@ function get_hash(jpegData) {
     return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
 }
 
-async function handle_file(entry,dirHandle) {
-    var file = await entry.getFile()
-    var reader = new FileReader();
-    reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
-        return async function() {
-            var jpegData = wrapReader.result
-            var hash = get_hash(jpegData)
-        
-            await limitTT(()=> fetch('/get_image_info', {
-                method: 'post',
-                headers: {
-                    accept: 'application/json',
-                    'content-type': 'application/json',
-                },
-                body: JSON.stringify({
-                    hash: hash,
-                    task_id: downloadingTask
-                }),
-            }).then((response) => {
-                if (!response.ok) {
-                    throw new Error(response.statusText)
-                }
-                return response.json()
-            }).then((data) => {
-                for (let i=0;i<data.length;i++) {
-                    filesToDownload += 1
-                    write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
-                }
-                updateDownloadProgress()
-
-                // Delete the original file when done
-                wrapDirHandle.removeEntry(wrapFileName)
-            }).catch( (error) => {
-                // if (count>5) {
-                //     errorEcountered = true
-                //     var index = pathsBeingChecked.indexOf(path)
-                //     if (index > -1) {
-                //         pathsBeingChecked.splice(index, 1)
-                //     }
-                // } else {
-                //     setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 1000*(5**count));
-                // }
-            }))
-
+async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,count=0) {
+    limitTT(()=> fetch('/get_image_info', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            hash: hash,
+            task_id: downloadingTask
+        }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
         }
-    }(reader,dirHandle,entry.name));
-    reader.readAsBinaryString(file);
+        return response.json()
+    }).then((data) => {
+        for (let i=0;i<data.length;i++) {
+            filesToDownload += 1
+            write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
+        }
+        updateDownloadProgress()
+
+        // Delete the original file when done
+        dirHandle.removeEntry(fileName)
+    }).catch( (error) => {
+        if (count>5) {
+            errorEcountered = true
+        } else {
+            setTimeout(function() { get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,count+1); }, 1000*(5**count));
+        }
+    }))
 }
 
-async function listFolder(dirHandle,path){
-    /** Iterates through a folder, adding the files to the upload queue */
+async function handle_file(entry,dirHandle) {
+    if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
+        var file = await entry.getFile()
+        var reader = new FileReader();
+        reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
+            return async function() {
+                var jpegData = wrapReader.result
+                try {
+                    var hash = get_hash(jpegData)
+                    get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
+                } catch {
+                    // delete malformed/corrupted files
+                    wrapDirHandle.removeEntry(wrapFileName)
+                }    
+            }
+        }(reader,dirHandle,entry.name));
+        reader.readAsBinaryString(file);
+    } else {
+        //delete non-jpgs
+        dirHandle.removeEntry(entry.name)
+    }
+}
+
+async function checkLocalFiles(dirHandle,path){
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            await listFolder(entry,path+'/'+entry.name)
+            await checkLocalFiles(entry,path+'/'+entry.name)
         } else {
             handle_file(entry,dirHandle)
         }
@@ -404,15 +408,7 @@ async function fetch_remaining_images() {
             finishedIterating = true
         }
     }).catch( (error) => {
-        // if (count>5) {
-        //     errorEcountered = true
-        //     var index = pathsBeingChecked.indexOf(path)
-        //     if (index > -1) {
-        //         pathsBeingChecked.splice(index, 1)
-        //     }
-        // } else {
-        //     setTimeout(function() { getDirectoryFiles(path,dirHandle,count+1); }, 1000*(5**count));
-        // }
+        // do nothing - will automatically continue
     }))
     if (!finishedIterating) {
         fetch_remaining_images()
@@ -429,7 +425,7 @@ async function start_download() {
     updateDownloadProgress()
     finishedIterating = false
     wrappingUp = false
-    await listFolder(globalTopLevelHandle,globalTopLevelHandle.name)
+    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
     fetch_remaining_images()
 }
 
@@ -490,32 +486,29 @@ async function wrapUpDownload(count=0) {
     /** Wraps up the download by letting the server know that the client download is finished */
     if (downloadingTask&&!wrappingUp) {
         wrappingUp = true
-        await limitTT(()=> fetch('/download_complete', {
-            method: 'post',
-            headers: {
-                accept: 'application/json',
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                task_id: downloadingTask,
-            }),
-        }).then((response) => {
-            if (!response.ok) {
-                throw new Error(response.statusText)
-            } else {
-                resetDownloadState()
-            }
-        }).catch( (error) => {
-            if (count<=5) {
-                setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
-            }
-        }))
+        await cleanEmptyFolders(globalTopLevelHandle)
+        resetDownloadState()
         wrappingUp = false
     }
 }
 
-// jpegData transfer into write_local
-// Clean up folders when done?
-// Error handling (esp look at how its done in downloadFile)
+async function cleanEmptyFolders(dirHandle) {
+    var contents_count = 0
+    for await (const entry of dirHandle.values()) {
+        contents_count += 1
+        if (entry.kind=='directory'){
+            empty = await cleanEmptyFolders(entry)
+            if (empty) {
+                dirHandle.removeEntry(entry.name)
+                contents_count -= 1
+            }
+        }
+    }
+    if (contents_count==0) {
+        return true
+    }
+    return false
+}
+
 // empty images?
-// server side: /get_image_info
+// remove old dowload-read/availavle stuff

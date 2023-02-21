@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-var downloadsAvailable = []
 
 function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
     /** Builds a task progress bar depending on the type required. */
@@ -230,12 +229,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
         resultsCol = document.createElement('div')
         resultsCol.classList.add('col-lg-2');
         resultsBtn = document.createElement('button')
-        if (task.downloadAvailable) {
-            downloadsAvailable.push({'survey':survey.name,'task':task.name})
-            resultsBtn.setAttribute("class","btn btn-success btn-block btn-sm")
-        } else {
-            resultsBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-        }
+        resultsBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
         resultsBtn.setAttribute("id","resultsBtn"+task.id)
         resultsBtn.innerHTML = 'Results'
         resultsCol.appendChild(resultsBtn)

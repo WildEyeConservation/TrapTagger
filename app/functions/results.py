@@ -1331,214 +1331,214 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
 
     return imagePaths, [label.description for label in imageLabels], [tag.description for tag in imageTags]
 
-def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
-    '''
-    Processes a single image for exif download by downloading the file locally, editing its metadata (without opening it) and saving it 
-    to a Downloads folder in the user's bucket. Labels are saved in the user comment exif data, xpkeyword data and the IPTC keywords.
+# def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
+#     '''
+#     Processes a single image for exif download by downloading the file locally, editing its metadata (without opening it) and saving it 
+#     to a Downloads folder in the user's bucket. Labels are saved in the user comment exif data, xpkeyword data and the IPTC keywords.
     
-        Parameters:
-            image_id (int): The image to process
-            task_id (int): The task whose labels must be used
-            species_sorted (bool): Whether the dataset should be sorted into species folders
-            flat_structure (bool): Whether the folder structure should be flattened
-            individual_sorted (bool): Wether to sort the data by individuals
-            surveyName (str): The name of the survey associated with the image
-            labels (list): The requested label ids
-    '''
-    try:
-        image = db.session.query(Image).get(image_id)
-        sourceKey = image.camera.path + '/' + image.filename
-        task = db.session.query(Task).get(task_id)
+#         Parameters:
+#             image_id (int): The image to process
+#             task_id (int): The task whose labels must be used
+#             species_sorted (bool): Whether the dataset should be sorted into species folders
+#             flat_structure (bool): Whether the folder structure should be flattened
+#             individual_sorted (bool): Wether to sort the data by individuals
+#             surveyName (str): The name of the survey associated with the image
+#             labels (list): The requested label ids
+#     '''
+#     try:
+#         image = db.session.query(Image).get(image_id)
+#         sourceKey = image.camera.path + '/' + image.filename
+#         task = db.session.query(Task).get(task_id)
 
-        imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
+#         imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
 
-        destinationKeys = []
-        for path in imagePaths:
-            destinationKeys.append(task.survey.user.folder + '/Downloads/' + surveyName + '/' + task.name + '/' + path)
+#         destinationKeys = []
+#         for path in imagePaths:
+#             destinationKeys.append(task.survey.user.folder + '/Downloads/' + surveyName + '/' + task.name + '/' + path)
 
-        # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-        # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
+#         # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+#         # GLOBALS.s3client.download_file(Bucket=bucket, Key=sourceKey, Filename=temp_file.name)
 
-        s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=sourceKey)
-        imageData = s3_response_object['Body'].read()
+#         s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=sourceKey)
+#         imageData = s3_response_object['Body'].read()
 
-        exifData = b'ASCII\x00\x00\x00'
-        xpKeywordData = ''
-        # IPTCData = []
-        imageLabels.extend(imageTags)
-        for label in imageLabels:
-            xpKeywordData += label
-            exifData += label.encode()
-            # IPTCData.append(label.encode())
-            if label != imageLabels[-1]:
-                xpKeywordData += ','
-                exifData += b', '
+#         exifData = b'ASCII\x00\x00\x00'
+#         xpKeywordData = ''
+#         # IPTCData = []
+#         imageLabels.extend(imageTags)
+#         for label in imageLabels:
+#             xpKeywordData += label
+#             exifData += label.encode()
+#             # IPTCData.append(label.encode())
+#             if label != imageLabels[-1]:
+#                 xpKeywordData += ','
+#                 exifData += b', '
 
-        # EXIF
-        try:
-            try:
-                exif_dict = piexif.load(imageData)
-                exif_bytes = piexif.dump(exif_dict)
-            except:
-                # If exif data is corrupt, then just overwite it entirely
-                exif_dict={'0th':{},'Exif':{}}
-            exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
-            exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
-            exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
-            exif_dict['0th'][40094] = xpKeywordData.encode('utf-16')
-            exif_bytes = piexif.dump(exif_dict)
-            output=io.BytesIO()
-            piexif.insert(exif_bytes,imageData,output) #insert new exif data without opening & re-saving image
-        except:
-            # Rather ensure that the image is there, without exif data than the opposite.
-            pass
+#         # EXIF
+#         try:
+#             try:
+#                 exif_dict = piexif.load(imageData)
+#                 exif_bytes = piexif.dump(exif_dict)
+#             except:
+#                 # If exif data is corrupt, then just overwite it entirely
+#                 exif_dict={'0th':{},'Exif':{}}
+#             exif_dict['Exif'][37510] = exifData #write the data to the user comment exif data
+#             exif_dict['Exif'][36867] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode() #created on 
+#             exif_dict['Exif'][36868] = image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S").encode()
+#             exif_dict['0th'][40094] = xpKeywordData.encode('utf-16')
+#             exif_bytes = piexif.dump(exif_dict)
+#             output=io.BytesIO()
+#             piexif.insert(exif_bytes,imageData,output) #insert new exif data without opening & re-saving image
+#         except:
+#             # Rather ensure that the image is there, without exif data than the opposite.
+#             pass
 
-        # # IPTC
-        # try:
-        #     info = IPTCInfo(temp_file.name)
-        #     info['keywords'] = IPTCData
-        #     info.save()
-        # except:
-        #     # Rather ensure image is there
-        #     pass
+#         # # IPTC
+#         # try:
+#         #     info = IPTCInfo(temp_file.name)
+#         #     info['keywords'] = IPTCData
+#         #     info.save()
+#         # except:
+#         #     # Rather ensure image is there
+#         #     pass
 
-        for destinationKey in destinationKeys:
-            GLOBALS.s3client.put_object(Body=output,Bucket=Config.BUCKET,Key=destinationKey)
-            # GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
+#         for destinationKey in destinationKeys:
+#             GLOBALS.s3client.put_object(Body=output,Bucket=Config.BUCKET,Key=destinationKey)
+#             # GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=bucket, Key=destinationKey)
 
-    except Exception:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
+#     except Exception:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
 
-    finally:
-        db.session.remove()
+#     finally:
+#         db.session.remove()
 
-    return True
+#     return True
 
-@celery.task(bind=True,max_retries=29)
-def prepare_exif_batch(self,image_ids,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
-    ''' Prepares a batch of exif images, allowing for parallelisation across instances. 
+# @celery.task(bind=True,max_retries=29)
+# def prepare_exif_batch(self,image_ids,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
+#     ''' Prepares a batch of exif images, allowing for parallelisation across instances. 
     
-        Parameters:
-            image_ids (list): The batch of images to process
-            task_id (int): The task whose labels must be used
-            species_sorted (bool): Whether the dataset should be sorted into species folders
-            flat_structure (bool): Whether the folder structure should be flattened
-            individual_sorted (bool): Whether the images should be sorted by individuals
-            surveyName (str): The name of the survey associated with the image
-            labels (list): The requested label ids
-    '''
+#         Parameters:
+#             image_ids (list): The batch of images to process
+#             task_id (int): The task whose labels must be used
+#             species_sorted (bool): Whether the dataset should be sorted into species folders
+#             flat_structure (bool): Whether the folder structure should be flattened
+#             individual_sorted (bool): Whether the images should be sorted by individuals
+#             surveyName (str): The name of the survey associated with the image
+#             labels (list): The requested label ids
+#     '''
 
-    try:
-        for image_id in image_ids:
-            prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels)
+#     try:
+#         for image_id in image_ids:
+#             prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels)
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
-    finally:
-        db.session.remove()
+#     finally:
+#         db.session.remove()
 
-    return True
+#     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
-def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_sorted):
-    '''
-    Celery task for preparing an exif dataset download. Triggers the threaded processing of images.
+# @celery.task(bind=True,max_retries=29,ignore_result=True)
+# def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_sorted):
+#     '''
+#     Celery task for preparing an exif dataset download. Triggers the threaded processing of images.
 
-        Parameters:
-            task_id (int): The task for which exif dataset is needed
-            species (list): The species for download
-            species_sorted (bool): Whether the dataset should be sorted into species folders
-            flat_structure (bool): Whether the folder structure should be flattened
-            individual_sorted (bool): Whether the data should be sorted by identified individuals (where possible)
-    '''
-    try:
-        app.logger.info('prepare_exif started for task {}'.format(task_id))
-        task = db.session.query(Task).get(task_id)
-        task.survey.status = 'Processing'
-        task.download_available = False
-        db.session.commit()
-        surveyName = task.survey.name
+#         Parameters:
+#             task_id (int): The task for which exif dataset is needed
+#             species (list): The species for download
+#             species_sorted (bool): Whether the dataset should be sorted into species folders
+#             flat_structure (bool): Whether the folder structure should be flattened
+#             individual_sorted (bool): Whether the data should be sorted by identified individuals (where possible)
+#     '''
+#     try:
+#         app.logger.info('prepare_exif started for task {}'.format(task_id))
+#         task = db.session.query(Task).get(task_id)
+#         task.survey.status = 'Processing'
+#         task.download_available = False
+#         db.session.commit()
+#         surveyName = task.survey.name
 
-        # Delete previous
-        s3 = boto3.resource('s3')
-        bucketObject = s3.Bucket(Config.BUCKET)
-        bucketObject.objects.filter(Prefix=task.survey.user.folder+'/Downloads/'+surveyName+'/'+task.name+'/').delete()
+#         # Delete previous
+#         s3 = boto3.resource('s3')
+#         bucketObject = s3.Bucket(Config.BUCKET)
+#         bucketObject.objects.filter(Prefix=task.survey.user.folder+'/Downloads/'+surveyName+'/'+task.name+'/').delete()
         
-        if '0' in species:
-            labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
-            labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
-        else:
-            labels = db.session.query(Label).filter(Label.id.in_(species)).distinct().all()
+#         if '0' in species:
+#             labels = db.session.query(Label).filter(Label.task_id==task_id).distinct().all()
+#             labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+#         else:
+#             labels = db.session.query(Label).filter(Label.id.in_(species)).distinct().all()
 
-        images = db.session.query(Image)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .join(Label,Labelgroup.labels)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .filter(Labelgroup.task_id==task.id)\
-                        .filter(Label.id.in_([r.id for r in labels]))\
-                        .distinct().all()
+#         images = db.session.query(Image)\
+#                         .join(Detection)\
+#                         .join(Labelgroup)\
+#                         .join(Label,Labelgroup.labels)\
+#                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#                         .filter(Detection.static==False)\
+#                         .filter(~Detection.status.in_(['deleted','hidden']))\
+#                         .filter(Labelgroup.task_id==task.id)\
+#                         .filter(Label.id.in_([r.id for r in labels]))\
+#                         .distinct().all()
 
-        task.survey.images_processing=len(images)
-        db.session.commit()
+#         task.survey.images_processing=len(images)
+#         db.session.commit()
 
-        results = []
-        for batch in chunker(images,5000):
-            results.append(prepare_exif_batch.apply_async(kwargs={  'image_ids':[r.id for r in batch],
-                                                                    'task_id':task_id,
-                                                                    'species_sorted':species_sorted,
-                                                                    'flat_structure':flat_structure,
-                                                                    'individual_sorted':individual_sorted,
-                                                                    'surveyName': surveyName,
-                                                                    'labels': [r.id for r in labels]},queue='parallel'))
+#         results = []
+#         for batch in chunker(images,5000):
+#             results.append(prepare_exif_batch.apply_async(kwargs={  'image_ids':[r.id for r in batch],
+#                                                                     'task_id':task_id,
+#                                                                     'species_sorted':species_sorted,
+#                                                                     'flat_structure':flat_structure,
+#                                                                     'individual_sorted':individual_sorted,
+#                                                                     'surveyName': surveyName,
+#                                                                     'labels': [r.id for r in labels]},queue='parallel'))
 
-        #Wait for processing to complete
-        # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-        # See https://github.com/celery/celery/issues/4480
-        db.session.remove()
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in results:
-                try:
-                    result.get()
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
-                result.forget()
-        GLOBALS.lock.release()
+#         #Wait for processing to complete
+#         # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+#         # See https://github.com/celery/celery/issues/4480
+#         db.session.remove()
+#         GLOBALS.lock.acquire()
+#         with allow_join_result():
+#             for result in results:
+#                 try:
+#                     result.get()
+#                 except Exception:
+#                     app.logger.info(' ')
+#                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                     app.logger.info(traceback.format_exc())
+#                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                     app.logger.info(' ')
+#                 result.forget()
+#         GLOBALS.lock.release()
 
-        task = db.session.query(Task).get(task_id)
-        task.survey.status = 'Ready'
-        task.download_available = True
-        db.session.commit()
+#         task = db.session.query(Task).get(task_id)
+#         task.survey.status = 'Ready'
+#         task.download_available = True
+#         db.session.commit()
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
-    finally:
-        db.session.remove()
+#     finally:
+#         db.session.remove()
 
-    return True
+#     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def generate_training_csv(self,tasks,destBucket,min_area):

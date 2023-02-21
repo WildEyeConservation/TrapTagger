@@ -28,3 +28,6 @@ wrong_id = 3
 unknown_id = 4
 vhl_id = 6
 results_queue = []
+updateTaskCompletionStatus_list = []
+updateLabelCompletionStatus_list = []
+updateIndividualIdStatus_list = []

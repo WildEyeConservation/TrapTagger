@@ -480,48 +480,144 @@ def importMonitor():
 
     return True
 
-def updateTaskCompletionStatus(task_id):
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def updateTaskCompletionStatus(self,task_id):
     '''
-    Checks to see if species classification has been completed for a task, and sets the task complete status accordingly.
+    Updates the various task-level counts and completion statuses.
 
         Parameters:
-            task_id (int): Task the must be checked.
+            task_id (int): Task that must be checked.
     '''
 
-    complete = True
-    task = db.session.query(Task).get(task_id)
-    
-    # Check if there init level is complete
-    check = db.session.query(Cluster)\
+    try:
+        complete = True
+        task = db.session.query(Task).get(task_id)
+        
+        # Check if there init level is complete
+        check = db.session.query(Cluster)\
+                        .join(Image,Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(~Labelgroup.labels.any())\
+                        .first()
+        if check:
+            complete = False
+
+        task.init_complete = complete
+
+        # Check if parent categories are complete
+        parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
+        if db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==GLOBALS.vhl_id).first():
+            parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
+        for parentLabel in parentLabels:
+            parentCheck = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(parentLabel)).first()
+            for childLabel in db.session.query(Label).filter(Label.task_id).filter(Label.parent==parentLabel).distinct().all():
+                childCheck = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(childLabel)).first()
+                if childCheck != None:
+                    break
+            if (parentCheck!=None) and (childCheck==None):
+                complete = False
+                break
+        
+        task.complete = complete
+
+        subq = db.session.query(detectionLabels.c.labelgroup_id.label('labelgroupID'), func.count(distinct(detectionLabels.c.label_id)).label('labelCount')) \
+                        .join(Labelgroup,Labelgroup.id==detectionLabels.c.labelgroup_id) \
+                        .filter(Labelgroup.task_id==task_id) \
+                        .group_by(detectionLabels.c.labelgroup_id) \
+                        .subquery()
+
+        task.unchecked_multi_count = db.session.query(Cluster) \
+                        .join(Image,Cluster.images) \
+                        .join(Detection) \
+                        .join(Labelgroup) \
+                        .join(subq, subq.c.labelgroupID==Labelgroup.id) \
+                        .filter(Labelgroup.task_id==task_id) \
+                        .filter(Labelgroup.checked==False) \
+                        .filter(Cluster.task_id==task_id) \
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                        .filter(Detection.static==False) \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                        .filter(subq.c.labelCount>1).distinct().count()
+                        
+        task.unlabelled_animal_cluster_count = db.session.query(Cluster)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Cluster.task_id==int(task_id))\
+                        .filter(~Labelgroup.labels.any())\
+                        .filter(Detection.static==False)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .distinct().count()
+                        
+        vhl_label = db.session.query(Label).get(GLOBALS.vhl_id)
+        task.vhl_count = db.session.query(Cluster)\
                     .join(Image,Cluster.images)\
                     .join(Detection)\
+                    .join(Labelgroup)\
+                    .filter(Labelgroup.task_id==int(task_id))\
+                    .filter(Cluster.task_id==int(task_id))\
+                    .filter(Labelgroup.labels.contains(vhl_label))\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
                     .filter(~Detection.status.in_(['deleted','hidden']))\
-                    .filter(Cluster.task_id==task_id)\
-                    .filter(~Cluster.labels.any())\
-                    .first()
-    if check:
-        complete = False
+                    .distinct().count()
+                        
+        task.infoless_count = db.session.query(Cluster)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Cluster.task_id==int(task_id))\
+                        .filter(Labelgroup.labels.any())\
+                        .filter(~Labelgroup.tags.any())\
+                        .filter(Detection.static==False)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .distinct().count()
+                        
+        task.infoless_vhl_count = db.session.query(Cluster)\
+                        .join(Image, Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(vhl_label))\
+                        .filter(~Labelgroup.tags.any())\
+                        .filter(Detection.static==False)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .distinct().count()
+        
+        task.vhl_bounding_count = db.session.query(Labelgroup) \
+                        .join(Detection) \
+                        .filter(Labelgroup.task_id==task_id) \
+                        .filter(Labelgroup.labels.contains(vhl_label)) \
+                        .filter(Labelgroup.checked==False) \
+                        .filter(Detection.static==False) \
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                        .distinct().count()
+        
+        db.session.commit()
 
-    task.init_complete = complete
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
-    # Check if parent categories are complete
-    parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-    if db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==GLOBALS.vhl_id).first():
-        parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
-    for parentLabel in parentLabels:
-        parentCheck = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(parentLabel)).first()
-        for childLabel in db.session.query(Label).filter(Label.task_id).filter(Label.parent==parentLabel).distinct().all():
-            childCheck = db.session.query(Cluster).filter(Cluster.task_id==task_id).filter(Cluster.labels.contains(childLabel)).first()
-            if childCheck != None:
-                break
-        if (parentCheck!=None) and (childCheck==None):
-            complete = False
-            break
-    
-    task.complete = complete
-    db.session.commit()
+    finally:
+        db.session.remove()
 
     return True
 
@@ -563,16 +659,54 @@ def clusterIdComplete(task_id,label_id):
     else:
         return False
 
-def updateIndividualIdStatus(task_id):
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def updateIndividualIdStatus(self,task_id):
     '''Updates the icID_allowed status of all labels of a specified task, based on whether the first stage of individual identification has been completed.'''
     
-    labels = db.session.query(Label).filter(Label.task_id==task_id).all()
+    try:
+        labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
 
-    for label in labels:
-        if clusterIdComplete(task_id,label.id):
-            label.icID_allowed = True
-        else:
-            label.icID_allowed = False
+        for label in labels:
+            if clusterIdComplete(task_id,label.id):
+                label.icID_allowed = True
+            else:
+                label.icID_allowed = False
+
+            identified = db.session.query(Detection)\
+                                .join(Labelgroup)\
+                                .join(Individual, Detection.individuals)\
+                                .filter(Labelgroup.labels.contains(label))\
+                                .filter(Individual.label_id==label.id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Individual.task_id==task_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                .distinct().all()
+
+            label.unidentified_count = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .filter(Cluster.task_id==task_id)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Labelgroup.labels.contains(label))\
+                                .filter(~Detection.id.in_([r.id for r in identified]))\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                .distinct().first()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
 
@@ -1283,77 +1417,15 @@ def deleteTurkcodes(number_of_jobs, jobs, task_id):
     GLOBALS.mutex[int(task_id)]['job'].release()
     return jobs
 
-def updateLabelCompletionStatus(task_id):
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def updateLabelCompletionStatus(self,task_id):
     '''Updates the completion status of all parent labels of a specified task.'''
 
-    # Complete + Species annotation
-    parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-    for label in parentLabels:
-        count = db.session.query(Cluster)\
-                        .join(Image,Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .filter(Labelgroup.task_id==int(task_id))\
-                        .filter(Cluster.task_id==int(task_id))\
-                        .filter(Labelgroup.labels.contains(label))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .distinct().count()
-        if count == 0:
-            label.complete = True
-        else:
-            label.complete = False
-        label.cluster_count = count        
-    db.session.commit()
-
-    labels = db.session.query(Label).filter(Label.task_id==task_id).all()
-    for label in labels:
-        
-        # # Individual ID (cluster-level)
-        # identified = db.session.query(Detection)\
-        #                     .join(Labelgroup)\
-        #                     .join(Individual, Detection.individuals)\
-        #                     .filter(Labelgroup.labels.contains(label))\
-        #                     .filter(Individual.label_id==label.id)\
-        #                     .filter(Labelgroup.task_id==task_id)\
-        #                     .filter(Individual.task_id==task_id)\
-        #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-        #                     .filter(Detection.static == False) \
-        #                     .filter(~Detection.status.in_(['deleted','hidden'])) \
-        #                     .distinct().all()
-
-        # count = db.session.query(Cluster)\
-        #                     .join(Image,Cluster.images)\
-        #                     .join(Detection)\
-        #                     .join(Labelgroup)\
-        #                     .filter(Cluster.task_id==task_id)\
-        #                     .filter(Cluster.labels.contains(label))\
-        #                     .filter(Labelgroup.task_id==task_id)\
-        #                     .filter(Labelgroup.labels.contains(label))\
-        #                     .filter(~Detection.id.in_([r.id for r in identified]))\
-        #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-        #                     .filter(Detection.static == False) \
-        #                     .filter(~Detection.status.in_(['deleted','hidden'])) \
-        #                     .distinct().count()
-        
-        # label.individualless_count = count
-
-        # Bounding
-        count = db.session.query(Labelgroup) \
-                            .join(Detection) \
-                            .filter(Labelgroup.task_id==task_id) \
-                            .filter(Labelgroup.labels.contains(label)) \
-                            .filter(Labelgroup.checked==False) \
-                            .filter(Detection.static==False) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().count()
-
-        label.bounding_count = count
-
-        # Info tagging
-        count = db.session.query(Cluster)\
+    try:
+        # Complete + Species annotation
+        parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
+        for label in parentLabels:
+            count = db.session.query(Cluster)\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
                             .join(Labelgroup)\
@@ -1363,17 +1435,63 @@ def updateLabelCompletionStatus(task_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Labelgroup.tags.any())\
-                            .distinct().count() 
+                            .distinct().count()
+            if count == 0:
+                label.complete = True
+            else:
+                label.complete = False
+            label.cluster_count = count        
+        db.session.commit()
 
-        label.info_tag_count = count
-    db.session.commit()
+        labels = db.session.query(Label).filter(Label.task_id==task_id).all()
+        for label in labels:
 
-    #Also update the number of clusters requiring a classification check
-    task = db.session.query(Task).get(task_id)
-    count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
-    count = taggingLevelSQ(count,'-3',False,task_id)
-    task.class_check_count = count.distinct().count()
+            # Bounding
+            count = db.session.query(Labelgroup) \
+                                .join(Detection) \
+                                .filter(Labelgroup.task_id==task_id) \
+                                .filter(Labelgroup.labels.contains(label)) \
+                                .filter(Labelgroup.checked==False) \
+                                .filter(Detection.static==False) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                .distinct().count()
+
+            label.bounding_count = count
+
+            # Info tagging
+            count = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .filter(Labelgroup.task_id==int(task_id))\
+                                .filter(Cluster.task_id==int(task_id))\
+                                .filter(Labelgroup.labels.contains(label))\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.static==False)\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(~Labelgroup.tags.any())\
+                                .distinct().count() 
+
+            label.info_tag_count = count
+        db.session.commit()
+
+        #Also update the number of clusters requiring a classification check
+        task = db.session.query(Task).get(task_id)
+        count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
+        count = taggingLevelSQ(count,'-3',False,task_id)
+        task.class_check_count = count.distinct().count()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
 

@@ -117,54 +117,6 @@ modalIndividual.on('shown.bs.modal', function(){
     }
 });
 
-modalResults.on('shown.bs.modal', function(){
-    /** Initialises the results modal when opened. */
-    availableDownloadDiv = document.getElementById('availableDownloadDiv')
-    while(availableDownloadDiv.firstChild){
-        availableDownloadDiv.removeChild(availableDownloadDiv.firstChild);
-    }
-
-    // <h5 style="margin-bottom: 2px">Explore Survey</h5>
-    // <div style="font-size: 80%; margin-bottom: 2px"><i>Explore your survey by searching for all sightings of a specific specific species. Can be used to find and correct errors, and reannotate unknown sightings.</i></div>
-    // <div class="row">
-    //     <div class='col-lg-2'>
-    //         <button id="exploreTaskBtn" type='button' class='btn btn-primary btn-block'>Explore</button>
-    //     </div>
-    // </div>
-    // <br>
-
-    for (let i=0; i<downloadsAvailable.length; i++) {
-        if ((downloadsAvailable[i].survey==surveyName)&&(downloadsAvailable[i].task==taskName)) {
-            //set up download button
-            h5 = document.createElement('h5')
-            h5.innerHTML = 'Download Available!'
-            h5.setAttribute('style','margin-bottom: 2px')
-            availableDownloadDiv.appendChild(h5)
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>Retrieve the download you previously requested.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            availableDownloadDiv.appendChild(h5)
-        
-            row = document.createElement('div')
-            row.classList.add('row')
-            availableDownloadDiv.appendChild(row)
-        
-            col = document.createElement('div')
-            col.classList.add('col-lg-2')
-            row.appendChild(col)
-
-            btn = document.createElement('btn')
-            btn.setAttribute('class','btn btn-success btn-block btn-sm')
-            btn.setAttribute('onclick','initiateDownload()')
-            btn.innerHTML = 'Download'
-            col.appendChild(btn)
-
-            availableDownloadDiv.appendChild(document.createElement('br'))
-        }
-    }
-});
-
 function addDetections(image) {
     //** Adds detections to the main image displayed in the individual modal. */
     if (!addedDetections) {

@@ -1407,7 +1407,6 @@ def getSurveyInfo(survey):
             task_dict['remaining'] = remaining
             task_dict['jobsAvailable'] = jobsAvailable
             task_dict['jobsCompleted'] = jobsCompleted
-            task_dict['downloadAvailable'] = task.download_available
 
             task_info.append(task_dict)
     survey_dict['tasks'] = task_info
