@@ -6323,9 +6323,12 @@ def get_image_info():
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
+        include_empties = request.json['include_empties']
         
         labels = request.json['species']
-        if '0' in labels: labels = [r.id for r in task.labels]
+        if '0' in labels:
+            labels = [r.id for r in task.labels]
+            labels.append(GLOBALS.vhl_id)
         labels = [int(r) for r in labels]
 
         image = rDets(db.session.query(Image)\
@@ -6344,7 +6347,7 @@ def get_image_info():
 
         if image:
             image.downloaded = True
-            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
+            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
             imageLabels.extend(imageTags)
 
             for path in imagePaths:
@@ -6364,13 +6367,15 @@ def get_required_images():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
-
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
+        include_empties = request.json['include_empties']
         
         labels = request.json['species']
-        if '0' in labels: labels = [r.id for r in task.labels]
+        if '0' in labels:
+            labels = [r.id for r in task.labels]
+            labels.append(GLOBALS.vhl_id)
         labels = [int(r) for r in labels]
 
         images = db.session.query(Image)\
@@ -6384,7 +6389,7 @@ def get_required_images():
 
         for image in images:
             image.downloaded = True
-            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels)
+            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
             imageLabels.extend(imageTags)
             supplied_hashes.append(image.hash)
             reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
@@ -6395,14 +6400,17 @@ def get_required_images():
 @app.route('/reset_download_status', methods=['POST'])
 @login_required
 def reset_download_status():
-    """Returns the labels for the specifief image and task."""
+    """Returns the labels for the specified image and task."""
 
     count = 0
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
+        include_empties = request.json['include_empties']
         labels = request.json['species']
-        if '0' in labels: labels = [r.id for r in task.labels]
+        if '0' in labels:
+            labels = [r.id for r in task.labels]
+            labels.append(GLOBALS.vhl_id)
         labels = [int(r) for r in labels]
 
         all_images = db.session.query(Image)\
@@ -6428,6 +6436,32 @@ def reset_download_status():
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Label.id.in_(labels))\
                             ).distinct().all()
+        
+        if include_empties:
+            nothing = db.session.query(Label).get(GLOBALS.nothing_id)
+            images.extend(db.session.query(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .join(Survey)\
+                            .join(Task)\
+                            .filter(Task.id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(or_(Labelgroup.labels.contains(nothing),~Labelgroup.labels.any()))\
+                            .distinct().all())
+            
+        # # multis
+        # sq = rDets(db.session.query(Image.id,func.count(Label.id).label('count'))\
+        #                     .join(Detection)\
+        #                     .join(Labelgroup)\
+        #                     .join(Label,Labelgroup.labels)\
+        #                     .filter(Labelgroup.task_id==task_id)\
+        #                     .filter(Label.id.in_(labels))\
+        #                     ).group_by(Image.id)\
+        #                     .distinct(Label.id).subquery()
+        
+        # multi_count = db.session.query()
 
         for image in images:
             image.downloaded = False

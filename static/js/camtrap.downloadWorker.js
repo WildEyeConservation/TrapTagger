@@ -38,6 +38,7 @@ var species
 var species_sorted
 var individual_sorted
 var flat_structure
+var include_empties
 var local_files_processing
 var downloading = false
 
@@ -50,6 +51,7 @@ onmessage = function (evt) {
         species_sorted = evt.data.args[5]
         individual_sorted = evt.data.args[6]
         flat_structure = evt.data.args[7]
+        include_empties = evt.data.args[8]
         startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
@@ -325,7 +327,8 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
             species: species,
             species_sorted: species_sorted,
             individual_sorted: individual_sorted,
-            flat_structure: flat_structure
+            flat_structure: flat_structure,
+            include_empties: include_empties
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -409,7 +412,8 @@ async function fetch_remaining_images() {
             species: species,
             species_sorted: species_sorted,
             individual_sorted: individual_sorted,
-            flat_structure: flat_structure
+            flat_structure: flat_structure,
+            include_empties: include_empties
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -467,7 +471,7 @@ async function write_local(jpegData,path,labels,fileName) {
     var blob = new Uint8Array(jpegData.length);
     for (var i=0; i<jpegData.length; i++)
         blob[i] = jpegData.charCodeAt(i);
-    writeBlob(dirHandle,blob,fileName)
+    await writeBlob(dirHandle,blob,fileName)
 
     filesDownloaded += 1
     updateDownloadProgress()
@@ -484,6 +488,7 @@ function updateDownloadProgress() {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
     if (!downloading && (local_files_processing==0)) {
         downloading = true
+        console.log('Local processing finished')
         fetch_remaining_images()
     }
     postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
@@ -533,3 +538,4 @@ async function cleanEmptyFolders(dirHandle) {
 
 // empty images?
 // remove old dowload-read/availavle stuff
+// returned count is not actually equal to total

@@ -64,6 +64,8 @@ modalDownload.on('shown.bs.modal', function(){
         document.getElementById('speciesSorted').checked = false
         document.getElementById('individualUnSorted').checked = true
         document.getElementById('individualSorted').checked = false
+        document.getElementById('emptyExclude').checked = true
+        document.getElementById('emptyInclude').checked = false
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
@@ -89,6 +91,8 @@ modalDownload.on('hidden.bs.modal', function(){
         document.getElementById('speciesSorted').checked = false
         document.getElementById('individualUnSorted').checked = true
         document.getElementById('individualSorted').checked = false
+        document.getElementById('emptyExclude').checked = true
+        document.getElementById('emptyInclude').checked = false
 
         downloadSpeciesDiv = document.getElementById('downloadSpeciesDiv')
         while(downloadSpeciesDiv.firstChild){

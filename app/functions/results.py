@@ -1274,7 +1274,7 @@ def generate_excel(self,task_id):
 
     return None
 
-def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels):
+def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,requested_labels,include_empties):
     '''Returns the paths, labels and tags for a particular image and task for image sorting and EXIF labelling.'''
 
     splitPath = re.split('/',image.camera.path)
@@ -1288,6 +1288,12 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Labelgroup.task==task)\
                         .distinct().order_by(Label.description).all()
+    
+    if imageLabels == []:
+        imageLabels = [db.session.query(Label).get(GLOBALS.nothing_id)]
+
+    if include_empties:
+        requested_labels.append(GLOBALS.nothing_id)
 
     imageTags = db.session.query(Tag)\
                         .join(Labelgroup,Tag.labelgroups)\
@@ -1302,7 +1308,12 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
     imagePaths = []
     baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
     for label in imageLabels:
+        
+        if (label.id==GLOBALS.nothing_id) and not include_empties:
+            continue
+        
         individuals = [None]
+        
         if individual_sorted:
             individuals = db.session.query(Individual)\
                                 .join(Detection,Individual.detections)\
@@ -1312,8 +1323,9 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                                 .filter(Individual.active==True)\
                                 .distinct().all()
             if len(individuals)==0: individuals = [None]
+        
         for individual in individuals:
-            if not (species_sorted and (label.id not in labels)):
+            if label.id in requested_labels:
                 imagePath = ''
                 if species_sorted:  imagePath += '/' + label.description
                 if individual and individual_sorted: imagePath += '/' + individual.name
@@ -1329,7 +1341,7 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                     imagePath += '/' +image.filename
                 imagePaths.append(imagePath)
 
-    return imagePaths, [label.description for label in imageLabels], [tag.description for tag in imageTags]
+    return list(set(imagePaths)), [label.description for label in imageLabels], [tag.description for tag in imageTags]
 
 # def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
 #     '''
