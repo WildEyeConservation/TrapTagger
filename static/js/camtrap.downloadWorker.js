@@ -359,7 +359,6 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
 
 async function handle_file(entry,dirHandle) {
     if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
-        local_files_processing += 1
         var file = await entry.getFile()
         var reader = new FileReader();
         reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
@@ -379,6 +378,7 @@ async function handle_file(entry,dirHandle) {
     } else {
         //delete non-jpgs
         dirHandle.removeEntry(entry.name)
+        local_files_processing -= 1
     }
 }
 
@@ -387,6 +387,7 @@ async function checkLocalFiles(dirHandle,path){
         if (entry.kind=='directory'){
             checkLocalFiles(entry,path+'/'+entry.name)
         } else {
+            local_files_processing += 1
             handle_file(entry,dirHandle)
         }
     }
