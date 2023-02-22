@@ -182,7 +182,7 @@ async function getDirectoryFiles(path,dirHandle,count=0) {
             }
             
             if (data.files) {
-                filesToDownload += data.files.length
+                // filesToDownload += data.files.length
                 await checkFiles(data.files,dirHandle,data.folders)
                 var index = pathsBeingChecked.indexOf(path)
                 if (index > -1) {
@@ -335,7 +335,7 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
     }).then((data) => {
         local_files_processing -= 1
         for (let i=0;i<data.length;i++) {
-            filesToDownload += 1
+            // filesToDownload += 1
             write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
         }
         updateDownloadProgress()
@@ -389,7 +389,7 @@ async function checkLocalFiles(dirHandle,path){
 }
 
 async function get_required_images(requiredImages) {
-    filesToDownload += requiredImages.length
+    // filesToDownload += requiredImages.length
     updateDownloadProgress()
     for (let i=0;i<requiredImages.length;i++) {
         imageInfo = requiredImages[i]

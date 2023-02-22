@@ -6426,7 +6426,6 @@ def reset_download_status():
                             .join(Task)\
                             .filter(Task.id==task_id)\
                             .filter(Labelgroup.task_id==task_id)\
-                            .filter(Image.downloaded==False)\
                             .filter(Label.id.in_(labels))\
                             ).distinct().all()
 
