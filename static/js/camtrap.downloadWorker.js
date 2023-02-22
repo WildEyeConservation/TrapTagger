@@ -20,7 +20,7 @@ importScripts('piexif.js')
 
 const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
-
+const limitFiles=pLimit(6)
 
 var globalTopLevelHandle
 var errorEcountered = false
@@ -300,7 +300,7 @@ async function downloadFile(url,paths,labels,count=0) {
                 }
             }
         }(reader,paths,labels));
-        reader.readAsBinaryString(blob);
+        limitFiles(()=> reader.readAsBinaryString(blob));
     } else if (count>5) {
         errorEcountered = true
         filesDownloaded += 1
@@ -379,7 +379,7 @@ async function handle_file(entry,dirHandle) {
                 }    
             }
         }(reader,dirHandle,entry.name));
-        reader.readAsBinaryString(file);
+        limitFiles(()=> reader.readAsBinaryString(file));
     } else {
         //delete non-jpgs
         dirHandle.removeEntry(entry.name)
