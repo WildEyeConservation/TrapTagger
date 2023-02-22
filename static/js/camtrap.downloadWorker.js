@@ -370,7 +370,7 @@ async function handle_file(entry,dirHandle) {
 async function checkLocalFiles(dirHandle,path){
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
-            await checkLocalFiles(entry,path+'/'+entry.name)
+            checkLocalFiles(entry,path+'/'+entry.name)
         } else {
             handle_file(entry,dirHandle)
         }
