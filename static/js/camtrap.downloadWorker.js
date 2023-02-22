@@ -22,7 +22,7 @@ const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
 const limitFiles=pLimit(6)
 
-var max_processing = 20
+var max_processing = 50
 
 var globalTopLevelHandle
 var errorEcountered = false
