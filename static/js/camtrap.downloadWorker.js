@@ -338,6 +338,11 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
         return response.json()
     }).then((data) => {
         local_files_processing -= 1
+        
+        if (data.length>1) {
+            filesToDownload += data.length-1
+        }
+        
         for (let i=0;i<data.length;i++) {
             // filesToDownload += 1
             write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
@@ -383,6 +388,7 @@ async function handle_file(entry,dirHandle) {
 }
 
 async function checkLocalFiles(dirHandle,path){
+    local_files_processing += 1
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
             checkLocalFiles(entry,path+'/'+entry.name)
@@ -391,6 +397,8 @@ async function checkLocalFiles(dirHandle,path){
             handle_file(entry,dirHandle)
         }
     }
+    local_files_processing -= 1
+    updateDownloadProgress()
 }
 
 async function get_required_images(requiredImages) {
@@ -398,6 +406,9 @@ async function get_required_images(requiredImages) {
     updateDownloadProgress()
     for (let i=0;i<requiredImages.length;i++) {
         imageInfo = requiredImages[i]
+        if (imageInfo.paths.length>1) {
+            filesToDownload += imageInfo.paths.length-1
+        }
         downloadFile(imageInfo.url,imageInfo.paths,imageInfo.labels)
     }
 }
@@ -448,8 +459,7 @@ async function start_download() {
     finishedIterating = false
     wrappingUp = false
     updateDownloadProgress(true)
-    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
-    updateDownloadProgress()
+    checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
     // fetch_remaining_images()
 }
 
@@ -538,7 +548,3 @@ async function cleanEmptyFolders(dirHandle) {
     }
     return false
 }
-
-// empty images?
-// remove old dowload-read/availavle stuff
-// returned count is not actually equal to total
