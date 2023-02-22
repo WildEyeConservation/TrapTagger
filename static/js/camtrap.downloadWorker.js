@@ -215,7 +215,8 @@ async function startDownload(selectedTask,taskName,count=0) {
         },
         body: JSON.stringify({
             species: species,
-            selectedTask: selectedTask
+            selectedTask: selectedTask,
+            include_empties: include_empties
         }),
     })).then((response) => {
         if (!response.ok) {
