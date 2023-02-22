@@ -446,8 +446,9 @@ async function start_download() {
     local_files_processing = 0
     finishedIterating = false
     wrappingUp = false
+    updateDownloadProgress(true)
+    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
     updateDownloadProgress()
-    checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
     // fetch_remaining_images()
 }
 
@@ -485,9 +486,9 @@ async function writeBlob(dirHandle,blob,fileName) {
 	await writable.close();
 }
 
-function updateDownloadProgress() {
+function updateDownloadProgress(init=false) {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    if (!downloading && (local_files_processing==0)) {
+    if (!downloading && (local_files_processing==0) && (!init)) {
         downloading = true
         console.log('Local processing finished')
         fetch_remaining_images()
