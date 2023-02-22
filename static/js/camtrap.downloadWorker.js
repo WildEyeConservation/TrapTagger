@@ -475,7 +475,7 @@ function updateDownloadProgress() {
 function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished. */
     if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIterating) {
-        if ((filesActuallyDownloaded==0)&&(!errorEcountered)) {
+        if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             wrapUpDownload()
         } else {
