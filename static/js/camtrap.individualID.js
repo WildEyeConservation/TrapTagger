@@ -844,7 +844,7 @@ function sendToBack() {
         if (sendBackMode) {
             sendBackMode = false
             document.getElementById('btnSendToBack').setAttribute('class','btn btn-primary btn-block')
-            document.getElementById('btnSendToBack').innerHTML = '(S)end to Back'
+            document.getElementById('btnSendToBack').innerHTML = 'Send to (B)ack'  
         } else {
             sendBackMode = true
             document.getElementById('btnSendToBack').setAttribute('class','btn btn-danger btn-block')
@@ -979,7 +979,7 @@ function submitIndividuals() {
             }
 
             if (backIndex==0) {
-                document.getElementById('btnNextCluster').disabled = true
+                document.getElementById('btnNextCluster').hidden = true
             }
         
             var xhttp = new XMLHttpRequest();
@@ -1160,7 +1160,7 @@ function dissociateDetection(detID,mapID="map1") {
             waitModalMap = 'map2'
             modalWait2Hide = false
             modalWait2.modal({backdrop: 'static', keyboard: false});
-        }
+        } 
     }
 }
 

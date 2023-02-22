@@ -30,6 +30,7 @@ limitations under the License. -->
         <li>F:                  Finish making changes in current mode.</li>
         <li>C:                  Clear all sightings when in delete mode.</li>
         <li>H:                  Hide sighting labels.</li>
+        <li>B:                  Send bounding box back.</li>
         <li>Space:              Commit changes to the database, and move onto the next image.</li>
         <li>Tilde(~):           Go back to the previous image.</li>
         <li>Delete or [:        Decrease image brightness.</li>
@@ -54,5 +55,9 @@ limitations under the License. -->
     </li>
     <li>
         If an image contains nothing, simply delete all the sightings and by implication, it will be considered empty.
+    </li>
+    <li>
+        If the box associated with one sighting is on top of another, preventing you from clicking on it, simply click the <b>send to back</b> button or press the <b>b</b> key, 
+        and click on the offending box. This will send it to the back, allowing you to click on the boxes behind it.
     </li>
 </ul>

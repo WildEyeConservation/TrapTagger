@@ -29,6 +29,7 @@ var clisterIdList = []
 var editingEnabled = false
 var multiContextVal = 0
 var subDividedContList
+var prevClickBounding = null
 
 const modalNote = $('#modalNote');
 
@@ -107,6 +108,16 @@ function loadNewCluster(mapID = 'map1') {
 
 window.addEventListener('load', onload, false);
 
+document.addEventListener('click', function(event){
+    /** Un-highlights the selected bounding box */
+    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+        if (event.target.classList.contains('leaflet-interactive')==false){
+            clearBoundingSelect()  
+        }   
+    }   
+    
+});
+
 btnDone.addEventListener('click', ()=>{
     /** Redirects the user to the done endpoint, when they confirm that they are done. */
     window.location.replace("done")
@@ -151,6 +162,8 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.innerHTML = '(C)lear all'
         drawControl._toolbars.edit._actionsContainer.children[2].firstElementChild.title = 'Remove all sightings'
         editingEnabled = true
+
+        clearBoundingSelect()
     })
 
     map[mapID].on("draw:deletestop", function(e) {
@@ -166,6 +179,8 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.innerHTML = '(F)inish'
         drawControl._toolbars.edit._actionsContainer.children[0].firstElementChild.title = 'Accept changes'
         editingEnabled = true
+
+        clearBoundingSelect()
     })
 
     map[mapID].on("draw:editstop", function(e) {
@@ -179,6 +194,8 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
     map[mapID].on("draw:drawstart", function(e) {
         editingEnabled = true
+
+        clearBoundingSelect()
     })
 
     map[mapID].on("draw:drawstop", function(e) {
@@ -575,6 +592,30 @@ function hideBoundingLabels(mapID = 'map1') {
             }   
         }
     }
+}
+
+function sendBoundingBack() {
+    /** Activates 'send to back' mode. */
+    clearBoundingSelect()
+    if (sendBackBoundingMode) {
+        sendBackBoundingMode = false
+        document.getElementById('btnSendBoundingBack').setAttribute('class','btn btn-primary btn-block')
+        document.getElementById('btnSendBoundingBack').innerHTML = 'Send to (B)ack'
+    } else {
+        sendBackBoundingMode = true
+        document.getElementById('btnSendBoundingBack').setAttribute('class','btn btn-danger btn-block')
+        document.getElementById('btnSendBoundingBack').innerHTML = 'Cancel'
+    }  
+
+}
+
+function clearBoundingSelect(){
+    /** Clears(Un-highlight) the selected bounding box */
+    if ((prevClickBounding != null)){
+        colour = "rgba(223,105,26,1)"
+        prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+    }
+    prevClickBounding = null
 }
 
 function fetchLabelHierarchy() {
