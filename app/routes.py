@@ -6373,19 +6373,14 @@ def get_required_images():
         if '0' in labels: labels = [r.id for r in task.labels]
         labels = [int(r) for r in labels]
 
-        images = rDets(db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .join(Label,Labelgroup.labels)\
+        images = db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
                             .join(Survey)\
                             .join(Task)\
                             .filter(Task.id==task_id)\
-                            .filter(Labelgroup.task_id==task_id)\
                             .filter(Image.downloaded==False)\
-                            .filter(Label.id.in_(labels))\
-                            ).distinct().limit(200).all()
+                            .distinct().limit(200).all()
 
         for image in images:
             image.downloaded = True
@@ -6402,20 +6397,43 @@ def get_required_images():
 def reset_download_status():
     """Returns the labels for the specifief image and task."""
 
+    count = 0
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
+        labels = request.json['species']
+        if '0' in labels: labels = [r.id for r in task.labels]
+        labels = [int(r) for r in labels]
 
-        images = db.session.query(Image)\
+        all_images = db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
                             .join(Survey)\
                             .join(Task)\
                             .filter(Task.id==task_id)\
                             .distinct().all()
+        
+        for image in all_images:
+            image.downloaded = True
+        
+        images = rDets(db.session.query(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .join(Label,Labelgroup.labels)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .join(Survey)\
+                            .join(Task)\
+                            .filter(Task.id==task_id)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Image.downloaded==False)\
+                            .filter(Label.id.in_(labels))\
+                            ).distinct().all()
 
         for image in images:
             image.downloaded = False
         db.session.commit()
 
-    return json.dumps('success')
+        count = len(images)
+
+    return json.dumps(count)

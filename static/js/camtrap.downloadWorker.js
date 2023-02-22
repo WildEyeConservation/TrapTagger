@@ -38,6 +38,8 @@ var species
 var species_sorted
 var individual_sorted
 var flat_structure
+var local_files_processing
+var downloading = false
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -210,19 +212,23 @@ async function startDownload(selectedTask,taskName,count=0) {
             'content-type': 'application/json',
         },
         body: JSON.stringify({
+            species: species,
             selectedTask: selectedTask
         }),
     })).then((response) => {
         if (!response.ok) {
             throw new Error(response.statusText)
         } else {
-            start_download()
+            return response.json()
         }
+    }).then((count) => {
+        filesToDownload = count
+        start_download()
     }).catch( (error) => {
         if (count<=5) {
             setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
         }
-    })
+    })   
 
     // console.log('Started Download')
 
@@ -327,6 +333,7 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
         }
         return response.json()
     }).then((data) => {
+        local_files_processing -= 1
         for (let i=0;i<data.length;i++) {
             filesToDownload += 1
             write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
@@ -338,6 +345,8 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
     }).catch( (error) => {
         if (count>5) {
             errorEcountered = true
+            local_files_processing -= 1
+            filesDownloaded += 1
         } else {
             setTimeout(function() { get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,count+1); }, 1000*(5**count));
         }
@@ -346,6 +355,7 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
 
 async function handle_file(entry,dirHandle) {
     if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
+        local_files_processing += 1
         var file = await entry.getFile()
         var reader = new FileReader();
         reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
@@ -356,6 +366,7 @@ async function handle_file(entry,dirHandle) {
                     get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
                 } catch {
                     // delete malformed/corrupted files
+                    local_files_processing -= 1
                     wrapDirHandle.removeEntry(wrapFileName)
                 }    
             }
@@ -422,15 +433,17 @@ async function fetch_remaining_images() {
 }
 
 async function start_download() {
+    downloading = false
     errorEcountered = false
     filesActuallyDownloaded = 0
     filesDownloaded = 0
-    filesToDownload = 0
-    updateDownloadProgress()
+    // filesToDownload = 0
+    local_files_processing = 0
     finishedIterating = false
     wrappingUp = false
-    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
-    fetch_remaining_images()
+    updateDownloadProgress()
+    checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+    // fetch_remaining_images()
 }
 
 async function write_local(jpegData,path,labels,fileName) {
@@ -469,6 +482,10 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 function updateDownloadProgress() {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
+    if (!downloading && (local_files_processing==0)) {
+        downloading = true
+        fetch_remaining_images()
+    }
     postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
 }
 
