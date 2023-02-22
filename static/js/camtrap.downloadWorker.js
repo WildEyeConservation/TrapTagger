@@ -281,6 +281,39 @@ async function getBlob(url) {
     return blob;
 }
 
+// function readFile(file){
+//     return new Promise((resolve, reject) => {
+
+//         var reader = new FileReader();
+//         reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels) {
+//             return async function() {
+//                 var jpegData = wrapReader.result
+
+//                 for (let i=0;i<wrapPaths.length;i++) {
+//                     splits = wrapPaths[i].split('/')
+//                     fileName = splits[splits.length-1]
+//                     splits.pop()
+//                     path = splits.join('/')
+//                     write_local(jpegData,path,wrapLabels,fileName)
+//                     filesActuallyDownloaded += 1
+//                 }
+//             }
+//         }(reader,paths,labels));
+//         reader.readAsBinaryString(blob);
+
+
+
+
+
+//         var fr = new FileReader();  
+//         fr.onload = () => {
+//             resolve(fr.result )
+//         };
+//         fr.onerror = reject;
+//         fr.readAsText(file.blob);
+//     });
+//   }
+
 async function downloadFile(url,paths,labels,count=0) {
     /** Downloads the specified file to the diven directory handle */
     var blob = await getBlob(url)
@@ -362,24 +395,33 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
     }))
 }
 
-async function handle_file(entry,dirHandle) {
-    if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
-        var file = await entry.getFile()
-        var reader = new FileReader();
-        reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
+function readLocalEntry(entry){
+    return new Promise((resolve, reject) => {
+        var file = entry.getFile()
+        var reader = new FileReader();  
+        reader.onload = () => function(wrapReader,wrapDirHandle,wrapFileName) {
             return async function() {
-                var jpegData = wrapReader.result
                 try {
+                    var jpegData = wrapReader.result
                     var hash = get_hash(jpegData)
-                    get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
+                    await get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
+                    resolve
                 } catch {
                     // delete malformed/corrupted files
                     local_files_processing -= 1
                     wrapDirHandle.removeEntry(wrapFileName)
-                }    
+                    reject
+                }
             }
-        }(reader,dirHandle,entry.name));
-        limitFiles(()=> reader.readAsBinaryString(file));
+        }(reader,dirHandle,entry.name);
+        reader.onerror = reject;
+        reader.readAsBinaryString(file);
+    });
+}
+
+async function handle_file(entry,dirHandle) {
+    if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
+        limitFiles(()=> readLocalEntry(entry));
     } else {
         //delete non-jpgs
         dirHandle.removeEntry(entry.name)
