@@ -22,6 +22,8 @@ const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
 const limitFiles=pLimit(6)
 
+var max_processing = 20
+
 var globalTopLevelHandle
 var errorEcountered = false
 var surveyName
@@ -41,6 +43,9 @@ var flat_structure
 var include_empties
 var local_files_processing
 var downloading = false
+var localQueue = []
+var checking_local_folder
+var consuming
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -349,7 +354,7 @@ function get_hash(jpegData) {
 }
 
 async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,count=0) {
-    limitTT(()=> fetch('/get_image_info', {
+    var data = await limitTT(()=> fetch('/get_image_info', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -369,21 +374,6 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
             throw new Error(response.statusText)
         }
         return response.json()
-    }).then((data) => {
-        local_files_processing -= 1
-        
-        if (data.length>1) {
-            filesToDownload += data.length-1
-        }
-        
-        for (let i=0;i<data.length;i++) {
-            // filesToDownload += 1
-            write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
-        }
-        updateDownloadProgress()
-
-        // Delete the original file when done
-        dirHandle.removeEntry(fileName)
     }).catch( (error) => {
         if (count>5) {
             errorEcountered = true
@@ -393,35 +383,78 @@ async function get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,c
             setTimeout(function() { get_image_info(hash,downloadingTask,jpegData,dirHandle,fileName,count+1); }, 1000*(5**count));
         }
     }))
+    
+    if (data) {
+        if (data.length>1) {
+            filesToDownload += data.length-1
+        }
+        
+        for (let i=0;i<data.length;i++) {
+            await write_local(jpegData,data[i].path,data[i].labels,data[i].fileName)
+        }
+    
+        // Delete the original file when done
+        dirHandle.removeEntry(fileName)
+        
+        local_files_processing -= 1
+        updateDownloadProgress()
+    }
 }
 
-function readLocalEntry(entry){
-    return new Promise((resolve, reject) => {
-        var file = entry.getFile()
-        var reader = new FileReader();  
-        reader.onload = () => function(wrapReader,wrapDirHandle,wrapFileName) {
+// function readLocalEntry(entry){
+//     return new Promise((resolve, reject) => {
+//         var file = await entry.getFile()
+//         var reader = new FileReader();  
+//         reader.onload = () => function(wrapReader,wrapDirHandle,wrapFileName) {
+//             return async function() {
+//                 try {
+//                     var jpegData = wrapReader.result
+//                     var hash = get_hash(jpegData)
+//                     await get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
+//                     resolve
+//                 } catch {
+//                     // delete malformed/corrupted files
+//                     local_files_processing -= 1
+//                     wrapDirHandle.removeEntry(wrapFileName)
+//                     reject
+//                 }
+//             }
+//         }(reader,dirHandle,entry.name);
+//         reader.onerror = reject;
+//         reader.readAsBinaryString(file);
+//     });
+// }
+
+async function consumeQueue() {
+    if ((!consuming) && (local_files_processing<max_processing)&&(localQueue.length>0)) {
+        consuming = true
+        for (let i=0;i<(max_processing-local_files_processing);i++) {
+            var data = localQueue.pop()
+            handle_file(data[0],data[1])
+        }
+        consuming = false
+    }
+}
+
+async function handle_file(entry,dirHandle) {
+    local_files_processing += 1
+    if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
+        var file = await entry.getFile()
+        var reader = new FileReader();
+        reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
             return async function() {
+                var jpegData = wrapReader.result
                 try {
-                    var jpegData = wrapReader.result
                     var hash = get_hash(jpegData)
-                    await get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
-                    resolve
+                    get_image_info(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
                 } catch {
                     // delete malformed/corrupted files
                     local_files_processing -= 1
                     wrapDirHandle.removeEntry(wrapFileName)
-                    reject
-                }
+                }    
             }
-        }(reader,dirHandle,entry.name);
-        reader.onerror = reject;
-        reader.readAsBinaryString(file);
-    });
-}
-
-async function handle_file(entry,dirHandle) {
-    if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
-        limitFiles(()=> readLocalEntry(entry));
+        }(reader,dirHandle,entry.name));
+        reader.readAsBinaryString(file)
     } else {
         //delete non-jpgs
         dirHandle.removeEntry(entry.name)
@@ -430,16 +463,16 @@ async function handle_file(entry,dirHandle) {
 }
 
 async function checkLocalFiles(dirHandle,path){
-    local_files_processing += 1
+    checking_local_folder += 1
     for await (const entry of dirHandle.values()) {
         if (entry.kind=='directory'){
             checkLocalFiles(entry,path+'/'+entry.name)
         } else {
-            local_files_processing += 1
-            handle_file(entry,dirHandle)
+            localQueue.push([entry,dirHandle])
+            // handle_file(entry,dirHandle)
         }
     }
-    local_files_processing -= 1
+    checking_local_folder -= 1
     updateDownloadProgress()
 }
 
@@ -492,6 +525,7 @@ async function fetch_remaining_images() {
 }
 
 async function start_download() {
+    consuming = false
     downloading = false
     errorEcountered = false
     filesActuallyDownloaded = 0
@@ -500,6 +534,8 @@ async function start_download() {
     local_files_processing = 0
     finishedIterating = false
     wrappingUp = false
+    localQueue = []
+    checking_local_folder = 0
     updateDownloadProgress(true)
     checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
     // fetch_remaining_images()
@@ -541,12 +577,15 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 function updateDownloadProgress(init=false) {
     /** Wrapper function for updateDownloadProgress so that the main js can update the page. */
-    if (!downloading && (local_files_processing==0) && (!init)) {
+    if (!downloading && (local_files_processing==0) && (!init) && (checking_local_folder==0)) {
         downloading = true
         console.log('Local processing finished')
         fetch_remaining_images()
     }
     postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
+    if (!downloading) {
+        consumeQueue()   
+    }
 }
 
 function checkDownloadStatus() {
