@@ -524,6 +524,7 @@ function checkDownloadStatus() {
 async function wrapUpDownload(count=0) {
     /** Wraps up the download by letting the server know that the client download is finished */
     if (downloadingTask&&!wrappingUp) {
+        console.log('Download complete!')
         wrappingUp = true
         await cleanEmptyFolders(globalTopLevelHandle)
         resetDownloadState()
