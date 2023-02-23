@@ -369,7 +369,7 @@ function getHash(jpegData) {
 
 function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
-    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIterating) {
+    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&!init) {
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             wrapUpDownload()
