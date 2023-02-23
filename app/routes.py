@@ -6237,79 +6237,6 @@ def check_upload_files():
 
     return json.dumps(already_uploaded)
 
-# @app.route('/get_presigned_download_url', methods=['POST'])
-# @login_required
-# def get_presigned_download_url():
-#     """Returns a presigned URL in order to download a file directly from S3."""
-#     if current_user.admin:
-#         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='get_object',
-#                                                                 Params={'Bucket': Config.BUCKET,
-#                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/')})
-#     else:
-#         return 'error'
-
-# @app.route('/get_download_directories', methods=['POST'])
-# @login_required
-# def get_download_directories():
-#     """Returns the directory structure to be downloaded."""
-
-#     directories = {}
-#     surveyName = request.json['surveyName']
-#     taskName = request.json['taskName']
-#     requestedPath = request.json['path']
-#     survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
-    
-#     if survey:
-#         folders,filenames = list_all(Config.BUCKET,current_user.folder+'/Downloads/'+surveyName+'/'+taskName + requestedPath + '/')
-        
-#         for folder in folders:
-#             directories[folder] = {}
-
-#         return json.dumps({'directories': directories, 'fileCount': len(filenames)})
-
-#     return json.dumps('error')
-
-@app.route('/get_directory_files', methods=['POST'])
-@login_required
-def get_directory_files():
-    """Returns a list of files in a particular S3 folder."""
-
-    files = []
-    surveyName = request.json['surveyName']
-    path = request.json['path']
-    survey = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name==surveyName).first()
-    if survey:
-        path = current_user.folder+'/Downloads/'+path
-        if s3_folder_exists(path):
-            folders,filenames = list_all(Config.BUCKET,path+'/')
-            for fileName in filenames:
-                URL = 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+path+'/'+fileName
-                # URL = urllib.parse.quote(URL, safe="~()*!.'")
-                files.append({
-                    'fileName': fileName,
-                    'URL': URL
-                })
-            return json.dumps({'files': files, 'folders': folders})
-
-    return json.dumps('error')
-
-# @app.route('/download_complete', methods=['POST'])
-# @login_required
-# def download_complete():
-#     """Changes the download availablity status of a task and cleans up S3 accordingly."""
-
-#     task_id = request.json['task_id']
-#     task = db.session.query(Task).get(task_id)
-#     if task and (task.survey.user==current_user):
-#         task.download_available = False
-#         db.session.commit()
-
-#         s3 = boto3.resource('s3')
-#         bucketObject = s3.Bucket(Config.BUCKET)
-#         bucketObject.objects.filter(Prefix=current_user.folder+'/Downloads/'+task.survey.name+'/'+task.name+'/').delete()
-
-#     return json.dumps('success')
-
 @app.route('/get_image_info', methods=['POST'])
 @login_required
 def get_image_info():
@@ -6449,19 +6376,8 @@ def reset_download_status():
                             .filter(Task.id==task_id)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(or_(Labelgroup.labels.contains(nothing),~Labelgroup.labels.any()))\
+                            .filter(~Image.id.in_([r.id for r in images]))\
                             .distinct().all())
-            
-        # # multis
-        # sq = rDets(db.session.query(Image.id,func.count(Label.id).label('count'))\
-        #                     .join(Detection)\
-        #                     .join(Labelgroup)\
-        #                     .join(Label,Labelgroup.labels)\
-        #                     .filter(Labelgroup.task_id==task_id)\
-        #                     .filter(Label.id.in_(labels))\
-        #                     ).group_by(Image.id)\
-        #                     .distinct(Label.id).subquery()
-        
-        # multi_count = db.session.query()
 
         for image in images:
             image.downloaded = False
