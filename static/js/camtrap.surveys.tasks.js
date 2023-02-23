@@ -63,6 +63,10 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
         newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
         newProgInner.innerHTML = task.remaining
     } else if (progressType=='downloading') {
+        newProgInner.setAttribute("aria-valuenow", globalDownloaded);
+        newProgInner.setAttribute("aria-valuemax", globalToDownload);
+        newProgInner.setAttribute("style", "width:"+(globalDownloaded/globalToDownload)*100+"%;transition:none");
+        newProgInner.innerHTML = globalDownloaded.toString() + '/' + globalToDownload.toString() + ' files downloaded'
         downloadWorker.postMessage({'func': 'updateDownloadProgress', 'args': null})
     }
 

@@ -13,6 +13,8 @@
 // limitations under the License.
 
 var checkingDownload = false
+var globalDownloaded = 0
+var globalToDownload = 0
 
 downloadWorker.onmessage = function(evt){
     /** Take instructions from the web worker */
@@ -56,19 +58,28 @@ async function initiateDownload() {
             species.push(downloadSpecies[i].options[downloadSpecies[i].selectedIndex].value)
         }
 
-        var topLevelHandle = await window.showDirectoryPicker({
-            writable: true //ask for write permission
-        });
-    
-        await verifyPermission(topLevelHandle)
-    
-        checkingDownload = false
-        if (!currentDownloadTasks.includes(taskName)) {
-            currentDownloadTasks.push(taskName)
-            currentDownloads.push(surveyName)
+        try {
+            var topLevelHandle = await window.showDirectoryPicker({
+                writable: true //ask for write permission
+            });
+        
+            await verifyPermission(topLevelHandle)
+        
+            checkingDownload = false
+            if (!currentDownloadTasks.includes(taskName)) {
+                currentDownloadTasks.push(taskName)
+                currentDownloads.push(surveyName)
+            }
+        
+            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties]})
+        
+        } catch {
+            document.getElementById('btnDownloadStart').disabled = false
         }
-    
-        downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties]})
+    } else {
+        document.getElementById('modalAlertText').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one.'
+        modalDownload.modal('hide')
+        modalAlert.modal({keyboard: true});
     }
 }
 
@@ -92,6 +103,8 @@ function resetDownloadState(survey,task) {
 
 function updateDownloadProgress(task_id,downloaded,toDownload) {
     /** Updates the download progress bar with the given information */
+    globalDownloaded = downloaded
+    globalToDownload = toDownload
     progBar = document.getElementById('progBar'+task_id)
     if (progBar) {
         progBar.setAttribute("aria-valuenow", downloaded);
@@ -99,12 +112,13 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
         if (toDownload!=0) {
             progBar.setAttribute("aria-valuemax", toDownload);
             progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
+            progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
 
-            if (checkingDownload) {
-                progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
-            } else {
-                progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
-            }
+            // if (checkingDownload) {
+            //     progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
+            // } else {
+            //     progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
+            // }
         } else {
             progBar.setAttribute("aria-valuemax", 100);
             progBar.setAttribute("style", "width:0%;transition:none");
