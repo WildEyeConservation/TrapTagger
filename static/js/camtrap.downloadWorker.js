@@ -128,7 +128,7 @@ async function checkLocalFiles(dirHandle,path){
     updateDownloadProgress()
 }
 
-function updateDownloadProgress(init=false) {
+function updateDownloadProgress() {
     /** Updates the download progress on the page and also kicks of queue consumption or image downloading as needed. */
     postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
     if (!downloading) {
