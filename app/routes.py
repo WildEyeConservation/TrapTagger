@@ -6308,9 +6308,7 @@ def get_required_images():
         images = db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Task)\
-                            .filter(Task.id==task_id)\
+                            .filter(Trapgroup.survey==task.survey)\
                             .filter(Image.downloaded==False)\
                             .distinct().limit(200).all()
 
@@ -6343,41 +6341,48 @@ def reset_download_status():
         all_images = db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Task)\
-                            .filter(Task.id==task_id)\
+                            .filter(Trapgroup.survey==task.survey)\
                             .distinct().all()
-        
+
         for image in all_images:
             image.downloaded = True
         
-        images = rDets(db.session.query(Image)\
+        images = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .join(Label,Labelgroup.labels)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Task)\
-                            .filter(Task.id==task_id)\
+                            .filter(Trapgroup.survey==task.survey)\
                             .filter(Labelgroup.task_id==task_id)\
-                            .filter(Label.id.in_(labels))\
-                            ).distinct().all()
+                            .filter(Label.id.in_(labels))
+        
+        if not include_empties: images = rDets(images)
+        images = images.distinct().all()
         
         if include_empties:
             nothing = db.session.query(Label).get(GLOBALS.nothing_id)
+            # add unlabelled
             images.extend(db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .join(Survey)\
-                            .join(Task)\
-                            .filter(Task.id==task_id)\
+                            .filter(Trapgroup.survey==task.survey)\
                             .filter(Labelgroup.task_id==task_id)\
-                            .filter(or_(Labelgroup.labels.contains(nothing),~Labelgroup.labels.any()))\
-                            .filter(~Image.id.in_([r.id for r in images]))\
+                            .filter(~Labelgroup.labels.any())\
                             .distinct().all())
+            # Add nothings
+            images.extend(db.session.query(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.labels.contains(nothing))\
+                            .distinct().all())
+            images = list(set(images))
 
         for image in images:
             image.downloaded = False

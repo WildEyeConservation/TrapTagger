@@ -48,6 +48,7 @@ var init
 onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='startDownload') {
+        init = true
         globalTopLevelHandle = evt.data.args[0]
         surveyName = evt.data.args[2]
         species = evt.data.args[4]
@@ -68,7 +69,6 @@ async function startDownload(selectedTask,taskName,count=0) {
 
     console.log('Started Download')
 
-    init = true
     downloadingTask = selectedTask
     downloadingTaskName = taskName
     consuming = false
