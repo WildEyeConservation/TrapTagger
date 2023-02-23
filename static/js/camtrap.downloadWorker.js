@@ -84,7 +84,7 @@ async function startDownload(selectedTask,taskName,count=0) {
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
 
-    var count = await limitTT(()=> fetch('/reset_download_status', {
+    limitTT(()=> fetch('/reset_download_status', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -99,20 +99,45 @@ async function startDownload(selectedTask,taskName,count=0) {
         if (!response.ok) {
             throw new Error(response.statusText)
         } else {
-            return response.json()
+            waitUntilDownloadReady()
         }
     }).catch( (error) => {
         if (count<=5) {
             setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
         }
     })
-    
-    if (count) {
-        filesToDownload = count
-        init = false
-        updateDownloadProgress()
-        checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
-    }
+}
+
+async function waitUntilDownloadReady() {
+    limitTT(()=> fetch('/check_download_initialised', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            selectedTask: selectedTask
+        }),
+    })).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        } else {
+            return response.json()
+        }
+    }).then((data) => {
+        if (data=='not ready') {
+            setTimeout(function() { waitUntilDownloadReady(); }, 2000);
+        } else {
+            filesToDownload = data
+            init = false
+            updateDownloadProgress()
+            checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+        }
+    }).catch( (error) => {
+        if (count<=5) {
+            setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
+        }
+    })
 }
 
 async function checkLocalFiles(dirHandle,path){

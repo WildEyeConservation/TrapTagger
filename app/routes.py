@@ -6327,7 +6327,6 @@ def get_required_images():
 def reset_download_status():
     """Returns the labels for the specified image and task."""
 
-    count = 0
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
@@ -6338,56 +6337,31 @@ def reset_download_status():
             labels.append(GLOBALS.vhl_id)
         labels = [int(r) for r in labels]
 
-        all_images = db.session.query(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .distinct().all()
-
-        for image in all_images:
-            image.downloaded = True
-        
-        images = db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .join(Label,Labelgroup.labels)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Label.id.in_(labels))
-        
-        if not include_empties: images = rDets(images)
-        images = images.distinct().all()
-        
-        if include_empties:
-            nothing = db.session.query(Label).get(GLOBALS.nothing_id)
-            # add unlabelled
-            images.extend(db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(~Labelgroup.labels.any())\
-                            .distinct().all())
-            # Add nothings
-            images.extend(db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(nothing))\
-                            .distinct().all())
-            images = list(set(images))
-
-        for image in images:
-            image.downloaded = False
+        task.status = 'Preparing Download'
         db.session.commit()
 
-        count = len(images)
+        resetImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
 
-    return json.dumps(count)
+    return json.dumps('success')
+
+@app.route('/check_download_initialised', methods=['POST'])
+@login_required
+def check_download_initialised():
+    """Returns the labels for the specified image and task."""
+
+    task_id = request.json['selectedTask']
+    task = db.session.query(Task).get(task_id)
+    if task and (task.survey.user==current_user):
+        if task.status == 'Preparing Download':
+            return json.dumps('not ready')
+        
+        images = db.session.query(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey==task.survey)\
+                                .filter(Image.downloaded==False)\
+                                .distinct().count()
+        
+        return json.dumps(images)
+
+    return json.dumps('not ready')
