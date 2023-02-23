@@ -1327,11 +1327,11 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
         for individual in individuals:
             if label.id in requested_labels:
                 imagePath = ''
-                if species_sorted:  imagePath += '/' + label.description
+                if species_sorted:  imagePath += '/' + label.description.replace('/','_').replace('\\','_')
                 if individual and individual_sorted: imagePath += '/' + individual.name
                 if flat_structure:
                     filename = baseName
-                    for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_')
+                    for imageLabel in imageLabels: filename += '_' + imageLabel.description.replace(' ','_').replace('/','_').replace('\\','_')
                     filename += '_' + str(image.id) + '.jpg'
                     imagePath += '/' + filename
                 else:
