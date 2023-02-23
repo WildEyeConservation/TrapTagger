@@ -83,6 +83,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     checking_local_folder = 0
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
+    updateDownloadProgress()
 
     limitTT(()=> fetch('/reset_download_status', {
         method: 'post',
