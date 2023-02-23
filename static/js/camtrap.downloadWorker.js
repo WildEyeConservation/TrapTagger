@@ -108,7 +108,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     })
 }
 
-async function waitUntilDownloadReady() {
+async function waitUntilDownloadReady(count=0) {
     limitTT(()=> fetch('/check_download_initialised', {
         method: 'post',
         headers: {
@@ -135,7 +135,7 @@ async function waitUntilDownloadReady() {
         }
     }).catch( (error) => {
         if (count<=5) {
-            setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
+            setTimeout(function() { waitUntilDownloadReady(count+1); }, 1000*(5**count));
         }
     })
 }
