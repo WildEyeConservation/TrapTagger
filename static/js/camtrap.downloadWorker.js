@@ -252,13 +252,13 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
         if (data.length>1) {
             filesToDownload += data.length-1
         }
+
+        // Delete the original file before writing to prevent self-deletion
+        dirHandle.removeEntry(fileName)
         
         for (let i=0;i<data.length;i++) {
             await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName)
         }
-    
-        // Delete the original file when done
-        dirHandle.removeEntry(fileName)
         
         local_files_processing -= 1
         updateDownloadProgress()
