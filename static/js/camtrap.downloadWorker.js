@@ -109,7 +109,8 @@ async function startDownload(selectedTask,taskName,count=0) {
 }
 
 async function waitUntilDownloadReady(count=0) {
-    limitTT(()=> fetch('/check_download_initialised', {
+    /** Checks to see if the download is ready to commence */
+    var fileCount = await limitTT(()=> fetch('/check_download_initialised', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -127,17 +128,22 @@ async function waitUntilDownloadReady(count=0) {
     }).then((data) => {
         if (data=='not ready') {
             setTimeout(function() { waitUntilDownloadReady(); }, 2000);
+            return null
         } else {
-            filesToDownload = data
-            init = false
-            updateDownloadProgress()
-            checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+            return data
         }
     }).catch( (error) => {
         if (count<=5) {
             setTimeout(function() { waitUntilDownloadReady(count+1); }, 1000*(5**count));
         }
     })
+
+    if (fileCount) {
+        filesToDownload = fileCount
+        init = false
+        updateDownloadProgress()
+        checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+    }
 }
 
 async function checkLocalFiles(dirHandle,path){
