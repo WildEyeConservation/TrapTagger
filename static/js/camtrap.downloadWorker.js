@@ -43,6 +43,7 @@ var downloading = false
 var localQueue = []
 var checking_local_folder
 var consuming
+var init
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -67,6 +68,7 @@ async function startDownload(selectedTask,taskName,count=0) {
 
     console.log('Started Download')
 
+    init = true
     downloadingTask = selectedTask
     downloadingTaskName = taskName
     consuming = false
@@ -106,7 +108,8 @@ async function startDownload(selectedTask,taskName,count=0) {
     })
     
     if (filesToDownload) {
-        updateDownloadProgress(true)
+        init = false
+        updateDownloadProgress()
         checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
     }
 }
