@@ -107,7 +107,7 @@ async function startDownload(selectedTask,taskName,count=0) {
         }
     })
     
-    if (filesToDownload) {
+    if (count) {
         filesToDownload = count
         init = false
         updateDownloadProgress()

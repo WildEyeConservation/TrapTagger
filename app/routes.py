@@ -6333,7 +6333,7 @@ def reset_download_status():
     if task and (task.survey.user==current_user):
         include_empties = request.json['include_empties']
         labels = request.json['species']
-        if '0' in labels:
+        if ('0' in labels) or (labels==[]):
             labels = [r.id for r in task.labels]
             labels.append(GLOBALS.vhl_id)
         labels = [int(r) for r in labels]
