@@ -77,7 +77,8 @@ async function initiateDownload() {
             document.getElementById('btnDownloadStart').disabled = false
         }
     } else {
-        document.getElementById('modalAlertText').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one.'
+        document.getElementById('modalAlertHeader').innerHTML = 'Alert'
+        document.getElementById('modalAlertBody').innerHTML = 'You already have a download in progress. Please wait for that to complete before initiating a new one.'
         modalDownload.modal('hide')
         modalAlert.modal({keyboard: true});
     }

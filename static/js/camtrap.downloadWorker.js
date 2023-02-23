@@ -429,8 +429,12 @@ async function consumeQueue() {
     if ((!consuming) && (local_files_processing<max_processing)&&(localQueue.length>0)) {
         consuming = true
         for (let i=0;i<(max_processing-local_files_processing);i++) {
-            var data = localQueue.pop()
-            handle_file(data[0],data[1])
+            if (localQueue.length==0) {
+                break
+            } else {
+                var data = localQueue.pop()
+                handle_file(data[0],data[1])
+            }
         }
         consuming = false
     }
