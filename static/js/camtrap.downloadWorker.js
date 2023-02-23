@@ -140,9 +140,9 @@ async function waitUntilDownloadReady(count=0) {
 
     if (fileCount) {
         filesToDownload = fileCount
-        init = false
         updateDownloadProgress()
-        checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+        await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+        init = false
     }
 }
 
