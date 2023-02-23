@@ -141,7 +141,7 @@ async function waitUntilDownloadReady(count=0) {
     if (fileCount) {
         filesToDownload = fileCount
         updateDownloadProgress()
-        await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+        checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
         init = false
     }
 }
@@ -372,7 +372,7 @@ async function downloadFile(url,paths,labels,count=0) {
         limitFiles(()=> reader.readAsBinaryString(blob));
     } else if (count>5) {
         errorEcountered = true
-        filesDownloaded += 1
+        filesDownloaded += paths.length
     } else {
         setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
     }
@@ -400,7 +400,7 @@ function getHash(jpegData) {
 
 function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
-    if ((filesDownloaded==filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&!init) {
+    if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&!init) {
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             wrapUpDownload()
