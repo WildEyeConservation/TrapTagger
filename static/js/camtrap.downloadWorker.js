@@ -92,7 +92,7 @@ async function startDownload(selectedTask,taskName,count=0) {
         },
         body: JSON.stringify({
             species: species,
-            selectedTask: selectedTask,
+            selectedTask: downloadingTask,
             include_empties: include_empties
         }),
     })).then((response) => {
@@ -116,7 +116,7 @@ async function waitUntilDownloadReady(count=0) {
             'content-type': 'application/json',
         },
         body: JSON.stringify({
-            selectedTask: selectedTask
+            selectedTask: downloadingTask
         }),
     })).then((response) => {
         if (!response.ok) {
