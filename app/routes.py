@@ -6290,7 +6290,7 @@ def get_required_images():
     """Returns the labels for the specifief image and task."""
 
     reply = []
-    supplied_hashes = []
+    image_ids = []
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
@@ -6313,14 +6313,14 @@ def get_required_images():
                             .distinct().limit(200).all()
 
         for image in images:
-            image.downloaded = True
+            # image.downloaded = True
             imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
             imageLabels.extend(imageTags)
-            supplied_hashes.append(image.hash)
+            image_ids.append(image.id)
             reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
         db.session.commit()
 
-    return json.dumps({'hashes':supplied_hashes,'requiredImages':reply})
+    return json.dumps({'ids':image_ids,'requiredImages':reply})
 
 @app.route('/reset_download_status', methods=['POST'])
 @login_required
@@ -6365,3 +6365,18 @@ def check_download_initialised():
         return json.dumps(images)
 
     return json.dumps('not ready')
+
+@app.route('/mark_images_downloaded', methods=['POST'])
+@login_required
+def mark_images_downloaded():
+    """Marks the specified images as downloaded."""
+
+    image_ids = request.json['image_ids']
+    image = db.session.query(Image).get(image_ids[0])
+    if image and (image.camera.trapgroup.survey.user==current_user):
+        images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
+        for image in images:
+            image.downloaded = True
+        db.session.commit()
+
+    return json.dumps('success')

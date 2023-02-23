@@ -304,7 +304,7 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 async function fetchRemainingImages() {
     /** Fetches a batch of images that must be downloaded */
-    await limitTT(()=> fetch('/get_required_images', {
+    var data = await limitTT(()=> fetch('/get_required_images', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -323,20 +323,46 @@ async function fetchRemainingImages() {
             throw new Error(response.statusText)
         }
         return response.json()
-    }).then((data) => {
-        if (data.hashes.length>0) {
+    }).catch( (error) => {
+        // do nothing - will automatically continue
+    }))
+
+    if (data) {
+        if (data.ids.length>0) {
+            await confirmReceipt(data.ids)
             getRequiredImages(data.requiredImages)
         } else {
             finishedIterating = true
         }
-    }).catch( (error) => {
-        // do nothing - will automatically continue
-    }))
+    }
+
     if (!finishedIterating) {
         fetchRemainingImages()
     } else {
         checkDownloadStatus()
     }
+}
+
+async function confirmReceipt(image_ids,count=0) {
+    /** Tells the server to mark the specified set of images as received */
+    await limitTT(()=> fetch('/mark_images_downloaded', {
+        method: 'post',
+        headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+            image_ids: image_ids
+        }),
+    }).then((response) => {
+        if (!response.ok) {
+            throw new Error(response.statusText)
+        }
+    }).catch( (error) => {
+        if (count<=5) {
+            setTimeout(function() { confirmReceipt(image_ids,count+1); }, 1000*(5**count));
+        }
+    }))
 }
 
 async function getRequiredImages(requiredImages) {
