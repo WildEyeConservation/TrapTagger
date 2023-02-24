@@ -15,6 +15,7 @@
 var checkingDownload = false
 var globalDownloaded = 0
 var globalToDownload = 0
+var globalInitCount = 0
 
 downloadWorker.onmessage = function(evt){
     /** Take instructions from the web worker */
@@ -70,6 +71,10 @@ async function initiateDownload() {
                 currentDownloadTasks.push(taskName)
                 currentDownloads.push(surveyName)
             }
+
+            globalDownloaded = 0
+            globalToDownload = 0
+            globalInitCount = 0
         
             downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties]})
         
@@ -106,6 +111,7 @@ function updateDownloadProgress(task_id,downloaded,toDownload,initCount) {
     /** Updates the download progress bar with the given information */
     globalDownloaded = downloaded
     globalToDownload = toDownload
+    globalInitCount = initCount
     if (downloaded > toDownload) {
         // Not an issue if an image is downloaded twice - just hide it from the user
         downloaded = toDownload
