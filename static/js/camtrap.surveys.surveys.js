@@ -2332,7 +2332,7 @@ function iterateLabels(labels,headings,init=false) {
 
     if ((Object.keys(labels).length%2!=0)&&(!init)) {
         tableRow = document.createElement('tr')
-        tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
+        tableRow.setAttribute('id','detailedStatusRow-'+labels[labels.length-1].toString())
         tableRow.setAttribute('style','display:none')
         tbody.appendChild(tableRow)
     }
