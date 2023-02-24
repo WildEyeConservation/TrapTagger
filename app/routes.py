@@ -6183,6 +6183,8 @@ def get_image_info():
         if '0' in labels:
             labels = [r.id for r in task.labels]
             labels.append(GLOBALS.vhl_id)
+            labels.append(GLOBALS.knocked_id)
+            labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
         image = rDets(db.session.query(Image)\
@@ -6230,6 +6232,8 @@ def get_required_images():
         if '0' in labels:
             labels = [r.id for r in task.labels]
             labels.append(GLOBALS.vhl_id)
+            labels.append(GLOBALS.knocked_id)
+            labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
         images = db.session.query(Image)\
@@ -6262,6 +6266,8 @@ def reset_download_status():
         if ('0' in labels) or (labels==[]):
             labels = [r.id for r in task.labels]
             labels.append(GLOBALS.vhl_id)
+            labels.append(GLOBALS.knocked_id)
+            labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
         task.status = 'Preparing Download'
