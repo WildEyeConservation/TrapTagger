@@ -1958,9 +1958,6 @@ def resetImageDownloadStatus(self,task_id,labels,include_empties):
                             .join(Detection)\
                             .join(Labelgroup)\
                             .join(Label,Labelgroup.labels)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Label.id.in_(labels))
         
@@ -1973,9 +1970,6 @@ def resetImageDownloadStatus(self,task_id,labels,include_empties):
             images.extend(db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(~Labelgroup.labels.any())\
                             .distinct().all())
@@ -1983,9 +1977,6 @@ def resetImageDownloadStatus(self,task_id,labels,include_empties):
             images.extend(db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Labelgroup.labels.contains(nothing))\
                             .distinct().all())
