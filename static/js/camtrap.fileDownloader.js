@@ -19,7 +19,7 @@ var globalToDownload = 0
 downloadWorker.onmessage = function(evt){
     /** Take instructions from the web worker */
     if (evt.data.func=='updateDownloadProgress') {
-        updateDownloadProgress(evt.data.args[0],evt.data.args[1],evt.data.args[2])
+        updateDownloadProgress(evt.data.args[0],evt.data.args[1],evt.data.args[2],evt.data.args[3])
     } else if (evt.data.func=='initDisplayForDownload') {
         initDisplayForDownload(evt.data.args[0])
     } else if (evt.data.func=='resetDownloadState') {
@@ -102,7 +102,7 @@ function resetDownloadState(survey,task) {
     updatePage(generate_url())
 }
 
-function updateDownloadProgress(task_id,downloaded,toDownload) {
+function updateDownloadProgress(task_id,downloaded,toDownload,initCount) {
     /** Updates the download progress bar with the given information */
     globalDownloaded = downloaded
     globalToDownload = toDownload
@@ -127,7 +127,7 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
         } else {
             progBar.setAttribute("aria-valuemax", 100);
             progBar.setAttribute("style", "width:0%;transition:none");
-            progBar.innerHTML = 'Initialising...'
+            progBar.innerHTML = 'Initialising... ' + initCount.toString()
         }
     }
     

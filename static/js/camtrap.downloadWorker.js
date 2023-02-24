@@ -44,6 +44,7 @@ var localQueue = []
 var checking_local_folder
 var consuming
 var init
+var initCount = 0
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -81,6 +82,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     wrappingUp = false
     localQueue = []
     checking_local_folder = 0
+    initCount = 0
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
@@ -111,6 +113,7 @@ async function startDownload(selectedTask,taskName,count=0) {
 
 async function waitUntilDownloadReady(count=0) {
     /** Checks to see if the download is ready to commence */
+    initCount += 1
     var fileCount = await limitTT(()=> fetch('/check_download_initialised', {
         method: 'post',
         headers: {
@@ -163,7 +166,7 @@ async function checkLocalFiles(dirHandle,path){
 
 function updateDownloadProgress() {
     /** Updates the download progress on the page and also kicks of queue consumption or image downloading as needed. */
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload,initCount]})
     if (!downloading) {
         consumeQueue()
         if ((local_files_processing==0) && (!init) && (checking_local_folder==0)) {
