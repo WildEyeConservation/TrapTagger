@@ -2413,3 +2413,32 @@ def generate_raw_image_hash(filename):
         hash = hashlib.md5(output.getbuffer()).hexdigest()
     
     return hash
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def calculateTrapgroupHashes(self,trapgroup_id):
+    '''Temporary function to allow massive parallisation of hash calculation.'''
+    
+    try:
+        images = db.session.query(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()
+        for chunk in chunker(images,10000):
+            for image in chunk:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+                    try:
+                        image.hash = generate_raw_image_hash(temp_file.name)
+                    except:
+                        pass
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
