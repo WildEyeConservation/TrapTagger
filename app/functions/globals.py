@@ -606,6 +606,34 @@ def updateTaskCompletionStatus(self,task_id):
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
                         .distinct().count()
         
+        sq = db.session.query(Cluster)\
+                        .join(Translation,Cluster.classification==Translation.classification)\
+                        .filter(Translation.label_id==vhl_label.id)\
+                        .filter(Cluster.task==task)
+
+        sq = taggingLevelSQ(sq,'-3',False,task.id)
+
+        task.potential_vhl_clusters = sq.distinct().count() 
+        
+        task.vhl_image_count = db.session.query(Image)\
+                                        .join(Detection)\
+                                        .join(Labelgroup)\
+                                        .filter(Labelgroup.task_id==task_id)\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(Detection.static==False)\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                                        .filter(Labelgroup.labels.contains(vhl_label))\
+                                        .distinct().count()
+
+        task.vhl_sighting_count = db.session.query(Labelgroup)\
+                                        .join(Detection)\
+                                        .filter(Labelgroup.task_id==task_id)\
+                                        .filter(Labelgroup.labels.contains(vhl_label))\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(Detection.static==False)\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                                        .distinct().count()
+        
         db.session.commit()
 
     except Exception as exc:
@@ -1422,8 +1450,8 @@ def updateLabelCompletionStatus(self,task_id):
     '''Updates the completion status of all parent labels of a specified task.'''
 
     try:
-        labels = db.session.query(Label).filter(Label.task_id==task_id).all()
-        for label in labels:
+        task = db.session.query(Task).get(task_id)
+        for label in task.labels:
             label.cluster_count = db.session.query(Cluster)\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
