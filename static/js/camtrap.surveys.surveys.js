@@ -2286,7 +2286,7 @@ function iterateRows(labels,targetRow) {
 function iterateLabels(labels,headings,init=false) {
     /** Iterates through a nested labels object and builds the detailled status table. */
 
-    for (let label in labels) {
+    for (var label in labels) {
         tableRow = document.createElement('tr')
         tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         if (Object.keys(labels[label]).length!=0) {
@@ -2332,7 +2332,7 @@ function iterateLabels(labels,headings,init=false) {
 
     if ((Object.keys(labels).length%2!=0)&&(!init)) {
         tableRow = document.createElement('tr')
-        tableRow.setAttribute('id','detailedStatusRow-'+labels[labels.length-1].toString())
+        tableRow.setAttribute('id','detailedStatusRow-'+label.toString())
         tableRow.setAttribute('style','display:none')
         tbody.appendChild(tableRow)
     }
