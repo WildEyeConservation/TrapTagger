@@ -106,6 +106,10 @@ function updateDownloadProgress(task_id,downloaded,toDownload) {
     /** Updates the download progress bar with the given information */
     globalDownloaded = downloaded
     globalToDownload = toDownload
+    if (downloaded > toDownload) {
+        // Not an issue if an image is downloaded twice - just hide it from the user
+        downloaded = toDownload
+    }
     progBar = document.getElementById('progBar'+task_id)
     if (progBar) {
         progBar.setAttribute("aria-valuenow", downloaded);
