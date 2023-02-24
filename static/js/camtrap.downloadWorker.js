@@ -279,10 +279,18 @@ async function writeFile(jpegData,path,labels,fileName) {
     }
 
     // EXIF
-    var exifObj = exports.piexif.load(jpegData)
-    exifObj['Exif'][37510] = labels.toString()
-    var exifStr = exports.piexif.dump(exifObj)
-    jpegData = exports.piexif.insert(exifStr, jpegData)
+    try {
+        var exifObj = exports.piexif.load(jpegData)
+        exifObj['Exif'][37510] = labels.toString()
+        var exifStr = exports.piexif.dump(exifObj)
+        jpegData = exports.piexif.insert(exifStr, jpegData)
+    } catch {
+        // If there is something odd in the EXIF info, just overwrite everything
+        var exifObj = {'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}
+        exifObj['Exif'][37510] = labels.toString()
+        var exifStr = exports.piexif.dump(exifObj)
+        jpegData = exports.piexif.insert(exifStr, jpegData)
+    }
 
     // Save
     var blob = new Uint8Array(jpegData.length);

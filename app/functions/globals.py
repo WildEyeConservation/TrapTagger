@@ -1422,10 +1422,9 @@ def updateLabelCompletionStatus(self,task_id):
     '''Updates the completion status of all parent labels of a specified task.'''
 
     try:
-        # Complete + Species annotation
-        parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-        for label in parentLabels:
-            count = db.session.query(Cluster)\
+        labels = db.session.query(Label).filter(Label.task_id==task_id).all()
+        for label in labels:
+            label.cluster_count = db.session.query(Cluster)\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
                             .join(Labelgroup)\
@@ -1436,18 +1435,13 @@ def updateLabelCompletionStatus(self,task_id):
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))\
                             .distinct().count()
-            if count == 0:
+            if label.cluster_count == 0:
                 label.complete = True
             else:
-                label.complete = False
-            label.cluster_count = count        
-        db.session.commit()
-
-        labels = db.session.query(Label).filter(Label.task_id==task_id).all()
-        for label in labels:
+                label.complete = False     
 
             # Bounding
-            count = db.session.query(Labelgroup) \
+            label.bounding_count = db.session.query(Labelgroup) \
                                 .join(Detection) \
                                 .filter(Labelgroup.task_id==task_id) \
                                 .filter(Labelgroup.labels.contains(label)) \
@@ -1457,10 +1451,8 @@ def updateLabelCompletionStatus(self,task_id):
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .distinct().count()
 
-            label.bounding_count = count
-
             # Info tagging
-            count = db.session.query(Cluster)\
+            label.info_tag_count = db.session.query(Cluster)\
                                 .join(Image,Cluster.images)\
                                 .join(Detection)\
                                 .join(Labelgroup)\
@@ -1473,7 +1465,34 @@ def updateLabelCompletionStatus(self,task_id):
                                 .filter(~Labelgroup.tags.any())\
                                 .distinct().count() 
 
-            label.info_tag_count = count
+            sq = db.session.query(Cluster)\
+                            .join(Translation,Cluster.classification==Translation.classification)\
+                            .filter(Translation.label_id==label.id)\
+                            .filter(Cluster.task==task)
+
+            sq = taggingLevelSQ(sq,'-3',False,task.id)
+
+            label.potential_clusters = sq.distinct().count() 
+            
+            label.image_count = db.session.query(Image)\
+                                            .join(Detection)\
+                                            .join(Labelgroup)\
+                                            .filter(Labelgroup.task_id==task_id)\
+                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                            .filter(Detection.static==False)\
+                                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                                            .filter(Labelgroup.labels.contains(label))\
+                                            .distinct().count()
+
+            label.sighting_count = db.session.query(Labelgroup)\
+                                            .join(Detection)\
+                                            .filter(Labelgroup.task_id==task_id)\
+                                            .filter(Labelgroup.labels.contains(label))\
+                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                            .filter(Detection.static==False)\
+                                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                                            .distinct().count()
+
         db.session.commit()
 
         #Also update the number of clusters requiring a classification check
