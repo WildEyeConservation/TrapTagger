@@ -2414,21 +2414,43 @@ def generate_raw_image_hash(filename):
     
     return hash
 
+def calculateChunkHashes(chunk):
+    '''Partner function to calculateTrapgroupHashes. Allows further parallisation.'''
+
+    try:
+        images = db.session.query(Image).filter(Image.id.in_(chunk)).distinct().all()
+        for image in images:
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+                try:
+                    image.hash = generate_raw_image_hash(temp_file.name)
+                except:
+                    pass
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+
+    return True
+
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def calculateTrapgroupHashes(self,trapgroup_id):
     '''Temporary function to allow massive parallisation of hash calculation.'''
     
     try:
+        pool = Pool(processes=4)
         images = db.session.query(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()
-        for chunk in chunker(images,10000):
-            for image in chunk:
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
-                    try:
-                        image.hash = generate_raw_image_hash(temp_file.name)
-                    except:
-                        pass
-            db.session.commit()
+        for chunk in chunker(images,200):
+            pool.apply_async(calculateChunkHashes,([r.id for r in chunk],))
+        pool.close()
+        pool.join()
 
     except Exception as exc:
         app.logger.info(' ')
