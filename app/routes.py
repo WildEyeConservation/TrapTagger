@@ -1671,9 +1671,9 @@ def getDetailedTaskStatus(task_id):
             labels = {}
             parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).order_by(Label.description).all()
             parentLabels.append(db.session.query(Label).get(GLOBALS.vhl_id))
-            parentLabels.append(db.session.query(Label).get(GLOBALS.knocked_id))
-            parentLabels.append(db.session.query(Label).get(GLOBALS.nothing_id))
-            parentLabels.append(db.session.query(Label).get(GLOBALS.unknown_id))
+            # parentLabels.append(db.session.query(Label).get(GLOBALS.knocked_id))
+            # parentLabels.append(db.session.query(Label).get(GLOBALS.nothing_id))
+            # parentLabels.append(db.session.query(Label).get(GLOBALS.unknown_id))
             for label in parentLabels:
                 childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label.id).all()
                 labels[label.id] = addChildToDict(childLabels,{},task_id,True,False)
