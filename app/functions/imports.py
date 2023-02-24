@@ -2444,13 +2444,12 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         updateSurveyDetectionRatings(survey_id=survey_id)
         survey = db.session.query(Survey).get(survey_id)
 
-        if addingImages:
-            for task in survey.tasks:
-                if task.name != 'default':
-                    classifyTask(task.id)
-                    updateTaskCompletionStatus(task.id)
-                    updateLabelCompletionStatus(task.id)
-                    updateIndividualIdStatus(task.id)
+        for task in survey.tasks:
+            if task.name != 'default':
+                classifyTask(task.id)
+                updateTaskCompletionStatus(task.id)
+                updateLabelCompletionStatus(task.id)
+                updateIndividualIdStatus(task.id)
 
         survey.status = 'Ready'
         survey.images_processing = 0
