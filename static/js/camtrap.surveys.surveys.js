@@ -2314,12 +2314,12 @@ function iterateLabels(labels,headings,init=false) {
                         if (modalStatus.is(':visible')) {
                             buildStatusRow(reply,wrapTableRow,headings)
                             detailledStatusCount -= 1
-                            if (detailledStatusCount<=0) {
-                                document.getElementById('detailledStatusPleaseWait').remove()
-                            }
+                            // if (detailledStatusCount<=0) {
+                            //     document.getElementById('detailledStatusPleaseWait').remove()
+                            // }
                         }
                     } else {
-                        document.getElementById('detailledStatusPleaseWait').innerHTML = reply.message
+                        // document.getElementById('detailledStatusPleaseWait').innerHTML = reply.message
                     }
                 }
             }
@@ -2410,10 +2410,10 @@ modalStatus.on('shown.bs.modal', function(){
             StatusTableDiv.removeChild(StatusTableDiv.firstChild);
         }
 
-        div = document.createElement('p')
-        div.innerHTML = 'Loading... Please be patient.'
-        div.setAttribute('id','detailledStatusPleaseWait')
-        StatusTableDiv.appendChild(div)
+        // div = document.createElement('p')
+        // div.innerHTML = 'Loading... Please be patient.'
+        // div.setAttribute('id','detailledStatusPleaseWait')
+        // StatusTableDiv.appendChild(div)
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", '/getDetailedTaskStatus/'+selectedTask+'?init=true');
@@ -2430,7 +2430,7 @@ modalStatus.on('shown.bs.modal', function(){
                             buildStatusTable(hierarchicalLabels,headings)
                         }
                     } else {
-                        document.getElementById('detailledStatusPleaseWait').innerHTML = reply.message
+                        // document.getElementById('detailledStatusPleaseWait').innerHTML = reply.message
                     }
                 }
             }
