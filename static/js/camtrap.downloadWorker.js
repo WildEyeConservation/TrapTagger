@@ -149,6 +149,8 @@ async function waitUntilDownloadReady(count=0) {
         updateDownloadProgress()
         checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
         init = false
+    } else {
+        updateDownloadProgress()
     }
 }
 
