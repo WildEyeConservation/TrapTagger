@@ -708,7 +708,9 @@ def updateIndividualIdStatus(task_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().first()
+                            .distinct().count()
+        
+    db.session.commit()
 
     return True
 
@@ -1515,13 +1517,12 @@ def updateLabelCompletionStatus(task_id):
                                         .filter(~Detection.status.in_(['deleted','hidden']))\
                                         .distinct().count()
 
-    db.session.commit()
-
     #Also update the number of clusters requiring a classification check
     task = db.session.query(Task).get(task_id)
     count = db.session.query(Cluster).filter(Cluster.task_id==task_id)
     count = taggingLevelSQ(count,'-3',False,task_id)
     task.class_check_count = count.distinct().count()
+    db.session.commit()
 
     return True
 
