@@ -263,6 +263,7 @@ class Label(db.Model):
     potential_clusters = db.Column(db.Integer, index=False)
     image_count = db.Column(db.Integer, index=False)
     sighting_count = db.Column(db.Integer, index=False)
+    unidentified_count = db.Column(db.Integer, index=False)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
     children = db.relationship('Label', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
     translations = db.relationship('Translation', backref='label', lazy='dynamic')
