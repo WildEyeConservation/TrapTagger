@@ -45,6 +45,7 @@ var checking_local_folder
 var consuming
 var init
 var initCount = 0
+var delete_items
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -57,6 +58,7 @@ onmessage = function (evt) {
         individual_sorted = evt.data.args[6]
         flat_structure = evt.data.args[7]
         include_empties = evt.data.args[8]
+        delete_items = evt.data.args[9]
         startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
@@ -208,14 +210,18 @@ async function handleLocalFile(entry,dirHandle) {
                 } catch {
                     // delete malformed/corrupted files
                     local_files_processing -= 1
-                    wrapDirHandle.removeEntry(wrapFileName)
+                    if (delete_items) {
+                        wrapDirHandle.removeEntry(wrapFileName)
+                    }
                 }    
             }
         }(reader,dirHandle,entry.name));
         reader.readAsBinaryString(file)
     } else {
         //delete non-jpgs
-        dirHandle.removeEntry(entry.name)
+        if (delete_items) {
+            dirHandle.removeEntry(entry.name)
+        }
         local_files_processing -= 1
     }
 }
@@ -258,8 +264,10 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
         }
 
         // Delete the original file before writing to prevent self-deletion
-        dirHandle.removeEntry(fileName)
-        
+        if (delete_items) {
+            dirHandle.removeEntry(fileName)
+        }
+
         for (let i=0;i<data.length;i++) {
             await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName)
         }
@@ -455,7 +463,9 @@ async function wrapUpDownload(count=0) {
     if (downloadingTask&&!wrappingUp) {
         wrappingUp = true
         console.log('Download complete!')
-        await cleanEmptyFolders(globalTopLevelHandle)
+        if (delete_items) {
+            await cleanEmptyFolders(globalTopLevelHandle)
+        }
         resetDownloadState()
         wrappingUp = false
     }

@@ -52,6 +52,7 @@ async function initiateDownload() {
         individual_sorted = document.getElementById('individualSorted').checked
         flat_structure = document.getElementById('flatStructure').checked
         include_empties = document.getElementById('emptyInclude').checked
+        delete_items = document.getElementById('deleteTrue').checked
 
         species = []
         downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
@@ -76,7 +77,7 @@ async function initiateDownload() {
             globalToDownload = 0
             globalInitCount = 0
         
-            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties]})
+            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items]})
         
         } catch {
             document.getElementById('btnDownloadStart').disabled = false
