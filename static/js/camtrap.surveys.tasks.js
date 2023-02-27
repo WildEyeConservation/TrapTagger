@@ -62,15 +62,19 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
         newProgInner.setAttribute("aria-valuemax", task.total);
         newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none");
         newProgInner.innerHTML = task.remaining
+
+        newProg.appendChild(newProgInner);
+        taskProgressBarDiv.appendChild(newProg);
+        taskProgressBarCol.appendChild(taskProgressBarDiv);
+        newTaskDiv.appendChild(taskProgressBarCol)
     } else if (progressType=='downloading') {
+        newProg.appendChild(newProgInner);
+        taskProgressBarDiv.appendChild(newProg);
+        taskProgressBarCol.appendChild(taskProgressBarDiv);
+        newTaskDiv.appendChild(taskProgressBarCol)
         updateDownloadProgress(task.id,globalDownloaded,globalToDownload,globalInitCount)
         downloadWorker.postMessage({'func': 'updateDownloadProgress', 'args': null})
     }
-
-    newProg.appendChild(newProgInner);
-    taskProgressBarDiv.appendChild(newProg);
-    taskProgressBarCol.appendChild(taskProgressBarDiv);
-    newTaskDiv.appendChild(taskProgressBarCol)
 
     stopTaskCol = document.createElement('div')
     stopTaskCol.classList.add('col-lg-1');

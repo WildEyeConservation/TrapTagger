@@ -6180,11 +6180,6 @@ def get_image_info():
                         .join(Detection)\
                         .join(Labelgroup)\
                         .join(Label,Labelgroup.labels)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .join(Survey)\
-                        .join(Task)\
-                        .filter(Task.id==task_id)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Image.hash==hash)\
                         .filter(Label.id.in_(labels))\
@@ -6233,7 +6228,6 @@ def get_required_images():
                             .distinct().limit(200).all()
 
         for image in images:
-            # image.downloaded = True
             imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
             imageLabels.extend(imageTags)
             image_ids.append(image.id)
