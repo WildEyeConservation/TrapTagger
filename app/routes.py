@@ -481,7 +481,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                     colours.append('#000000')
             else:
                 if label.unidentified_count == None:
-                    updateIndividualIdStatus.delay(task_id=task_id)
+                    updateAllStatuses.delay(task_id=task_id)
                     return json.dumps({'texts': [], 'values': [], 'disabled':{}, 'colours':[]})
 
                 count = label.unidentified_count
@@ -499,7 +499,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'true'
 
         if task.class_check_count == None:
-            updateLabelCompletionStatus.delay(task_id=task_id)
+            updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.class_check_count
@@ -515,7 +515,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'true'
 
         if task.class_check_count == None:
-            updateTaskCompletionStatus.delay(task_id=task_id)
+            updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
     
         uncheckedMulti = task.unchecked_multi_count
@@ -536,7 +536,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         for label in task.labels:
             if label.bounding_count == None:
-                updateLabelCompletionStatus.delay(task_id=task_id)
+                updateAllStatuses.delay(task_id=task_id)
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
 
             if label.bounding_count==0:
@@ -549,7 +549,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         # VHL
         if task.vhl_bounding_count == None:
-            updateTaskCompletionStatus.delay(task_id=task_id)
+            updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         vhl_bounding_count = task.vhl_bounding_count
@@ -564,7 +564,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
             disabled = 'false'
 
         if task.unlabelled_animal_cluster_count == None:
-            updateTaskCompletionStatus.delay(task_id=task_id)
+            updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.unlabelled_animal_cluster_count
@@ -585,7 +585,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                     colours.append('#000000')
 
                 if label.cluster_count == None:
-                    updateLabelCompletionStatus.delay(task_id=task_id)
+                    updateAllStatuses.delay(task_id=task_id)
                     return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
                 
                 texts.append(label.description+' ('+str(label.cluster_count)+')')
@@ -593,7 +593,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
             #VHL
             if task.vhl_count == None:
-                updateTaskCompletionStatus.delay(task_id=task_id)
+                updateAllStatuses.delay(task_id=task_id)
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
             
             count = task.vhl_count
@@ -604,7 +604,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
         disabled = 'false'
         
         if task.infoless_count == None:
-            updateTaskCompletionStatus.delay(task_id=task_id)
+            updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         check = task.infoless_count
@@ -618,7 +618,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
         values = ['-2']
         for label in task.labels:
             if label.info_tag_count == None:
-                updateLabelCompletionStatus.delay(task_id=task_id)
+                updateAllStatuses.delay(task_id=task_id)
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
 
             if label.info_tag_count != 0:
@@ -631,7 +631,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
 
         # VHL
         if (task.infoless_vhl_count == None) and (task.infoless_count != None):
-            updateTaskCompletionStatus.delay(task_id=task_id)
+            updateAllStatuses.delay(task_id=task_id)
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         count = task.infoless_vhl_count
