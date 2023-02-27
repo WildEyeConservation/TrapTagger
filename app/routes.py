@@ -1641,7 +1641,8 @@ def getDetailedTaskStatus(task_id):
             ],
             'Individual ID': [
                 'Cluster-Level',
-                'Inter-Cluster'
+                'Inter-Cluster',
+                'Exhaustive'
             ]
         }
 
@@ -1769,21 +1770,30 @@ def getDetailedTaskStatus(task_id):
                     if label_id==GLOBALS.vhl_id:
                         reply['Individual ID']['Cluster-Level'] = '-'
                         reply['Individual ID']['Inter-Cluster'] = '-'
+                        reply['Individual ID']['Exhaustive'] = '-'
                         reply['Summary']['Individuals'] = '-'
                     else:
                         if len(label.individuals[:]) == 0:
                             reply['Individual ID']['Cluster-Level'] = '-'
                             reply['Individual ID']['Inter-Cluster'] = '-'
+                            reply['Individual ID']['Exhaustive'] = '-'
                         elif label.unidentified_count:
                             reply['Individual ID']['Cluster-Level'] = 'Incomplete'
                             reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
+                            reply['Individual ID']['Exhaustive'] = 'Incomplete'
                         else:
-                            count = checkForIdWork(task_id,label,0)
+                            count = checkForIdWork(task_id,label,Config.SIMILARITY_SCORE)
                             reply['Individual ID']['Cluster-Level'] = 'Complete'
-                            if count == 0:
-                                reply['Individual ID']['Inter-Cluster'] = 'Complete'
-                            else:
+                            if count != 0:
                                 reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
+                                reply['Individual ID']['Exhaustive'] = 'Incomplete'
+                            else:
+                                reply['Individual ID']['Inter-Cluster'] = 'Complete'
+                                count = checkForIdWork(task_id,label,0)
+                                if count !=0:
+                                    reply['Individual ID']['Exhaustive'] = 'Incomplete'
+                                else:
+                                    reply['Individual ID']['Exhaustive'] = 'Complete'
 
                 else:
                     # No clusters of this species - just return canned reply for speed
@@ -1799,6 +1809,7 @@ def getDetailedTaskStatus(task_id):
                     reply['Sighting Correction']['Checked Sightings'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
                     reply['Individual ID']['Inter-Cluster'] = '-'
+                    reply['Individual ID']['Exhaustive'] = '-'
     else:
         reply = {'status':'error','message':'Your survey is too large for this functionality. Please try again after the next update'}
 
