@@ -1729,7 +1729,7 @@ def getDetailedTaskStatus(task_id):
                             reply['Species Annotation']['Tagged'] = 'No'
 
                     else:
-                        if label.children:
+                        if label.children[:]:
                             parent_label = label
                         else:
                             parent_label = label.parent
