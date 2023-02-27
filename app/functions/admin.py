@@ -626,6 +626,10 @@ def prepTask(self,newTask_id, survey_id, includes, translation):
         db.session.commit()
         classifyTask(newTask_id,None)
 
+        updateTaskCompletionStatus(newTask_id)
+        updateLabelCompletionStatus(newTask_id)
+        updateIndividualIdStatus(newTask_id)
+
         newTask.status = 'Ready'
         survey = db.session.query(Survey).get(int(survey_id))
         survey.status = 'Ready'
