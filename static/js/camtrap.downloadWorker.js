@@ -65,6 +65,8 @@ onmessage = function (evt) {
         checkDownloadStatus()
     } else if (evt.data.func=='updateDownloadProgress') {
         updateDownloadProgress()
+    } else if (evt.data.func=='wrapUpDownload') {
+        wrapUpDownload(evt.data.args[0])
     }
 };
 
@@ -239,52 +241,54 @@ async function handleLocalFile(entry,dirHandle) {
 
 async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileName,count=0) {
     /** Fetches a local image's info based on its hash and initates the writing process for the required paths */
-    var data = await limitTT(()=> fetch('/get_image_info', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            hash: hash,
-            task_id: downloadingTask,
-            species: species,
-            species_sorted: species_sorted,
-            individual_sorted: individual_sorted,
-            flat_structure: flat_structure,
-            include_empties: include_empties
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-        return response.json()
-    }).catch( (error) => {
-        if (count>5) {
-            errorEcountered = true
-            local_files_processing -= 1
-            filesDownloaded += 1
-        } else {
-            setTimeout(function() { getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileName,count+1); }, 1000*(5**count));
-        }
-    }))
-    
-    if (data) {
-        if (data.length>1) {
-            filesToDownload += data.length-1
-        }
-
-        // Delete the original file before writing to prevent self-deletion
-        if (delete_items) {
-            dirHandle.removeEntry(fileName)
-        }
-
-        for (let i=0;i<data.length;i++) {
-            await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName)
-        }
+    if (!wrappingUp) {
+        var data = await limitTT(()=> fetch('/get_image_info', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                hash: hash,
+                task_id: downloadingTask,
+                species: species,
+                species_sorted: species_sorted,
+                individual_sorted: individual_sorted,
+                flat_structure: flat_structure,
+                include_empties: include_empties
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            }
+            return response.json()
+        }).catch( (error) => {
+            if (count>5) {
+                errorEcountered = true
+                local_files_processing -= 1
+                filesDownloaded += 1
+            } else {
+                setTimeout(function() { getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileName,count+1); }, 1000*(5**count));
+            }
+        }))
         
-        local_files_processing -= 1
-        updateDownloadProgress()
+        if (data) {
+            if (data.length>1) {
+                filesToDownload += data.length-1
+            }
+    
+            // Delete the original file before writing to prevent self-deletion
+            if (delete_items) {
+                dirHandle.removeEntry(fileName)
+            }
+    
+            for (let i=0;i<data.length;i++) {
+                await writeFile(jpegData,data[i].path,data[i].labels,data[i].fileName)
+            }
+            
+            local_files_processing -= 1
+            updateDownloadProgress()
+        }
     }
 }
 
@@ -375,24 +379,26 @@ async function fetchRemainingImages() {
 
 async function confirmReceipt(image_ids,count=0) {
     /** Tells the server to mark the specified set of images as received */
-    await limitTT(()=> fetch('/mark_images_downloaded', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            image_ids: image_ids
-        }),
-    }).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
-        }
-    }).catch( (error) => {
-        if (count<=5) {
-            setTimeout(function() { confirmReceipt(image_ids,count+1); }, 1000*(5**count));
-        }
-    }))
+    if (!wrappingUp) {
+        await limitTT(()=> fetch('/mark_images_downloaded', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                image_ids: image_ids
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            }
+        }).catch( (error) => {
+            if (count<=5) {
+                setTimeout(function() { confirmReceipt(image_ids,count+1); }, 1000*(5**count));
+            }
+        }))
+    }
 }
 
 async function getRequiredImages(requiredImages) {
@@ -467,7 +473,7 @@ function checkDownloadStatus() {
                 cleanEmptyFolders(globalTopLevelHandle)
             }
             resetDownloadState()
-            wrapUpDownload()
+            wrapUpDownload(false)
         } else {
             // check download
             postMessage({'func': 'checkingDownload', 'args': [true]})
@@ -476,9 +482,10 @@ function checkDownloadStatus() {
     }
 }
 
-async function wrapUpDownload(count=0) {
+async function wrapUpDownload(reload,count=0) {
     /** Wraps up the download by cleaning up any remaining empty folders and updating the UI */
     if (downloadingTask) {
+        wrappingUp = true
         await limitTT(()=> fetch('/download_complete', {
             method: 'post',
             headers: {
@@ -491,10 +498,15 @@ async function wrapUpDownload(count=0) {
         }).then((response) => {
             if (!response.ok) {
                 throw new Error(response.statusText)
+            } else {
+                if (reload) {
+                    postMessage({'func': 'reload', 'args': null})
+                }
+                wrappingUp = false
             }
         }).catch( (error) => {
             if (count<=5) {
-                setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
+                setTimeout(function() { wrapUpDownload(reload,count+1); }, 1000*(5**count));
             }
         }))
     }

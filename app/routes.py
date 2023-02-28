@@ -6266,6 +6266,19 @@ def set_download_status():
         include_empties = request.json['include_empties']
         labels = request.json['species']
 
+        # Image downloaded state should always be false, but need to catch dropped uploads
+        images = db.session.query(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Image.downloaded!=False)\
+                        .all()
+
+        for chunk in chunker(images,1000):
+            for image in chunk:
+                image.downloaded = False
+            db.session.commit()
+
         task.status = 'Preparing Download'
         db.session.commit()
 

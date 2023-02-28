@@ -102,8 +102,8 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
             }
         }(task.id));
     } else if (progressType=='downloading') {
-        stopTaskBtn.addEventListener('click', function(wrapTaskId) {
-            location.reload()
+        stopTaskBtn.addEventListener('click', ()=>{
+            downloadWorker.postMessage({'func': 'wrapUpDownload', 'args': [true]})
         })
     }
 
