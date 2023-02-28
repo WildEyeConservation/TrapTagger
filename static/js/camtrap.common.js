@@ -2222,10 +2222,10 @@ function initKeys(res){
                         newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
                     } else if (i == labs.length-1) {
-                        newbtn.classList.add('btn-danger');
+                        newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (-)';
                     } else if (i == labs.length-2) {
-                        newbtn.classList.add('btn-danger');
+                        newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (Space)';
                     } else {
                         newbtn.classList.add('btn-info');
