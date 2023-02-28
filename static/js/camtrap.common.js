@@ -16,6 +16,7 @@ var selectedTask = 0
 var isTagging
 var hotkeys = []
 var RFDLabel = -900
+var nothingLabel = -900
 var unknownLabel = -900
 var downLabel = -900
 var wrongLabel = -900
