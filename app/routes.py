@@ -6255,9 +6255,9 @@ def get_required_images():
 
     return json.dumps({'ids':image_ids,'requiredImages':reply})
 
-@app.route('/reset_download_status', methods=['POST'])
+@app.route('/set_download_status', methods=['POST'])
 @login_required
-def reset_download_status():
+def set_download_status():
     """Returns the labels for the specified image and task."""
 
     task_id = request.json['selectedTask']
@@ -6266,14 +6266,10 @@ def reset_download_status():
         include_empties = request.json['include_empties']
         labels = request.json['species']
 
-        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().all()
-        for image in images:
-            image.downloaded = False
-
         task.status = 'Preparing Download'
         db.session.commit()
 
-        resetImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
+        setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
 
     return json.dumps('success')
 
@@ -6310,3 +6306,16 @@ def mark_images_downloaded():
         db.session.commit()
 
     return json.dumps('success')
+
+@app.route('/download_complete', methods=['POST'])
+@login_required
+def download_complete():
+    """Resets the downloaded state of all images of a task."""
+
+    task_id = request.json['task_id']
+    task = db.session.query(Task).get(task_id)
+    if task and (task.survey.user==current_user):
+        resetImageDownloadStatus.delay(task_id=task_id)
+        return json.dumps('success')
+    
+    return json.dumps('error')

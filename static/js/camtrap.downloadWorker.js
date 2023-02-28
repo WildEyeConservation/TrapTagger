@@ -91,7 +91,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
 
-    await limitTT(()=> fetch('/reset_download_status', {
+    await limitTT(()=> fetch('/set_download_status', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -462,6 +462,11 @@ function checkDownloadStatus() {
     if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&download_initialised) {
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
+            console.log('Download complete!')
+            if (delete_items) {
+                cleanEmptyFolders(globalTopLevelHandle)
+            }
+            resetDownloadState()
             wrapUpDownload()
         } else {
             // check download
@@ -473,14 +478,25 @@ function checkDownloadStatus() {
 
 async function wrapUpDownload(count=0) {
     /** Wraps up the download by cleaning up any remaining empty folders and updating the UI */
-    if (downloadingTask&&!wrappingUp) {
-        wrappingUp = true
-        console.log('Download complete!')
-        if (delete_items) {
-            await cleanEmptyFolders(globalTopLevelHandle)
-        }
-        resetDownloadState()
-        wrappingUp = false
+    if (downloadingTask) {
+        await limitTT(()=> fetch('/download_complete', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                task_id: downloadingTask
+            }),
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            }
+        }).catch( (error) => {
+            if (count<=5) {
+                setTimeout(function() { wrapUpDownload(count+1); }, 1000*(5**count));
+            }
+        }))
     }
 }
 

@@ -1936,7 +1936,7 @@ def generate_coco(self,task_id):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def resetImageDownloadStatus(self,task_id,labels,include_empties):
+def setImageDownloadStatus(self,task_id,labels,include_empties):
     
     try:
         task = db.session.query(Task).get(task_id)
@@ -1970,13 +1970,45 @@ def resetImageDownloadStatus(self,task_id,labels,include_empties):
                             .distinct().all())
             images = list(set(images))
 
-        for image in images:
-            image.downloaded = True
+        for chunk in chunker(images,1000):
+            for image in chunk:
+                image.downloaded = True
+            db.session.commit()
 
         # Get total count
         filesToDownload = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().count()-len(images)
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
+
+        task.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def resetImageDownloadStatus(self,task_id):
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        task.status = 'Processing'
+        db.session.commit()
+
+        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().all()
+        for chunk in chunker(images,1000):
+            for image in chunk:
+                image.downloaded = False
+            db.session.commit()
 
         task.status = 'Ready'
         db.session.commit()

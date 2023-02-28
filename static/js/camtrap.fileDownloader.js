@@ -134,7 +134,7 @@ function updateDownloadProgress(task_id,downloaded,toDownload,initCount) {
         } else {
             progBar.setAttribute("aria-valuemax", 100);
             progBar.setAttribute("style", "width:0%;transition:none");
-            progBar.innerHTML = 'Initialising... ' + initCount.toString()
+            progBar.innerHTML = 'Initialising... '
         }
     }
     
