@@ -2004,7 +2004,13 @@ def resetImageDownloadStatus(self,task_id):
         task.status = 'Processing'
         db.session.commit()
 
-        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().all()
+        images = db.session.query(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Image.downloaded!=False)\
+                        .all()
+
         for chunk in chunker(images,1000):
             for image in chunk:
                 image.downloaded = False
