@@ -6239,12 +6239,25 @@ def get_required_images():
             labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
-        images = db.session.query(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .filter(Image.downloaded==False)\
-                            .distinct().limit(200).all()
+        if task.status == 'Preparing Download':
+            # Try speed things up while waiting for download to prep
+            images = db.session.query(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .join(Label,Cluster.labels)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey==task.survey)\
+                                .filter(Cluster.task==task)\
+                                .filter(Label.id.in_(labels))\
+                                .filter(Image.downloaded==False)\
+                                .distinct().limit(200).all()
+        else:
+            images = db.session.query(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey==task.survey)\
+                                .filter(Image.downloaded==False)\
+                                .distinct().limit(200).all()
 
         for image in images:
             imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
