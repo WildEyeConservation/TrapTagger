@@ -965,7 +965,14 @@ def createNewSurvey():
         test = db.session.query(Survey).filter(Survey.user_id==current_user.id).filter(Survey.name==surveyName).first()
         if test != None:
             status = 'error'
-            message = 'Survey name already in use.' 
+            message = 'Survey name already in use.'
+        else:
+            if newSurveyS3Folder=='none':
+                # Browser upload - check that folder doesn't already exist
+                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=current_user.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
+                if 'CommonPrefixes' in response:
+                    status = 'error'
+                    message = 'That folder name is already in use in your stoarge. Please try another name for your survey.' 
 
         if fileAttached:
             if uploaded_file.filename != '':
@@ -992,6 +999,7 @@ def createNewSurvey():
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
 
             if newSurveyS3Folder=='none':
+                # Browser upload
                 classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
