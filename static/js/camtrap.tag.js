@@ -194,7 +194,7 @@ function getKeys() {
             });
             divBtns.appendChild(newbtn);
 
-            hotkeys = Array(37).fill(EMPTY_HOTKEY_ID)
+            hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
             hotkeys[10] = '1' //a
             hotkeys[27] = '2' //r
             hotkeys[24] = '4' //o
