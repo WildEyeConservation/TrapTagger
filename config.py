@@ -106,7 +106,7 @@ class Config(object):
     SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled']
 
     # Hotkey info
-    NUMBER_OF_HOTKEYS = 37
+    NUMBER_OF_HOTKEYS = 38
     EMPTY_HOTKEY_ID= -967
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness

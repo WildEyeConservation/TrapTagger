@@ -1289,6 +1289,7 @@ def genInitKeys(taggingLevel,task_id):
     for category in categories:
         if category.hotkey != None:
             num = ord(category.hotkey)
+            
             if 48 <= num <= 57:
                 #handle numbers
                 indx = num-48
@@ -1297,10 +1298,14 @@ def genInitKeys(taggingLevel,task_id):
                 indx = num-55
             elif num==32:
                 #Spacebar
+                indx = Config.NUMBER_OF_HOTKEYS-2
+            elif num==45:
+                #minus
                 indx = Config.NUMBER_OF_HOTKEYS-1
             else:
                 #Handle letters
                 indx = num-87
+
             if hotkeys[indx] == Config.EMPTY_HOTKEY_ID:
                 hotkeys[indx] = category.id
                 names[indx] = category.description

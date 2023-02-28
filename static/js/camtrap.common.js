@@ -2396,6 +2396,9 @@ document.onkeyup = function(event){
     
                 case (' '):assignLabel(hotkeys[36])
                     break;
+
+                case ('-'):assignLabel(hotkeys[37])
+                    break;
     
                 case 'control': activateMultiple()
                     break;
