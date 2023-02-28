@@ -15,7 +15,7 @@
 var checkingDownload = false
 var globalDownloaded = 0
 var globalToDownload = 0
-var globalInitCount = 0
+var global_download_initialised = false
 
 downloadWorker.onmessage = function(evt){
     /** Take instructions from the web worker */
@@ -75,7 +75,7 @@ async function initiateDownload() {
 
             globalDownloaded = 0
             globalToDownload = 0
-            globalInitCount = 0
+            global_download_initialised = false
         
             downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items]})
         
@@ -108,11 +108,11 @@ function resetDownloadState(survey,task) {
     updatePage(generate_url())
 }
 
-function updateDownloadProgress(task_id,downloaded,toDownload,initCount) {
+function updateDownloadProgress(task_id,downloaded,toDownload,download_initialised) {
     /** Updates the download progress bar with the given information */
     globalDownloaded = downloaded
     globalToDownload = toDownload
-    globalInitCount = initCount
+    global_download_initialised = download_initialised
     if (downloaded > toDownload) {
         // Not an issue if an image is downloaded twice - just hide it from the user
         downloaded = toDownload
@@ -123,14 +123,16 @@ function updateDownloadProgress(task_id,downloaded,toDownload,initCount) {
     
         if (toDownload!=0) {
             progBar.setAttribute("aria-valuemax", toDownload);
-            progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
-            progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
 
-            // if (checkingDownload) {
-            //     progBar.innerHTML = 'Checking files... ' + downloaded.toString() + '/' + toDownload.toString()
-            // } else {
-            //     progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
-            // }
+            if (download_initialised) {
+                progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
+                progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
+            } else {
+                // unknown total count - do something pretty
+                progBar.setAttribute("style", "width:50%;transition:none");
+                progBar.innerHTML = downloaded.toString() + '/? files downloaded'
+            }
+
         } else {
             progBar.setAttribute("aria-valuemax", 100);
             progBar.setAttribute("style", "width:0%;transition:none");

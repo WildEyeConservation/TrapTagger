@@ -179,7 +179,7 @@ function updateDownloadProgress() {
     if (!download_initialised) {
         totalCount = filesDownloaded
     }
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,initCount]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,download_initialised]})
     if (!downloading) {
         consumeQueue()
         if ((local_files_processing==0) && (!init) && (checking_local_folder==0) && (localQueue.length==0)) {
