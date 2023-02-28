@@ -15,7 +15,7 @@
 var selectedTask = 0
 var isTagging
 var hotkeys = []
-var nothingLabel = -900
+var RFDLabel = -900
 var unknownLabel = -900
 var downLabel = -900
 var wrongLabel = -900
@@ -579,7 +579,7 @@ function updateCanvas(mapID = 'map1') {
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
-            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && ((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(nothingLabel.toString())) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)))) {
+            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && ((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(RFDLabel.toString())) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)))) {
                 redirectToDone()
             } else {
                 prevCluster(mapID)
@@ -804,7 +804,7 @@ function updateButtons(mapID = 'map1'){
                 }
             }
         } else {
-            if ((clusterIndex[mapID]==0)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),nothingLabel,nothingLabel.toString()].includes(r))))) {
+            if ((clusterIndex[mapID]==0)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString()].includes(r))))) {
                 prevClusterBtn.classList.add("disabled")
             }else{
                 prevClusterBtn.classList.remove("disabled")
@@ -963,7 +963,7 @@ function prevCluster(mapID = 'map1'){
                         }
                     }
                 } else {
-                    if ((!isTagging)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),nothingLabel,nothingLabel.toString()].includes(r))))) {
+                    if ((!isTagging)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString()].includes(r))))) {
                         goToPrevCluster(mapID)
                     }
                 }
@@ -1340,11 +1340,11 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    if (multipleStatus && ((nothingLabel==label)||(downLabel==label))) {
+    if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label))) {
         //ignore nothing and knocked down labels in multi
-    } else if ([nothingLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
+    } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
         // confirmation modal for nothing and knockdowns
-        if (label==nothingLabel) {
+        if (label==RFDLabel) {
             if (isReviewing) {
                 document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
             } else {
@@ -1496,7 +1496,7 @@ function assignLabel(label,mapID = 'map1'){
                     knockdown(mapID)
                 } else {
                     var checkVar = 0
-                    if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
+                    if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||(label==RFDLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
                         if ((reachedEnd == false)&&(clusters[mapID][clusterIndex[mapID]].required.length>1)) {
                             text = 'This cluster may contain more species, please cycle through all images before tagging it.'
                             document.getElementById('modalAlertText').innerHTML = text
@@ -1633,7 +1633,7 @@ function assignLabel(label,mapID = 'map1'){
                                     if (isClassCheck) {
                                         suggestionBack(false)
                                     }
-                                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString()) || isTutorial) {
+                                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString()) || isTutorial) {
                                         // nothings need to wait to see if they are edited first
                                         nextCluster(mapID)
                                     }
@@ -2039,7 +2039,7 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
-                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(nothingLabel.toString())) {
+                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString())) {
                         // nothings need to wait to see if they ae ediected first
                         nextCluster(mapID)
                     }
@@ -2058,7 +2058,7 @@ function submitLabels(mapID = 'map1') {
     }
     console.log(clusterLabels[mapID])
     nothingStatus = false
-    if (clusterLabels[mapID].includes(nothingLabel.toString()) && isTagging) {
+    if (clusterLabels[mapID].includes(RFDLabel.toString()) && isTagging) {
         // reallocate on nothing
         nothingStatus = true
         if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
@@ -2152,7 +2152,7 @@ function initKeys(res){
 
         // Add other important buttons
         for (let i=0;i<labs.length;i++) {
-            if (((names[i]=='Wrong')||(names[i]=='Skip'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
+            if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
 
@@ -2198,17 +2198,19 @@ function initKeys(res){
 
         // Add other buttons
         for (let i=0;i<labs.length;i++) {
-            if ((names[i]!='Wrong')&&(names[i]!='Skip')) {
+            if (names[i]=='Unknown') {
+                unknownLabel = labs[i]
+            } else if (names[i]=='Nothing') {
+                nothingLabel = labs[i]
+            } else if (names[i]=='Remove False Detections') {
+                RFDLabel = labs[i]
+            } else if (names[i]=='Knocked Down') {
+                downLabel = labs[i]
+            }
+
+            if ((names[i]!='Wrong')&&(names[i]!='Skip')&&(names[i]!='Remove False Detections')) {
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
-
-                if (names[i]=='Unknown') {
-                    unknownLabel = labs[i]
-                } else if (names[i]=='Nothing') {
-                    nothingLabel = labs[i]
-                } else if (names[i]=='Knocked Down') {
-                    downLabel = labs[i]
-                }
     
                 if (labs[i] != EMPTY_HOTKEY_ID) {
                     var newbtn = document.createElement('button');

@@ -1324,12 +1324,14 @@ def update_label_ids():
         vehicles = db.session.query(Label).filter(Label.description=='Vehicles/Humans/Livestock').first()
         unknown = db.session.query(Label).filter(Label.description=='Unknown').first()
         wrong = db.session.query(Label).filter(Label.description=='Wrong').first()
+        remove_false_detections = db.session.query(Label).filter(Label.description=='Remove False Detections').first()
 
         GLOBALS.nothing_id = nothing.id
         GLOBALS.knocked_id = knockdown.id
         GLOBALS.vhl_id = vehicles.id
         GLOBALS.unknown_id = unknown.id
         GLOBALS.wrong_id = wrong.id
+        GLOBALS.remove_false_detections_id = remove_false_detections.id
         app.logger.info('Global label IDs updated')
 
     except:

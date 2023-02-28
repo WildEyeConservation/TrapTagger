@@ -790,6 +790,10 @@ def setupDatabase():
         user.set_password(Config.SECRET_KEY)
         db.session.add(user)
     
+    if db.session.query(Label).filter(Label.description=='Remove False Detections').first()==None:
+        nothing = Label(description='Remove False Detections', hotkey='-')
+        db.session.add(nothing)
+
     if db.session.query(Label).filter(Label.description=='Nothing').first()==None:
         nothing = Label(description='Nothing', hotkey='n')
         db.session.add(nothing)

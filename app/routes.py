@@ -4550,6 +4550,14 @@ def assignLabel(clusterID):
         newClusters = []
         classifications = None
 
+        # Deal with remove false detections label
+        remove_false_detections = False
+        if str(GLOBALS.remove_false_detections_id) in labels:
+            if Config.DEBUGGING: app.logger.info('Remove false detections request submitted')
+            labels.remove(str(GLOBALS.remove_false_detections_id))
+            labels.append(str(GLOBALS.nothing_id))
+            remove_false_detections = True
+
         num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
         turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
         task = turkcode.task
@@ -4584,15 +4592,16 @@ def assignLabel(clusterID):
                             app.logger.info('Blocked nothing multi label!')
                             labels.remove(GLOBALS.nothing_id)
 
-                        if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and (str(GLOBALS.nothing_id) not in labels):
-                            reAllocated = True
-                            trapgroup = cluster.images[0].camera.trapgroup
-                            trapgroup.processing = True
-                            trapgroup.active = False
-                            trapgroup.user_id = None
-                            current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                            db.session.commit()
-                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
+                        # Don't necessarily know that false detections were removed anymore
+                        # if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and (str(GLOBALS.nothing_id) not in labels):
+                        #     reAllocated = True
+                        #     trapgroup = cluster.images[0].camera.trapgroup
+                        #     trapgroup.processing = True
+                        #     trapgroup.active = False
+                        #     trapgroup.user_id = None
+                        #     current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+                        #     db.session.commit()
+                        #     removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
                             
                         cluster.labels = []
 
@@ -4620,8 +4629,7 @@ def assignLabel(clusterID):
                                     break
                                 
                                 else:
-                                    if newLabel.id == GLOBALS.nothing_id:
-
+                                    if remove_false_detections:
                                         # sq = db.session.query(Cluster) \
                                         #     .join(Image, Cluster.images) \
                                         #     .join(Detection)

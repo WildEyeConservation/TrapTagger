@@ -27,4 +27,5 @@ knocked_id = 2
 wrong_id = 3
 unknown_id = 4
 vhl_id = 6
+remove_false_detections_id = 7
 results_queue = []
