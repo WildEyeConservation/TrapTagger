@@ -46,6 +46,7 @@ var consuming
 var init
 var initCount = 0
 var delete_items
+var download_initialised = false
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -85,11 +86,12 @@ async function startDownload(selectedTask,taskName,count=0) {
     localQueue = []
     checking_local_folder = 0
     initCount = 0
+    download_initialised = false
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
 
-    limitTT(()=> fetch('/reset_download_status', {
+    await limitTT(()=> fetch('/reset_download_status', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -104,13 +106,17 @@ async function startDownload(selectedTask,taskName,count=0) {
         if (!response.ok) {
             throw new Error(response.statusText)
         } else {
-            waitUntilDownloadReady()
+            return true
         }
     }).catch( (error) => {
         if (count<=5) {
             setTimeout(function() { startDownload(selectedTask,taskName,count+1); }, 1000*(5**count));
         }
     })
+
+    waitUntilDownloadReady()
+    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+    init = false
 }
 
 async function waitUntilDownloadReady(count=0) {
@@ -146,9 +152,8 @@ async function waitUntilDownloadReady(count=0) {
 
     if (fileCount) {
         filesToDownload = fileCount
+        download_initialised = true
         updateDownloadProgress()
-        checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
-        init = false
     } else {
         updateDownloadProgress()
     }
@@ -170,10 +175,14 @@ async function checkLocalFiles(dirHandle,path){
 
 function updateDownloadProgress() {
     /** Updates the download progress on the page and also kicks of queue consumption or image downloading as needed. */
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,filesToDownload,initCount]})
+    var totalCount = filesToDownload
+    if (!download_initialised) {
+        totalCount = filesDownloaded
+    }
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,initCount]})
     if (!downloading) {
         consumeQueue()
-        if ((local_files_processing==0) && (!init) && (checking_local_folder==0)) {
+        if ((local_files_processing==0) && (!init) && (checking_local_folder==0) && (localQueue.length==0)) {
             downloading = true
             console.log('Local processing finished')
             fetchRemainingImages()
@@ -352,7 +361,7 @@ async function fetchRemainingImages() {
         if (data.ids.length>0) {
             await confirmReceipt(data.ids)
             getRequiredImages(data.requiredImages)
-        } else {
+        } else if (download_initialised) {
             finishedIterating = true
         }
     }
@@ -400,29 +409,31 @@ async function getRequiredImages(requiredImages) {
 
 async function downloadFile(url,paths,labels,count=0) {
     /** Downloads the specified file to the given paths */
-    var blob = await getBlob(url)
-    if (blob!='error') {
-        var reader = new FileReader();
-        reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels) {
-            return async function() {
-                var jpegData = wrapReader.result
-
-                for (let i=0;i<wrapPaths.length;i++) {
-                    splits = wrapPaths[i].split('/')
-                    fileName = splits[splits.length-1]
-                    splits.pop()
-                    path = splits.join('/')
-                    writeFile(jpegData,path,wrapLabels,fileName)
-                    filesActuallyDownloaded += 1
+    if (paths.length>0) {
+        var blob = await getBlob(url)
+        if (blob!='error') {
+            var reader = new FileReader();
+            reader.addEventListener("load", function(wrapReader,wrapPaths,wrapLabels) {
+                return async function() {
+                    var jpegData = wrapReader.result
+    
+                    for (let i=0;i<wrapPaths.length;i++) {
+                        splits = wrapPaths[i].split('/')
+                        fileName = splits[splits.length-1]
+                        splits.pop()
+                        path = splits.join('/')
+                        writeFile(jpegData,path,wrapLabels,fileName)
+                        filesActuallyDownloaded += 1
+                    }
                 }
-            }
-        }(reader,paths,labels));
-        limitFiles(()=> reader.readAsBinaryString(blob));
-    } else if (count>5) {
-        errorEcountered = true
-        filesDownloaded += paths.length
-    } else {
-        setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
+            }(reader,paths,labels));
+            limitFiles(()=> reader.readAsBinaryString(blob));
+        } else if (count>5) {
+            errorEcountered = true
+            filesDownloaded += paths.length
+        } else {
+            setTimeout(function() { downloadFile(url,paths,labels,count+1); }, 1000*(5**count));
+        }
     }
 }
 
@@ -448,7 +459,7 @@ function getHash(jpegData) {
 
 function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
-    if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&!init) {
+    if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&download_initialised) {
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             wrapUpDownload()

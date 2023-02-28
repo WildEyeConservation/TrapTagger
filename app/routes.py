@@ -6265,12 +6265,10 @@ def reset_download_status():
     if task and (task.survey.user==current_user):
         include_empties = request.json['include_empties']
         labels = request.json['species']
-        if ('0' in labels) or (labels==[]):
-            labels = [r.id for r in task.labels]
-            labels.append(GLOBALS.vhl_id)
-            labels.append(GLOBALS.knocked_id)
-            labels.append(GLOBALS.unknown_id)
-        labels = [int(r) for r in labels]
+
+        images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().all()
+        for image in images:
+            image.downloaded = False
 
         task.status = 'Preparing Download'
         db.session.commit()
@@ -6290,14 +6288,11 @@ def check_download_initialised():
         if task.status == 'Preparing Download':
             return json.dumps('not ready')
         
-        images = db.session.query(Image)\
-                                .join(Camera)\
-                                .join(Trapgroup)\
-                                .filter(Trapgroup.survey==task.survey)\
-                                .filter(Image.downloaded==False)\
-                                .distinct().count()
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        filesToDownload = int(redisClient.get(str(task.id)+'_filesToDownload').decode())
+        redisClient.delete(str(task.id)+'_filesToDownload')
         
-        return json.dumps(images)
+        return json.dumps(filesToDownload)
 
     return json.dumps('not ready')
 

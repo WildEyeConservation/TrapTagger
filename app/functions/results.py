@@ -38,6 +38,7 @@ import pandas as pd
 import json
 import io
 from celery.result import allow_join_result
+import redis
 
 def translate(labels, dictionary):
     '''
@@ -1940,27 +1941,26 @@ def resetImageDownloadStatus(self,task_id,labels,include_empties):
     try:
         task = db.session.query(Task).get(task_id)
 
-        all_images = db.session.query(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .distinct().all()
+        if ('0' in labels) or (labels==[]):
+            labels = [r.id for r in task.labels]
+            labels.append(GLOBALS.vhl_id)
+            labels.append(GLOBALS.knocked_id)
+            labels.append(GLOBALS.unknown_id)
+        labels = [int(r) for r in labels]
 
-        for image in all_images:
-            image.downloaded = True
+        if include_empties: labels.append(GLOBALS.nothing_id)
         
         images = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .join(Label,Labelgroup.labels)\
                             .filter(Labelgroup.task_id==task_id)\
-                            .filter(Label.id.in_(labels))
+                            .filter(~Label.id.in_(labels))
         
-        if not include_empties: images = rDets(images)
+        if include_empties: images = rDets(images)
         images = images.distinct().all()
         
-        if include_empties:
-            nothing = db.session.query(Label).get(GLOBALS.nothing_id)
+        if not include_empties:
             # add unlabelled
             images.extend(db.session.query(Image)\
                             .join(Detection)\
@@ -1968,17 +1968,15 @@ def resetImageDownloadStatus(self,task_id,labels,include_empties):
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(~Labelgroup.labels.any())\
                             .distinct().all())
-            # Add nothings
-            images.extend(db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(nothing))\
-                            .distinct().all())
             images = list(set(images))
 
         for image in images:
-            image.downloaded = False
+            image.downloaded = True
+
+        # Get total count
+        filesToDownload = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().count()-len(images)
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
         task.status = 'Ready'
         db.session.commit()
