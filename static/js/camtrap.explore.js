@@ -21,6 +21,7 @@ isReviewing = true
 isKnockdown = false
 isBounding = false
 isIDing = false
+var blockedExploreLabels = ['Skip', 'Wrong', 'Knocked Down', 'Remove False Detections']
 
 const divSelector = document.querySelector('#divSelector');
 
@@ -67,7 +68,7 @@ function getKeys() {
                         for (let key in globalKeys) {
                             if (globalKeys[key].length!=0) {
                                 for (let i=0;i<globalKeys[key][1].length;i++) {
-                                    if (['Skip', 'Wrong', 'Knocked Down'].includes(globalKeys[key][1][i])) {
+                                    if (blockedExploreLabels.includes(globalKeys[key][1][i])) {
                                         globalKeys[key][1][i] = 'N'
                                         globalKeys[key][0][i] = -967
                                     }

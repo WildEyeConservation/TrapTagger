@@ -4938,6 +4938,9 @@ def reviewClassification():
                                             .filter(Image.clusters.contains(cluster))\
                                             .filter(Labelgroup.task==cluster.task)\
                                             .all()
+                
+                if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and additional_labels:
+                    cluster.labels.remove(db.session.query(Label).get(GLOBALS.nothing_id))
 
                 cluster.labels.extend(additional_labels)
 
@@ -5524,7 +5527,7 @@ def getTaggingLevels():
     if task and ((current_user==task.survey.user) or (current_user.parent == task.survey.user) or (current_user.parent in task.survey.user.workers)):
         parent_labels = db.session.query(Label.id,Label.description).filter(Label.task_id==task.id).filter(Label.children.any()).all()
         parent_labels.append((GLOBALS.vhl_id,'Vehicles/Humans/Livestock'))
-        parent_labels.insert(0,(0, 'All Children Categories'))
+        # parent_labels.insert(0,(0, 'All Children Categories'))
         parent_labels.insert(0,(-1, 'All Parent Categories'))
         if '-3' not in task.tagging_level: parent_labels.insert(0,(-2, 'Informational Tags'))
 

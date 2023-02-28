@@ -1348,9 +1348,9 @@ function assignLabel(label,mapID = 'map1'){
             // confirmation modal for nothing and knockdowns
             if (label==RFDLabel) {
                 if (isReviewing) {
-                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing.<br><br><i>If you wish to continue, press the "-" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
                 } else {
-                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any present false detections from all other images from this camera.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing and have the associated false detections removed from all other images from this camera.<br><br><i>If you wish to continue, press the "-" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
                 }
             } else {
                 document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
