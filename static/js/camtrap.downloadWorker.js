@@ -465,9 +465,10 @@ function getHash(jpegData) {
 
 async function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
-    if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&download_initialised) {
+    if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&download_initialised&&!wrappingUp) {
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
+            wrappingUp = true
             console.log('Download complete!')
             if (delete_items) {
                 await cleanEmptyFolders(globalTopLevelHandle)
@@ -484,7 +485,6 @@ async function checkDownloadStatus() {
 async function wrapUpDownload(reload,count=0) {
     /** Wraps up the download by cleaning up any remaining empty folders and updating the UI */
     if (downloadingTask) {
-        wrappingUp = true
         var response = await limitTT(()=> fetch('/download_complete', {
             method: 'post',
             headers: {
