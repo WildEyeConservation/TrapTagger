@@ -463,16 +463,15 @@ function getHash(jpegData) {
     return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
 }
 
-function checkDownloadStatus() {
+async function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
     if ((filesDownloaded>=filesToDownload)&&(filesToDownload!=0)&&finishedIterating&&download_initialised) {
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             console.log('Download complete!')
             if (delete_items) {
-                cleanEmptyFolders(globalTopLevelHandle)
+                await cleanEmptyFolders(globalTopLevelHandle)
             }
-            resetDownloadState()
             wrapUpDownload(false)
         } else {
             // check download
@@ -486,7 +485,7 @@ async function wrapUpDownload(reload,count=0) {
     /** Wraps up the download by cleaning up any remaining empty folders and updating the UI */
     if (downloadingTask) {
         wrappingUp = true
-        await limitTT(()=> fetch('/download_complete', {
+        var response = await limitTT(()=> fetch('/download_complete', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -499,16 +498,20 @@ async function wrapUpDownload(reload,count=0) {
             if (!response.ok) {
                 throw new Error(response.statusText)
             } else {
-                if (reload) {
-                    postMessage({'func': 'reload', 'args': null})
-                }
-                wrappingUp = false
+                return true
             }
         }).catch( (error) => {
             if (count<=5) {
                 setTimeout(function() { wrapUpDownload(reload,count+1); }, 1000*(5**count));
             }
         }))
+        if (response) {
+            if (reload) {
+                postMessage({'func': 'reload', 'args': null})
+            }
+            wrappingUp = false
+            resetDownloadState()
+        }
     }
 }
 
