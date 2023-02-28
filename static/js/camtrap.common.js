@@ -1340,303 +1340,305 @@ function assignLabel(label,mapID = 'map1'){
             return;
         }
     }
-
-    if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label))) {
-        //ignore nothing and knocked down labels in multi
-    } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
-        // confirmation modal for nothing and knockdowns
-        if (label==RFDLabel) {
-            if (isReviewing) {
-                document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
-            } else {
-                document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any present false detections from all other images from this camera.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
-            }
-        } else {
-            document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
-        }
-        modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
-    } else if (label==wrongLabel) {
-        wrongStatus = true
-        tempTaggingLevel = -1
-        initKeys(globalKeys[tempTaggingLevel])
-    } else if (wrongStatus && (label in globalKeys) && (label != tempTaggingLevel)) {
-        tempTaggingLevel = label
-        initKeys(globalKeys[tempTaggingLevel])
-    } else if ((finishedDisplaying[mapID] == true) && (!modalActive) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-
-        if (taggingLevel=='-3') {
-            // classification check
-
-            var checkVar = 0
-            if (clusters[mapID][clusterIndex[mapID]].required.length>1) {
-                if (reachedEnd == false) {
-                    document.getElementById('modalAlertText').innerHTML = 'This cluster may contain more species, please cycle through all images before tagging it.'
-                    modalAlert.modal({keyboard: true});
-                    checkVar = 1
-                }
-            }
-
-            if (checkVar == 0) {
-
-                if (label == '4') {
-                    // other
-                    if (divBtns != null) {
-                        orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
-                        orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
-                        clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
-                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
-                        updateDebugInfo(mapID,false)
-
-                        selectBtns = document.getElementById('selectBtns')
-                        multipleStatus = false
-                        wrongStatus = true
-                        tempTaggingLevel = -1
-
-                        while(divBtns.firstChild){
-                            divBtns.removeChild(divBtns.firstChild);
-                        }
-
-                        var newbtn = document.createElement('button');
-                        newbtn.classList.add('btn');
-                        newbtn.classList.add('btn-danger');
-                        newbtn.innerHTML = 'Back';
-                        newbtn.setAttribute("id", 0);
-                        newbtn.classList.add('btn-block');
-                        newbtn.classList.add('btn-sm');
-                        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-                        newbtn.addEventListener('click', (evt)=>{
-                            suggestionBack();
-                        });
-                        selectBtns.appendChild(newbtn);
-
-                        dropdown = document.createElement('div')
-                        dropdown.classList.add('dropdown')
-                        selectBtns.appendChild(dropdown)
-
-                        dropbutton = document.createElement('button')
-                        dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
-                        dropbutton.setAttribute('type','button')
-                        dropbutton.setAttribute('data-toggle','dropdown')
-                        dropbutton.innerHTML = 'Annotation Level'
-                        dropdown.appendChild(dropbutton)
-
-                        levelSelector = document.createElement('div')
-                        levelSelector.setAttribute('id','level-selector')
-                        levelSelector.setAttribute('class','dropdown-menu')
-                        dropdown.appendChild(levelSelector)
-
-                        populateLevels()
-                    }
+    
+    if (label != EMPTY_HOTKEY_ID) {
+        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label))) {
+            //ignore nothing and knocked down labels in multi
+        } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
+            // confirmation modal for nothing and knockdowns
+            if (label==RFDLabel) {
+                if (isReviewing) {
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
                 } else {
-                    classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
-
-                    if (classification != undefined) {
-                        // Append to labels
-                        classification = classification[0]
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing. This will filter out any present false detections from all other images from this camera.<br><br><i>If you wish to continue, press the "N" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+                }
+            } else {
+                document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+            }
+            modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
+        } else if (label==wrongLabel) {
+            wrongStatus = true
+            tempTaggingLevel = -1
+            initKeys(globalKeys[tempTaggingLevel])
+        } else if (wrongStatus && (label in globalKeys) && (label != tempTaggingLevel)) {
+            tempTaggingLevel = label
+            initKeys(globalKeys[tempTaggingLevel])
+        } else if ((finishedDisplaying[mapID] == true) && (!modalActive) && (modalActive2 == false) && (clusters[mapID][clusterIndex[mapID]].id != '-99') && (clusters[mapID][clusterIndex[mapID]].id != '-101') && (clusters[mapID][clusterIndex[mapID]].id != '-782')) {
     
-                        if (label == '1') {
-                            // accept
-                            classificationCheckData['data'].push({'label':classification,'action':'accept'})
-                        } else if (label == '2') {
-                            // reject
-                            classificationCheckData['data'].push({'label':classification,'action':'reject'})
-                        } else if (label == '3') {
-                            // overwrite
-                            classificationCheckData['overwrite'] = true
-                            classificationCheckData['data'].push({'label':classification,'action':'accept'})
-                        }
+            if (taggingLevel=='-3') {
+                // classification check
+    
+                var checkVar = 0
+                if (clusters[mapID][clusterIndex[mapID]].required.length>1) {
+                    if (reachedEnd == false) {
+                        document.getElementById('modalAlertText').innerHTML = 'This cluster may contain more species, please cycle through all images before tagging it.'
+                        modalAlert.modal({keyboard: true});
+                        checkVar = 1
                     }
+                }
     
-                    if (clusters[mapID][clusterIndex[mapID]].classification.length==0) {
-                        // Finished - submit
-                        classificationCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
-                        var formData = new FormData()
-                        formData.append("data", JSON.stringify(classificationCheckData))
+                if (checkVar == 0) {
     
-                        var xhttp = new XMLHttpRequest();
-                        xhttp.onreadystatechange =
-                        function(wrapClusterIndex,wrapMapID){
-                            return function() {
-                                if (this.readyState == 4 && this.status == 278) {
-                                    window.location.replace(JSON.parse(this.responseText)['redirect'])
-                                } else if (this.readyState == 4 && this.status == 200) {                    
-                                    response = JSON.parse(this.responseText);
-                                    clusters[wrapMapID][wrapClusterIndex].classification = response.classifications
-                                    clusters[wrapMapID][wrapClusterIndex].label = response.labels
-                                    clusters[wrapMapID][wrapClusterIndex].label_ids = response.label_ids
-                                    clusters[wrapMapID][wrapClusterIndex].ready = true
-                                    updateProgBar(response.progress)
-                                }
+                    if (label == '4') {
+                        // other
+                        if (divBtns != null) {
+                            orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+                            orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+                            clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                            updateDebugInfo(mapID,false)
+    
+                            selectBtns = document.getElementById('selectBtns')
+                            multipleStatus = false
+                            wrongStatus = true
+                            tempTaggingLevel = -1
+    
+                            while(divBtns.firstChild){
+                                divBtns.removeChild(divBtns.firstChild);
                             }
-                        }(clusterIndex[mapID],mapID);
-                        xhttp.open("POST", '/reviewClassification');
-                        clusters[mapID][clusterIndex[mapID]].ready = false
-                        xhttp.send(formData);
     
-                        classificationCheckData = {'overwrite':false,'data':[]}
-                        nextCluster(mapID)
+                            var newbtn = document.createElement('button');
+                            newbtn.classList.add('btn');
+                            newbtn.classList.add('btn-danger');
+                            newbtn.innerHTML = 'Back';
+                            newbtn.setAttribute("id", 0);
+                            newbtn.classList.add('btn-block');
+                            newbtn.classList.add('btn-sm');
+                            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                            newbtn.addEventListener('click', (evt)=>{
+                                suggestionBack();
+                            });
+                            selectBtns.appendChild(newbtn);
+    
+                            dropdown = document.createElement('div')
+                            dropdown.classList.add('dropdown')
+                            selectBtns.appendChild(dropdown)
+    
+                            dropbutton = document.createElement('button')
+                            dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
+                            dropbutton.setAttribute('type','button')
+                            dropbutton.setAttribute('data-toggle','dropdown')
+                            dropbutton.innerHTML = 'Annotation Level'
+                            dropdown.appendChild(dropbutton)
+    
+                            levelSelector = document.createElement('div')
+                            levelSelector.setAttribute('id','level-selector')
+                            levelSelector.setAttribute('class','dropdown-menu')
+                            dropdown.appendChild(levelSelector)
+    
+                            populateLevels()
+                        }
                     } else {
-                        updateDebugInfo()
-                    }
-                }
-            }
+                        classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
+    
+                        if (classification != undefined) {
+                            // Append to labels
+                            classification = classification[0]
         
-        } else {
-
-            if (modalNothingKnock.is(':visible')) {
-                modalNothingKnock.modal('hide')
-            }
-
-            if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(downLabel)) && (label != downLabel)) { //If already marked as knocked down - undo that knockdown
-                UndoKnockDown(label, mapID)
-            } else if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) && (label == downLabel)) {
-                // disallow undo of undo knockdown
-                nextCluster()
-            } else {
-                if (label==downLabel) {
-                    knockdown(mapID)
-                } else {
-                    var checkVar = 0
-                    if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||(label==RFDLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
-                        if ((reachedEnd == false)&&(clusters[mapID][clusterIndex[mapID]].required.length>1)) {
-                            text = 'This cluster may contain more species, please cycle through all images before tagging it.'
-                            document.getElementById('modalAlertText').innerHTML = text
-                            modalAlert.modal({keyboard: true});
-                            checkVar = 1
+                            if (label == '1') {
+                                // accept
+                                classificationCheckData['data'].push({'label':classification,'action':'accept'})
+                            } else if (label == '2') {
+                                // reject
+                                classificationCheckData['data'].push({'label':classification,'action':'reject'})
+                            } else if (label == '3') {
+                                // overwrite
+                                classificationCheckData['overwrite'] = true
+                                classificationCheckData['data'].push({'label':classification,'action':'accept'})
+                            }
+                        }
+        
+                        if (clusters[mapID][clusterIndex[mapID]].classification.length==0) {
+                            // Finished - submit
+                            classificationCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+                            var formData = new FormData()
+                            formData.append("data", JSON.stringify(classificationCheckData))
+        
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.onreadystatechange =
+                            function(wrapClusterIndex,wrapMapID){
+                                return function() {
+                                    if (this.readyState == 4 && this.status == 278) {
+                                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                                    } else if (this.readyState == 4 && this.status == 200) {                    
+                                        response = JSON.parse(this.responseText);
+                                        clusters[wrapMapID][wrapClusterIndex].classification = response.classifications
+                                        clusters[wrapMapID][wrapClusterIndex].label = response.labels
+                                        clusters[wrapMapID][wrapClusterIndex].label_ids = response.label_ids
+                                        clusters[wrapMapID][wrapClusterIndex].ready = true
+                                        updateProgBar(response.progress)
+                                    }
+                                }
+                            }(clusterIndex[mapID],mapID);
+                            xhttp.open("POST", '/reviewClassification');
+                            clusters[mapID][clusterIndex[mapID]].ready = false
+                            xhttp.send(formData);
+        
+                            classificationCheckData = {'overwrite':false,'data':[]}
+                            nextCluster(mapID)
+                        } else {
+                            updateDebugInfo()
                         }
                     }
-        
-                    if ((label != EMPTY_HOTKEY_ID)&&(checkVar==0)) {
-                        console.log(label)
-                        idx = hotkeys.indexOf(label)
-
-                        if (idx > -1) {
-
-                            if (wrongStatus) {
-                                for (let key in globalKeys) {
-                                    for (let i=0;i<globalKeys[key][0].length;i++) {
-                                        if (globalKeys[key][0][i]==label) {
-                                            labelName = globalKeys[key][1][i]
-                                            break
-                                        }
-                                    }
-                                }
-                            } else {
-                                labelName = names[idx]
-                            }
-
-                            if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(labelName)) {
-        
-                                var btn = document.getElementById(label);
-                                if (idx < 10) {
-                                    btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
-                                } else {
-                                    btn.setAttribute("class", "btn btn-info btn-block btn-sm");
-                                }
+                }
             
-                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(labelName), 1);
-                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label), 1);
-                                if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
-                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
-                                }
-                                if (isClassCheck) {
-                                    updateDebugInfo(mapID,false)
-                                } else {
-                                    updateDebugInfo(mapID)
-                                }
-
-                                clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label), 1)
-                            } else {
-
-                                unknocked = false
-                                if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) {
-                                    unknocked = true
-                                }
+            } else {
     
-                                if (multipleStatus) {
-                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
-                                        clusters[mapID][clusterIndex[mapID]][ITEMS] = []
-                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
-                                    }
-                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel)) {
-                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(taggingLabel), 1);
-                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel), 1);
-                                    }
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
-                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
-                                    clusterLabels[mapID].push(label)
+                if (modalNothingKnock.is(':visible')) {
+                    modalNothingKnock.modal('hide')
+                }
     
-                                } else {
-
-                                    if (isReviewing) {
-                                        clusters[mapID][clusterIndex[mapID]][ITEMS] = []
-                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
-                                        clusterLabels[mapID] = []
-                                    } else {
-                                        // Clear other current-level labels
-                                        for (let i=0;i<globalKeys[taggingLevel][0].length;i++) {
-                                            label_id = globalKeys[taggingLevel][0][i].toString()
-                                            if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
-                                                label_name = globalKeys[taggingLevel][1][i]
-                                                clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
-                                                clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
-                                                clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+                if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(downLabel)) && (label != downLabel)) { //If already marked as knocked down - undo that knockdown
+                    UndoKnockDown(label, mapID)
+                } else if ((clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) && (label == downLabel)) {
+                    // disallow undo of undo knockdown
+                    nextCluster()
+                } else {
+                    if (label==downLabel) {
+                        knockdown(mapID)
+                    } else {
+                        var checkVar = 0
+                        if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||(label==RFDLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
+                            if ((reachedEnd == false)&&(clusters[mapID][clusterIndex[mapID]].required.length>1)) {
+                                text = 'This cluster may contain more species, please cycle through all images before tagging it.'
+                                document.getElementById('modalAlertText').innerHTML = text
+                                modalAlert.modal({keyboard: true});
+                                checkVar = 1
+                            }
+                        }
+            
+                        if (checkVar==0) {
+                            console.log(label)
+                            idx = hotkeys.indexOf(label)
+    
+                            if (idx > -1) {
+    
+                                if (wrongStatus) {
+                                    for (let key in globalKeys) {
+                                        for (let i=0;i<globalKeys[key][0].length;i++) {
+                                            if (globalKeys[key][0][i]==label) {
+                                                labelName = globalKeys[key][1][i]
+                                                break
                                             }
                                         }
-
-                                        // Clear other same-level labels in wrong mode
-                                        if (wrongStatus) {
-                                            for (let i=0;i<globalKeys[tempTaggingLevel][0].length;i++) {
-                                                label_id = globalKeys[tempTaggingLevel][0][i].toString()
+                                    }
+                                } else {
+                                    labelName = names[idx]
+                                }
+    
+                                if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(labelName)) {
+            
+                                    var btn = document.getElementById(label);
+                                    if (idx < 10) {
+                                        btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
+                                    } else {
+                                        btn.setAttribute("class", "btn btn-info btn-block btn-sm");
+                                    }
+                
+                                    clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(labelName), 1);
+                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label), 1);
+                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].length == 0) {
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                                    }
+                                    if (isClassCheck) {
+                                        updateDebugInfo(mapID,false)
+                                    } else {
+                                        updateDebugInfo(mapID)
+                                    }
+    
+                                    clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label), 1)
+                                } else {
+    
+                                    unknocked = false
+                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(unKnockLabel)) {
+                                        unknocked = true
+                                    }
+        
+                                    if (multipleStatus) {
+                                        if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
+                                            clusters[mapID][clusterIndex[mapID]][ITEMS] = []
+                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
+                                        }
+                                        if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel)) {
+                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(taggingLabel), 1);
+                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(taggingLevel), 1);
+                                        }
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
+                                        clusterLabels[mapID].push(label)
+        
+                                    } else {
+    
+                                        if (isReviewing) {
+                                            clusters[mapID][clusterIndex[mapID]][ITEMS] = []
+                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = []
+                                            clusterLabels[mapID] = []
+                                        } else {
+                                            // Clear other current-level labels
+                                            for (let i=0;i<globalKeys[taggingLevel][0].length;i++) {
+                                                label_id = globalKeys[taggingLevel][0][i].toString()
                                                 if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
-                                                    label_name = globalKeys[tempTaggingLevel][1][i]
+                                                    label_name = globalKeys[taggingLevel][1][i]
                                                     clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
                                                     clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
                                                     clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
                                                 }
                                             }
+    
+                                            // Clear other same-level labels in wrong mode
+                                            if (wrongStatus) {
+                                                for (let i=0;i<globalKeys[tempTaggingLevel][0].length;i++) {
+                                                    label_id = globalKeys[tempTaggingLevel][0][i].toString()
+                                                    if (clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(label_id)) {
+                                                        label_name = globalKeys[tempTaggingLevel][1][i]
+                                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf(label_name), 1);
+                                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf(label_id), 1);
+                                                        clusterLabels[mapID].splice(clusterLabels[mapID].indexOf(label_id), 1)
+                                                    }
+                                                }
+                                            }
+                                        }
+    
+                                        if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
+                                            clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf('None'), 1);
+                                            clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf('0'), 1);
+                                        }
+                                        clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
+                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
+                                        clusterLabels[mapID].push(label)
+    
+                                        // clusters[mapID][clusterIndex[mapID]][ITEMS] = [labelName]
+                                        // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
+                                        // clusterLabels[mapID] = [label]
+    
+                                        if (unknocked) {
+                                            clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
                                         }
                                     }
-
-                                    if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')) {
-                                        clusters[mapID][clusterIndex[mapID]][ITEMS].splice(clusters[mapID][clusterIndex[mapID]][ITEMS].indexOf('None'), 1);
-                                        clusters[mapID][clusterIndex[mapID]][ITEM_IDS].splice(clusters[mapID][clusterIndex[mapID]][ITEM_IDS].indexOf('0'), 1);
-                                    }
-                                    clusters[mapID][clusterIndex[mapID]][ITEMS].push(labelName);
-                                    clusters[mapID][clusterIndex[mapID]][ITEM_IDS].push(label);
-                                    clusterLabels[mapID].push(label)
-
-                                    // clusters[mapID][clusterIndex[mapID]][ITEMS] = [labelName]
-                                    // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [label]
-                                    // clusterLabels[mapID] = [label]
-
-                                    if (unknocked) {
-                                        clusters[mapID][clusterIndex[mapID]][ITEMS].push(unKnockLabel)
-                                    }
-                                }
-                                if (isClassCheck) {
-                                    updateDebugInfo(mapID,false)
-                                } else {
-                                    updateDebugInfo(mapID)
-                                }
-                                
-                                if (wrongStatus&&!(isClassCheck&&multipleStatus)) {
-                                    wrongStatus = false
-                                    initKeys(globalKeys[taggingLevel])
-                                }
-                                
-                                if ((!isTutorial)&&(!multipleStatus)) {
-                                    submitLabels(mapID)
-                                }
-    
-                                if (!multipleStatus) {
                                     if (isClassCheck) {
-                                        suggestionBack(false)
+                                        updateDebugInfo(mapID,false)
+                                    } else {
+                                        updateDebugInfo(mapID)
                                     }
-                                    if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString()) || isTutorial) {
-                                        // nothings need to wait to see if they are edited first
-                                        nextCluster(mapID)
+                                    
+                                    if (wrongStatus&&!(isClassCheck&&multipleStatus)) {
+                                        wrongStatus = false
+                                        initKeys(globalKeys[taggingLevel])
+                                    }
+                                    
+                                    if ((!isTutorial)&&(!multipleStatus)) {
+                                        submitLabels(mapID)
+                                    }
+        
+                                    if (!multipleStatus) {
+                                        if (isClassCheck) {
+                                            suggestionBack(false)
+                                        }
+                                        if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString()) || isTutorial) {
+                                            // nothings need to wait to see if they are edited first
+                                            nextCluster(mapID)
+                                        }
                                     }
                                 }
                             }
