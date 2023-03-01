@@ -1973,6 +1973,13 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(~Labelgroup.labels.any())\
                             .distinct().all())
+            # Add detectionless (to be safe)
+            images.extend(db.session.query(Image)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey)\
+                            .filter(~Image.detections.any())\
+                            .distinct().all())
             images = list(set(images))
 
         for chunk in chunker(images,1000):
