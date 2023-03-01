@@ -1289,7 +1289,7 @@ def genInitKeys(taggingLevel,task_id):
     for category in categories:
         if category.hotkey != None:
             num = ord(category.hotkey)
-            
+
             if 48 <= num <= 57:
                 #handle numbers
                 indx = num-48
@@ -1385,7 +1385,7 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
 
             images.append(output)
 
-        reply = {'id': cluster.id,'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None'}
+        reply = {'id': cluster.id,'classification': [],'required': [], 'images': images, 'label': [], 'tags': [], 'groundTruth': [], 'trapGroup': 'None', 'notes':cluster.notes}
     
     else:
 
