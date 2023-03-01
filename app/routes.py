@@ -6201,23 +6201,14 @@ def get_image_info():
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
         include_empties = request.json['include_empties']
-        
         labels = request.json['species']
-        if '0' in labels:
-            labels = [r.id for r in task.labels]
-            labels.append(GLOBALS.vhl_id)
-            labels.append(GLOBALS.knocked_id)
-            labels.append(GLOBALS.unknown_id)
-        labels = [int(r) for r in labels]
 
-        image = rDets(db.session.query(Image)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .join(Label,Labelgroup.labels)\
-                        .filter(Labelgroup.task_id==task_id)\
+        image = db.session.query(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
                         .filter(Image.hash==hash)\
-                        .filter(Label.id.in_(labels))\
-                        ).first()
+                        .first()
 
         if image:
             image.downloaded = True
@@ -6245,17 +6236,20 @@ def get_required_images():
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
         include_empties = request.json['include_empties']
-        
         labels = request.json['species']
-        if '0' in labels:
-            labels = [r.id for r in task.labels]
-            labels.append(GLOBALS.vhl_id)
-            labels.append(GLOBALS.knocked_id)
-            labels.append(GLOBALS.unknown_id)
-        labels = [int(r) for r in labels]
 
         if task.status == 'Preparing Download':
             # Try speed things up while waiting for download to prep
+            if '0' in labels:
+                localLabels = [r.id for r in task.labels]
+                localLabels.append(GLOBALS.vhl_id)
+                localLabels.append(GLOBALS.knocked_id)
+                localLabels.append(GLOBALS.unknown_id)
+            else:
+                localLabels = [int(r) for r in labels]
+
+            if include_empties: localLabels.append(GLOBALS.nothing_id)
+            
             images = db.session.query(Image)\
                                 .join(Cluster,Image.clusters)\
                                 .join(Label,Cluster.labels)\

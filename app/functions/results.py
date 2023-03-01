@@ -1278,6 +1278,14 @@ def generate_excel(self,task_id):
 def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,requested_labels,include_empties):
     '''Returns the paths, labels and tags for a particular image and task for image sorting and EXIF labelling.'''
 
+    if '0' in requested_labels:
+        requested_labels = [r.id for r in task.labels]
+        requested_labels.append(GLOBALS.vhl_id)
+        requested_labels.append(GLOBALS.knocked_id)
+        requested_labels.append(GLOBALS.unknown_id)
+    if include_empties: requested_labels.append(GLOBALS.nothing_id)
+    requested_labels = [int(r) for r in requested_labels]
+
     splitPath = re.split('/',image.camera.path)
 
     imageLabels = db.session.query(Label)\
@@ -1292,9 +1300,6 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
     
     if imageLabels == []:
         imageLabels = [db.session.query(Label).get(GLOBALS.nothing_id)]
-
-    if include_empties:
-        requested_labels.append(GLOBALS.nothing_id)
 
     imageTags = db.session.query(Tag)\
                         .join(Labelgroup,Tag.labelgroups)\
