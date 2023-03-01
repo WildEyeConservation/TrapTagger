@@ -31,7 +31,7 @@ var multiContextVal = 0
 var subDividedContList
 var prevClickBounding = null
 
-const modalNote = $('#modalNote');
+// const modalNote = $('#modalNote');
 
 function loadNewCluster(mapID = 'map1') {
     /**

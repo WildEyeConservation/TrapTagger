@@ -107,6 +107,7 @@ function populateLevels() {
                 ss.appendChild(a)
             }
             switchTaggingLevel(species[0][0])
+            switchTaggingLevel(-1)  // Loads labels by default
         }
     }
     xhttp.open("GET", '/getTaggingLevels');

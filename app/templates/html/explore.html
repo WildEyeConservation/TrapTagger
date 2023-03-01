@@ -110,6 +110,41 @@ limitations under the License. -->
       
     </div>
 </div>
+
+<!-- Note Modal -->
+<div id="modalNote" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Add Cluster Note</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <div id="notif"></div>
+
+                <textarea id="notebox" rows="4" cols="50" autofocus></textarea>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-6'></div>
+                <div class='col-lg-3'>
+                    <button id='btnNoteSubmit' type='button' class='btn btn-primary btn-block' onclick=sendNote()
+                    data-dismiss='modal'>Submit</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+
 {% endblock %}
 
 {% block page_scripts %}

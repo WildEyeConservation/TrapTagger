@@ -73,6 +73,7 @@ const modalWait2 = $('#modalWait2');
 const modalDone = $('#modalDone');
 const modalAlert = $('#modalAlert');
 const modalWelcome = $('#modalWelcome');
+const modalNote = $('#modalNote');
 const btnDone = document.querySelector('#btnDone');
 const helpx = document.querySelector('#helpx');
 const helpclose = document.querySelector('#helpclose');
@@ -1781,19 +1782,21 @@ function prepMap(mapID = 'map1') {
                 return function() {
                     w = this.width
                     h = this.height
-
-                    if (mapdiv2 != null) {
-                        imWidth = 700
-                    } else {
-                        imWidth = 1000
-                    }
-            
+                
                     if (w>h) {
-                        ratio = (h/w)*imWidth
-                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+ratio.toString()+'px;width:'+imWidth.toString()+'px; border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        if (mapdiv2 != null) {
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
+                        else{
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(h/w)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
                     } else {
-                        ratio = (w/h)*imWidth
-                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+imWidth.toString()+'px;width:'+ratio.toString()+'px; border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        if (mapdiv2 != null) {
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
+                        else{
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(w/h)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
                     }
 
                     L.Browser.touch = true
@@ -1804,9 +1807,11 @@ function prepMap(mapID = 'map1') {
                         center: [0, 0],
                         zoomSnap: 0
                     })
-            
-                    var southWest = map[wrapMapID].unproject([0, h], 2);
-                    var northEast = map[wrapMapID].unproject([w, 0], 2);
+                    var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                    var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+
+                    var southWest = map[wrapMapID].unproject([0, h1], 2);
+                    var northEast = map[wrapMapID].unproject([w1, 0], 2);
                     var bounds = new L.LatLngBounds(southWest, northEast);
             
                     mapWidth[wrapMapID] = northEast.lng
@@ -1821,6 +1826,29 @@ function prepMap(mapID = 'map1') {
                     map[wrapMapID].setMaxBounds(bounds);
                     map[wrapMapID].fitBounds(bounds)
                     map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
+
+                    map[wrapMapID].on('resize', function(wrapWrapMapID){
+                        return function () {
+                            h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                            w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+       
+                            southWest = map[wrapMapID].unproject([0, h1], 2);
+                            northEast = map[wrapMapID].unproject([w1, 0], 2);
+                            bounds = new L.LatLngBounds(southWest, northEast);
+                    
+                            mapWidth[wrapWrapMapID] = northEast.lng
+                            mapHeight[wrapWrapMapID] = southWest.lat
+
+                            map[wrapWrapMapID].invalidateSize()
+                            map[wrapWrapMapID].setMaxBounds(bounds)
+                            map[wrapWrapMapID].fitBounds(bounds)
+                            map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getZoom())
+                            activeImage[wrapWrapMapID].setBounds(bounds)
+                            addedDetections[wrapWrapMapID] = false
+                            addDetections(wrapWrapMapID)    
+                        }
+                    }(wrapMapID));
+
 
                     map[wrapMapID].on('drag', function(wrapWrapMapID) {
                         return function () {
@@ -2140,6 +2168,41 @@ function submitLabels(mapID = 'map1') {
     }
 }
 
+function Notes() {
+    /** Submits the users note to the server if there is one, otherwise just closes the modal. */
+    if (modalNote.is(':visible')) {
+        sendNote()
+    } else {
+        document.getElementById("notebox").value = ''
+        modalNote.modal({keyboard: true});
+    }
+}
+
+function sendNote(mapID = 'map1') {
+    /** Sends the note to the server. */
+    note = document.getElementById("notebox").value
+
+    if (note.length > 512) {
+        document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
+    } else {
+
+        if (note != "") {
+            clusterID=clusters[mapID][clusterIndex[mapID]].id
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+            }
+            xhttp.open("GET", '/assignNote/'+clusterID+'/'+note, true);
+            xhttp.send();
+        }
+    
+        modalNote.modal('hide');
+    }
+}
+
 function initKeys(res){
     /** Initialises the buttons for the current task, using the input data. */
     if ((!isBounding) && (divBtns != null)) {
@@ -2424,9 +2487,9 @@ document.onkeyup = function(event){
                 case 'enter': Notes()
                     break;
     
-                case '`': 
-                case '~':
-                    prevCluster()
+                case 'alt': nextCluster()
+                    break;
+                case '~': prevCluster()
                     break;
     
                 case 'arrowright': nextImage()
