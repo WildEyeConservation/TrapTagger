@@ -2001,7 +2001,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
         if len(test)==0:
             task.status = 'Processing'
             db.session.commit()
-            resetImageDownloadStatus(self,task_id,False,None,None)
+            resetImageDownloadStatus(task_id,False,None,None)
         else:
             # Get total count
             filesToDownload = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().count()-len(images)
