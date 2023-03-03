@@ -2023,8 +2023,10 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
     
     try:
         task = db.session.query(Task).get(task_id)
-        task.status = 'Processing'
-        db.session.commit()
+        
+        if not then_set:
+            task.status = 'Processing'
+            db.session.commit()
 
         images = db.session.query(Image)\
                         .join(Camera)\
