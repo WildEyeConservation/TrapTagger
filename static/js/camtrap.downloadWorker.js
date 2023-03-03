@@ -125,41 +125,43 @@ async function startDownload(selectedTask,taskName,count=0) {
 
 async function waitUntilDownloadReady(count=0) {
     /** Checks to see if the download is ready to commence */
-    initCount += 1
-    var fileCount = await limitTT(()=> fetch('/check_download_initialised', {
-        method: 'post',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-            selectedTask: downloadingTask
-        }),
-    })).then((response) => {
-        if (!response.ok) {
-            throw new Error(response.statusText)
+    if (downloadingTask) {
+        initCount += 1
+        var fileCount = await limitTT(()=> fetch('/check_download_initialised', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                selectedTask: downloadingTask
+            }),
+        })).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
+                return response.json()
+            }
+        }).then((data) => {
+            if (data=='not ready') {
+                setTimeout(function() { waitUntilDownloadReady(); }, 2000);
+                return null
+            } else {
+                return data
+            }
+        }).catch( (error) => {
+            if (count<=5) {
+                setTimeout(function() { waitUntilDownloadReady(count+1); }, 1000*(5**count));
+            }
+        })
+    
+        if (fileCount) {
+            filesToDownload = fileCount
+            download_initialised = true
+            updateDownloadProgress()
         } else {
-            return response.json()
+            updateDownloadProgress()
         }
-    }).then((data) => {
-        if (data=='not ready') {
-            setTimeout(function() { waitUntilDownloadReady(); }, 2000);
-            return null
-        } else {
-            return data
-        }
-    }).catch( (error) => {
-        if (count<=5) {
-            setTimeout(function() { waitUntilDownloadReady(count+1); }, 1000*(5**count));
-        }
-    })
-
-    if (fileCount) {
-        filesToDownload = fileCount
-        download_initialised = true
-        updateDownloadProgress()
-    } else {
-        updateDownloadProgress()
     }
 }
 
