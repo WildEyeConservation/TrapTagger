@@ -95,7 +95,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
 
-    await limitTT(()=> fetch('/set_download_status', {
+    var reply = await limitTT(()=> fetch('/set_download_status', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -110,7 +110,7 @@ async function startDownload(selectedTask,taskName,count=0) {
         if (!response.ok) {
             throw new Error(response.statusText)
         } else {
-            return true
+            return response.json()
         }
     }).catch( (error) => {
         if (count<=5) {
@@ -119,8 +119,11 @@ async function startDownload(selectedTask,taskName,count=0) {
     })
 
     waitUntilDownloadReady()
-    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
-    init = false
+
+    if (reply=='success') {
+        await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+        init = false
+    }
 }
 
 async function waitUntilDownloadReady(count=0) {
@@ -159,6 +162,11 @@ async function waitUntilDownloadReady(count=0) {
             filesToDownload = fileCount
             download_initialised = true
             updateDownloadProgress()
+
+            if (init) {
+                await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+                init = false
+            }
         } else {
             updateDownloadProgress()
         }
