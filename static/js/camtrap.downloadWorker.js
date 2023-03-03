@@ -47,6 +47,7 @@ var init
 var initCount = 0
 var delete_items
 var download_initialised = false
+var downloading_count = 0
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -89,6 +90,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     checking_local_folder = 0
     initCount = 0
     download_initialised = false
+    downloading_count=0
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
@@ -325,6 +327,9 @@ async function writeFile(jpegData,path,labels,fileName) {
     await writeBlob(dirHandle,blob,fileName)
 
     filesDownloaded += 1
+    if (downloading_count>0) {
+        downloading_count -= 1
+    }
     updateDownloadProgress()
 }
 
@@ -413,6 +418,7 @@ async function getRequiredImages(requiredImages) {
     updateDownloadProgress()
     for (let i=0;i<requiredImages.length;i++) {
         imageInfo = requiredImages[i]
+        downloading_count += imageInfo.paths.length
         if (imageInfo.paths.length>1) {
             filesToDownload += imageInfo.paths.length-1
         }
@@ -472,7 +478,7 @@ function getHash(jpegData) {
 
 async function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
-    if ((filesDownloaded>=filesToDownload)&&(finishedIterating||download_initialised)&&!wrappingUp) { //&&(filesToDownload!=0)
+    if ((filesDownloaded>=filesToDownload)&&(finishedIterating||download_initialised)&&!wrappingUp&&(localQueue.length==0)&&(downloading_count==0)) { //&&(filesToDownload!=0)
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             wrappingUp = true
