@@ -2030,10 +2030,10 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
     try:
         task = db.session.query(Task).get(task_id)
 
-        if task.status=='Preparing Download':
-            # Wait for download prep
-            resetImageDownloadStatus.apply_async(kwargs={'task_id': task_id,'then_set':then_set,'labels':labels,'include_empties':include_empties},countdown=10)
-            return True
+        # if task.status=='Preparing Download':
+        #     # Wait for download prep
+        #     resetImageDownloadStatus.apply_async(kwargs={'task_id': task_id,'then_set':then_set,'labels':labels,'include_empties':include_empties},countdown=10)
+        #     return True
         
         if not then_set:
             task.status = 'Processing'
