@@ -132,7 +132,7 @@ function updateDownloadProgress(task_id,downloaded,toDownload,download_initialis
             } else {
                 // unknown total count - do something pretty
                 progBar.setAttribute("style", "width:50%;transition:none");
-                progBar.innerHTML = downloaded.toString() + '/? files downloaded'
+                progBar.innerHTML = downloaded.toString() + ' files downloaded'
             }
 
         } else {

@@ -6271,6 +6271,7 @@ def get_required_images():
                                 .join(Label,Labelgroup.labels)\
                                 .filter(Labelgroup.task_id==task_id)\
                                 .filter(Label.id.in_(localLabels))\
+                                .filter(Image.downloaded==False)\
                                 .distinct().limit(200).all()
             
             if (images==[]) and include_empties:
@@ -6298,6 +6299,7 @@ def get_required_images():
                                     .filter(Trapgroup.survey==task.survey)\
                                     .outerjoin(sq,sq.c.image_id==Image.id)\
                                     .filter(sq.c.image_id==None)\
+                                    .filter(Image.downloaded==False)\
                                     .distinct().all()
         else:
             images = db.session.query(Image)\
