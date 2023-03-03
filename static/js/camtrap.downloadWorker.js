@@ -522,8 +522,8 @@ async function wrapUpDownload(reload,count=0) {
             if (reload) {
                 postMessage({'func': 'reload', 'args': null})
             }
-            wrappingUp = false
             resetDownloadState()
+            wrappingUp = false
         }
     }
 }
