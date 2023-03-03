@@ -1973,13 +1973,23 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(~Labelgroup.labels.any())\
                             .distinct().all())
-            # Add detectionless (to be safe)
+            
+            # Add detectionless
+            sq = rDets(db.session.query(Image.id.label('image_id'))\
+                            .join(Detection)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey))\
+                            .group_by(Image.id).subquery()
+            
             images.extend(db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey==task.survey)\
-                            .filter(~Image.detections.any())\
+                            .outerjoin(sq,sq.c.image_id==Image.id)\
+                            .filter(sq.c.image_id==None)\
                             .distinct().all())
+
             images = list(set(images))
 
         for chunk in chunker(images,1000):
