@@ -45,6 +45,7 @@ function loadNewCluster(mapID = 'map1') {
                         }
                         updateButtons()
                         preload()
+                        exploreNotes()
                     }
                 }
             };
@@ -117,6 +118,10 @@ function populateLevels() {
 function getClusterIDs(mapID = 'map1'){
     /** Gets a list of cluster IDs to be explored for the current combination of task and label. */
     var xhttp = new XMLHttpRequest();
+    var formData = new FormData()
+    if(notesOnly){
+        formData.append('notes', JSON.stringify('True'))
+    }
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
@@ -131,8 +136,8 @@ function getClusterIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("GET", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
-    xhttp.send();
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
+    xhttp.send(formData);
 }
 
 function populateSpeciesSelector(label, mapID = 'map1'){
@@ -243,5 +248,20 @@ function selectTag(tag) {
     clusterRequests['map1'] = [];
     getClusterIDs()
 }
+
+
+$("#onlyNotesCheckbox").change( function() {
+    onlyNotesCheckbox = document.getElementById('onlyNotesCheckbox')
+    if (onlyNotesCheckbox.checked) {
+        notesOnly = true
+        document.getElementById('noteboxExpSearch').value = ''
+    }
+    else{
+        notesOnly = false
+        document.getElementById('noteboxExpSearch').value = ''
+    }
+    getClusterIDs()
+})
+
 
 window.addEventListener('load', onload, false);

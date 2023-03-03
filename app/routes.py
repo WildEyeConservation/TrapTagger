@@ -4383,7 +4383,7 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>')
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>', methods=['POST'])
 @login_required
 def getClustersBySpecies(task_id, species, tag_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
@@ -4392,6 +4392,12 @@ def getClustersBySpecies(task_id, species, tag_id):
     task = db.session.query(Task).get(task_id)
 
     if task and (current_user == task.survey.user):
+        # notes = request.args.get('notes', None)
+        if 'notes' in request.form:
+            notes = ast.literal_eval(request.form['notes'])
+        else:
+            notes = None
+
         clusters = db.session.query(Cluster.id) \
                             .filter(Cluster.task_id == int(task_id))\
                             .join(Image,Cluster.images)\
@@ -4420,6 +4426,14 @@ def getClustersBySpecies(task_id, species, tag_id):
         if tag_id != '0':
             tag = db.session.query(Tag).get(int(tag_id))
             clusters = clusters.filter(Labelgroup.tags.contains(tag))
+
+        if notes:
+            if (notes==True) or (notes.lower() == 'true'):
+                clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
+            else:
+                searches = re.split('[ ,]',notes)
+                for search in searches:
+                    clusters = clusters.filter(Cluster.notes.contains(search))
 
         clusters = clusters.distinct().all()
     else:
@@ -4617,20 +4631,25 @@ def getTrapgroupCounts(task_id,species,baseUnit):
 
 #     return json.dumps('')
 
-@app.route('/assignNote/<clusterID>/<note>')
+@app.route('/assignNote', methods=['POST'])
 @login_required
-def assignNote(clusterID, note):
+def assignNote():
     '''Assigns a note to the given cluster.'''
 
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
 
-    cluster = db.session.query(Cluster).get(clusterID)
-    if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
-        if len(note) > 512:
-            note = note[:512]
-        cluster.notes = note
-        db.session.commit()
+    try:
+        note = ast.literal_eval(request.form['note'])
+        clusterID = ast.literal_eval(request.form['cluster_id'])
+        cluster = db.session.query(Cluster).get(clusterID)
+        if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
+            if len(note) > 512:
+                note = note[:512]
+            cluster.notes = note
+            db.session.commit()
+    except:
+        pass
 
     return json.dumps('')
 

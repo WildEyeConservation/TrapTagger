@@ -23,6 +23,9 @@ var unKnockLabel = -123
 var xl
 var isReviewing
 var isComparison
+var isNoteActive = false
+var isSearchNoteActive = false
+var notesOnly = false
 var taggingLevel = '-23'
 var taggingLabel = 'None'
 var reachedEnd = false
@@ -1076,7 +1079,27 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 }
                 document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
             }
-        }
+
+            if(isReviewing && document.getElementById('noteboxExp'))
+            {
+                noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
+                document.getElementById('notif').innerHTML = ""
+
+                if(clusters[mapID][clusterIndex[mapID]].notes != noteTextBox.value && clusters[mapID][clusterIndex[mapID]].notes != null){
+                    document.getElementById('btnNoteSubmitExp').disabled = false
+                }
+                else{
+                    document.getElementById('btnNoteSubmitExp').disabled = true
+                }
+            
+                if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
+                    document.getElementById('btnNoteDeleteExp').disabled = false
+                }
+                else{
+                    document.getElementById('btnNoteDeleteExp').disabled = true
+                }
+            }
+        } 
     }
 
     if (multipleStatus) {
@@ -2181,13 +2204,16 @@ function Notes() {
 function sendNote(mapID = 'map1') {
     /** Sends the note to the server. */
     note = document.getElementById("notebox").value
-
+    
     if (note.length > 512) {
         document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
     } else {
 
         if (note != "") {
             clusterID=clusters[mapID][clusterIndex[mapID]].id
+            var formData = new FormData()
+            formData.append('cluster_id', JSON.stringify(clusterID))
+            formData.append('note', JSON.stringify((note)))
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
             function(){
@@ -2195,12 +2221,159 @@ function sendNote(mapID = 'map1') {
                     window.location.replace(JSON.parse(this.responseText)['redirect'])
                 }
             }
-            xhttp.open("GET", '/assignNote/'+clusterID+'/'+note, true);
-            xhttp.send();
+            xhttp.open("POST", '/assignNote', true);
+            xhttp.send(formData);
         }
     
         modalNote.modal('hide');
     }
+}
+
+function searchNotes(mapID='map1'){
+    var xhttp = new XMLHttpRequest();
+    var formData = new FormData()
+    notes = noteSearchTextBox.value
+    formData.append('notes', JSON.stringify(notes))
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                clusters[mapID]=[]
+                clusterReadAheadIndex = 0
+                clusterIndex[mapID] = 0
+                imageIndex[mapID] = 0
+                updateClusterLabels()
+                clusterIDs = JSON.parse(this.responseText);
+                if (clusterIDs[0]){
+                    for (let i=0;i<3;i++){
+                        loadNewCluster()
+                    }
+                    document.getElementById('notif1').innerHTML = ''
+                }
+                else{
+                    document.getElementById('notif1').innerHTML = 'No notes matches your search.'
+                }
+            }
+        };
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
+    xhttp.send(formData);
+}
+
+function exploreNotes(mapID='map1'){
+    document.getElementById('notif').innerHTML = ""
+    noteTextBox = document.getElementById('noteboxExp')
+    noteSearchTextBox = document.getElementById('noteboxExpSearch')
+    noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
+
+    noteTextBox.blur()
+    noteSearchTextBox.blur()
+    isNoteActive = false
+
+    noteTextBox.addEventListener('input', function(){
+        document.getElementById('notif').innerHTML = ""
+        if(clusters[mapID][clusterIndex[mapID]].notes != noteTextBox.value){
+            document.getElementById('btnNoteSubmitExp').disabled = false
+        }
+        else{
+            document.getElementById('btnNoteSubmitExp').disabled = true
+        }
+    
+        if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
+            document.getElementById('btnNoteDeleteExp').disabled = false
+            console.log(clusters[mapID][clusterIndex[mapID]].notes)
+        }
+        else{
+            document.getElementById('btnNoteDeleteExp').disabled = true
+            
+        }
+    })
+    
+    noteTextBox.addEventListener('focus', function(){
+        isNoteActive = true
+    })
+    
+    noteTextBox.addEventListener('blur', function(){
+        isNoteActive = false
+    })
+    
+    noteSearchTextBox.addEventListener('focus', function(){
+        isNoteActive = true
+        isSearchNoteActive = true
+    })
+    
+    noteSearchTextBox.addEventListener('blur', function(){
+        isNoteActive = false
+        isSearchNoteActive = false
+    })
+
+}
+
+function sendNoteExplore(mapID = 'map1') {
+    /** Sends the note to the server. */
+    note = document.getElementById("noteboxExp").value
+    
+    if (note.length > 512) {
+        document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
+    } else {
+        document.getElementById('notif').innerHTML = ""
+        if (note != "") {
+            clusterID=clusters[mapID][clusterIndex[mapID]].id
+            var formData = new FormData()
+            formData.append('cluster_id', JSON.stringify(clusterID))
+            formData.append('note', JSON.stringify((note)))
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+                else if (this.readyState == 4 && this.status == 200)
+                {
+                    document.getElementById('notif').innerHTML = "Note saved"
+                    clusters[mapID][clusterIndex[mapID]].notes = note
+                    document.getElementById('btnNoteDeleteExp').disabled = false
+                    document.getElementById('btnNoteSubmitExp').disabled = true
+                }
+            }
+            xhttp.open("POST", '/assignNote', true);
+            xhttp.send(formData);
+        }
+        else{
+            document.getElementById('notif').innerHTML = "Note is empty"
+        }
+    }
+    noteTextBox.blur()
+    isNoteActive = false
+}
+
+
+function delNoteExplore(mapID = 'map1') {
+    /** Sends the note to the server. */  
+    document.getElementById('notif').innerHTML = ""
+    note = ""
+    clusterID=clusters[mapID][clusterIndex[mapID]].id
+    var formData = new FormData()
+    formData.append('cluster_id', JSON.stringify(clusterID))
+    formData.append('note', JSON.stringify((note)))
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        }
+        else if (this.readyState == 4 && this.status == 200)
+        {
+            document.getElementById('notif').innerHTML = "Note deleted"
+            clusters[mapID][clusterIndex[mapID]].notes = note
+            document.getElementById("noteboxExp").value = note
+            document.getElementById('btnNoteDeleteExp').disabled = true
+            document.getElementById('btnNoteSubmitExp').disabled = true
+        }
+    }
+    xhttp.open("POST", '/assignNote', true);
+    xhttp.send(formData);
+    
+    noteTextBox.blur()
+    isNoteActive = false
 }
 
 function initKeys(res){
@@ -2400,7 +2573,7 @@ document.onkeyup = function(event){
         idKeys(event.key.toLowerCase())
     } else if (isTagging||isReviewing) {
         // console.log(event)
-        if ((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) {
+        if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive) {
             switch (event.key.toLowerCase()){
                 case ('0'):assignLabel(hotkeys[0])
                     break;
@@ -2484,7 +2657,9 @@ document.onkeyup = function(event){
                 case 'control': activateMultiple()
                     break;
     
-                case 'enter': Notes()
+                case 'enter': if (isTagging){
+                    Notes()
+                }
                     break;
     
                 case 'alt': nextCluster()
@@ -2497,6 +2672,29 @@ document.onkeyup = function(event){
                 case 'arrowleft': prevImage()
                     break;
             }
+
+        }
+        else if(isNoteActive){
+            switch (event.key.toLowerCase()){
+                case 'alt': nextCluster()
+                    break;
+                case '~': prevCluster()
+                    break;
+                case (' '):
+                    if(!isSearchNoteActive)
+                    {
+                        pos = noteTextBox.selectionStart
+                        noteTextBox.value = noteTextBox.value.slice(0,pos) + ' ' + noteTextBox.value.slice(pos)
+                        noteTextBox.selectionEnd = pos + 1
+                    }
+                    else{
+                        pos = noteSearchTextBox.selectionStart
+                        noteSearchTextBox.value = noteSearchTextBox.value.slice(0,pos) + ' ' + noteSearchTextBox.value.slice(pos)
+                        noteSearchTextBox.selectionEnd = pos + 1
+                    }
+                    break;  
+            }
+        
         }
     } else if (isKnockdown) {
         switch (event.key.toLowerCase()){

@@ -323,7 +323,8 @@ class Config(object):
         'label': '-101', 
         'tags': '-101', 
         'groundTruth': '-101', 
-        'trapGroup': '-101'
+        'trapGroup': '-101',
+        'notes': '-101'
     }
 
     EMPTY_CLUSTER = {
