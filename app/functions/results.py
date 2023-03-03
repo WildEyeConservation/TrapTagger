@@ -1992,7 +1992,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
 
             images = list(set(images))
 
-        for chunk in chunker(images,1000):
+        for chunk in chunker(images,10000):
             for image in chunk:
                 image.downloaded = True
             db.session.commit()
@@ -2046,7 +2046,7 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
                         .filter(Image.downloaded!=False)\
                         .all()
 
-        for chunk in chunker(images,1000):
+        for chunk in chunker(images,10000):
             for image in chunk:
                 image.downloaded = False
             db.session.commit()
