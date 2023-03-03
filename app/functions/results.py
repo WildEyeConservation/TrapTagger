@@ -2019,7 +2019,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def resetImageDownloadStatus(self,task_id):
+def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
     
     try:
         task = db.session.query(Task).get(task_id)
@@ -2038,8 +2038,11 @@ def resetImageDownloadStatus(self,task_id):
                 image.downloaded = False
             db.session.commit()
 
-        task.status = 'Ready'
-        db.session.commit()
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
+        else:
+            task.status = 'Ready'
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

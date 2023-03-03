@@ -6293,24 +6293,22 @@ def set_download_status():
         labels = request.json['species']
 
         # Image downloaded state should always be false, but need to catch dropped uploads
-        images = db.session.query(Image)\
+        check = db.session.query(Image)\
                         .join(Camera)\
                         .join(Trapgroup)\
                         .filter(Trapgroup.survey==task.survey)\
-                        .filter(Image.downloaded!=False)\
-                        .all()
-
-        for chunk in chunker(images,1000):
-            for image in chunk:
-                image.downloaded = False
-            db.session.commit()
+                        .filter(Image.downloaded==True)\
+                        .first()
 
         task.status = 'Preparing Download'
         db.session.commit()
 
-        setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
-
-    return json.dumps('success')
+        if check:
+            resetImageDownloadStatus.delay(task_id=task_id,then_set=True,labels=labels,include_empties=include_empties)
+            return json.dumps('resetting')
+        else:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
+            return json.dumps('success')
 
 @app.route('/check_download_initialised', methods=['POST'])
 @login_required
@@ -6354,7 +6352,7 @@ def download_complete():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
-        resetImageDownloadStatus.delay(task_id=task_id)
+        resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None)
         return json.dumps('success')
     
     return json.dumps('error')
