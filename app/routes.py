@@ -6261,7 +6261,7 @@ def get_required_images():
             #                     .join(Trapgroup)\
             #                     .filter(Trapgroup.survey==task.survey)\
             #                     .filter(Cluster.task==task)\
-            #                     .filter(Label.id.in_(labels))\
+            #                     .filter(Label.id.in_(localLabels))\
             #                     .filter(Image.downloaded==False)\
             #                     .distinct().limit(200).all()
 
@@ -6270,7 +6270,7 @@ def get_required_images():
                                 .join(Labelgroup)\
                                 .join(Label,Labelgroup.labels)\
                                 .filter(Labelgroup.task_id==task_id)\
-                                .filter(~Label.id.in_(labels))\
+                                .filter(Label.id.in_(localLabels))\
                                 .distinct().limit(200).all()
             
             if (images==[]) and include_empties:
