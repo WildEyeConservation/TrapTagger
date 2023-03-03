@@ -1997,13 +1997,17 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                 image.downloaded = True
             db.session.commit()
 
-        # Get total count
-        filesToDownload = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().count()-len(images)
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
+        test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().all()
+        if len(test)==0:
+            resetImageDownloadStatus(self,task_id,False,None,None)
+        else:
+            # Get total count
+            filesToDownload = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().count()-len(images)
+            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+            redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
-        task.status = 'Ready'
-        db.session.commit()
+            task.status = 'Ready'
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2026,7 +2030,7 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
 
         if task.status=='Preparing Download':
             # Wait for download prep
-            resetImageDownloadStatus.apply_async(kwargs={'task_id': task_id,'then_set':then_set,'labels':labels,'include_empties':include_empties},countdown=180)
+            resetImageDownloadStatus.apply_async(kwargs={'task_id': task_id,'then_set':then_set,'labels':labels,'include_empties':include_empties},countdown=10)
             return True
         
         if not then_set:
