@@ -6254,16 +6254,51 @@ def get_required_images():
 
             if include_empties: localLabels.append(GLOBALS.nothing_id)
             
+            # images = db.session.query(Image)\
+            #                     .join(Cluster,Image.clusters)\
+            #                     .join(Label,Cluster.labels)\
+            #                     .join(Camera)\
+            #                     .join(Trapgroup)\
+            #                     .filter(Trapgroup.survey==task.survey)\
+            #                     .filter(Cluster.task==task)\
+            #                     .filter(Label.id.in_(labels))\
+            #                     .filter(Image.downloaded==False)\
+            #                     .distinct().limit(200).all()
+
             images = db.session.query(Image)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .join(Label,Labelgroup.labels)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(~Label.id.in_(labels))\
+                                .distinct().limit(200).all()
+            
+            if (images==[]) and include_empties:
+                images = db.session.query(Image)\
                                 .join(Cluster,Image.clusters)\
-                                .join(Label,Cluster.labels)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
                                 .filter(Trapgroup.survey==task.survey)\
                                 .filter(Cluster.task==task)\
-                                .filter(Label.id.in_(labels))\
+                                .filter(~Labelgroup.labels.any())\
                                 .filter(Image.downloaded==False)\
                                 .distinct().limit(200).all()
+                
+                if images == []:
+                    sq = rDets(db.session.query(Image.id.label('image_id'))\
+                                    .join(Detection)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .filter(Trapgroup.survey==task.survey))\
+                                    .subquery()
+                    
+                    images = db.session.query(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .filter(Trapgroup.survey==task.survey)\
+                                    .outerjoin(sq,sq.c.image_id==Image.id)\
+                                    .filter(sq.c.image_id==None)\
+                                    .distinct().all()
         else:
             images = db.session.query(Image)\
                                 .join(Camera)\

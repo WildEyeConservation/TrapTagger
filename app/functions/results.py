@@ -1980,7 +1980,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                             .join(Camera)\
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey==task.survey))\
-                            .group_by(Image.id).subquery()
+                            .subquery()
             
             images.extend(db.session.query(Image)\
                             .join(Camera)\

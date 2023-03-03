@@ -338,7 +338,7 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 async function fetchRemainingImages() {
     /** Fetches a batch of images that must be downloaded */
-    var download_initialised_check = download_initialised
+    // var download_initialised_check = download_initialised
     var data = await limitTT(()=> fetch('/get_required_images', {
         method: 'post',
         headers: {
@@ -366,13 +366,19 @@ async function fetchRemainingImages() {
         if (data.ids.length>0) {
             await confirmReceipt(data.ids)
             getRequiredImages(data.requiredImages)
-        } else if (download_initialised_check) {
+        } else { // if (download_initialised_check)
             finishedIterating = true
         }
     }
 
     if (!finishedIterating) {
         fetchRemainingImages()
+        // if (data&&(data.ids.length==0)) {
+        //     // Probably waitng for download prep to finish - slow down requests
+        //     setTimeout(function() { fetchRemainingImages(); }, 5000)
+        // } else {
+        //     fetchRemainingImages()
+        // }
     } else {
         checkDownloadStatus()
     }
