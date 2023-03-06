@@ -46,7 +46,7 @@ var consuming
 var init
 var initCount = 0
 var delete_items
-var download_initialised = false
+var count_initialised = false
 var downloading_count = 0
 
 onmessage = function (evt) {
@@ -89,9 +89,9 @@ async function startDownload(selectedTask,taskName,count=0) {
     localQueue = []
     checking_local_folder = 0
     initCount = 0
-    download_initialised = false
     downloading_count=0
     filesToDownload = 0
+    count_initialised = false
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
@@ -154,14 +154,12 @@ async function waitUntilDownloadReady(count=0) {
 
         if ('filesToDownload' in response) {
             filesToDownload = response.filesToDownload
+            count_initialised = true
         }
 
         if (response.status=='not ready') {
             setTimeout(function() { waitUntilDownloadReady(); }, 2000);
         } else {
-            download_initialised = true
-            // updateDownloadProgress()
-
             if (init) {
                 await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
                 init = false
@@ -189,10 +187,10 @@ async function checkLocalFiles(dirHandle,path){
 function updateDownloadProgress() {
     /** Updates the download progress on the page and also kicks of queue consumption or image downloading as needed. */
     var totalCount = filesToDownload
-    if (filesToDownload==0) {
+    if (!count_initialised) {
         totalCount = filesDownloaded
     }
-    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,download_initialised]})
+    postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,count_initialised]})
     if (!downloading) {
         consumeQueue()
         if ((local_files_processing==0) && (!init) && (checking_local_folder==0) && (localQueue.length==0)) {
@@ -352,7 +350,6 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 async function fetchRemainingImages() {
     /** Fetches a batch of images that must be downloaded */
-    // var download_initialised_check = download_initialised
     var data = await limitTT(()=> fetch('/get_required_images', {
         method: 'post',
         headers: {

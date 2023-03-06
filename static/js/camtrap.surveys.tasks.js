@@ -72,7 +72,7 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
         taskProgressBarDiv.appendChild(newProg);
         taskProgressBarCol.appendChild(taskProgressBarDiv);
         newTaskDiv.appendChild(taskProgressBarCol)
-        updateDownloadProgress(task.id,globalDownloaded,globalToDownload,global_download_initialised)
+        updateDownloadProgress(task.id,globalDownloaded,globalToDownload,global_count_initialised)
         downloadWorker.postMessage({'func': 'updateDownloadProgress', 'args': null})
     }
 

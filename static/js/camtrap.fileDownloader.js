@@ -15,7 +15,7 @@
 var checkingDownload = false
 var globalDownloaded = 0
 var globalToDownload = 0
-var global_download_initialised = false
+var global_count_initialised = false
 
 downloadWorker.onmessage = function(evt){
     /** Take instructions from the web worker */
@@ -77,7 +77,7 @@ async function initiateDownload() {
 
             globalDownloaded = 0
             globalToDownload = 0
-            global_download_initialised = false
+            global_count_initialised = false
         
             downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items]})
         
@@ -110,11 +110,11 @@ function resetDownloadState(survey,task) {
     updatePage(generate_url())
 }
 
-function updateDownloadProgress(task_id,downloaded,toDownload,download_initialised) {
+function updateDownloadProgress(task_id,downloaded,toDownload,count_initialised) {
     /** Updates the download progress bar with the given information */
     globalDownloaded = downloaded
     globalToDownload = toDownload
-    global_download_initialised = download_initialised
+    global_count_initialised = count_initialised
     if (downloaded > toDownload) {
         // Not an issue if an image is downloaded twice - just hide it from the user
         downloaded = toDownload
@@ -126,7 +126,7 @@ function updateDownloadProgress(task_id,downloaded,toDownload,download_initialis
         if (toDownload!=0) {
             progBar.setAttribute("aria-valuemax", toDownload);
 
-            if (download_initialised) {
+            if (count_initialised) {
                 progBar.setAttribute("style", "width:"+(downloaded/toDownload)*100+"%;transition:none");
                 progBar.innerHTML = downloaded.toString() + '/' + toDownload.toString() + ' files downloaded'
             } else {
