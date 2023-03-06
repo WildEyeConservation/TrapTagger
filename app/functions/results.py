@@ -1945,6 +1945,8 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
     
     try:
         task = db.session.query(Task).get(task_id)
+        task.status='Preparing Download'
+        db.session.commit()
 
         if ('0' in labels) or (labels==[]):
             labels = [r.id for r in task.labels]
@@ -1999,14 +2001,12 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                 image.downloaded = True
             db.session.commit()
 
-        test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().all()
-        if len(test)==0:
-            task.status = 'Processing'
-            db.session.commit()
+        task.status = 'Processing'
+        db.session.commit()
+
+        test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
+        if test==0:
             resetImageDownloadStatus(task_id,False,None,None)
-        else:
-            task.status = 'Ready'
-            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2026,15 +2026,9 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
     
     try:
         task = db.session.query(Task).get(task_id)
-
-        if (task.status=='Processing') and (then_set!=True):
-            # Wait for download prep
-            # resetImageDownloadStatus.apply_async(kwargs={'task_id': task_id,'then_set':then_set,'labels':labels,'include_empties':include_empties},countdown=10)
-            return True
-        
-        if not then_set:
-            task.status = 'Processing'
-            db.session.commit()
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
 
         images = db.session.query(Image)\
                         .join(Camera)\

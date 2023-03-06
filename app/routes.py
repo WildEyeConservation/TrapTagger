@@ -6337,9 +6337,6 @@ def set_download_status():
                         .filter(Image.downloaded==True)\
                         .first()
 
-        task.status = 'Processing'
-        db.session.commit()
-
         if check:
             resetImageDownloadStatus.delay(task_id=task_id,then_set=True,labels=labels,include_empties=include_empties)
             return json.dumps('resetting')

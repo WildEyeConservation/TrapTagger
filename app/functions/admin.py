@@ -1385,7 +1385,7 @@ def getSurveyInfo(survey):
     survey_dict['numImages'] = survey.image_count
 
     
-    if survey.status in ['indprocessing']:
+    if survey.status in ['indprocessing','Preparing Download']:
         survey_dict['status'] = 'processing'
     else:
         survey_dict['status'] = survey.status
