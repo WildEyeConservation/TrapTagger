@@ -152,21 +152,23 @@ async function waitUntilDownloadReady(count=0) {
             }
         })
 
-        if ('filesToDownload' in response) {
-            filesToDownload = response.filesToDownload
-            count_initialised = true
-        }
-
-        if (response.status=='not ready') {
-            setTimeout(function() { waitUntilDownloadReady(); }, 2000);
-        } else {
-            if (init) {
-                await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
-                init = false
+        if (response) {
+            if ('filesToDownload' in response) {
+                filesToDownload = response.filesToDownload
+                count_initialised = true
             }
-        }
     
-        updateDownloadProgress()
+            if (response.status=='not ready') {
+                setTimeout(function() { waitUntilDownloadReady(); }, 2000);
+            } else {
+                if (init) {
+                    await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
+                    init = false
+                }
+            }
+        
+            updateDownloadProgress()
+        }
     }
 }
 

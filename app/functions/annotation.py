@@ -20,6 +20,7 @@ from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels,
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
+from app.functions.results import resetImageDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -1500,3 +1501,39 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
         reply = {'id': cluster.id,'classification': classification,'required': required, 'images': images, 'label': cluster_labels, 'label_ids': cluster_label_ids, 'tags': tags, 'tag_ids': tag_ids, 'groundTruth': groundTruth, 'trapGroup': trapGroup}
 
     return reply
+
+@celery.task(ignore_result=True)
+def manageDownloads():
+    '''Celery task for managing image download statuses - cleans up abandoned downloads.'''
+
+    try:
+        startTime = datetime.utcnow()
+
+        surveys = db.session.query(Survey)\
+                            .join(User)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .filter(Image.downloaded==True)\
+                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+                            .distinct().all()
+        
+        for survey in surveys:
+            check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
+            if check==None:
+                resetImageDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        countdown = 120 - (datetime.utcnow()-startTime).total_seconds()
+        if countdown < 0: countdown=0
+        manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
+        
+    return True
