@@ -6329,6 +6329,10 @@ def set_download_status():
         include_empties = request.json['include_empties']
         labels = request.json['species']
 
+        # Make sure old counts are removed
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        redisClient.delete(str(task.id)+'_filesToDownload')
+
         # Image downloaded state should always be false, but need to catch dropped uploads
         check = db.session.query(Image)\
                         .join(Camera)\

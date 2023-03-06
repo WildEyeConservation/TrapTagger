@@ -2045,6 +2045,8 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
         if then_set:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
         else:
+            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+            redisClient.delete(str(task.id)+'_filesToDownload')
             task.status = 'Ready'
             db.session.commit()
 
