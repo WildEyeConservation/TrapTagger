@@ -6364,7 +6364,7 @@ def check_download_initialised():
             redisClient.delete(str(task.id)+'_filesToDownload')
             reply['filesToDownload'] = filesToDownload
 
-        if task.status == 'Processing':
+        if task.status == 'Preparing Download':
             reply['status'] = 'not ready'
 
     return json.dumps(reply)
