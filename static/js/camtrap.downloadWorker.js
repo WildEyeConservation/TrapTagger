@@ -189,7 +189,7 @@ async function checkLocalFiles(dirHandle,path){
 function updateDownloadProgress() {
     /** Updates the download progress on the page and also kicks of queue consumption or image downloading as needed. */
     var totalCount = filesToDownload
-    if (!download_initialised) {
+    if (filesToDownload==0) {
         totalCount = filesDownloaded
     }
     postMessage({'func': 'updateDownloadProgress', 'args': [downloadingTask,filesDownloaded,totalCount,download_initialised]})
@@ -487,7 +487,7 @@ function getHash(jpegData) {
 
 async function checkDownloadStatus() {
     /** Checks the status of the download. Wraps up if finished or restarts if an error was encountered. */
-    if ((filesDownloaded>=filesToDownload)&&(finishedIterating||download_initialised)&&!wrappingUp&&(localQueue.length==0)&&(downloading_count==0)) { //&&(filesToDownload!=0)
+    if ((filesDownloaded>=filesToDownload)&&(finishedIterating)&&!wrappingUp&&(localQueue.length==0)&&(downloading_count==0)) { //&&(filesToDownload!=0)
         if (!errorEcountered) { //((filesActuallyDownloaded==0)&&(!errorEcountered))
             // finished
             wrappingUp = true
