@@ -6242,7 +6242,7 @@ def get_required_images():
         include_empties = request.json['include_empties']
         labels = request.json['species']
 
-        if task.status == 'Preparing Download':
+        if task.status == 'Processing':
             # Try speed things up while waiting for download to prep
             if '0' in labels:
                 localLabels = [r.id for r in task.labels]
@@ -6337,7 +6337,7 @@ def set_download_status():
                         .filter(Image.downloaded==True)\
                         .first()
 
-        task.status = 'Preparing Download'
+        task.status = 'Processing'
         db.session.commit()
 
         if check:
@@ -6354,17 +6354,19 @@ def check_download_initialised():
 
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
+    reply = {'status': 'ready'}
     if task and (task.survey.user==current_user):
-        if task.status == 'Preparing Download':
-            return json.dumps('not ready')
-        
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        filesToDownload = int(redisClient.get(str(task.id)+'_filesToDownload').decode())
-        redisClient.delete(str(task.id)+'_filesToDownload')
-        
-        return json.dumps(filesToDownload)
+        filesToDownload = redisClient.get(str(task.id)+'_filesToDownload')
+        if filesToDownload:
+            filesToDownload = int(filesToDownload.decode())
+            redisClient.delete(str(task.id)+'_filesToDownload')
+            reply['filesToDownload'] = filesToDownload
 
-    return json.dumps('not ready')
+        if task.status == 'Processing':
+            reply['status'] = 'not ready'
+
+    return json.dumps(reply)
 
 @app.route('/mark_images_downloaded', methods=['POST'])
 @login_required

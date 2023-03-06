@@ -130,7 +130,7 @@ async function waitUntilDownloadReady(count=0) {
     /** Checks to see if the download is ready to commence */
     if (downloadingTask) {
         initCount += 1
-        var fileCount = await limitTT(()=> fetch('/check_download_initialised', {
+        var response = await limitTT(()=> fetch('/check_download_initialised', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -145,31 +145,29 @@ async function waitUntilDownloadReady(count=0) {
             } else {
                 return response.json()
             }
-        }).then((data) => {
-            if (data=='not ready') {
-                setTimeout(function() { waitUntilDownloadReady(); }, 2000);
-                return null
-            } else {
-                return data
-            }
         }).catch( (error) => {
             if (count<=5) {
                 setTimeout(function() { waitUntilDownloadReady(count+1); }, 1000*(5**count));
             }
         })
-    
-        if (fileCount) {
-            filesToDownload = fileCount
+
+        if ('filesToDownload' in response) {
+            filesToDownload = response.filesToDownload
+        }
+
+        if (response.status=='not ready') {
+            setTimeout(function() { waitUntilDownloadReady(); }, 2000);
+        } else {
             download_initialised = true
-            updateDownloadProgress()
+            // updateDownloadProgress()
 
             if (init) {
                 await checkLocalFiles(globalTopLevelHandle,globalTopLevelHandle.name)
                 init = false
             }
-        } else {
-            updateDownloadProgress()
         }
+    
+        updateDownloadProgress()
     }
 }
 

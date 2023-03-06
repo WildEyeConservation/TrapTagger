@@ -1988,43 +1988,11 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                             .filter(Trapgroup.survey==task.survey)\
                             .filter(wantedImages.c.image_id==None)\
                             .distinct().all()
-        
-        # images = db.session.query(Image)\
-        #                     .join(Detection)\
-        #                     .join(Labelgroup)\
-        #                     .join(Label,Labelgroup.labels)\
-        #                     .filter(Labelgroup.task_id==task_id)\
-        #                     .filter(~Label.id.in_(labels))
-        
-        # if include_empties: images = rDets(images)
-        # images = images.distinct().all()
-        
-        # if not include_empties:
-        #     # add unlabelled
-        #     images.extend(db.session.query(Image)\
-        #                     .join(Detection)\
-        #                     .join(Labelgroup)\
-        #                     .filter(Labelgroup.task_id==task_id)\
-        #                     .filter(~Labelgroup.labels.any())\
-        #                     .distinct().all())
-            
-        #     # Add detectionless
-        #     sq = rDets(db.session.query(Image.id.label('image_id'))\
-        #                     .join(Detection)\
-        #                     .join(Camera)\
-        #                     .join(Trapgroup)\
-        #                     .filter(Trapgroup.survey==task.survey))\
-        #                     .subquery()
-            
-        #     images.extend(db.session.query(Image)\
-        #                     .join(Camera)\
-        #                     .join(Trapgroup)\
-        #                     .filter(Trapgroup.survey==task.survey)\
-        #                     .outerjoin(sq,sq.c.image_id==Image.id)\
-        #                     .filter(sq.c.image_id==None)\
-        #                     .distinct().all())
 
-        #     images = list(set(images))
+        # Get total count
+        filesToDownload = task.survey.image_count-len(images)
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
         for chunk in chunker(images,10000):
             for image in chunk:
@@ -2037,11 +2005,6 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
             db.session.commit()
             resetImageDownloadStatus(task_id,False,None,None)
         else:
-            # Get total count
-            filesToDownload = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).distinct().count()-len(images)
-            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-            redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
-
             task.status = 'Ready'
             db.session.commit()
 
@@ -2064,7 +2027,7 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
     try:
         task = db.session.query(Task).get(task_id)
 
-        if (task.status=='Preparing Download') and (then_set!=True):
+        if (task.status=='Processing') and (then_set!=True):
             # Wait for download prep
             # resetImageDownloadStatus.apply_async(kwargs={'task_id': task_id,'then_set':then_set,'labels':labels,'include_empties':include_empties},countdown=10)
             return True
