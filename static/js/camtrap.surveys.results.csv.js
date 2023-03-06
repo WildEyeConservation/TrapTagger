@@ -222,6 +222,17 @@ function checkCSV() {
     cameraAll = false
     cameraSpecies = false
     excludeProblem = false
+    duplicateTask = false
+
+    allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
+    for (let i=0;i<allTasks.length;i++) {
+        currTaskVal = allTasks[i].value
+        for (let j=0;j<allTasks.length;j++) {
+            if(allTasks[j].value == currTaskVal && j!=i){
+                duplicateTask = true
+            }
+        }
+    }
 
     // Handle include/exclude
     if (document.getElementById('excludeLabels').checked) {
@@ -309,9 +320,9 @@ function checkCSV() {
     }
 
     if (excludeProblem) {
-        document.createElement('cludeErrors').innerHTML = 'You cannot exclude all labels. This results in an empty csv.'
+        document.getElementById('cludeErrors').innerHTML = 'You cannot exclude all labels. This results in an empty csv.'
     } else {
-        document.createElement('cludeErrors').innerHTML = ''
+        document.getElementById('cludeErrors').innerHTML = ''
     }
 
     if (allClash) {
@@ -326,7 +337,13 @@ function checkCSV() {
         csvErrors.appendChild(newdiv)
     }
 
-    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)) {
+    if (duplicateTask) {
+        document.getElementById('taskError').innerHTML = 'You have duplicate annotation sets, please remove the duplicate.'
+    } else {
+        document.getElementById('taskError').innerHTML = ''
+    }
+
+    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||(duplicateTask)) {
         legalCSV = false
     } else {
         legalCSV = true
@@ -1078,6 +1095,7 @@ function buildCSVsurveyRow() {
 
     $("#"+csvTaskSelect.id).change( function() {
         csvSurveyUpdates()
+        checkCSV()
     })
 }
 
@@ -1092,9 +1110,12 @@ function updateIncludeFields() {
         }
         clearSelect(includeSelectors[i])
         texts = speciesChoiceTexts
-        texts.splice(1, 0, 'Nothing')
         values = speciesChoiceValues
-        values.splice(1, 0, '-98')
+        if (!texts.includes('Nothing'))
+        {
+            texts.splice(1, 0, 'Nothing')
+            values.splice(1, 0, '-98')
+        }
         fillSelect(includeSelectors[i],texts,values)
         if (label != null) {
             for (let n=0;n<includeSelectors[i].options.length;n++) {
