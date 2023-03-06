@@ -24,6 +24,9 @@ var unKnockLabel = -123
 var xl
 var isReviewing
 var isComparison
+var isNoteActive = false
+var isSearchNoteActive = false
+var notesOnly = false
 var taggingLevel = '-23'
 var taggingLabel = 'None'
 var reachedEnd = false
@@ -50,6 +53,7 @@ var clusterReadyTimer = null
 var isClassCheck = false
 var individualsReady
 var sendBackMode = false
+var sendBackBoundingMode = false
 var activity = true
 var pingTimer
 var isViewing
@@ -73,6 +77,7 @@ const modalWait2 = $('#modalWait2');
 const modalDone = $('#modalDone');
 const modalAlert = $('#modalAlert');
 const modalWelcome = $('#modalWelcome');
+const modalNote = $('#modalNote');
 const btnDone = document.querySelector('#btnDone');
 const helpx = document.querySelector('#helpx');
 const helpclose = document.querySelector('#helpclose');
@@ -240,6 +245,28 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             }
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
+
+        if (document.getElementById('btnSendBoundingBack')!=null){
+            rect.addEventListener('click', function(wrapRect){
+                return function() {
+                    if (sendBackBoundingMode) {
+                        wrapRect.bringToBack()
+                        sendBoundingBack()
+                    }
+                    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                        if (prevClickBounding != null){
+                            colour = "rgba(223,105,26,1)"
+                            prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+                        }
+                    
+                        wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
+                        prevClickBounding = {'rect': wrapRect}
+                    }
+                    
+                }
+            }(rect));      
+        }
+
         if (document.getElementById('btnSendToBack')!=null) {
             rect.addEventListener('click', function(wrapMapID,wrapDetectionID,wrapImageID,wrapRect) {
                 return function() {
@@ -916,7 +943,7 @@ function goToPrevCluster(mapID = 'map1') {
         }
         previousClick = null
         backIndex += 1
-        document.getElementById('btnNextCluster').disabled = false
+        document.getElementById('btnNextCluster').hidden = false 
         buildIndividualsObject()
     }
 
@@ -1053,7 +1080,27 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 }
                 document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
             }
-        }
+
+            if(isReviewing && document.getElementById('noteboxExp'))
+            {
+                noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
+                document.getElementById('notif').innerHTML = ""
+
+                if(clusters[mapID][clusterIndex[mapID]].notes != noteTextBox.value && clusters[mapID][clusterIndex[mapID]].notes != null){
+                    document.getElementById('btnNoteSubmitExp').disabled = false
+                }
+                else{
+                    document.getElementById('btnNoteSubmitExp').disabled = true
+                }
+            
+                if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
+                    document.getElementById('btnNoteDeleteExp').disabled = false
+                }
+                else{
+                    document.getElementById('btnNoteDeleteExp').disabled = true
+                }
+            }
+        } 
     }
 
     if (multipleStatus) {
@@ -1761,19 +1808,21 @@ function prepMap(mapID = 'map1') {
                 return function() {
                     w = this.width
                     h = this.height
-
-                    if (mapdiv2 != null) {
-                        imWidth = 700
-                    } else {
-                        imWidth = 1000
-                    }
-            
+                
                     if (w>h) {
-                        ratio = (h/w)*imWidth
-                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+ratio.toString()+'px;width:'+imWidth.toString()+'px; border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        if (mapdiv2 != null) {
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
+                        else{
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(h/w)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
                     } else {
-                        ratio = (w/h)*imWidth
-                        document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height:'+imWidth.toString()+'px;width:'+ratio.toString()+'px; border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        if (mapdiv2 != null) {
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
+                        else{
+                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(w/h)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                        }
                     }
 
                     L.Browser.touch = true
@@ -1784,9 +1833,11 @@ function prepMap(mapID = 'map1') {
                         center: [0, 0],
                         zoomSnap: 0
                     })
-            
-                    var southWest = map[wrapMapID].unproject([0, h], 2);
-                    var northEast = map[wrapMapID].unproject([w, 0], 2);
+                    var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                    var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+
+                    var southWest = map[wrapMapID].unproject([0, h1], 2);
+                    var northEast = map[wrapMapID].unproject([w1, 0], 2);
                     var bounds = new L.LatLngBounds(southWest, northEast);
             
                     mapWidth[wrapMapID] = northEast.lng
@@ -1801,6 +1852,29 @@ function prepMap(mapID = 'map1') {
                     map[wrapMapID].setMaxBounds(bounds);
                     map[wrapMapID].fitBounds(bounds)
                     map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
+
+                    map[wrapMapID].on('resize', function(wrapWrapMapID){
+                        return function () {
+                            h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                            w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+       
+                            southWest = map[wrapMapID].unproject([0, h1], 2);
+                            northEast = map[wrapMapID].unproject([w1, 0], 2);
+                            bounds = new L.LatLngBounds(southWest, northEast);
+                    
+                            mapWidth[wrapWrapMapID] = northEast.lng
+                            mapHeight[wrapWrapMapID] = southWest.lat
+
+                            map[wrapWrapMapID].invalidateSize()
+                            map[wrapWrapMapID].setMaxBounds(bounds)
+                            map[wrapWrapMapID].fitBounds(bounds)
+                            map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getZoom())
+                            activeImage[wrapWrapMapID].setBounds(bounds)
+                            addedDetections[wrapWrapMapID] = false
+                            addDetections(wrapWrapMapID)    
+                        }
+                    }(wrapMapID));
+
 
                     map[wrapMapID].on('drag', function(wrapWrapMapID) {
                         return function () {
@@ -2120,6 +2194,191 @@ function submitLabels(mapID = 'map1') {
     }
 }
 
+function Notes() {
+    /** Submits the users note to the server if there is one, otherwise just closes the modal. */
+    if (modalNote.is(':visible')) {
+        sendNote()
+    } else {
+        document.getElementById("notebox").value = ''
+        modalNote.modal({keyboard: true});
+    }
+}
+
+function sendNote(mapID = 'map1') {
+    /** Sends the note to the server. */
+    note = document.getElementById("notebox").value
+    
+    if (note.length > 512) {
+        document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
+    } else {
+
+        if (note != "") {
+            clusterID=clusters[mapID][clusterIndex[mapID]].id
+            var formData = new FormData()
+            formData.append('cluster_id', JSON.stringify(clusterID))
+            formData.append('note', JSON.stringify((note)))
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+            }
+            xhttp.open("POST", '/assignNote', true);
+            xhttp.send(formData);
+        }
+    
+        modalNote.modal('hide');
+    }
+}
+
+function searchNotes(mapID='map1'){
+    var xhttp = new XMLHttpRequest();
+    var formData = new FormData()
+    notes = noteSearchTextBox.value
+    formData.append('notes', JSON.stringify(notes))
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                clusters[mapID]=[]
+                clusterReadAheadIndex = 0
+                clusterIndex[mapID] = 0
+                imageIndex[mapID] = 0
+                updateClusterLabels()
+                clusterIDs = JSON.parse(this.responseText);
+                if (clusterIDs[0]){
+                    for (let i=0;i<3;i++){
+                        loadNewCluster()
+                    }
+                    document.getElementById('notif1').innerHTML = ''
+                }
+                else{
+                    document.getElementById('notif1').innerHTML = 'No notes matches your search.'
+                }
+            }
+        };
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
+    xhttp.send(formData);
+}
+
+function exploreNotes(mapID='map1'){
+    document.getElementById('notif').innerHTML = ""
+    noteTextBox = document.getElementById('noteboxExp')
+    noteSearchTextBox = document.getElementById('noteboxExpSearch')
+    noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
+
+    noteTextBox.blur()
+    noteSearchTextBox.blur()
+    isNoteActive = false
+
+    noteTextBox.addEventListener('input', function(){
+        document.getElementById('notif').innerHTML = ""
+        if(clusters[mapID][clusterIndex[mapID]].notes != noteTextBox.value){
+            document.getElementById('btnNoteSubmitExp').disabled = false
+        }
+        else{
+            document.getElementById('btnNoteSubmitExp').disabled = true
+        }
+    
+        if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
+            document.getElementById('btnNoteDeleteExp').disabled = false
+            console.log(clusters[mapID][clusterIndex[mapID]].notes)
+        }
+        else{
+            document.getElementById('btnNoteDeleteExp').disabled = true
+            
+        }
+    })
+    
+    noteTextBox.addEventListener('focus', function(){
+        isNoteActive = true
+    })
+    
+    noteTextBox.addEventListener('blur', function(){
+        isNoteActive = false
+    })
+    
+    noteSearchTextBox.addEventListener('focus', function(){
+        isNoteActive = true
+        isSearchNoteActive = true
+    })
+    
+    noteSearchTextBox.addEventListener('blur', function(){
+        isNoteActive = false
+        isSearchNoteActive = false
+    })
+
+}
+
+function sendNoteExplore(mapID = 'map1') {
+    /** Sends the note to the server. */
+    note = document.getElementById("noteboxExp").value
+    
+    if (note.length > 512) {
+        document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
+    } else {
+        document.getElementById('notif').innerHTML = ""
+        if (note != "") {
+            clusterID=clusters[mapID][clusterIndex[mapID]].id
+            var formData = new FormData()
+            formData.append('cluster_id', JSON.stringify(clusterID))
+            formData.append('note', JSON.stringify((note)))
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+                else if (this.readyState == 4 && this.status == 200)
+                {
+                    document.getElementById('notif').innerHTML = "Note saved"
+                    clusters[mapID][clusterIndex[mapID]].notes = note
+                    document.getElementById('btnNoteDeleteExp').disabled = false
+                    document.getElementById('btnNoteSubmitExp').disabled = true
+                }
+            }
+            xhttp.open("POST", '/assignNote', true);
+            xhttp.send(formData);
+        }
+        else{
+            document.getElementById('notif').innerHTML = "Note is empty"
+        }
+    }
+    noteTextBox.blur()
+    isNoteActive = false
+}
+
+
+function delNoteExplore(mapID = 'map1') {
+    /** Sends the note to the server. */  
+    document.getElementById('notif').innerHTML = ""
+    note = ""
+    clusterID=clusters[mapID][clusterIndex[mapID]].id
+    var formData = new FormData()
+    formData.append('cluster_id', JSON.stringify(clusterID))
+    formData.append('note', JSON.stringify((note)))
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 278) {
+            window.location.replace(JSON.parse(this.responseText)['redirect'])
+        }
+        else if (this.readyState == 4 && this.status == 200)
+        {
+            document.getElementById('notif').innerHTML = "Note deleted"
+            clusters[mapID][clusterIndex[mapID]].notes = note
+            document.getElementById("noteboxExp").value = note
+            document.getElementById('btnNoteDeleteExp').disabled = true
+            document.getElementById('btnNoteSubmitExp').disabled = true
+        }
+    }
+    xhttp.open("POST", '/assignNote', true);
+    xhttp.send(formData);
+    
+    noteTextBox.blur()
+    isNoteActive = false
+}
+
 function initKeys(res){
     /** Initialises the buttons for the current task, using the input data. */
     if ((!isBounding) && (divBtns != null)) {
@@ -2325,7 +2584,7 @@ document.onkeyup = function(event){
         idKeys(event.key.toLowerCase())
     } else if (isTagging||isReviewing) {
         // console.log(event)
-        if ((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) {
+        if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive) {
             switch (event.key.toLowerCase()){
                 case ('0'):assignLabel(hotkeys[0])
                     break;
@@ -2412,12 +2671,14 @@ document.onkeyup = function(event){
                 case 'control': activateMultiple()
                     break;
     
-                case 'enter': Notes()
+                case 'enter': if (isTagging){
+                    Notes()
+                }
                     break;
     
-                case '`': 
-                case '~':
-                    prevCluster()
+                case 'alt': nextCluster()
+                    break;
+                case '~': prevCluster()
                     break;
     
                 case 'arrowright': nextImage()
@@ -2425,6 +2686,29 @@ document.onkeyup = function(event){
                 case 'arrowleft': prevImage()
                     break;
             }
+
+        }
+        else if(isNoteActive){
+            switch (event.key.toLowerCase()){
+                case 'alt': nextCluster()
+                    break;
+                case '~': prevCluster()
+                    break;
+                case (' '):
+                    if(!isSearchNoteActive)
+                    {
+                        pos = noteTextBox.selectionStart
+                        noteTextBox.value = noteTextBox.value.slice(0,pos) + ' ' + noteTextBox.value.slice(pos)
+                        noteTextBox.selectionEnd = pos + 1
+                    }
+                    else{
+                        pos = noteSearchTextBox.selectionStart
+                        noteSearchTextBox.value = noteSearchTextBox.value.slice(0,pos) + ' ' + noteSearchTextBox.value.slice(pos)
+                        noteSearchTextBox.selectionEnd = pos + 1
+                    }
+                    break;  
+            }
+        
         }
     } else if (isKnockdown) {
         switch (event.key.toLowerCase()){
@@ -2459,6 +2743,8 @@ document.onkeyup = function(event){
             case 'c': clearBounding()
                 break;
             case 'h': hideBoundingLabels()
+                break;
+            case 'b': sendBoundingBack()
                 break;
         }
     } else {

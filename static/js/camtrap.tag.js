@@ -19,7 +19,7 @@ isBounding = false
 isIDing = false
 
 var clisterIdList = []
-const modalNote = $('#modalNote');
+// const modalNote = $('#modalNote');
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
@@ -292,40 +292,40 @@ function UndoKnockDown(label,mapID = 'map1') {
     }
 }
 
-function Notes() {
-    /** Submits the users note to the server if there is one, otherwise just closes the modal. */
-    if (modalNote.is(':visible')) {
-        sendNote()
-    } else {
-        document.getElementById("notebox").value = ''
-        modalNote.modal({keyboard: true});
-    }
-}
+// function Notes() {
+//     /** Submits the users note to the server if there is one, otherwise just closes the modal. */
+//     if (modalNote.is(':visible')) {
+//         sendNote()
+//     } else {
+//         document.getElementById("notebox").value = ''
+//         modalNote.modal({keyboard: true});
+//     }
+// }
 
-function sendNote(mapID = 'map1') {
-    /** Sends the note to the server. */
-    note = document.getElementById("notebox").value
+// function sendNote(mapID = 'map1') {
+//     /** Sends the note to the server. */
+//     note = document.getElementById("notebox").value
 
-    if (note.length > 512) {
-        document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
-    } else {
+//     if (note.length > 512) {
+//         document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
+//     } else {
 
-        if (note != "") {
-            clusterID=clusters[mapID][clusterIndex[mapID]].id
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 278) {
-                    window.location.replace(JSON.parse(this.responseText)['redirect'])
-                }
-            }
-            xhttp.open("GET", '/assignNote/'+clusterID+'/'+note, true);
-            xhttp.send();
-        }
+//         if (note != "") {
+//             clusterID=clusters[mapID][clusterIndex[mapID]].id
+//             var xhttp = new XMLHttpRequest();
+//             xhttp.onreadystatechange =
+//             function(){
+//                 if (this.readyState == 4 && this.status == 278) {
+//                     window.location.replace(JSON.parse(this.responseText)['redirect'])
+//                 }
+//             }
+//             xhttp.open("GET", '/assignNote/'+clusterID+'/'+note, true);
+//             xhttp.send();
+//         }
     
-        modalNote.modal('hide');
-    }
-}
+//         modalNote.modal('hide');
+//     }
+// }
 
 window.addEventListener('load', onload, false);
 

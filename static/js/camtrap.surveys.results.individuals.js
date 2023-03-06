@@ -146,14 +146,12 @@ function prepMap(image) {
         img.onload = function(){
             w = this.width
             h = this.height
-            imWidth = 800
-    
+
+
             if (w>h) {
-                ratio = (h/w)*imWidth
-                document.getElementById('mapDiv').setAttribute('style','height:'+ratio.toString()+'px;width:'+imWidth.toString()+'px')
+                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
             } else {
-                ratio = (w/h)*imWidth
-                document.getElementById('mapDiv').setAttribute('style','height:'+imWidth.toString()+'px;width:'+ratio.toString()+'px')
+                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
             }
 
             L.Browser.touch = true
@@ -164,9 +162,12 @@ function prepMap(image) {
                 center: [0, 0],
                 zoomSnap: 0
             })
+
+            var h1 = document.getElementById('mapDiv').clientHeight
+            var w1 = document.getElementById('mapDiv').clientWidth
     
-            var southWest = map.unproject([0, h], 2);
-            var northEast = map.unproject([w, 0], 2);
+            var southWest = map.unproject([0, h1], 2);
+            var northEast = map.unproject([w1, 0], 2);
             var bounds = new L.LatLngBounds(southWest, northEast);
     
             mapWidth = northEast.lng
@@ -179,6 +180,26 @@ function prepMap(image) {
             map.setMaxBounds(bounds);
             map.fitBounds(bounds)
             map.setMinZoom(map.getZoom())
+
+            map.on('resize', function(){
+                h1 = document.getElementById('mapDiv').clientHeight
+                w1 = document.getElementById('mapDiv').clientWidth
+                southWest = map.unproject([0, h1], 2);
+                northEast = map.unproject([w1, 0], 2);
+                bounds = new L.LatLngBounds(southWest, northEast);
+        
+                mapWidth = northEast.lng
+                mapHeight = southWest.lat
+
+                map.invalidateSize()
+                map.setMaxBounds(bounds)
+                map.fitBounds(bounds)
+                map.setMinZoom(map.getZoom())
+                activeImage.setBounds(bounds)
+                addedDetections = false
+                addDetections(individualImages[individualSplide.index])    
+            });
+
 
             map.on('drag', function() {
                 map.panInsideBounds(bounds, { animate: false });

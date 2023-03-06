@@ -1498,7 +1498,7 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
         else:
             trapGroup = 'None'
 
-        reply = {'id': cluster.id,'classification': classification,'required': required, 'images': images, 'label': cluster_labels, 'label_ids': cluster_label_ids, 'tags': tags, 'tag_ids': tag_ids, 'groundTruth': groundTruth, 'trapGroup': trapGroup}
+        reply = {'id': cluster.id,'classification': classification,'required': required, 'images': images, 'label': cluster_labels, 'label_ids': cluster_label_ids, 'tags': tags, 'tag_ids': tag_ids, 'groundTruth': groundTruth, 'trapGroup': trapGroup, 'notes': cluster.notes}
 
     return reply
 

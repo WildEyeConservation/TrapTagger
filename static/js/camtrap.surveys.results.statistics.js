@@ -1292,8 +1292,8 @@ function createMap() {
             })
 
             gSat = L.gridLayer.googleMutant({type: 'satellite'})
-            gStr = L.gridLayer.googleMutant({type: 'roadmap'})
-            gTer = L.gridLayer.googleMutant({type: 'terrain'})
+            // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
+            // gTer = L.gridLayer.googleMutant({type: 'terrain'})
             gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
             var cfg = {
@@ -1325,8 +1325,8 @@ function createMap() {
 
             baseMaps = {
                 "Google Satellite": gSat,
-                "Google Roadmap": gStr,
-                "Google Terrain": gTer,
+                // "Google Roadmap": gStr,
+                // "Google Terrain": gTer,
                 "Google Hybrid": gHyb,
                 "OpenStreetMaps Satellite": osmSat,
                 "OpenStreetMaps Roadmap": osmSt

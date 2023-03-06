@@ -4292,7 +4292,7 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>')
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>', methods=['POST'])
 @login_required
 def getClustersBySpecies(task_id, species, tag_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
@@ -4301,7 +4301,7 @@ def getClustersBySpecies(task_id, species, tag_id):
     task = db.session.query(Task).get(task_id)
 
     if task and (current_user == task.survey.user):
-
+        # notes = request.args.get('notes', None)
         if 'notes' in request.form:
             notes = ast.literal_eval(request.form['notes'])
         else:
@@ -4337,7 +4337,7 @@ def getClustersBySpecies(task_id, species, tag_id):
             clusters = clusters.filter(Labelgroup.tags.contains(tag))
 
         if notes:
-            if notes==True:
+            if (notes==True) or (notes.lower() == 'true'):
                 clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
             else:
                 searches = re.split('[ ,]',notes)
