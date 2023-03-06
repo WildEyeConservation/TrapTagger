@@ -2001,7 +2001,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                 image.downloaded = True
             db.session.commit()
 
-        task.status = 'Processing'
+        task.status = 'Ready'
         db.session.commit()
 
         test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
