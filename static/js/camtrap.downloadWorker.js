@@ -91,6 +91,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     initCount = 0
     download_initialised = false
     downloading_count=0
+    filesToDownload = 0
 
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
