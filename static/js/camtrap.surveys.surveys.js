@@ -2459,9 +2459,7 @@ modalNewSurvey.on('hidden.bs.modal', function(){
     if (!helpReturn) {
         resetNewSurveyPage()
         document.getElementById('btnSaveSurvey').disabled=false
-    } else {
-        helpReturn = false
-    }
+    } 
 });
 
 function updateClassifierTable(url=null) {
@@ -2649,11 +2647,15 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
 
 modalNewSurvey.on('shown.bs.modal', function(){
     /** Populates the new survey modal when opened. */
-    
-    if (!helpReturn) {
+
+    if (!helpReturn){
         speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
         buildClassifierSelectTable(speciesClassifierDiv)
     }
+    else {
+        helpReturn = false
+    }
+      
 });
 
 modalAddImages.on('shown.bs.modal', function(){
