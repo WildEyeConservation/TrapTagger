@@ -140,7 +140,7 @@ function updatePathDisplay(folders,filecount) {
         pathDisplay.add(folderDisplay)
 
         //add paths
-        for (let i = 2; i < folders.length; i++){
+        for (let i = 0; i < folders.length; i++){
             let option = document.createElement('option');
             option.text = folders[i];
             option.value = i;
