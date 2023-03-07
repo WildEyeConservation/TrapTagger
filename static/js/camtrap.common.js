@@ -2681,7 +2681,9 @@ document.onkeyup = function(event){
     
                 case 'alt': nextCluster()
                     break;
-                case '~': prevCluster()
+                case '~':
+                case '`':
+                    prevCluster()
                     break;
     
                 case 'arrowright': nextImage()
@@ -2695,7 +2697,9 @@ document.onkeyup = function(event){
             switch (event.key.toLowerCase()){
                 case 'alt': nextCluster()
                     break;
-                case '~': prevCluster()
+                case '~':
+                case '`':
+                    prevCluster()
                     break;
                     
             }
@@ -2717,7 +2721,9 @@ document.onkeyup = function(event){
         }
     } else if (isBounding) {
         switch (event.key.toLowerCase()){
-            case '`': prevCluster()
+            case '`':
+            case '~':
+                prevCluster()
                 break;
             case (' '): submitChanges()
                 break;
