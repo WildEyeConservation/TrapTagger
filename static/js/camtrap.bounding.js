@@ -215,6 +215,21 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         addDetCnt+=1
     });
 
+    map[mapID].on('zoom', function(e){
+        /** update position of bounding box labels on zoom */
+        if (toolTipsOpen) {
+            for (let layer in drawnItems[mapID]._layers) {
+                var drawn_layer = drawnItems[mapID]._layers[layer]
+                var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var centerPoint = map[mapID].latLngToContainerPoint(center)
+                var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
+                var offset = [0,centerPoint.y-bottomPoint.y]
+                drawn_layer._tooltip.options.offset = offset
+            }
+        }
+    });
+
     map[mapID].on('contextmenu.select', function (e) {
         if (targetUpdated) {           
             if (e.el.textContent=='▼') {
