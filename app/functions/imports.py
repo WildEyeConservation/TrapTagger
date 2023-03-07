@@ -1276,7 +1276,12 @@ def s3traverse(bucket,prefix):
 
 def delete_duplicate_images(images):
     '''Helper function for remove_duplicate_images that deletes the specified image objects and their detections from the database.'''
-    for image in images:
+
+    # If adding images - delete the new imports rather than the old ones
+    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).distinct().all()
+    if len(candidateImages) == len(images): candidateImages = candidateImages[1:]
+    
+    for image in candidateImages:
         for detection in image.detections:
 
             for labelgroup in detection.labelgroups:
@@ -1319,7 +1324,7 @@ def remove_duplicate_images(survey_id):
                     .filter(Trapgroup.survey_id==survey_id)\
                     .filter(Image.hash==hash[0])\
                     .distinct().all()
-        delete_duplicate_images(images[1:])
+        delete_duplicate_images(images)
 
     #delete any empty cameras
     cameras = db.session.query(Camera).join(Trapgroup).filter(~Camera.images.any()).filter(Trapgroup.survey_id==survey_id).all()
