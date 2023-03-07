@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ
+                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
