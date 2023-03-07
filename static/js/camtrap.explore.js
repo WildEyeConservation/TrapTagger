@@ -252,6 +252,7 @@ function selectTag(tag) {
 
 
 $("#onlyNotesCheckbox").change( function() {
+    /** Checks when the checkbox for filtering the cluster by notes is checked */
     onlyNotesCheckbox = document.getElementById('onlyNotesCheckbox')
     if (onlyNotesCheckbox.checked) {
         notesOnly = true
