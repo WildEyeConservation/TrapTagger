@@ -1368,15 +1368,15 @@ function buildAddIms() {
     input = document.createElement('input')
     input.setAttribute('type','radio')
     input.classList.add('custom-control-input')
-    input.setAttribute('id','S3BucketAdd')
+    input.setAttribute('id','BrowserAdd')
     input.setAttribute('name','addImagesSelection')
     input.setAttribute('value','customEx')
     div.appendChild(input)
 
     label = document.createElement('label')
     label.classList.add('custom-control-label')
-    label.setAttribute('for','S3BucketAdd')
-    label.innerHTML = 'Bucket Upload (Recommended)'
+    label.setAttribute('for','BrowserAdd')
+    label.innerHTML = 'Browser Upload (Recommended)'
     div.appendChild(label)
 
     div = document.createElement('div')
@@ -1386,15 +1386,15 @@ function buildAddIms() {
     input = document.createElement('input')
     input.setAttribute('type','radio')
     input.classList.add('custom-control-input')
-    input.setAttribute('id','BrowserAdd')
+    input.setAttribute('id','S3BucketAdd')
     input.setAttribute('name','addImagesSelection')
     input.setAttribute('value','customEx')
     div.appendChild(input)
 
     label = document.createElement('label')
     label.classList.add('custom-control-label')
-    label.setAttribute('for','BrowserAdd')
-    label.innerHTML = 'Browser Upload'
+    label.setAttribute('for','S3BucketAdd')
+    label.innerHTML = 'Bucket Upload'
     div.appendChild(label)
 
     addImagesAddImsDiv.appendChild(document.createElement('br'))
