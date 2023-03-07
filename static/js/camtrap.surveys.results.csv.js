@@ -224,6 +224,7 @@ function checkCSV() {
     excludeProblem = false
     duplicateTask = false
 
+    // Handles the selection of duplicate annototation tasks
     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
     for (let i=0;i<allTasks.length;i++) {
         currTaskVal = allTasks[i].value

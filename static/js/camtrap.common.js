@@ -246,6 +246,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
+        // Send to bounding boxes back when editing sightings (bounding-boc correction)
         if (document.getElementById('btnSendBoundingBack')!=null){
             rect.addEventListener('click', function(wrapRect){
                 return function() {
@@ -1081,6 +1082,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
             }
 
+            // Update notes in explore
             if(isReviewing && document.getElementById('noteboxExp'))
             {
                 noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
@@ -2233,6 +2235,7 @@ function sendNote(mapID = 'map1') {
 }
 
 function searchNotes(mapID='map1'){
+    /** Searches for clusters with notes specified in explore page search bar */
     var xhttp = new XMLHttpRequest();
     var formData = new FormData()
     notes = noteSearchTextBox.value
@@ -2262,6 +2265,7 @@ function searchNotes(mapID='map1'){
 }
 
 function exploreNotes(mapID='map1'){
+    /** Initialises the notes in explore page */
     document.getElementById('notif').innerHTML = ""
     noteTextBox = document.getElementById('noteboxExp')
     noteSearchTextBox = document.getElementById('noteboxExpSearch')
@@ -2282,7 +2286,6 @@ function exploreNotes(mapID='map1'){
     
         if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
             document.getElementById('btnNoteDeleteExp').disabled = false
-            console.log(clusters[mapID][clusterIndex[mapID]].notes)
         }
         else{
             document.getElementById('btnNoteDeleteExp').disabled = true
@@ -2311,7 +2314,7 @@ function exploreNotes(mapID='map1'){
 }
 
 function sendNoteExplore(mapID = 'map1') {
-    /** Sends the note to the server. */
+    /** Sends the note to the server submitted from the explore page. */
     note = document.getElementById("noteboxExp").value
     
     if (note.length > 512) {
@@ -2350,7 +2353,7 @@ function sendNoteExplore(mapID = 'map1') {
 
 
 function delNoteExplore(mapID = 'map1') {
-    /** Sends the note to the server. */  
+    /** Sends the deleted note to the server*/  
     document.getElementById('notif').innerHTML = ""
     note = ""
     clusterID=clusters[mapID][clusterIndex[mapID]].id
@@ -2527,7 +2530,7 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))))) {
+        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive))) {
             event.preventDefault()
         }
     }
@@ -2694,19 +2697,7 @@ document.onkeyup = function(event){
                     break;
                 case '~': prevCluster()
                     break;
-                case (' '):
-                    if(!isSearchNoteActive)
-                    {
-                        pos = noteTextBox.selectionStart
-                        noteTextBox.value = noteTextBox.value.slice(0,pos) + ' ' + noteTextBox.value.slice(pos)
-                        noteTextBox.selectionEnd = pos + 1
-                    }
-                    else{
-                        pos = noteSearchTextBox.selectionStart
-                        noteSearchTextBox.value = noteSearchTextBox.value.slice(0,pos) + ' ' + noteSearchTextBox.value.slice(pos)
-                        noteSearchTextBox.selectionEnd = pos + 1
-                    }
-                    break;  
+                    
             }
         
         }
