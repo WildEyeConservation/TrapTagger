@@ -597,8 +597,8 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
             
             count = task.vhl_count
-            texts.append(label.description+' ('+str(count)+')')
-            values.append(label.id)
+            texts.append('Vehicles/Humans/Livestock ('+str(count)+')')
+            values.append(GLOBALS.vhl_id)
 
     elif task_type=='infoTag':
         disabled = 'false'
@@ -635,7 +635,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
             return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
         
         count = task.infoless_vhl_count
-        texts.append(label.description+' ('+str(count)+')')
+        texts.append('Vehicles/Humans/Livestock ('+str(count)+')')
         values.append('-2,'+str(label.id))
 
     return json.dumps({'texts': texts, 'values': values, 'disabled':disabled, 'colours':colours})
