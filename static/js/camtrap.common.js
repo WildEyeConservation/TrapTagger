@@ -2530,7 +2530,7 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))))) {
+        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive))) {
             event.preventDefault()
         }
     }
@@ -2697,19 +2697,7 @@ document.onkeyup = function(event){
                     break;
                 case '~': prevCluster()
                     break;
-                case (' '): // Add space because space is not working in explore notes
-                    if(!isSearchNoteActive)
-                    {
-                        pos = noteTextBox.selectionStart
-                        noteTextBox.value = noteTextBox.value.slice(0,pos) + ' ' + noteTextBox.value.slice(pos)
-                        noteTextBox.selectionEnd = pos + 1
-                    }
-                    else{
-                        pos = noteSearchTextBox.selectionStart
-                        noteSearchTextBox.value = noteSearchTextBox.value.slice(0,pos) + ' ' + noteSearchTextBox.value.slice(pos)
-                        noteSearchTextBox.selectionEnd = pos + 1
-                    }
-                    break;  
+                    
             }
         
         }
