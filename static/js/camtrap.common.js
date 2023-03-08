@@ -1580,7 +1580,9 @@ function assignLabel(label,mapID = 'map1'){
                                 if (clusters[mapID][clusterIndex[mapID]][ITEMS].includes(labelName)) {
             
                                     var btn = document.getElementById(label);
-                                    if (idx < 10) {
+                                    if (idx == 0) {
+                                        btn.setAttribute("class", "btn btn-danger btn-block btn-sm");
+                                    } else if (idx < 10) {
                                         btn.setAttribute("class", "btn btn-primary btn-block btn-sm");
                                     } else {
                                         btn.setAttribute("class", "btn btn-info btn-block btn-sm");
