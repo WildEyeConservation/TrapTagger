@@ -1258,12 +1258,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
 
     return clusters
 
-def genInitKeys(taggingLevel,task_id,addSkip):
+def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
     '''Returns the labels and hotkeys for the given tagging level and task'''
 
     if taggingLevel == '-1':
         categories = db.session.query(Label).filter(Label.task_id == task_id).filter(Label.parent_id == None).all()
-        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
+        
+        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
+        if not addRemoveFalseDetections: special_categories.filter(Label.description != 'Remove False Detections')
+        special_categories = special_categories.all()
+        
         categories.extend(special_categories)
     elif taggingLevel == '0':
         temp_categories = db.session.query(Label).filter(Label.task_id == task_id).all()
@@ -1272,7 +1276,11 @@ def genInitKeys(taggingLevel,task_id,addSkip):
             check = db.session.query(Label).filter(Label.parent_id == category.id).first()
             if check == None:
                 categories.append(category)
-        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
+
+        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
+        if not addRemoveFalseDetections: special_categories.filter(Label.description != 'Remove False Detections')
+        special_categories = special_categories.all()
+        
         categories.extend(special_categories)
     elif '-2' in taggingLevel:
         categories = db.session.query(Tag).filter(Tag.task_id == task_id).all()
