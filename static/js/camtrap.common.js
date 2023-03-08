@@ -2142,7 +2142,9 @@ function activateMultiple(mapID = 'map1') {
                 }
     
                 if (!taggingLevel.includes('-2') && clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]][ITEMS].includes('Skip')) {
-                    // nothing
+                    if (wrongStatus) {
+                        tempTaggingLevel = taggingLevel
+                    }
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
                     if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString())) {
