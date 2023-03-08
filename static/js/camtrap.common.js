@@ -67,6 +67,7 @@ var dontResetWrong = false
 var tempTaggingLevel=null
 var orginal_labels
 var orginal_label_ids
+var skipName = null
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -2097,7 +2098,11 @@ function activateMultiple(mapID = 'map1') {
                         }
                     } else {
                         for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
-                            idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
+                            name = clusters[mapID][clusterIndex[mapID]][ITEMS][i]
+                            if (name==skipName) {
+                                name = 'skip'
+                            }
+                            idx = names.indexOf(name)
                             if (idx > -1) {
                                 var btn = document.getElementById(hotkeys[idx]);
                                 btn.setAttribute("class", "btn btn-success btn-block btn-sm");               
@@ -2396,6 +2401,7 @@ function delNoteExplore(mapID = 'map1') {
 function initKeys(res){
     /** Initialises the buttons for the current task, using the input data. */
     if ((!isBounding) && (divBtns != null)) {
+        skipName = null
         if (multipleStatus) {
             reActivate = true
         } else {
@@ -2429,6 +2435,11 @@ function initKeys(res){
         // Add other important buttons
         for (let i=0;i<labs.length;i++) {
             if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
+
+                if ((names[i]=='Skip')&&(multipleStatus)) {
+                    continue
+                }
+
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
 
@@ -2443,6 +2454,7 @@ function initKeys(res){
                             if (globalKeys[key][0][n]==tempTaggingLevel) {
                                 labelName = globalKeys[key][1][n]
                                 hotkeys[i] = tempTaggingLevel.toString()
+                                skipName = labelName
                                 break
                             }
                         }
