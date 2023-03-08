@@ -1265,7 +1265,8 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
         categories = db.session.query(Label).filter(Label.task_id == task_id).filter(Label.parent_id == None).all()
         
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
-        if not addRemoveFalseDetections: special_categories.filter(Label.description != 'Remove False Detections')
+        if not addRemoveFalseDetections: special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
+        
         special_categories = special_categories.all()
         
         categories.extend(special_categories)
@@ -1278,7 +1279,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
                 categories.append(category)
 
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
-        if not addRemoveFalseDetections: special_categories.filter(Label.description != 'Remove False Detections')
+        if not addRemoveFalseDetections: special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
         special_categories = special_categories.all()
         
         categories.extend(special_categories)
