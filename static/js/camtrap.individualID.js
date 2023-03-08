@@ -1209,6 +1209,18 @@ function IDMapPrep(mapID = 'map1') {
             }
         }
     }(mapID));
+
+    map[mapID].on('contextmenu', function (e) {
+        /** remove duplicate items on more than one right click of contextmenu*/
+        nr_items = 1
+
+        if(map[mapID].contextmenu._items.length > nr_items){
+            for (let i=map[mapID].contextmenu._items.length-1;i>nr_items-1;i--) 
+            {
+                map[mapID].contextmenu.removeItem(i)
+            }
+        } 
+    });
 }
 
 window.addEventListener('load', onload, false);
