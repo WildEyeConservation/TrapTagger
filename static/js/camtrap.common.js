@@ -1111,7 +1111,11 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     if (multipleStatus) {
         if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
             for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
-                idx = names.indexOf(clusters[mapID][clusterIndex[mapID]][ITEMS][i])
+                name = clusters[mapID][clusterIndex[mapID]][ITEMS][i]
+                if (name==skipName) {
+                    name = 'Skip'
+                }
+                idx = names.indexOf(name)
                 if (idx > -1) {
                     var btn = document.getElementById(hotkeys[idx]);
                     btn.setAttribute("class", "btn btn-success btn-block btn-sm");           
@@ -1438,6 +1442,7 @@ function assignLabel(label,mapID = 'map1'){
                             orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
                             clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
                             clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                            clusterLabels[mapID] = []
                             updateDebugInfo(mapID,false)
     
                             selectBtns = document.getElementById('selectBtns')
