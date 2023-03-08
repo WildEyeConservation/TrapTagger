@@ -1675,6 +1675,8 @@ function assignLabel(label,mapID = 'map1'){
                                     if (wrongStatus&&!(isClassCheck&&multipleStatus)&&!dontResetWrong) {
                                         wrongStatus = false
                                         initKeys(globalKeys[taggingLevel])
+                                    } else if (dontResetWrong) {
+                                        initKeys(globalKeys[taggingLevel])
                                     }
                                     
                                     if ((!isTutorial)&&(!multipleStatus)) {
