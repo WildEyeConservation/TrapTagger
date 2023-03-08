@@ -1674,8 +1674,10 @@ function assignLabel(label,mapID = 'map1'){
                                     
                                     if (wrongStatus&&!(isClassCheck&&multipleStatus)&&!dontResetWrong) {
                                         wrongStatus = false
+                                        tempTaggingLevel = taggingLevel
                                         initKeys(globalKeys[taggingLevel])
                                     } else if (dontResetWrong) {
+                                        tempTaggingLevel = taggingLevel
                                         initKeys(globalKeys[taggingLevel])
                                     }
                                     
@@ -2435,7 +2437,7 @@ function initKeys(res){
                     if (wrongStatus) {
                         labelName = 'Back'
                     }
-                } else if ((names[i]=='Skip')&&(wrongStatus)) {
+                } else if ((names[i]=='Skip')&&(wrongStatus)&&(tempTaggingLevel!='-1')) {
                     for (let key in globalKeys) {
                         for (let n=0;n<globalKeys[key][0].length;n++) {
                             if (globalKeys[key][0][n]==tempTaggingLevel) {
