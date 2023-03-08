@@ -577,8 +577,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
         values = ['-1']
 
         if disabled == 'false':
-            labels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.children.any()).all()
-            for label in labels:
+            for label in task.labels:
                 if label.complete==True:
                     colours.append('#0A7850')
                 else:
@@ -4814,12 +4813,19 @@ def getTaggingLevel():
 
     taggingLevel = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.tagging_level
 
+    wrongStatus = 'false'
     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
         taggingLabel = db.session.query(Label).get(int(taggingLevel)).description
+
+        if len(taggingLabel.children[:])==0:
+            # Allow top-level re-annotation of child categories
+            taggingLabel = 'None'
+            taggingLevel = '-1'
+            wrongStatus = 'true'
     else:
         taggingLabel = 'None'
 
-    return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel})
+    return json.dumps({'taggingLevel':taggingLevel, 'taggingLabel':taggingLabel, 'wrongStatus':wrongStatus})
 
 @app.route('/initKeys')
 @login_required

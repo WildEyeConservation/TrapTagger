@@ -63,6 +63,7 @@ var globalKeys = null
 var ITEMS='label'
 var ITEM_IDS='label_ids'
 var wrongStatus = false
+var dontResetWrong = false
 var tempTaggingLevel=null
 var orginal_labels
 var orginal_label_ids
@@ -1671,7 +1672,7 @@ function assignLabel(label,mapID = 'map1'){
                                         updateDebugInfo(mapID)
                                     }
                                     
-                                    if (wrongStatus&&!(isClassCheck&&multipleStatus)) {
+                                    if (wrongStatus&&!(isClassCheck&&multipleStatus)&&!dontResetWrong) {
                                         wrongStatus = false
                                         initKeys(globalKeys[taggingLevel])
                                     }
@@ -1715,6 +1716,11 @@ function fetchTaggingLevel() {
         } else if (this.readyState == 4 && this.status == 200) {
             taggingInfo = JSON.parse(this.responseText);
             taggingLevel = taggingInfo.taggingLevel
+
+            if (taggingInfo.wrongStatus=='true') {
+                wrongStatus = true
+                dontResetWrong = true
+            }
 
             if (taggingLevel.includes('-2')) {
                 taggingLevel = '-2'
