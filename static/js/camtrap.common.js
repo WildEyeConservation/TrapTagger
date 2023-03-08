@@ -2089,7 +2089,7 @@ function activateMultiple(mapID = 'map1') {
                     multipleStatus = true
 
                     // remove skip
-                    if (dontResetWrong) {
+                    if (dontResetWrong&&(skipName==null)) {
                         idx = names.indexOf('Skip')
                         if (idx > -1) {
                             var btn = document.getElementById(hotkeys[idx]);
