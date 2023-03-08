@@ -2146,10 +2146,7 @@ function activateMultiple(mapID = 'map1') {
             } else {
                 multipleStatus = false
 
-                if (isClassCheck) {
-                    wrongStatus = false
-                    suggestionBack(false)
-                } else if (wrongStatus) {
+                if (wrongStatus) {
                     tempTaggingLevel = taggingLevel
                     initKeys(globalKeys[taggingLevel])
                 } else {
@@ -2160,6 +2157,10 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
+                    if (isClassCheck) {
+                        wrongStatus = false
+                        suggestionBack(false)
+                    }
                     if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString())) {
                         // nothings need to wait to see if they ae ediected first
                         nextCluster(mapID)
