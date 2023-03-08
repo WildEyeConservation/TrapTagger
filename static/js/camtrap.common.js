@@ -15,6 +15,7 @@
 var selectedTask = 0
 var isTagging
 var hotkeys = []
+var skipLabel = -900
 var RFDLabel = -900
 var nothingLabel = -900
 var unknownLabel = -900
@@ -1393,8 +1394,8 @@ function assignLabel(label,mapID = 'map1'){
     }
     
     if (label != EMPTY_HOTKEY_ID) {
-        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label))) {
-            //ignore nothing and knocked down labels in multi
+        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label))) {
+            //ignore nothing, skip and knocked down labels in multi
         } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
             // confirmation modal for nothing and knockdowns
             if (label==RFDLabel) {
@@ -2091,15 +2092,15 @@ function activateMultiple(mapID = 'map1') {
                     multipleStatus = true
 
                     // remove skip
-                    if (dontResetWrong&&(skipName==null)) {
-                        idx = names.indexOf('Skip')
-                        if (idx > -1) {
-                            var btn = document.getElementById(hotkeys[idx]);
-                            if (btn) {
-                                btn.remove()
-                            }
-                        }
-                    }
+                    // if (dontResetWrong&&(skipName==null)) {
+                    //     idx = names.indexOf('Skip')
+                    //     if (idx > -1) {
+                    //         var btn = document.getElementById(hotkeys[idx]);
+                    //         if (btn) {
+                    //             btn.remove()
+                    //         }
+                    //     }
+                    // }
         
                     if (taggingLevel.includes('-2')) {
                         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
@@ -2509,6 +2510,8 @@ function initKeys(res){
                 RFDLabel = labs[i]
             } else if (names[i]=='Knocked Down') {
                 downLabel = labs[i]
+            } else if (names[i]=='Skip') {
+                skipLabel = labs[i]
             }
 
             if ((names[i]!='Wrong')&&(names[i]!='Skip')&&(names[i]!='Remove False Detections')) {
