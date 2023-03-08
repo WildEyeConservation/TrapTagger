@@ -249,15 +249,17 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             dbDetIds[mapID][rect._leaflet_id.toString()] = detection.id.toString()
         }
 
-        // Send to bounding boxes back when editing sightings (bounding-boc correction)
+
         if (document.getElementById('btnSendBoundingBack')!=null){
+            // Highlights and un-highlight when click on bounding box
             rect.addEventListener('click', function(wrapRect){
                 return function() {
+                    // Send to bounding boxes back when editing sightings (bounding-box correction)
                     if (sendBackBoundingMode) {
                         wrapRect.bringToBack()
                         sendBoundingBack()
                     }
-                    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                    else if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
                         if (prevClickBounding != null){
                             colour = "rgba(223,105,26,1)"
                             prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
@@ -269,6 +271,20 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     
                 }
             }(rect));      
+            // Highlights and un-highlight when right click on bounding box
+            rect.addEventListener('contextmenu', function(wrapRect){
+                return function() {
+                    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+                        if (prevClickBounding != null){
+                            colour = "rgba(223,105,26,1)"
+                            prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
+                        }
+                    
+                        wrapRect.setStyle({color: "rgba(225,225,225,1)"}); //highlight new selection
+                        prevClickBounding = {'rect': wrapRect}
+                    }
+                }
+            }(rect));
         }
 
         if (document.getElementById('btnSendToBack')!=null) {
@@ -853,6 +869,11 @@ function updateButtons(mapID = 'map1'){
     if (nextClusterBtn != null) {
         if (clusterIndex[mapID]==clusters[mapID].length-1){
             nextClusterBtn.classList.add("disabled")
+            if (isReviewing && ((clusterIndex[mapID] > 0) || clusterIDs.length == 1)){
+                document.getElementById('modalAlertText').innerHTML = 'You have reached the end of the available clusters.'
+                modalAlert.modal({keyboard: true});
+            }
+
         }else{
             nextClusterBtn.classList.remove("disabled")
         }
@@ -2749,7 +2770,7 @@ document.onkeyup = function(event){
                 case '`':
                     prevCluster()
                     break;
-                    
+
             }
         
         }

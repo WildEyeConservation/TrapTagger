@@ -132,8 +132,17 @@ function getClusterIDs(mapID = 'map1'){
                 imageIndex[mapID] = 0
                 updateClusterLabels()
                 clusterIDs = JSON.parse(this.responseText);
-                for (let i=0;i<3;i++){
-                    loadNewCluster()
+                if(clusterIDs.length == 0){
+                    document.getElementById('modalAlertText').innerHTML = 'There are no clusters available.'
+                    modalAlert.modal({keyboard: true});
+                    if(notesOnly){
+                        document.getElementById('onlyNotesCheckbox').click()
+                    }
+                }
+                else{
+                    for (let i=0;i<3;i++){
+                        loadNewCluster()
+                    }
                 }
             }
         };
