@@ -2134,15 +2134,14 @@ function activateMultiple(mapID = 'map1') {
                 }
             } else {
                 multipleStatus = false
-    
-                if (isClassCheck) {
-                    suggestionBack(false)
-                } else {
-                    getKeys()
-                }
 
                 if (wrongStatus) {
                     tempTaggingLevel = taggingLevel
+                    initKeys(globalKeys[taggingLevel])
+                } else if (isClassCheck) {
+                    suggestionBack(false)
+                } else {
+                    getKeys()
                 }
     
                 if (!taggingLevel.includes('-2') && clusters[mapID][clusterIndex[mapID]][ITEMS].includes(taggingLabel) && !clusters[mapID][clusterIndex[mapID]][ITEMS].includes('Skip')) {
