@@ -4815,13 +4815,15 @@ def getTaggingLevel():
 
     wrongStatus = 'false'
     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
-        taggingLabel = db.session.query(Label).get(int(taggingLevel)).description
+        label = db.session.query(Label).get(int(taggingLevel))
 
-        if len(taggingLabel.children[:])==0:
+        if len(label.children[:])==0:
             # Allow top-level re-annotation of child categories
             taggingLabel = 'None'
             taggingLevel = '-1'
             wrongStatus = 'true'
+        else:
+            taggingLabel = label.description
     else:
         taggingLabel = 'None'
 
