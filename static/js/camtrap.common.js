@@ -1722,6 +1722,7 @@ function fetchTaggingLevel() {
             if (taggingInfo.wrongStatus=='true') {
                 wrongStatus = true
                 dontResetWrong = true
+                tempTaggingLevel = taggingLevel
             }
 
             if (taggingLevel.includes('-2')) {

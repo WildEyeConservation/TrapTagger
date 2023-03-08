@@ -1258,15 +1258,13 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
 
     return clusters
 
-def genInitKeys(taggingLevel,task_id):
+def genInitKeys(taggingLevel,task_id,addSkip):
     '''Returns the labels and hotkeys for the given tagging level and task'''
 
-    addSkip = False
     if taggingLevel == '-1':
         categories = db.session.query(Label).filter(Label.task_id == task_id).filter(Label.parent_id == None).all()
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
         categories.extend(special_categories)
-        addSkip = True
     elif taggingLevel == '0':
         temp_categories = db.session.query(Label).filter(Label.task_id == task_id).all()
         categories = []

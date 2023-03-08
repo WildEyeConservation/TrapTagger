@@ -4844,13 +4844,18 @@ def initKeys():
 
     if task and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user == task.survey.user)):
 
+        addSkip = False
+        if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
+            taggingLabel = db.session.query(Label).get(int(task.tagging_level))
+            if len(taggingLabel.children[:])==0: addSkip = True
+
         reply = {}
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         for label in labels:
-            reply[str(label.id)] = genInitKeys(str(label.id),task.id)
-        reply['-1'] = genInitKeys('-1',task.id)
-        reply['-2'] = genInitKeys('-2',task.id)
+            reply[str(label.id)] = genInitKeys(str(label.id),task.id,False)
+        reply['-1'] = genInitKeys('-1',task.id,addSkip)
+        reply['-2'] = genInitKeys('-2',task.id,False)
 
         return json.dumps(reply)
     else:
