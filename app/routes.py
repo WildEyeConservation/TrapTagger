@@ -3322,6 +3322,9 @@ def suggestionUnidentifiable(individual_id):
     # num2 = task.size + task.test_size
 
     if individual and individual.active and (individual.task_id==task.id) and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user)):
+        
+        if Config.DEBUGGING: app.logger.info('Individual {} marked as unidentifiable'.format(individual.name))
+
         unidentifiable = db.session.query(Individual).filter(Individual.task_id==task.id).filter(Individual.label_id==individual.label_id).filter(Individual.name=='unidentifiable').first()
         unidentifiable.detections.extend(individual.detections)
 
@@ -3370,6 +3373,8 @@ def acceptSuggestion(individual_1,individual_2):
     # num2 = task.size + task.test_size
 
     if (individual1 and individual2) and (individual1.task_id==task.id) and (individual2.task_id==task.id) and (individual1 != individual2) and ((current_user.parent in individual1.task.survey.user.workers) or (current_user.parent == individual1.task.survey.user)):
+
+        if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
         if individual2.notes != individual1.notes:
             if individual1.notes==None:
@@ -5314,6 +5319,11 @@ def editSightings(image_id,task_id):
         if image and ((current_user.parent in image.camera.trapgroup.survey.user.workers) or (current_user.parent == image.camera.trapgroup.survey.user)):
             cluster = db.session.query(Cluster).filter(Cluster.task_id==int(task_id)).filter(Cluster.images.contains(image)).first()
             detectionsDict = ast.literal_eval(request.form['detections'])
+
+            if Config.DEBUGGING:
+                app.logger.info('{} detections Submitted:'.format(len(detectionsDict)))
+                for detID in detectionsDict:
+                    app.logger.info('{}: {}'.format(detID,detectionsDict[detID]))
 
             if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
