@@ -866,6 +866,11 @@ function updateButtons(mapID = 'map1'){
     if (nextClusterBtn != null) {
         if (clusterIndex[mapID]==clusters[mapID].length-1){
             nextClusterBtn.classList.add("disabled")
+            if (isReviewing && ((clusterIndex[mapID] > 0) || clusterIDs.length == 1)){
+                document.getElementById('modalAlertText').innerHTML = 'You have reached the end of the available clusters.'
+                modalAlert.modal({keyboard: true});
+            }
+
         }else{
             nextClusterBtn.classList.remove("disabled")
         }
