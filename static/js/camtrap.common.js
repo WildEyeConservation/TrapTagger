@@ -2087,6 +2087,17 @@ function activateMultiple(mapID = 'map1') {
         
                     multibtn.setAttribute("class", "btn btn-success btn-block btn-sm");
                     multipleStatus = true
+
+                    // remove skip
+                    if (dontResetWrong) {
+                        idx = names.indexOf('Skip')
+                        if (idx > -1) {
+                            var btn = document.getElementById(hotkeys[idx]);
+                            if (btn) {
+                                btn.remove()
+                            }
+                        }
+                    }
         
                     if (taggingLevel.includes('-2')) {
                         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++){
@@ -2100,7 +2111,7 @@ function activateMultiple(mapID = 'map1') {
                         for (let i=0;i<clusters[mapID][clusterIndex[mapID]][ITEMS].length;i++){
                             name = clusters[mapID][clusterIndex[mapID]][ITEMS][i]
                             if (name==skipName) {
-                                name = 'skip'
+                                name = 'Skip'
                             }
                             idx = names.indexOf(name)
                             if (idx > -1) {
@@ -2435,10 +2446,6 @@ function initKeys(res){
         // Add other important buttons
         for (let i=0;i<labs.length;i++) {
             if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
-
-                if ((names[i]=='Skip')&&(multipleStatus)) {
-                    continue
-                }
 
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
