@@ -1678,7 +1678,7 @@ function assignLabel(label,mapID = 'map1'){
                                         updateDebugInfo(mapID)
                                     }
                                     
-                                    if (wrongStatus&&!(isClassCheck&&multipleStatus)&&!dontResetWrong) {
+                                    if (wrongStatus&&!isClassCheck&&!dontResetWrong) {
                                         wrongStatus = false
                                         tempTaggingLevel = taggingLevel
                                         initKeys(globalKeys[taggingLevel])
@@ -1693,6 +1693,7 @@ function assignLabel(label,mapID = 'map1'){
         
                                     if (!multipleStatus) {
                                         if (isClassCheck) {
+                                            wrongStatus = false
                                             suggestionBack(false)
                                         }
                                         if (!clusters[mapID][clusterIndex[mapID]][ITEM_IDS].includes(RFDLabel.toString()) || isTutorial) {
@@ -2140,11 +2141,12 @@ function activateMultiple(mapID = 'map1') {
             } else {
                 multipleStatus = false
 
-                if (wrongStatus) {
+                if (isClassCheck) {
+                    wrongStatus = false
+                    suggestionBack(false)
+                } else if (wrongStatus) {
                     tempTaggingLevel = taggingLevel
                     initKeys(globalKeys[taggingLevel])
-                } else if (isClassCheck) {
-                    suggestionBack(false)
                 } else {
                     getKeys()
                 }
