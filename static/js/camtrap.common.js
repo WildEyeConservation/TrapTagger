@@ -1479,6 +1479,7 @@ function assignLabel(label,mapID = 'map1'){
                             // dropdown.appendChild(levelSelector)
     
                             // populateLevels()
+                            initKeys(globalKeys['-1'])
                         }
                     } else {
                         classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
