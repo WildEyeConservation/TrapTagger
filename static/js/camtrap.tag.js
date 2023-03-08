@@ -96,35 +96,35 @@ function suggestionBack(resetLabels=true,mapID='map1') {
     getKeys()
 }
 
-function populateLevels() {
-    /** Populates the tagging-level selector options. */
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 278) {
-            window.location.replace(JSON.parse(this.responseText)['redirect'])
-        } else if (this.readyState == 4 && this.status == 200) {
-            species = JSON.parse(this.responseText);
-            ss = document.getElementById('level-selector')
+// function populateLevels() {
+//     /** Populates the tagging-level selector options. */
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 278) {
+//             window.location.replace(JSON.parse(this.responseText)['redirect'])
+//         } else if (this.readyState == 4 && this.status == 200) {
+//             species = JSON.parse(this.responseText);
+//             ss = document.getElementById('level-selector')
 
-            while(ss.firstChild){
-                ss.removeChild(ss.firstChild);
-            }
+//             while(ss.firstChild){
+//                 ss.removeChild(ss.firstChild);
+//             }
 
-            for (let i=0;i<species.length;i++) {
-                a = document.createElement('button')
-                a.classList.add('dropdown-item');
-                a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'switchTaggingLevel('+species[i][0] +')')
-                a.innerHTML = species[i][1]
-                ss.appendChild(a)
-            }
-            switchTaggingLevel(species[0][0])
-        }
-    }
-    xhttp.open("GET", '/getTaggingLevels');
-    xhttp.send();
-}
+//             for (let i=0;i<species.length;i++) {
+//                 a = document.createElement('button')
+//                 a.classList.add('dropdown-item');
+//                 a.setAttribute('type', 'button')
+//                 a.setAttribute('onclick', 'switchTaggingLevel('+species[i][0] +')')
+//                 a.innerHTML = species[i][1]
+//                 ss.appendChild(a)
+//             }
+//             switchTaggingLevel(species[0][0])
+//         }
+//     }
+//     xhttp.open("GET", '/getTaggingLevels');
+//     xhttp.send();
+// }
 
 function getKeys() {
     /** Sets up the keys, depending on the current tagging level. */

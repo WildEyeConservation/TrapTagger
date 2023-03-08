@@ -1462,23 +1462,23 @@ function assignLabel(label,mapID = 'map1'){
                             });
                             selectBtns.appendChild(newbtn);
     
-                            dropdown = document.createElement('div')
-                            dropdown.classList.add('dropdown')
-                            selectBtns.appendChild(dropdown)
+                            // dropdown = document.createElement('div')
+                            // dropdown.classList.add('dropdown')
+                            // selectBtns.appendChild(dropdown)
     
-                            dropbutton = document.createElement('button')
-                            dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
-                            dropbutton.setAttribute('type','button')
-                            dropbutton.setAttribute('data-toggle','dropdown')
-                            dropbutton.innerHTML = 'Annotation Level'
-                            dropdown.appendChild(dropbutton)
+                            // dropbutton = document.createElement('button')
+                            // dropbutton.setAttribute('class','btn btn-danger btn-block dropdown-toggle btn-sm')
+                            // dropbutton.setAttribute('type','button')
+                            // dropbutton.setAttribute('data-toggle','dropdown')
+                            // dropbutton.innerHTML = 'Annotation Level'
+                            // dropdown.appendChild(dropbutton)
     
-                            levelSelector = document.createElement('div')
-                            levelSelector.setAttribute('id','level-selector')
-                            levelSelector.setAttribute('class','dropdown-menu')
-                            dropdown.appendChild(levelSelector)
+                            // levelSelector = document.createElement('div')
+                            // levelSelector.setAttribute('id','level-selector')
+                            // levelSelector.setAttribute('class','dropdown-menu')
+                            // dropdown.appendChild(levelSelector)
     
-                            populateLevels()
+                            // populateLevels()
                         }
                     } else {
                         classification = clusters[mapID][clusterIndex[mapID]].classification.shift()
