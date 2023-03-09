@@ -22,6 +22,7 @@ from app.functions.globals import detection_rating, randomString, updateTaskComp
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
+from sqlalchemy import exc as sa_exc
 from datetime import datetime, timedelta
 import re
 import math
@@ -1210,6 +1211,9 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         # suppresses this back down to warning level, but ideally we should go fix this inside pyexifinfo itself or use an
         # alternative exif API.
         warnings.filterwarnings('ignore',category=ResourceWarning)
+
+        # Filtering out SQLAlchemy charset warning for now
+        warnings.filterwarnings('ignore',category=sa_exc.SAWarning)
 
         splits = dirpath.split('/')
         splits[0] = splits[0]+'-comp'
