@@ -727,7 +727,7 @@ function updateCanvas(mapID = 'map1') {
                         }
 
                         titleSim = document.createElement('div')
-                        titleSim.innerHTML = 'Simialrities:'
+                        titleSim.innerHTML = 'Similarities:'
                         debugInfo.append(titleSim)
 
                         if ('indsim' in clusters['map2'][0]) {

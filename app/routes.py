@@ -971,7 +971,7 @@ def createNewSurvey():
                 response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=current_user.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
                 if 'CommonPrefixes' in response:
                     status = 'error'
-                    message = 'That folder name is already in use in your stoarge. Please try another name for your survey.' 
+                    message = 'That folder name is already in use in your storage. Please try another name for your survey.' 
 
         if fileAttached:
             if uploaded_file.filename != '':
