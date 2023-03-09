@@ -1203,19 +1203,20 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
 
     try:
 
-        warnings.filterwarnings('error')
+        # Only filter the wand warnings as errors
+        warnings.filterwarnings(
+            action='error',
+            module=r'.*wand.*'
+        )
+
+        # warnings.filterwarnings('error')
         #TODO : The line above is to treat warnings as errors, this is necesary because when wand cannot read or can only
         # partially read a corrupted image, it issues a warning rather than a error. In order to trap these cases and keep
         # them out of the DB, I need to treat them as errors. However this exposes a ResourceWarning caused by pyexifinfo's
         # failure to properly close the Popen object that it uses to read the output of exiftool. The line below just
         # suppresses this back down to warning level, but ideally we should go fix this inside pyexifinfo itself or use an
         # alternative exif API.
-        warnings.filterwarnings('ignore',category=ResourceWarning)
-
-        # Filtering out SQLAlchemy charset warning for now
-        warnings.filterwarnings('ignore',category=sa_exc.SAWarning)
-        warnings.filterwarnings('ignore',category=sa_exc.SADeprecationWarning)
-        warnings.filterwarnings('ignore',category=sa_exc.SAPendingDeprecationWarning)
+        # warnings.filterwarnings('ignore',category=ResourceWarning)
 
         splits = dirpath.split('/')
         splits[0] = splits[0]+'-comp'
