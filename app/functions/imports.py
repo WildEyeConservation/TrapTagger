@@ -1204,10 +1204,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
     try:
 
         # Only filter the wand warnings as errors
-        warnings.filterwarnings(
-            action='error',
-            module=r'.*wand.*'
-        )
+        warnings.filterwarnings(action='error', module='wand')
 
         # warnings.filterwarnings('error')
         #TODO : The line above is to treat warnings as errors, this is necesary because when wand cannot read or can only
