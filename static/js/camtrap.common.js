@@ -1417,6 +1417,10 @@ function assignLabel(label,mapID = 'map1'){
             return;
         }
     }
+
+    if (label==taggingLevel) {
+        label = skipLabel
+    }
     
     if (label != EMPTY_HOTKEY_ID) {
         if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label))) {
