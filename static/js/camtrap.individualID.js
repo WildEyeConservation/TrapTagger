@@ -24,6 +24,7 @@ var suggestionImageIndex = 0
 var clisterIdList = []
 // const modalNote = $('#modalNote');
 const modalNextIndividual = $('#modalNextIndividual');
+const modalAlertNextIndividual = $('#modalAlertNextIndividual');
 const btnNoteRecon = document.querySelector('#btnNoteRecon');
 const btnDuplicate = document.querySelector('#btnDuplicate');
 var dbDetIds = {}
@@ -381,48 +382,56 @@ function loadNewCluster(mapID = 'map1') {
                                 for (let i=0;i<info.info.length;i++) {
                                     newcluster = info.info[i];
 
-                                    if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
-                                        knockedTG=null
+                                    if((newcluster.id == '-101') && (document.getElementById('btnSendToBack')==null)){
+                                        idIndiv101 = true
+                                        modalAlertNextIndividual.modal({keyboard: true});
                                     }
-                                    
-                                    if (knockedTG==null) {
-                                        if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                            clisterIdList.push(newcluster.id)
-
-                                            if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
-                                                clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)
-                                            } else {
-                                                clusters[wrapMapID].push(newcluster)
-                                            }
-                                            
-                                            if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
-                                                update(wrapMapID)
-
-                                                if ((mapID == 'map1')&&(mapdiv2 != null)) {
-                                                    getSuggestions()
-                                                }
-                                    
-                                                if (document.getElementById('btnSendToBack')!=null) {
-                                                    individuals = [{}]
-                                                    individualIndex = 0
-                                                    for (let colour in colours) {
-                                                        colours[colour] = false
-                                                    }
-                                                    buildIndividualsObject()
-                                                } else {
-                                                    updateProgress()
-                                                }
-
-                                            } else if (knockWait == true) {
-                                                if (modalWait2.is(':visible')) {
-                                                    modalWait2Hide = true
-                                                    modalWait2.modal('hide');
-                                                }
-                                                nextCluster(wrapMapID)
-                                            }
-                                            preload(wrapMapID)
-                                            knockWait = false
+                                    else{
+                                        idIndiv101 = false
+                                        if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
+                                            knockedTG=null
                                         }
+                                        
+                                        if (knockedTG==null) {
+                                            if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                                                clisterIdList.push(newcluster.id)
+    
+                                                if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
+                                                    clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)
+                                                } else {
+                                                    clusters[wrapMapID].push(newcluster)
+                                                }
+                                                
+                                                if (clusters[wrapMapID].length-1 == clusterIndex[wrapMapID]){
+                                                    update(wrapMapID)
+    
+                                                    if ((mapID == 'map1')&&(mapdiv2 != null)) {
+                                                        getSuggestions()
+                                                    }
+                                        
+                                                    if (document.getElementById('btnSendToBack')!=null) {
+                                                        individuals = [{}]
+                                                        individualIndex = 0
+                                                        for (let colour in colours) {
+                                                            colours[colour] = false
+                                                        }
+                                                        buildIndividualsObject()
+                                                    } else {
+                                                        updateProgress()
+                                                    }
+    
+                                                } else if (knockWait == true) {
+                                                    if (modalWait2.is(':visible')) {
+                                                        modalWait2Hide = true
+                                                        modalWait2.modal('hide');
+                                                    }
+                                                    nextCluster(wrapMapID)
+                                                }
+                                                preload(wrapMapID)
+                                                knockWait = false
+                                            }
+                                        }
+                                    
                                     }
                                 }
                             }                
@@ -1249,4 +1258,20 @@ modalDuplicate.on('shown.bs.modal', function(){
         modalWait2Hide = true
         modalWait2.modal('hide');
     }
+});
+modalAlertNextIndividual.on('shown.bs.modal', function(){
+    if (modalWait2.is(':visible')) {
+        modalWait2Hide = true
+        modalWait2.modal('hide');r
+    }
+    if (modalWait.is(':visible')) {
+        modalWait.modal('hide');
+    }
+    modalActive = true;
+});
+modalAlertNextIndividual.on('hidden.bs.modal', function(){
+    if(modalActive){
+        window.location.replace('done')
+    }
+    modalActive = false;
 });
