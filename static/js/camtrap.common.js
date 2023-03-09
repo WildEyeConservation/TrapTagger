@@ -1418,7 +1418,7 @@ function assignLabel(label,mapID = 'map1'){
         }
     }
 
-    if (label==taggingLevel) {
+    if ((label==taggingLevel)&&(label==tempTaggingLevel)) {
         label = skipLabel
     }
     
