@@ -1214,6 +1214,8 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
 
         # Filtering out SQLAlchemy charset warning for now
         warnings.filterwarnings('ignore',category=sa_exc.SAWarning)
+        warnings.filterwarnings('ignore',category=sa_exc.SADeprecationWarning)
+        warnings.filterwarnings('ignore',category=sa_exc.SAPendingDeprecationWarning)
 
         splits = dirpath.split('/')
         splits[0] = splits[0]+'-comp'
