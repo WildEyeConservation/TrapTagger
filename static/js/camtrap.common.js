@@ -69,6 +69,7 @@ var tempTaggingLevel=null
 var orginal_labels
 var orginal_label_ids
 var skipName = null
+var idIndiv101 = false
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -2872,7 +2873,7 @@ function checkWaitModal(mapID = 'map1') {
             }
         }
     } else {
-        if (clusters[mapID].length <= clusterIndex[mapID]) {
+        if ((clusters[mapID].length <= clusterIndex[mapID])&&(!idIndiv101)) {
             loadNewCluster(mapID)
         }        
     }
