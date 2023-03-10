@@ -20,7 +20,6 @@ isIDing = false
 
 var clusterIdx = 0;
 var clisterIdList = []
-const modalNote = $('#modalNote');
 
 function loadNewCluster(mapID = 'map1') {
     /** load fixed clusters from tut_cluster_list */
