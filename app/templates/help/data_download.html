@@ -12,8 +12,41 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. -->
 
+<p align="justify">
+    Here you can download your dataset with all the annotated information, including altered timestamps, contained in the image exif data. Additionally, you can have your images sorted by 
+    species or individuals.
+</p>
+
+<p align="justify">
+    Importantly, the downloader will try synchronise the destination folder with your data, based on the contents of the images themselves (as opposed to their file names). This means that 
+    if you select your destination folder as the local top-level folder 
+    that contains the images of your survey, the downloader will find the files locally, label their EXIF data and sort them into folders according to your desired download, without having 
+    to download anything. Any images that do not exist in the destination folder will then be downloaded.
+</p>
+
+<p align="justify">
+    This also means that a download can be stopped at any time, and simply resumed by restarting the download with the same destination folder - the downloader will automatically detect 
+    which images are already there and only download the remaining images.
+</p>
+
+<p align="justify">
+    Also note that you have the option as to whether the downloader should delete anything. If set to delete, it will delete any files or folders that shouldn't be there. In comparison, if 
+    you set it to not delete anything, it will simply copy or download any desired images to their new location, leaving the original in place along with any other unexpected images or files. This means that, 
+    for example, if you select a species-sorted download, with no deletion, and select your local folder of survey images, the downloader will copy your local 
+    images into a number of top-level species folders without changing your original data, or downloading anything.
+</p>
+
+<p align="justify">
+    Alternatively, if you select a download with the original folder structre, with deletion, and empty images exlcuded, the downloader will EXIF-label all of your local images, and delete the 
+    empty images for you without downloading anything.
+</p>
+
+<p align="justify">
+    Otherwise it can simply download everything into a new destination folder if that is what you would prefer.
+</p>
+
 <div align="justify">
-    Here you can download your sorted dataset with all the annotated information contained in the image exif data. You can optionally do the following:
+    In general, the various options should be fairly self-explanatory, but here is a summary:
 </div>
 
 <ul>
@@ -24,13 +57,19 @@ limitations under the License. -->
         Either retain the oiginal folder structue in which you uploaded the data, or collapse the images into a single folder with all site, timestamp and label information in the image name.
     </li>
     <li>
-        Have the data sorted into separate folders by species
+        Have the data sorted into separate top-level folders by species.
     </li>
     <li>
         Have the data sorted into separate folders for each individual, where possible.
     </li>
+    <li>
+        Include or exclude the empty images.
+    </li>
+    <li>
+        Delete or retain the unexpected files and folders found in the destination folder.
+    </li>
 </ul>
 
 <p align="justify">
-    Please not that it does take time to generate the dataset based on your custom requirements. After the dataset has been generated it will download automatically.
+    Please note that due to security limitations, the downloader will only work with Chromium-based internet browsers such as Google Chrome.
 </p>
