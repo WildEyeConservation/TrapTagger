@@ -2408,12 +2408,15 @@ def calculateChunkHashes(self,chunk):
     try:
         images = db.session.query(Image).filter(Image.id.in_(chunk)).distinct().all()
         for image in images:
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
-                try:
-                    image.hash = generate_raw_image_hash(temp_file.name)
-                except:
-                    pass
+            try:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
+                    try:
+                        image.hash = generate_raw_image_hash(temp_file.name)
+                    except:
+                        pass
+            except:
+                pass
         db.session.commit()
 
     except Exception as exc:
