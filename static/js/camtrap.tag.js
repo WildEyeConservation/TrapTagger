@@ -151,7 +151,7 @@ function getKeys() {
             newbtn.classList.add('btn-sm');
             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
             newbtn.addEventListener('click', (evt)=>{
-                assignLabel('1');
+                assignLabel('accept_classification');
             });
             divBtns.appendChild(newbtn);
 
@@ -164,7 +164,7 @@ function getKeys() {
             newbtn.classList.add('btn-sm');
             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
             newbtn.addEventListener('click', (evt)=>{
-                assignLabel('2');
+                assignLabel('reject_classification');
             });
             divBtns.appendChild(newbtn);
 
@@ -177,7 +177,7 @@ function getKeys() {
             newbtn.classList.add('btn-sm');
             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
             newbtn.addEventListener('click', (evt)=>{
-                assignLabel('3');
+                assignLabel('overwrite_classification');
             });
             divBtns.appendChild(newbtn);
 
@@ -190,15 +190,15 @@ function getKeys() {
             newbtn.classList.add('btn-sm');
             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
             newbtn.addEventListener('click', (evt)=>{
-                assignLabel('4');
+                assignLabel('other_classification');
             });
             divBtns.appendChild(newbtn);
 
             hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
-            hotkeys[10] = '1' //a
-            hotkeys[27] = '2' //r
-            hotkeys[24] = '4' //o
-            hotkeys[36] = '3' //space
+            hotkeys[10] = 'accept_classification' //a
+            hotkeys[27] = 'reject_classification' //r
+            hotkeys[24] = 'other_classification' //o
+            hotkeys[36] = 'overwrite_classification' //space
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/initKeys', true);

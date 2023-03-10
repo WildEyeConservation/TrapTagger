@@ -1462,7 +1462,7 @@ function assignLabel(label,mapID = 'map1'){
     
                 if (checkVar == 0) {
     
-                    if (label == '4') {
+                    if (label == 'other_classification') {
                         // other
                         if (divBtns != null) {
                             orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
@@ -1521,13 +1521,13 @@ function assignLabel(label,mapID = 'map1'){
                             // Append to labels
                             classification = classification[0]
         
-                            if (label == '1') {
+                            if (label == 'accept_classification') {
                                 // accept
                                 classificationCheckData['data'].push({'label':classification,'action':'accept'})
-                            } else if (label == '2') {
+                            } else if (label == 'reject_classification') {
                                 // reject
                                 classificationCheckData['data'].push({'label':classification,'action':'reject'})
-                            } else if (label == '3') {
+                            } else if (label == 'overwrite_classification') {
                                 // overwrite
                                 classificationCheckData['overwrite'] = true
                                 classificationCheckData['data'].push({'label':classification,'action':'accept'})
