@@ -2401,7 +2401,8 @@ def generate_raw_image_hash(filename):
     
     return hash
 
-def calculateChunkHashes(chunk):
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def calculateChunkHashes(self,chunk):
     '''Partner function to calculateTrapgroupHashes. Allows further parallisation.'''
 
     try:
