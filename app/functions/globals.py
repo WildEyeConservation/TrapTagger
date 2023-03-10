@@ -428,41 +428,42 @@ def importMonitor():
 
             print('Instances required: {}'.format(instances_required))
 
-            # Check database capacity requirement (parallel & default)
-            required_capacity = 1*(instances_required['default'] + instances_required['parallel'])
-            current_capacity = scaleDbCapacity(required_capacity)
+            # # Check database capacity requirement (parallel & default)
+            # required_capacity = 1*(instances_required['default'] + instances_required['parallel'])
+            # current_capacity = scaleDbCapacity(required_capacity)
 
-            # Get time since last db scaling request
-            aurora_request_count = redisClient.get('aurora_request_count')
-            if not aurora_request_count:
-                aurora_request_count = 0
-            else:
-                aurora_request_count = int(aurora_request_count.decode())
+            # # Get time since last db scaling request
+            # aurora_request_count = redisClient.get('aurora_request_count')
+            # if not aurora_request_count:
+            #     aurora_request_count = 0
+            # else:
+            #     aurora_request_count = int(aurora_request_count.decode())
 
             # Launch Instances
-            if (current_capacity >= required_capacity) or (aurora_request_count >= 2):
-                redisClient.set('aurora_request_count',0)
-                for queue in queues:
-                    instance_count = instances_required[queue]-current_instances[queue]
-                    if instance_count > 0:
-                        if queue in Config.QUEUES.keys():
-                            ami = Config.QUEUES[queue]['ami']
-                            instances = Config.QUEUES[queue]['instances']
-                            user_data = Config.QUEUES[queue]['user_data']
-                            idle_multiplier = Config.IDLE_MULTIPLIER[queue]
-                            instance_rates = Config.INSTANCE_RATES[queue]
-                            git_pull = True
-                            subnet = Config.PUBLIC_SUBNET_ID
-                        else:
-                            classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
-                            ami = classifier.ami_id
-                            instances = Config.GPU_INSTANCE_TYPES
-                            user_data = Config.CLASSIFIER['user_data']
-                            idle_multiplier = Config.IDLE_MULTIPLIER['classification']
-                            instance_rates = Config.INSTANCE_RATES['classification']
-                            git_pull = False
-                            subnet = Config.PRIVATE_SUBNET_ID
-                        launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet)
+            # if (current_capacity >= required_capacity) or (aurora_request_count >= 2):
+            #     redisClient.set('aurora_request_count',0)
+            
+            for queue in queues:
+                instance_count = instances_required[queue]-current_instances[queue]
+                if instance_count > 0:
+                    if queue in Config.QUEUES.keys():
+                        ami = Config.QUEUES[queue]['ami']
+                        instances = Config.QUEUES[queue]['instances']
+                        user_data = Config.QUEUES[queue]['user_data']
+                        idle_multiplier = Config.IDLE_MULTIPLIER[queue]
+                        instance_rates = Config.INSTANCE_RATES[queue]
+                        git_pull = True
+                        subnet = Config.PUBLIC_SUBNET_ID
+                    else:
+                        classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
+                        ami = classifier.ami_id
+                        instances = Config.GPU_INSTANCE_TYPES
+                        user_data = Config.CLASSIFIER['user_data']
+                        idle_multiplier = Config.IDLE_MULTIPLIER['classification']
+                        instance_rates = Config.INSTANCE_RATES['classification']
+                        git_pull = False
+                        subnet = Config.PRIVATE_SUBNET_ID
+                    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet)
 
     except Exception as exc:
         app.logger.info(' ')
