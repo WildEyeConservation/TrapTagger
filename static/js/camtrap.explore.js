@@ -16,6 +16,8 @@ var clusterIDs
 var clusterReadAheadIndex=0;
 var currentLabel = '0';
 var currentTag = '0';
+var prevLabel = '0'
+var prevTag = '0'
 isTagging = false
 isReviewing = true
 isKnockdown = false
@@ -138,6 +140,9 @@ function getClusterIDs(mapID = 'map1'){
                     if(notesOnly){
                         document.getElementById('onlyNotesCheckbox').click()
                     }
+                    currentLabel= prevLabel
+                    currentTag = prevTag
+                    getClusterIDs()
                 }
                 else{
                     for (let i=0;i<3;i++){
@@ -197,6 +202,8 @@ function populateSpeciesSelector(label, mapID = 'map1'){
                 newdiv.appendChild(newul);
                 divSelector.appendChild(newdiv);
             }
+            prevLabel = currentLabel
+            prevTag = currentTag
             currentLabel = label
             clusterRequests[mapID] = [];
             getClusterIDs()
@@ -254,6 +261,8 @@ function populateTagSelector() {
 }
 
 function selectTag(tag) {
+    prevTag = currentTag
+    prevLabel = currentLabel
     currentTag = tag
     clusterRequests['map1'] = [];
     getClusterIDs()
