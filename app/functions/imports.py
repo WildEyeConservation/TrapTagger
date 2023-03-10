@@ -1472,6 +1472,11 @@ def classifier_batching(chunk,sourceBucket,classifier):
             detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .filter(Image.id.in_(chunk))\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.static==False)\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(Detection.left!=Detection.right)\
+                                    .filter(Detection.top!=Detection.bottom)\
                                     .distinct().all()
 
             for detection in detections:
