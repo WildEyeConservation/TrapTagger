@@ -1696,7 +1696,7 @@ def remove_duplicate_images(survey_id):
                     .group_by(Image.hash)\
                     .subquery()
             
-    duplicates = db.session.query(Image.hash).join(sq,sq.c.hash==Image.hash).filter(sq.c.count>1).distinct().all()
+    duplicates = db.session.query(Image.hash).join(sq,sq.c.hash==Image.hash).filter(sq.c.count>1).filter(Image.hash!=None).distinct().all()
 
     for hash in duplicates:
         images = db.session.query(Image)\
