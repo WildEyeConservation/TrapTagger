@@ -96,6 +96,7 @@ const modalNothingKnock = $('#modalNothingKnock');
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
 var baseClassifications = null
+var tempClassifications =  {"map1": []}
 
 var clusters = {"map1": []}
 var clusterIndex = {"map1": 0}
@@ -1000,9 +1001,13 @@ function prevCluster(mapID = 'map1'){
     if ((finishedDisplaying[mapID] == true) && ((taggingLevel.includes('-2')) || (multipleStatus==false))) {
         if (modalActive == false) {
             if (isClassCheck && (baseClassifications.length!=clusters[mapID][clusterIndex[mapID]].classification.length)) {
-                clusters[mapID][clusterIndex[mapID]].classification = baseClassifications.slice()
+                clusters[mapID][clusterIndex[mapID]].classification = tempClassifications[mapID][clusterIndex[mapID]].slice()
                 classificationCheckData = {'overwrite':false,'data':[]}
                 updateDebugInfo(mapID)
+                if (clusterIndex[mapID]>0){
+                    goToPrevCluster(mapID)
+                }
+                
             } else if (clusterIndex[mapID]>0) {
                 if (isBounding||isClassCheck||(document.getElementById('btnSendToBack')!=null)) {
                     if ((clusters[mapID][clusterIndex[mapID]-1].ready)||(clusters[mapID][clusterIndex[mapID]-1].id == '-99')||(clusters[mapID][clusterIndex[mapID]-1].id == '-101')||(clusters[mapID][clusterIndex[mapID]-1].id == '-782')) {
