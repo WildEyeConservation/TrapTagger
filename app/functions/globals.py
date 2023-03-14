@@ -1290,8 +1290,6 @@ def classifyTask(task_id,reClusters = None):
 
             if reClusters != None:
                 clusters = clusters.filter(Cluster.id.in_(reClusters))
-            else:
-                clusters = clusters.filter(~Cluster.labels.any())
 
             clusters = clusters.distinct().all()
 
