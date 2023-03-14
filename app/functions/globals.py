@@ -1297,7 +1297,7 @@ def classifyTask(task_id,reClusters = None):
 
             for chunk in chunker(clusters,1000):
                 for cluster in chunk:
-                    cluster.labels.append(species)
+                    if species not in cluster.labels: cluster.labels.append(species)
                     cluster.user_id = admin.id
                     cluster.timestamp = datetime.utcnow()
 
@@ -1582,7 +1582,7 @@ def checkForIdWork(task_id,label,theshold):
     OtherIndividual = alias(Individual)
     if theshold=='-1': theshold=Config.SIMILARITY_SCORE
 
-    sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
+    sq1 = db.session.query(Individual.id.label('indID1'))\
                     .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                     .filter(OtherIndividual.c.active==True)\
@@ -1595,7 +1595,7 @@ def checkForIdWork(task_id,label,theshold):
                     .group_by(Individual.id)\
                     .subquery()
 
-    sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
+    sq2 = db.session.query(Individual.id.label('indID2'))\
                     .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                     .filter(OtherIndividual.c.active==True)\
@@ -1611,11 +1611,8 @@ def checkForIdWork(task_id,label,theshold):
     num_individuals = db.session.query(Individual)\
                     .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                     .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                    .filter(Individual.active==True)\
                     .filter(Individual.task_id==task_id)\
-                    .filter(Individual.label_id==label.id)\
-                    .filter(Individual.name!='unidentifiable')\
-                    .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
+                    .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                     .distinct().count()
 
     return num_individuals
