@@ -34,9 +34,12 @@ function waitForDownload() {
             function(wrapTaskID){
                 return function() {
                     if (this.readyState == 4 && this.status == 200) { 
-                        if (this.responseText=='"ready"') {
+                        reply = JSON.parse(this.responseText);  
+                        if (reply!="not ready yet") {
                             csv_ids_to_remove.push(wrapTaskID)
-                            window.location.href = '/Download/csv/'+wrapTaskID
+                            // window.location.href = '/Download/csv/'+wrapTaskID
+                            split = reply.split('/')
+                            downloadFile(reply, split[split.length-1])
                             if (modalPW.is(':visible')) {
                                 modalPW.modal('hide')
                                 modalResults.modal({keyboard: true})
@@ -61,9 +64,12 @@ function waitForDownload() {
             function(wrapTaskID){
                 return function() {
                     if (this.readyState == 4 && this.status == 200) { 
-                        if (this.responseText=='"ready"') {
+                        reply = JSON.parse(this.responseText);  
+                        if (reply!="not ready yet") {
                             coco_ids_to_remove.push(wrapTaskID)
-                            window.location.href = '/Download/coco/'+wrapTaskID
+                            // window.location.href = '/Download/coco/'+wrapTaskID
+                            split = reply.split('/')
+                            downloadFile(reply, split[split.length-1])
                             if (modalPW.is(':visible')) {
                                 modalPW.modal('hide')
                                 modalResults.modal({keyboard: true})
@@ -88,9 +94,12 @@ function waitForDownload() {
             function(wrapTaskID){
                 return function() {
                     if (this.readyState == 4 && this.status == 200) { 
-                        if (this.responseText=='"ready"') {
+                        reply = JSON.parse(this.responseText);  
+                        if (reply!="not ready yet") {
                             excel_ids_to_remove.push(wrapTaskID)
-                            window.location.href = '/Download/excel/'+wrapTaskID
+                            // window.location.href = '/Download/excel/'+wrapTaskID
+                            split = reply.split('/')
+                            downloadFile(reply, split[split.length-1])
                             if (modalPW.is(':visible')) {
                                 modalPW.modal('hide')
                                 modalResults.modal({keyboard: true})
@@ -115,9 +124,12 @@ function waitForDownload() {
             function(wrapTaskID){
                 return function() {
                     if (this.readyState == 4 && this.status == 200) { 
-                        if (this.responseText=='"ready"') {
+                        reply = JSON.parse(this.responseText);  
+                        if (reply!="not ready yet") {
                             export_ids_to_remove.push(wrapTaskID)
-                            window.location.href = '/Download/export/'+wrapTaskID
+                            // window.location.href = '/Download/export/'+wrapTaskID
+                            split = reply.split('/')
+                            downloadFile(reply, split[split.length-1])
                             if (modalPW.is(':visible')) {
                                 modalPW.modal('hide')
                                 modalResults.modal({keyboard: true})
@@ -165,3 +177,10 @@ exploreTaskBtn.addEventListener('click', function() {
     /** Redirects the user to the explore task page when clicked. */
     document.location.href = '/explore?task='+selectedTask
 });
+
+function downloadFile(url, filename) {
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+}

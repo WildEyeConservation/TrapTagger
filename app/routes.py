@@ -2763,6 +2763,14 @@ def exportRequest():
         app.logger.info('export request made: {}, {}, {}'.format(task_id,exportType,data))
 
         if exportType == 'WildBook':
+            fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+
+            # Delete old file if exists
+            try:
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
+            except:
+                pass
+
             generate_wildbook_export.delay(task_id=task_id,data=data)
 
         return json.dumps('Success')
@@ -5598,12 +5606,13 @@ def generateExcel(selectedTask):
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
-    if os.path.isfile(fileName):
-        try:
-            os.remove(fileName)
-        except:
-            pass
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+
+    # Delete old file if exists
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     app.logger.info('Calling generate_excel')
     generate_excel.delay(task_id=int(selectedTask))
@@ -5642,12 +5651,13 @@ def generateCSV():
             return json.dumps('error')
 
     task = db.session.query(Task).get(selectedTasks[0])
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-    if os.path.isfile(fileName):
-        try:
-            os.remove(fileName)
-        except:
-            pass
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+
+    # Delete old file if exists
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes))
     generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes)
@@ -5664,6 +5674,14 @@ def generateCOCO():
 
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
+
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+
+    # Delete old file if exists
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     generate_coco.delay(task_id=task_id)
 
@@ -5722,7 +5740,7 @@ def checkDownload(fileType,selectedTask):
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
         fileName += '.csv'
     elif fileType == 'excel':
@@ -5732,45 +5750,47 @@ def checkDownload(fileType,selectedTask):
     elif fileType == 'coco':
         fileName += '.json'
 
-    if os.path.isfile(fileName):
-        return json.dumps('ready')
-    else:
+    try:
+        check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName)
+    except:
+        # file does not exist
         return json.dumps('not ready yet')
 
-
-@app.route('/Download/<fileType>/<selectedTask>')
-@login_required
-def Download(fileType,selectedTask):
-    '''Initiates the download of the specified file type for the given task.'''
+# @app.route('/Download/<fileType>/<selectedTask>')
+# @login_required
+# def Download(fileType,selectedTask):
+#     '''Initiates the download of the specified file type for the given task.'''
     
-    task = db.session.query(Task).get(selectedTask)
+#     task = db.session.query(Task).get(selectedTask)
 
-    if (task == None) or (task.survey.user != current_user):
-        return json.dumps('error')
+#     if (task == None) or (task.survey.user != current_user):
+#         return json.dumps('error')
 
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-    filename = task.survey.name+'_'+task.name
-    if fileType == 'csv':
-        fileName += '.csv'
-        filename += '.csv'
-    elif fileType == 'excel':
-        fileName += '.xlsx'
-        filename += '.xlsx'
-    elif fileType == 'export':
-        fileName += '.zip'
-        filename += '.zip'
-    elif fileType == 'coco':
-        fileName += '.json'
-        filename += '.json'
+#     fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+#     filename = task.survey.name+'_'+task.name
+#     if fileType == 'csv':
+#         fileName += '.csv'
+#         filename += '.csv'
+#     elif fileType == 'excel':
+#         fileName += '.xlsx'
+#         filename += '.xlsx'
+#     elif fileType == 'export':
+#         fileName += '.zip'
+#         filename += '.zip'
+#     elif fileType == 'coco':
+#         fileName += '.json'
+#         filename += '.json'
 
-    if os.path.isfile(fileName):
-        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600)
-        return send_file('../'+fileName,
-                        attachment_filename=filename,
-                        as_attachment=True,
-                        cache_timeout=-1)
-    else:
-        return json.dumps('error')
+#     if os.path.isfile(fileName):
+#         deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600)
+#         return send_file('../'+fileName,
+#                         attachment_filename=filename,
+#                         as_attachment=True,
+#                         cache_timeout=-1)
+#     else:
+#         return json.dumps('error')
 
 @app.route('/undoknockdown/<imageId>/<clusterId>/<label>')
 @login_required
