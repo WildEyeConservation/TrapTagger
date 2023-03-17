@@ -1429,7 +1429,7 @@ def getTaskProgress(task_id):
             label = db.session.query(Label).get(int(tL[1]))
             OtherIndividual = alias(Individual)
 
-            sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
+            sq1 = db.session.query(Individual.id.label('indID1'))\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
@@ -1443,7 +1443,7 @@ def getTaskProgress(task_id):
                             .group_by(Individual.id)\
                             .subquery()
 
-            sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
+            sq2 = db.session.query(Individual.id.label('indID2'))\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
@@ -1460,12 +1460,8 @@ def getTaskProgress(task_id):
             remaining = db.session.query(Individual)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .join(Detection,Individual.detections)\
-                            .filter(Individual.active==True)\
                             .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
+                            .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .distinct().count()
 
             total = db.session.query(Individual)\
