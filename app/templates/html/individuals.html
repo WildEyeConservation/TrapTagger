@@ -1,0 +1,391 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<br>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-10'>
+        <div class="card" style='min-height:400px' id="mainCard">
+
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+                <div class='col-lg-4'>
+                    <h3>Your Individuals</h3>
+                </div>
+            </div>
+            </div>
+
+
+            <div class="card-body" id="indivListDiv">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to see individuals for.</i></div>
+                        <div id="surveySelect"></div>
+                        <div id="addSurveyTask"></div>
+                        <div id="surveysErrors" style="font-size: 80%; color: #DF691A"></div>
+                    </div>
+                    <div class="col-lg-6">
+                        <h5 style="margin-bottom: 2px">Species</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to see individuals for.</i></div>
+                        <div class="row">
+                            <div class='col-lg-4'>
+                                <select id="individualSpeciesSelector" class='form-control'>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="individualsErrors" style="font-size: 80%; color: #DF691A"></div>
+                    </div>                  
+                </div>
+                <br>
+
+                <div id="individualsDiv"></div>
+            </div>
+    
+            <div class="card-footer">
+              <div class="row">
+                <div class="col-lg-1">
+                  <button type='button' class='btn btn-info btn-block' id='btnPrevIndividuals' style="visibility: hidden;" onclick=prev_individuals()>
+                    Previous
+                  </button>  
+                </div>
+                <div class="col-lg-4"></div>
+                <div class="col-lg-2" align="center">
+                    <button type='button' class='btn btn-primary btn-block' id='btnLaunchID' onclick=launchID()>Launch Individual ID</button>  
+                </div>
+                <div class="col-lg-4"></div>
+                <div class="col-lg-1">
+                  <button type='button' class='btn btn-info btn-block' id='btnNextIndividuals' style="visibility: hidden;"  onclick=next_individuals()>
+                    Next 
+                  </button>  
+                </div>
+              </div>   
+            </div>  
+
+        </div>
+    </div>
+    <div class='col-lg-1'></div>
+</div>
+<br>
+
+
+<!-- Individuals Modal -->
+<div id="modalIndividual" class="modal fade" role="dialog" tabindex="-1">
+  <div class="modal-dialog" style="max-width: 95%;">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+          <div class="modal-header">
+              <div class='col-lg-11' style="padding: 0px">
+                  <h4 id="individualName" class="modal-title"></h4>
+              </div>
+              <div class='col-lg-1' style="padding: 0px">
+                  <div class="row">
+                      <div class='col-lg-6' style="padding: 0px">
+                          <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('view_individual_all')">Help</button>
+                      </div>
+                      <div class='col-lg-5' style="padding: 0px">
+                          <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                      </div>
+                      <div class='col-lg-1' style="padding: 0px"></div>
+                  </div>
+              </div>
+          </div>
+          <div class="modal-body" style="min-height:400px">
+
+            <div id="individualDiv">
+                <h5 id="tgInfo" align="center"></h5>
+                <h6 id="timeInfo" align="center"></h6>
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-2">
+                        <div class="row">
+                            <h6 id="idLabels" align="left">Label: </h6>
+                        </div>
+                        <div class="row">
+                            <h6 id="idTags" align="left">Tags: </h6>
+                        </div>
+                        <div class="row">
+                            <h6 id="labelNotes">Notes: </h6>
+                        </div>
+                        <div class="row">
+                            <textarea id="idNotes" rows="5" cols="35" style="width:100%" readonly></textarea>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <center id="centerMap"></center>
+                    </div>
+                    <div class="col-lg-2">
+                        <button id='btnDelIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Delete Individual</button>
+                        <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Remove Image</button>
+                        <div class="dropdown">
+                            <button class="btn btn-primary btn-block dropdown-toggle" type="button" data-toggle="dropdown">Edit Individual</button>
+                            <div id="edit_individual" class="dropdown-menu">
+                                <button id='editName' class="dropdown-item" type="button">Name</button>
+                                <button id='editTags' class="dropdown-item" type="button">Tags</button>
+                                <button id='editNotes' class="dropdown-item" type="button">Notes</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-10">
+                        <div id="splideDiv"></div>    
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>
+            </div>
+        
+          </div>
+          <div class='modal-footer'>
+
+              <div class='col-lg-1'>
+                  <button id="indivClose" type='button' class='btn btn-info btn-block' 
+                  data-dismiss='modal'>Close</button>
+              </div>
+
+          </div>
+      </div>
+
+  </div>
+</div>
+
+
+
+<!-- Individual alert Modal -->
+<div id="modalAlertIndividuals" class="modal fade" role="dialog" tabindex="-1">
+  <div class="modal-dialog">
+
+      <!-- Modal content-->
+      <div class="modal-content">
+          <div class="modal-header">
+              <h4 id='modalAlertIndividualsHeader' class="modal-title"></h4>
+              <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+          </div>
+          <div class="modal-body">
+
+              <p id='modalAlertIndividualsBody' align="justify"></p>
+        
+          </div>
+          <div class='modal-footer'>
+
+              <div class='col-lg-3'>
+                  <button type='button' class='btn btn-info btn-block' data-dismiss='modal' onclick="modalIndividual.modal({keyboard: true})">Cancel</button>
+              </div>
+
+              <div class='col-lg-3'>
+                  <button id="btnContinueIndividualAlert" type='button' class='btn btn-danger btn-block'>Continue</button>
+              </div>
+
+          </div>
+      </div>
+
+  </div>
+</div>
+
+<!-- Launch ID Task Modal -->
+<div id="modalLaunchID" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 65%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Launch for Individual Identification</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('launch_task')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+
+                <h5 style="margin-bottom: 2px">Description</h5>
+                <div style="font-size: 80%; margin-bottom: 2px" id="annotationDescription"><i>Identify specific individuals for a chosen individual across surveys. It is required that you complete individual identification for each survey of interest before beginning this process.</i></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to launch individual identification for.</i></div>
+                <div id="surveySelect1"></div>
+                <div id="addSurveyTask1"></div>
+                <div id="surveysErrors1" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Batch Size</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The number of clusters in each unit of work collected by workers.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <input type="text" class="form-control" required id="taskSize" value="200"></input>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Annotation Level</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to annotate.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <select class="form-control" id="taskTaggingLevel"></select>
+                    </div>
+                </div>
+                <br>
+
+                <div id="individualLevel"></div>
+
+          
+            </div>
+            <div class='modal-footer'>
+
+                    <div class='col-lg-2'>
+                        <button id="launchIDbtn" type='button' class='btn btn-primary btn-block' >Launch</button>
+                    </div>
+                    <div class='col-lg-2'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+<!-- Edit name modal-->
+<div id="modalEditName" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content"> 
+            <div class="modal-header">
+                <h4 class="modal-title">Edit Individual Name</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+            
+                <h5 style="margin-bottom: 2px">Name</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>An identifying name for the individual.</i></div>
+                <div class="row">
+                    <div class='col-lg-8'>
+                        <input type="text" class="form-control" required id="newIndividualName"></input>
+                    </div>
+                </div>
+                <div id="newNameErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancelName' type='button' class='btn btn-info btn-block'>Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnSubmitName' type='button' class='btn btn-primary btn-block'>Submit</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+<!-- Edit notes modal-->
+<div id="modalEditNotes" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content"> 
+            <div class="modal-header">
+                <h4 class="modal-title">Individual Notes</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+            
+                <h5 style="margin-bottom: 2px">Notes</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information about the individual can be added here.</i></div>
+                <div class="row">
+                    <div class='col-lg-8'>
+                        <textarea id="noteboxIndividual" rows="5" cols="35" style="width:100%" autofocus></textarea>
+                    </div>
+                </div>
+                <div id="newNoteErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancelIndivNotes' type='button' class='btn btn-info btn-block'>Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnSubmitIndivNotes' type='button' class='btn btn-primary btn-block'>Submit</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+<!-- Edit tags modal-->
+<div id="modalEditTags" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content"> 
+            <div class="modal-header">
+                <h4 class="modal-title">Individual Tags</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+            
+                <h5 style="margin-bottom: 2px">Tags</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the applicable tags for this individual.</i></div>
+                <div id="tagsDiv"></div>
+                <div id="tagErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancelIndivTags' type='button' class='btn btn-info btn-block'>Cancel</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnSubmitIndivTags' type='button' class='btn btn-primary btn-block'>Submit</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block page_scripts %}
+<script src="js/camtrap.common.v{{ version }}.js"></script>
+<script src="js/camtrap.individuals.v{{ version }}.js"></script>
+<script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+{% endblock %}

@@ -283,6 +283,100 @@ def takeJob(task_id):
     else:
         return json.dumps({'status':'inactive'})
 
+@app.route('/getAllIndividuals', methods=['POST'])
+@login_required
+def getAllIndividuals():
+    '''Returns a paginated dictionary of all individuals associated with a specified label and tasks (all tasks or a list of tasks), including the individual names, ID, and best image.'''
+
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    task_id = []
+    species_name = ast.literal_eval(request.form['species_name'])
+    reply = []
+    next = None
+    prev = None
+    individuals = None
+    page = request.args.get('page', 1, type=int)
+    
+    if(task_ids[0]=='0'):
+        surveys = db.session.query(Survey).filter(Survey.user_id == current_user.id).all()
+        survey_ids = []
+        for survey in surveys:
+            survey_ids.append(survey.id)
+
+        tasks = db.session.query(Task).filter(Task.survey_id.in_(survey_ids)).all()
+        task_id = []
+        for task in tasks:
+            task_id.append(task.id)
+    else:
+        task_id = [int(ids) for ids in task_ids]
+        for taskid in task_id:
+            task = db.session.query(Task).get(taskid)
+            if not task or (task.survey.user!=current_user):
+                return json.dumps('error')
+             
+    if species_name =='0':
+        individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).paginate(page, 8, False)
+    else:
+        species = db.session.query(Label).filter(Label.task_id.in_(task_id)).filter(Label.description==species_name).all()
+        if(species):
+            species_id = []
+            for s in species:
+                species_id.append(s.id)
+
+            app.logger.info(task_id)
+            app.logger.info(species_id)
+            individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.label_id.in_(species_id)).order_by(Individual.name).paginate(page, 8, False)
+
+    if(individuals):
+        for individual in individuals.items:
+            image = db.session.query(Image)\
+                            .join(Detection)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .order_by(desc(Image.detection_rating)).first()
+
+            if(image):
+                reply.append({
+                                'id': individual.id,
+                                'name': individual.name,
+                                'url': image.camera.path + '/' + image.filename
+                            })
+
+        next = individuals.next_num if individuals.has_next else None
+        prev = individuals.prev_num if individuals.has_prev else None
+
+    return json.dumps({'individuals': reply, 'next':next, 'prev':prev})
+
+@app.route('/editIndividualName', methods=['POST'])
+@login_required
+def editIndividualName():
+    ''' Edit the specified individual's name '''
+    error = ''
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    name = ast.literal_eval(request.form['name'])
+    individual = db.session.query(Individual).get(individual_id)
+    if(name!=''):
+        if(individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user))):
+            check = db.session.query(Individual)
+            check = check.filter(Individual.label_id==individual.label_id)\
+                            .filter(Individual.name==name)\
+                            .filter(Individual.task_id==individual.task_id)\
+                            .first()
+            if check:
+                error = "Duplicate name detected. Please enter a different name."
+            else:
+                individual.name = name
+                db.session.commit()
+                return json.dumps({'status': 'success'}) 
+        else:
+            error = 'Individual does not exist.'
+    else:
+        error = "Name cannot be empty."
+
+    return json.dumps({'status': error}) 
+
 @app.route('/getIndividuals/<task_id>/<species_id>')
 @login_required
 def getIndividuals(task_id,species_id):
@@ -450,6 +544,67 @@ def getCameraStamps():
         prev_url = url_for('getCameraStamps', page=trapgroups.prev_num, survey_id=survey_id) if trapgroups.has_prev else None
 
     return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
+
+@app.route('/getAllLabels')
+@login_required
+def getAllLabels():
+    '''Returns all labels for that user.'''
+    reply = []
+    surveys = db.session.query(Survey).filter(Survey.user_id == current_user.id).all()
+    for survey in surveys:
+        tasks = db.session.query(Task).filter(Task.survey_id == survey.id).all()
+        for task in tasks:
+            labels = db.session.query(Label).filter(Label.task_id == task.id).all()
+            for label in labels:
+                if(label.description not in reply):
+                    reply.append(label.description)
+
+    return json.dumps({'labels': reply})
+
+
+@app.route('/getTags/<individual_id>')
+@login_required
+def getTags(individual_id):
+    '''Returns the available tags for that individual'''
+
+    reply = []
+
+    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
+        return {'redirect': url_for('done')}, 278
+
+    individual_id = int(individual_id)
+    individual = db.session.query(Individual).get(individual_id)
+
+    if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+        tags = db.session.query(Tag).filter(Tag.task_id == individual.task_id).all()
+
+        for tag in tags:
+            reply.append({'id': tag.id, 'tag': tag.description, 'hotkey': tag.hotkey})
+
+    return json.dumps(reply)
+
+@app.route('/submitTagsIndividual/<individual_id>', methods=['POST'])
+@login_required
+def submitTagsIndividual(individual_id):
+    ''' Edits the tags for the specified individual'''
+
+    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
+        return {'redirect': url_for('done')}, 278
+
+    individual_id = int(individual_id)
+    individual = db.session.query(Individual).get(individual_id)
+    tags = ast.literal_eval(request.form['tags'])
+    app.logger.info(tags)
+    if individual and((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+        if tags:
+            individual.tags = [db.session.query(Tag).filter(Tag.description==tag).filter(Tag.task_id==individual.task_id).first() for tag in tags]
+        else:
+            individual.tags = []
+        db.session.commit()
+
+        return json.dumps('success')
+    
+    return json.dumps('')
 
 @app.route('/getTaggingLevelsbyTask/<task_id>/<task_type>')
 @login_required
@@ -2008,6 +2163,25 @@ def tutorial():
         return redirect(url_for('dashboard'))
     else:
         return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET, version=Config.VERSION)
+
+@app.route('/individuals')
+def individuals():
+    '''Renders the individuals page.'''
+
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    elif current_user.parent_id != None:
+        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+            return redirect(url_for('sightings'))
+        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('clusterID'))
+        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('individualID'))
+        else:
+            return redirect(url_for('index'))
+    else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        return render_template('html/individuals.html', title='Individuals', helpFile='individuals_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/index')
 def index():
@@ -3728,6 +3902,8 @@ def getIndividualInfo(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+        label = db.session.query(Label).get(individual.label_id)
+
         # Find all family
         family = []
         children = individual.children
@@ -3753,7 +3929,7 @@ def getIndividualInfo(individual_id):
         family.extend(siblings)
         family = list(set(family))
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family})
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': label.description,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family})
     else:
         return json.dumps('error')
 
@@ -4547,20 +4723,32 @@ def getTrapgroupCounts(task_id,species,baseUnit):
 @app.route('/assignNote', methods=['POST'])
 @login_required
 def assignNote():
-    '''Assigns a note to the given cluster.'''
+    '''Assigns a note to the given cluster or individual.'''
 
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
 
     try:
         note = ast.literal_eval(request.form['note'])
-        clusterID = ast.literal_eval(request.form['cluster_id'])
-        cluster = db.session.query(Cluster).get(clusterID)
-        if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
-            if len(note) > 512:
-                note = note[:512]
-            cluster.notes = note
-            db.session.commit()
+        typeID = ast.literal_eval(request.form['type'])
+        
+        if(typeID == "cluster"):
+            clusterID = ast.literal_eval(request.form['cluster_id'])
+            cluster = db.session.query(Cluster).get(clusterID)
+            if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
+                if len(note) > 512:
+                    note = note[:512]
+                cluster.notes = note
+                db.session.commit()
+        else:
+            individualID = ast.literal_eval(request.form['individual_id'])
+            individual = db.session.query(Individual).get(individualID)
+            if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+                if len(note) > 512:
+                    note = note[:512]
+                individual.notes = note
+                db.session.commit()
+
     except:
         pass
 

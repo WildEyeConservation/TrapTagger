@@ -93,6 +93,9 @@ const nextImageBtn = document.querySelector('#nextImage');
 const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
+const modalEditName = $('#modalEditName')
+const modalEditNotes = $('#modalEditNotes')
+
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
 var baseClassifications = null
@@ -2294,6 +2297,7 @@ function sendNote(mapID = 'map1') {
             var formData = new FormData()
             formData.append('cluster_id', JSON.stringify(clusterID))
             formData.append('note', JSON.stringify((note)))
+            formData.append('type', JSON.stringify('cluster'))
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
             function(){
@@ -2401,6 +2405,7 @@ function sendNoteExplore(mapID = 'map1') {
             var formData = new FormData()
             formData.append('cluster_id', JSON.stringify(clusterID))
             formData.append('note', JSON.stringify((note)))
+            formData.append('type', JSON.stringify('cluster'))
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
             function(){
@@ -2435,6 +2440,7 @@ function delNoteExplore(mapID = 'map1') {
     var formData = new FormData()
     formData.append('cluster_id', JSON.stringify(clusterID))
     formData.append('note', JSON.stringify((note)))
+    formData.append('type', JSON.stringify('cluster'))
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
@@ -2610,7 +2616,7 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive))) {
+        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive) || ((modalEditName).is(':visible') || (modalEditNotes).is(':visible') ))) {
             event.preventDefault()
         }
     }
@@ -2630,6 +2636,10 @@ document.onkeyup = function(event){
         } else {
             return;
         }
+    }
+    
+    if((modalEditName).is(':visible') || (modalEditNotes).is(':visible')){
+        return
     }
 
     switch (event.key.toLowerCase()){
