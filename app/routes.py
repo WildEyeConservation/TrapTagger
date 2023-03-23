@@ -1620,7 +1620,7 @@ def getDetailedTaskStatus(task_id):
     task = db.session.query(Task).get(task_id)
     
     init = request.args.get('init', None)
-    label_id = request.args.get('label', None)
+    label_id = int(request.args.get('label', None))
     
     reply = {}
     if (task!=None) and (task.survey.user_id==current_user.id): # and (task.survey.image_count<=25000):
@@ -1668,7 +1668,7 @@ def getDetailedTaskStatus(task_id):
 
         if label_id:
             admin=db.session.query(User).filter(User.username=='Admin').first()
-            label = db.session.query(Label).get(int(label_id))
+            label = db.session.query(Label).get(label_id)
             childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label_id).all()
 
             if Config.DEBUGGING: app.logger.info('Getting {} detailled info from task {}'.format(label.description,label.task_id))
