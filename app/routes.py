@@ -1671,6 +1671,8 @@ def getDetailedTaskStatus(task_id):
             label = db.session.query(Label).get(int(label_id))
             childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label_id).all()
 
+            if Config.DEBUGGING: app.logger.info('Getting {} detailled info from task {}'.format(label.description,label.task_id))
+
             if (label_id==GLOBALS.vhl_id) or (label.task==task):
                 reply['status'] = 'success'
                 reply['label'] = label.description
