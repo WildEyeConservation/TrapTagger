@@ -553,6 +553,9 @@ def handleTaskEdit(self,task_id,changes,user_id):
             translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
             for translation in translations:
                 db.session.delete(translation)
+
+            task = db.session.query(Task).get(task_id)
+            task.status = 'Ready'
             db.session.commit()
 
     except Exception as exc:
