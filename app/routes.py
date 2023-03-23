@@ -1620,7 +1620,8 @@ def getDetailedTaskStatus(task_id):
     task = db.session.query(Task).get(task_id)
     
     init = request.args.get('init', None)
-    label_id = int(request.args.get('label', None))
+    label_id = request.args.get('label', None)
+    if label_id: label_id=int(label_id)
     
     reply = {}
     if (task!=None) and (task.survey.user_id==current_user.id): # and (task.survey.image_count<=25000):
