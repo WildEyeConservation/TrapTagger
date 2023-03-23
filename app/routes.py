@@ -5254,7 +5254,9 @@ def editTask(task_id):
     '''Edits the labels of a specified task. Returns a success/error state.'''
     try:
         task = db.session.query(Task).get(task_id)
-        if task and (current_user == task.survey.user):
+        if task and (current_user == task.survey.user) and (task.status.lower() in Config.TASK_READY_STATUSES):
+            task.status='Processing'
+            db.session.commit()
             editDict = request.form['editDict']
             handleTaskEdit.delay(task_id=task_id,changes=editDict,user_id=current_user.id)
         return json.dumps('success')
