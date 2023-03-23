@@ -286,48 +286,63 @@ def takeJob(task_id):
 @app.route('/getAllIndividuals', methods=['POST'])
 @login_required
 def getAllIndividuals():
-    '''Returns a paginated dictionary of all individuals associated with a specified label and tasks (all tasks or a list of tasks), including the individual names, ID, and best image.'''
+    '''Returns a paginated dictionary of all individuals associated with a specified label and tasks (all tasks or a list of tasks) and a specified tag, including the individual names, ID, and best image.'''
 
-    task_ids = ast.literal_eval(request.form['task_ids'])
-    task_id = []
+    task_ids = ast.literal_eval(request.form['task_ids'])   
     species_name = ast.literal_eval(request.form['species_name'])
+    tag_name = ast.literal_eval(request.form['tag_name'])
+    page = request.args.get('page', 1, type=int)
+    order = request.args.get('order', 1, type=int)
+    search = request.args.get('search', '', type=str)
+
     reply = []
+    task_id = []
+    tag_ids = []
+    species_id = []
     next = None
     prev = None
     individuals = None
-    page = request.args.get('page', 1, type=int)
-    
-    if(task_ids[0]=='0'):
-        surveys = db.session.query(Survey).filter(Survey.user_id == current_user.id).all()
-        survey_ids = []
-        for survey in surveys:
-            survey_ids.append(survey.id)
-
-        tasks = db.session.query(Task).filter(Task.survey_id.in_(survey_ids)).all()
-        task_id = []
-        for task in tasks:
-            task_id.append(task.id)
-    else:
-        task_id = [int(ids) for ids in task_ids]
-        for taskid in task_id:
-            task = db.session.query(Task).get(taskid)
-            if not task or (task.survey.user!=current_user):
-                return json.dumps('error')
+    if(task_ids):
+        if task_ids[0] == '0':
+            surveys = Survey.query.filter_by(user_id=current_user.id).all()
+            task_id = [task.id for survey in surveys for task in survey.tasks]
+        else:
+            task_id = [int(ids) for ids in task_ids]
+            for taskid in task_id:
+                task = Task.query.get(taskid)
+                if not task or (task.survey.user != current_user):
+                    return json.dumps('error')
              
     if species_name =='0':
-        individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).paginate(page, 8, False)
+        individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True)
     else:
         species = db.session.query(Label).filter(Label.task_id.in_(task_id)).filter(Label.description==species_name).all()
         if(species):
-            species_id = []
-            for s in species:
-                species_id.append(s.id)
-
-            app.logger.info(task_id)
-            app.logger.info(species_id)
-            individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.label_id.in_(species_id)).order_by(Individual.name).paginate(page, 8, False)
+            species_id = [s.id for s in species]
+        individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.label_id.in_(species_id))
 
     if(individuals):
+        if(tag_name != 'None'):
+            if tag_name =='All':
+                tags = db.session.query(Tag).filter(Tag.task_id.in_(task_id)).all()
+            else:
+                tags = db.session.query(Tag).filter(Tag.task_id.in_(task_id)).filter(Tag.description==tag_name).all()
+            if(tags):
+                tag_ids = [t.id for t in tags]
+            individuals = individuals.filter(Individual.tags.any(Tag.id.in_(tag_ids)))
+
+        searches = re.split('[ ,]',search)
+        for search in searches:
+            individuals = individuals.filter(Individual.name.contains(search))
+
+        if order == 1:
+            #alphabetical
+            individuals = individuals.order_by(Individual.name)
+        elif order == 2:
+            #Reverse Alphabetical
+            individuals = individuals.order_by(desc(Individual.name))
+        individuals = individuals.paginate(page, 8, False)
+
         for individual in individuals.items:
             image = db.session.query(Image)\
                             .join(Detection)\
@@ -494,7 +509,15 @@ def getIndividual(individual_id):
                             'id': image.id,
                             'url': image.camera.path + '/' + image.filename,
                             'timestamp': image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S"), 
-                            'trapgroup': image.camera.trapgroup.tag,
+                            'trapgroup': 
+                            {
+                                'tag': image.camera.trapgroup.tag,
+                                'latitude': image.camera.trapgroup.latitude,
+                                'longitude': image.camera.trapgroup.longitude,
+                                'altitude': image.camera.trapgroup.altitude
+                            }
+
+                            ,
                             'detections': [
                                 {
                                     'id': detection.id,
@@ -550,16 +573,35 @@ def getCameraStamps():
 def getAllLabels():
     '''Returns all labels for that user.'''
     reply = []
-    surveys = db.session.query(Survey).filter(Survey.user_id == current_user.id).all()
+    surveys = Survey.query.filter_by(user_id=current_user.id).all()
     for survey in surveys:
-        tasks = db.session.query(Task).filter(Task.survey_id == survey.id).all()
+        tasks = survey.tasks
         for task in tasks:
-            labels = db.session.query(Label).filter(Label.task_id == task.id).all()
+            labels = task.labels
             for label in labels:
-                if(label.description not in reply):
+                if label.description not in reply:
                     reply.append(label.description)
 
     return json.dumps({'labels': reply})
+
+
+
+@app.route('/getAllTags')
+@login_required
+def getAllTags():
+
+    reply = []
+    surveys = Survey.query.filter_by(user_id=current_user.id).all()
+    for survey in surveys:
+        tasks = survey.tasks
+        for task in tasks:
+            tags = task.tags
+            for tag in tags:
+                if tag.description not in reply:
+                    reply.append(tag.description)
+
+    return json.dumps({'tags': reply})
+
 
 
 @app.route('/getTags/<individual_id>')

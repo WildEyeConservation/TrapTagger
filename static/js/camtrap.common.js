@@ -93,8 +93,6 @@ const nextImageBtn = document.querySelector('#nextImage');
 const prevImageBtn = document.querySelector('#prevImage');
 const clusterPositionCircles = document.getElementById('clusterPosition')
 const modalNothingKnock = $('#modalNothingKnock');
-const modalEditName = $('#modalEditName')
-const modalEditNotes = $('#modalEditNotes')
 
 var waitModalMap = null
 var classificationCheckData = {'overwrite':false,'data':[]}
@@ -2616,7 +2614,7 @@ function initKeys(res){
 document.onkeydown = function(event) {
     /** Prevent scrolling from key presses */
     if (['insert','pagedown','pageup','home','end',' '].includes(event.key.toLowerCase())) {
-        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive) || ((modalEditName).is(':visible') || (modalEditNotes).is(':visible') ))) {
+        if (!(((typeof modalNote != 'undefined') && (modalNote.is(':visible'))) || ((typeof modalNewIndividual != 'undefined')&&(modalNewIndividual.is(':visible'))) || (isNoteActive))) {
             event.preventDefault()
         }
     }
@@ -2636,10 +2634,6 @@ document.onkeyup = function(event){
         } else {
             return;
         }
-    }
-    
-    if((modalEditName).is(':visible') || (modalEditNotes).is(':visible')){
-        return
     }
 
     switch (event.key.toLowerCase()){

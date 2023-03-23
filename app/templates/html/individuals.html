@@ -25,6 +25,16 @@ limitations under the License. -->
                 <div class='col-lg-4'>
                     <h3>Your Individuals</h3>
                 </div>
+                <div class='col-lg-4'>
+                    <input type="text" class="form-control" placeholder="Search" id="individualSearch"></input>
+                </div>
+                <div class='col-lg-2'></div>
+                <div class='col-lg-2'>
+                    <select name='orderSelect' id='orderSelect' class='form-control'>
+                        <option value="1">Alphabetical</option>
+                        <option value="2">Reverse Alphabetical</option>
+                    </select>
+                </div>
             </div>
             </div>
 
@@ -38,17 +48,26 @@ limitations under the License. -->
                         <div id="addSurveyTask"></div>
                         <div id="surveysErrors" style="font-size: 80%; color: #DF691A"></div>
                     </div>
-                    <div class="col-lg-6">
+                    <div class="col-lg-3">
                         <h5 style="margin-bottom: 2px">Species</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to see individuals for.</i></div>
                         <div class="row">
-                            <div class='col-lg-4'>
+                            <div class='col-lg-8'>
                                 <select id="individualSpeciesSelector" class='form-control'>
                                 </select>
                             </div>
                         </div>
-                        <div id="individualsErrors" style="font-size: 80%; color: #DF691A"></div>
-                    </div>                  
+                    </div>
+                    <div class="col-lg-3">
+                        <h5 style="margin-bottom: 2px">Tags</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which tags you would like to see individuals for.</i></div>
+                        <div class="row">
+                            <div class='col-lg-8'>
+                                <select id="individualTagSelector" class='form-control'>
+                                </select>
+                            </div>
+                        </div>
+                    </div>                   
                 </div>
                 <br>
 
@@ -139,6 +158,7 @@ limitations under the License. -->
                                 <button id='editNotes' class="dropdown-item" type="button">Notes</button>
                             </div>
                         </div>
+                        <button id='btnIndivMap' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">View Map</button>
                     </div>
                     <div class="col-lg-1"></div>
                 </div>
@@ -374,10 +394,49 @@ limitations under the License. -->
 </div>
 
 
+<!-- Individual Map Modal -->
+<div id="modalIndivMap" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 95%;">
+  
+        <!-- Modal content -->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 class="modal-title">Individual Map</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('individual_map')">Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body" style="min-height:400px">     
+
+                 <div id="indivMapDiv"></div>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-1'>
+                    <button id="mapClose" type='button' class='btn btn-primary btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}
-<script src="js/camtrap.common.v{{ version }}.js"></script>
 <script src="js/camtrap.individuals.v{{ version }}.js"></script>
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
@@ -388,4 +447,8 @@ limitations under the License. -->
 <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
    integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
    crossorigin=""></script>
+<script src="js/heatmap.min.js"></script>
+<script src="js/leaflet-heatmap.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ" defer></script>
+<script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
 {% endblock %}

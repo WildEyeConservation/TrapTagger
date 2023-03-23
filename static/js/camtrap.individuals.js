@@ -16,11 +16,16 @@ const modalIndividual = $('#modalIndividual');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
 const modalLaunchID = $('#modalLaunchID');
 const modalEditTags = $('#modalEditTags');
+const modalEditName = $('#modalEditName')
+const modalEditNotes = $('#modalEditNotes')
+const modalIndivMap = $('#modalIndivMap')
 
 var modalAlertIndividualsReturn = false
 var modalEditNameReturn = false
 var modalEditNotesReturn = false
 var modalEditTagsReturn = false
+var modalIndivMapReturn = false
+
 var individualSplide = null
 var map = null
 var displayedIndividuals = null
@@ -29,6 +34,10 @@ var tasks = []
 var currentNote = ''
 var globalTags = null
 var globalLabels = null
+var current_page = null
+var selectedSpecies = '0'
+var selectedTag = 'None'
+// var individualImages = null
 
 isTagging = false
 isReviewing = false
@@ -52,8 +61,6 @@ function getIndividuals(page = null) {
     checkSurvey()
     tasks = []
 
-    console.log(globalTags)
-
     allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
     for (let i=0;i<allTasks.length;i++) {
         if (allTasks[i].value != '-99999'){
@@ -63,211 +70,229 @@ function getIndividuals(page = null) {
 
     if(legalSurvey && !modalActive){
         selectedSpecies = document.getElementById('individualSpeciesSelector').value
-    indexSpecies = document.getElementById('individualSpeciesSelector').selectedIndex
-    selectedSpeciesText = document.getElementById('individualSpeciesSelector')[indexSpecies].text
+        selectedTag = document.getElementById('individualTagSelector').value
 
-    var formData = new FormData()
-    formData.append("task_ids", JSON.stringify(tasks))
-    formData.append("species_name", JSON.stringify(selectedSpecies))
-    
-    request = '/getAllIndividuals'
-    if (page != null) {
-        request += '?page='+page.toString()
-    }
+        var formData = new FormData()
+        formData.append("task_ids", JSON.stringify(tasks))
+        formData.append("species_name", JSON.stringify(selectedSpecies))
+        formData.append("tag_name", JSON.stringify(selectedTag))
+        
+        request = '/getAllIndividuals'
+        if (page != null) {
+            current_page = page
+            request += '?page='+page.toString()
+            order = orderSelect.options[orderSelect.selectedIndex].value
+            request += '&order='+order.toString() 
+        }
+        else{
+            order = orderSelect.options[orderSelect.selectedIndex].value
+            request += '?order='+order.toString()     
+        }
+        
+        search = document.getElementById('individualSearch').value
+        if( search != null){
+            request += '&search='+search.toString()
+        }
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", request);
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            console.log(reply)
-            individuals = reply.individuals
-            individualsDiv = document.getElementById('individualsDiv')
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", request);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                individuals = reply.individuals
+                individualsDiv = document.getElementById('individualsDiv')
 
-            
-            while(individualsDiv.firstChild){
-                individualsDiv.removeChild(individualsDiv.firstChild);
-            }
-            
-            row = document.createElement('div')
-            row.classList.add('row')
-            individualsDiv.appendChild(row)
-            runningCount = 0
-            for (let i=0;i<individuals.length;i++) {
-                newIndividual = individuals[i]
-
-                if (runningCount%4==0) {
-                    runningCount = 0
-                    row = document.createElement('div')
-                    row.classList.add('row')
-                    individualsDiv.appendChild(row)
-                    individualsDiv.appendChild(document.createElement('br'))
+                
+                while(individualsDiv.firstChild){
+                    individualsDiv.removeChild(individualsDiv.firstChild);
                 }
+                
+                row = document.createElement('div')
+                row.classList.add('row')
+                individualsDiv.appendChild(row)
+                runningCount = 0
+                for (let i=0;i<individuals.length;i++) {
+                    newIndividual = individuals[i]
 
-                col = document.createElement('div')
-                col.classList.add('col-lg-3')
-                row.appendChild(col)
+                    if (runningCount%4==0) {
+                        runningCount = 0
+                        row = document.createElement('div')
+                        row.classList.add('row')
+                        individualsDiv.appendChild(row)
+                        individualsDiv.appendChild(document.createElement('br'))
+                    }
 
-                image = document.createElement('img')
-                image.setAttribute('width','100%')
-                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
-                col.appendChild(image)
+                    col = document.createElement('div')
+                    col.classList.add('col-lg-3')
+                    row.appendChild(col)
 
-                h5 = document.createElement('h5')
-                h5.setAttribute('align','center')
-                h5.innerHTML = newIndividual.name
-                col.appendChild(h5)
+                    image = document.createElement('img')
+                    image.setAttribute('width','100%')
+                    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
+                    col.appendChild(image)
 
-                image.addEventListener('click', function(individualID,individualName){
-                    return function() {
-                        selectedIndividual = individualID
-                        var xhttp = new XMLHttpRequest();
-                        xhttp.onreadystatechange =
-                        function(){
-                            if (this.readyState == 4 && this.status == 200) {
-                                individualImages = JSON.parse(this.responseText);
+                    h5 = document.createElement('h5')
+                    h5.setAttribute('align','center')
+                    h5.innerHTML = newIndividual.name
+                    col.appendChild(h5)
 
-                                document.getElementById('individualName').innerHTML = individualName
-                    
-                                document.getElementById('tgInfo').innerHTML = 'Trap: ' + individualImages[0].trapgroup
-                                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
+                    image.addEventListener('click', function(individualID,individualName){
+                        return function() {
+                            selectedIndividual = individualID
+                            var xhttp = new XMLHttpRequest();
+                            xhttp.onreadystatechange =
+                            function(){
+                                if (this.readyState == 4 && this.status == 200) {
+                                    individualImages = JSON.parse(this.responseText);
+                                    console.log(individualImages)
+                                    document.getElementById('individualName').innerHTML = individualName
+                        
+                                    document.getElementById('tgInfo').innerHTML = 'Trap: ' + individualImages[0].trapgroup.tag
+                                    document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
-                                
+                                    
 
-                                center = document.getElementById('centerMap')
-                                while(center.firstChild){
-                                    center.removeChild(center.firstChild)
-                                }
+                                    center = document.getElementById('centerMap')
+                                    while(center.firstChild){
+                                        center.removeChild(center.firstChild)
+                                    }
 
-                                mapDiv = document.createElement('div')
-                                mapDiv.setAttribute('id','mapDiv')
-                                mapDiv.setAttribute('style','height: 800px')
-                                center.appendChild(mapDiv)
+                                    mapDiv = document.createElement('div')
+                                    mapDiv.setAttribute('id','mapDiv')
+                                    mapDiv.setAttribute('style','height: 800px')
+                                    center.appendChild(mapDiv)
 
-                                var xhttp = new XMLHttpRequest();
-                                xhttp.onreadystatechange =
-                                function(){
-                                    if (this.readyState == 4 && this.status == 200) {
-                                        info = JSON.parse(this.responseText);
-                                        console.log(info)
-                                        if (info != "error"){
-                                            labels = document.getElementById('idLabels')
-                                            tags = document.getElementById('idTags')
-                                            note = document.getElementById('idNotes')
-                                            labels.innerHTML = "Label: " + info.label
-                                            tags.innerHTML= "Tags: " + info.tags
-                                            note.value= info.notes
-                                            currentNote = info.notes
+                                    var xhttp = new XMLHttpRequest();
+                                    xhttp.onreadystatechange =
+                                    function(){
+                                        if (this.readyState == 4 && this.status == 200) {
+                                            info = JSON.parse(this.responseText);
+                                            console.log(info)
+                                            if (info != "error"){
+                                                labels = document.getElementById('idLabels')
+                                                tags = document.getElementById('idTags')
+                                                note = document.getElementById('idNotes')
+                                                labels.innerHTML = "Label: " + info.label
+                                                tags.innerHTML= "Tags: " + info.tags
+                                                note.value= info.notes
+                                                currentNote = info.notes
+                                            }
                                         }
                                     }
-                                }
-                                xhttp.open("GET", '/getIndividualInfo/'+individualID);
-                                xhttp.send();
+                                    xhttp.open("GET", '/getIndividualInfo/'+individualID);
+                                    xhttp.send();
 
-                                document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
-                                    document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                    document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
-                                    document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
-                                    modalAlertIndividualsReturn = true
-                                    modalIndividual.modal('hide')
-                                    modalAlertIndividuals.modal({keyboard: true});
-                                });
-
-
-                                document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
-                                    if (individualImages.length > 1){
+                                    document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
                                         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
+                                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
                                         modalAlertIndividualsReturn = true
                                         modalIndividual.modal('hide')
                                         modalAlertIndividuals.modal({keyboard: true});
+                                    });
+
+
+                                    document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
+                                        if (individualImages.length > 1){
+                                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                                            modalAlertIndividualsReturn = true
+                                            modalIndividual.modal('hide')
+                                            modalAlertIndividuals.modal({keyboard: true});
+                                        }
+
+                                        
+                                    });
+
+                                    document.getElementById('btnIndivMap').addEventListener('click', ()=>{
+                                        modalIndivMapReturn = true
+                                        modalIndividual.modal('hide')
+                                        modalIndivMap.modal({keyboard: true}); 
+                                        
+                                    });
+
+                                    document.getElementById('editName').addEventListener('click', ()=>{
+                                        modalEditNameReturn = true
+                                        modalIndividual.modal('hide')
+                                        modalEditName.modal({keyboard: true})
+                                    })
+
+                                    document.getElementById('editNotes').addEventListener('click', ()=>{
+                                        modalEditNotesReturn = true
+                                        modalIndividual.modal('hide')
+                                        modalEditNotes.modal({keyboard: true})
+                                    })
+
+                                    document.getElementById('editTags').addEventListener('click', ()=>{
+                                        modalEditTagsReturn = true
+                                        modalIndividual.modal('hide')
+                                        modalEditTags.modal({keyboard: true})
+                                    })
+
+
+
+                                    splideDive = document.getElementById('splideDiv')
+
+                                    while(splideDiv.firstChild){
+                                        splideDiv.removeChild(splideDiv.firstChild);
                                     }
 
-                                    
-                                });
+                                    card = document.createElement('div')
+                                    card.classList.add('card')
+                                    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+                                    splideDiv.appendChild(card)
 
+                                    body = document.createElement('div')
+                                    body.classList.add('card-body')
+                                    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+                                    card.appendChild(body)
 
-                                document.getElementById('editName').addEventListener('click', ()=>{
-                                    modalEditNameReturn = true
-                                    modalIndividual.modal('hide')
-                                    modalEditName.modal({keyboard: true})
-                                })
+                                    splide = document.createElement('div')
+                                    splide.classList.add('splide')
+                                    splide.setAttribute('id','splide')
+                                    body.appendChild(splide)
 
-                                document.getElementById('editNotes').addEventListener('click', ()=>{
-                                    modalEditNotesReturn = true
-                                    modalIndividual.modal('hide')
-                                    modalEditNotes.modal({keyboard: true})
-                                })
+                                    track = document.createElement('div')
+                                    track.classList.add('splide__track')
+                                    splide.appendChild(track)
+                        
+                                    list = document.createElement('ul')
+                                    list.classList.add('splide__list')
+                                    list.setAttribute('id','imageSplide')
+                                    track.appendChild(list)
 
-                                document.getElementById('editTags').addEventListener('click', ()=>{
-                                    modalEditTagsReturn = true
-                                    modalIndividual.modal('hide')
-                                    modalEditTags.modal({keyboard: true})
-                                })
-
-
-
-                                splideDive = document.getElementById('splideDiv')
-
-                                while(splideDiv.firstChild){
-                                    splideDiv.removeChild(splideDiv.firstChild);
+                                    modalIndividual.modal({keyboard: true});
                                 }
-
-                                card = document.createElement('div')
-                                card.classList.add('card')
-                                card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
-                                splideDiv.appendChild(card)
-
-                                body = document.createElement('div')
-                                body.classList.add('card-body')
-                                body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
-                                card.appendChild(body)
-
-                                splide = document.createElement('div')
-                                splide.classList.add('splide')
-                                splide.setAttribute('id','splide')
-                                body.appendChild(splide)
-
-                                track = document.createElement('div')
-                                track.classList.add('splide__track')
-                                splide.appendChild(track)
-                    
-                                list = document.createElement('ul')
-                                list.classList.add('splide__list')
-                                list.setAttribute('id','imageSplide')
-                                track.appendChild(list)
-
-                                modalIndividual.modal({keyboard: true});
                             }
+                            xhttp.open("GET", '/getIndividual/'+individualID);
+                            xhttp.send();
                         }
-                        xhttp.open("GET", '/getIndividual/'+individualID);
-                        xhttp.send();
-                    }
-                }(newIndividual.id,newIndividual.name));
+                    }(newIndividual.id,newIndividual.name));
 
-                runningCount += 1
-            }
+                    runningCount += 1
+                }
 
-            if (reply.next==null) {
-                document.getElementById('btnNextIndividuals').style.visibility = 'hidden'
-                individual_next = null
-            } else {
-                document.getElementById('btnNextIndividuals').style.visibility = 'visible'
-                individual_next = reply.next
-            }
+                if (reply.next==null) {
+                    document.getElementById('btnNextIndividuals').style.visibility = 'hidden'
+                    individual_next = null
+                } else {
+                    document.getElementById('btnNextIndividuals').style.visibility = 'visible'
+                    individual_next = reply.next
+                }
 
-            if (reply.prev==null) {
-                document.getElementById('btnPrevIndividuals').style.visibility = 'hidden'
-                individual_prev = null
-            } else {
-                document.getElementById('btnPrevIndividuals').style.visibility = 'visible'
-                individual_prev = reply.prev
+                if (reply.prev==null) {
+                    document.getElementById('btnPrevIndividuals').style.visibility = 'hidden'
+                    individual_prev = null
+                } else {
+                    document.getElementById('btnPrevIndividuals').style.visibility = 'visible'
+                    individual_prev = reply.prev
+                }
             }
         }
-    }
-    xhttp.send(formData);
+        xhttp.send(formData);
     }
     
 }
@@ -276,8 +301,6 @@ $("#individualSpeciesSelector").change( function() {
     /** Listener for the species selector on the the individuals page. */
     getIndividuals()
 })
-
-
 
 function populateSpecies() {
     /**Populates the species selector on the individuals page*/
@@ -318,6 +341,34 @@ function populateSpecies() {
 
 }
 
+function populateTags() {
+    /**Populates the tags selector on the individuals page*/
+
+    var xhttp = new XMLHttpRequest();   
+    xhttp.open("GET", '/getAllTags');
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            texts = ['None', 'All' ]
+            texts.push(...reply.tags)
+            values = ['None','All']
+            values.push(...reply.tags)
+            clearSelect(document.getElementById('individualTagSelector'))
+            fillSelect(document.getElementById('individualTagSelector'), texts, values)
+            getIndividuals()
+        }
+    }
+    xhttp.send();
+}
+
+
+$("#individualTagSelector").change( function() {
+    // Listener for the tags selectors on the the individuals page.
+    getIndividuals()
+})
+    
 
 function modifyToCompURL(url) {
     /** Modifies the source URL to the compressed folder of the user */
@@ -366,7 +417,7 @@ function updateSlider() {
             if (bucketName!=null) {
                 finishedDisplaying = false
                 image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = "Trap: " + image.trapgroup
+                document.getElementById('tgInfo').innerHTML = "Trap: " + image.trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = image.timestamp
                 addedDetections = false
                 activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -426,12 +477,15 @@ modalIndividual.on('hidden.bs.modal', function(){
     else if(modalEditTagsReturn){
         modalEditTagsReturn = false
     }
+    else if(modalIndivMapReturn){
+        modalIndivMapReturn = false
+    }
     else if(helpReturn){
         helpReturn = false
     }
     else {
         cleanModalIndividual()
-        getIndividuals()
+        getIndividuals(current_page)
     }
 });
 
@@ -567,6 +621,365 @@ function prepMap(image) {
 
 }
 
+
+function createIndivMap() {
+    /** Initialises the individual heat map. */
+    trapgroupInfo = []
+    dates = []
+    hm_data = []
+    for (images in individualImages){
+        if(!(trapgroupInfo.some(e => e.tag == individualImages[images].trapgroup.tag))){
+            trapgroupInfo.push(individualImages[images].trapgroup)
+
+            filteredArray = individualImages.filter((item) => item.trapgroup.tag == individualImages[images].trapgroup.tag)
+
+            dict_data = {
+                'lat': individualImages[images].trapgroup.latitude, 
+                'lng': individualImages[images].trapgroup.longitude, 
+                'count': filteredArray.length, 
+                'tag': individualImages[images].trapgroup.tag
+            }
+            hm_data.push(dict_data)
+        }
+
+        date = individualImages[images].timestamp
+        date = date.slice(0, date.indexOf(' ') )
+        if(!dates.includes(date)){
+            dates.push(date)
+        }  
+
+    }
+    
+    mainDiv = document.getElementById('indivMapDiv')
+
+    div = document.createElement('div')
+    div.classList.add('row')
+    mainDiv.appendChild(div)
+
+    space = document.createElement('div')
+    space.classList.add('col-lg-1')
+    div.appendChild(space)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-8')
+    div.appendChild(col1)
+
+    mapDiv = document.createElement('div')
+    mapDiv.setAttribute('id','mapIndivDiv')
+    mapDiv.setAttribute('style','height: 750px')
+    col1.appendChild(mapDiv)
+
+    selectorDiv = document.createElement('div')
+    selectorDiv.classList.add('col-lg-2')
+    div.appendChild(selectorDiv)
+
+    space = document.createElement('div')
+    space.classList.add('col-lg-1')
+    div.appendChild(space)
+
+    
+
+    // Create all the layers
+    osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: 'mapbox/satellite-v9',
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+    })
+
+    osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: 'mapbox/streets-v11',
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+    })
+
+    gSat = L.gridLayer.googleMutant({type: 'satellite'})
+    // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
+    // gTer = L.gridLayer.googleMutant({type: 'terrain'})
+    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+    var cfg = {
+        "radius": 0.05,
+        "maxOpacity": .8,
+        "scaleRadius": true,
+        "useLocalExtrema": false,
+        latField: 'lat',
+        lngField: 'lng',
+        valueField: 'count'
+    };
+
+    var invCfg = {
+        "radius": 0.05,
+        "maxOpacity": 0,
+        "scaleRadius": true,
+        "useLocalExtrema": false,
+        latField: 'lat',
+        lngField: 'lng',
+        valueField: 'count'
+    };
+
+    heatmapLayer = new HeatmapOverlay(cfg);
+    invHeatmapLayer = new HeatmapOverlay(invCfg);
+
+    map = new L.map('mapIndivDiv', {
+        layers: [gSat, heatmapLayer]
+    });
+
+    baseMaps = {
+        "Google Satellite": gSat,
+        // "Google Roadmap": gStr,
+        // "Google Terrain": gTer,
+        "Google Hybrid": gHyb,
+        "OpenStreetMaps Satellite": osmSat,
+        "OpenStreetMaps Roadmap": osmSt
+    };
+
+    L.control.layers(baseMaps).addTo(map);
+    L.control.scale().addTo(map);
+    map._controlCorners['bottomleft'].style.marginBottom = "25px";
+    map._controlCorners['bottomright'].style.marginBottom = "14px";
+
+    map.on('baselayerchange', function(e) {
+        if (e.name.includes('Google')) {
+            map._controlCorners['bottomleft'].style.marginBottom = "25px";
+            map._controlCorners['bottomright'].style.marginBottom = "14px";
+        }
+    });
+
+    markers = []
+    refMarkers = []
+    for (let i=0;i<trapgroupInfo.length;i++) {
+        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+        markers.push(marker)
+        map.addLayer(marker)
+        
+        marker.bindPopup(trapgroupInfo[i].tag);
+        // marker.bindPopup(trapgroupSightings[i]);
+        marker.on('mouseover', function (e) {
+            this.openPopup();
+        });
+        marker.on('mouseout', function (e) {
+            this.closePopup();
+        });
+        
+        refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+    }
+    refData = {max:2000,data:refMarkers}
+    invHeatmapLayer.setData(refData)
+    
+    var group = new L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.1))
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Date'
+    h5.setAttribute('style','margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = "<i>Select the date for which you would like to view the individual's sightings.</i>"
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','mapDateSelector')
+    selectorDiv.appendChild(select)
+
+    texts = ['All']
+    values = ['0']
+
+    dates.sort((a, b) => new Date(b) - new Date(a));
+    for (d in dates){
+        texts.push(dates[d])
+        values.push(dates[d])
+    }
+
+    clearSelect(select)
+    fillSelect(select, texts, values)
+
+    $("#mapDateSelector").change( function() {
+        /** Listener for the date selector on the individual map modal. */
+        updateMap()
+    })
+
+    selectorDiv.appendChild(document.createElement('br'))
+                
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Radius'
+    h5.setAttribute('style','margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Set the heatmap radius to help identify different trends.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    slideRow = document.createElement('div')
+    slideRow.classList.add('row')
+    selectorDiv.appendChild(slideRow)
+
+    slidecol1 = document.createElement('div')
+    slidecol1.classList.add('col-lg-10')
+    slidecol1.setAttribute('style','padding: 0px')
+    slidecol1.setAttribute('align','center')
+    slideRow.appendChild(slidecol1)
+
+    slidecol2 = document.createElement('div')
+    slidecol2.classList.add('col-lg-2')
+    slidecol2.setAttribute('style','padding-left: 0px')
+    slideRow.appendChild(slidecol2)
+
+    radiusSliderdiv1 = document.createElement('div')
+    radiusSliderdiv1.setAttribute('class','justify-content-center')
+    slidecol1.appendChild(radiusSliderdiv1)
+
+    radiusSliderdiv2 = document.createElement('div')
+    radiusSliderdiv2.setAttribute('class','w-75')
+    radiusSliderdiv1.appendChild(radiusSliderdiv2)
+
+    radiusSliderspan = document.createElement('div')
+    radiusSliderspan.setAttribute('id','radiusSliderspan')
+    radiusSliderspan.setAttribute('align','right')
+    radiusSliderspan.setAttribute('style','font-size: 80%')
+    radiusSliderspan.innerHTML = '50'
+    slidecol2.appendChild(radiusSliderspan)
+
+    radiusSlider = document.createElement('input')
+    radiusSlider.setAttribute('type','range')
+    radiusSlider.setAttribute('class','custom-range')
+    radiusSlider.setAttribute('id','radiusSlider')
+    radiusSlider.setAttribute('min','0')
+    radiusSlider.setAttribute('max','100')
+    radiusSlider.value = 54
+    radiusSliderdiv2.appendChild(radiusSlider)
+
+    $("#radiusSlider").change( function() {
+        
+        value = document.getElementById('radiusSlider').value
+        value = logslider(value)
+        document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
+        
+        if(document.getElementById('heatMapCheckBox').checked){
+            heatmapLayer.cfg.radius = value
+            heatmapLayer._update()
+        }
+        
+    });
+
+    selectorDiv.appendChild(document.createElement('br'))
+
+    checkBoxDiv = document.createElement('div')
+    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+    selectorDiv.appendChild(checkBoxDiv)
+
+    checkBox = document.createElement('input')
+    checkBox.setAttribute('type','checkbox')
+    checkBox.setAttribute('class','custom-control-input')
+    checkBox.setAttribute('id','heatMapCheckBox')
+    checkBox.setAttribute('name','heatMapCheckBox')
+    checkBox.checked = false
+    checkBoxDiv.appendChild(checkBox)
+
+    checkBoxLabel = document.createElement('label')
+    checkBoxLabel.setAttribute('class','custom-control-label')
+    checkBoxLabel.setAttribute('for','heatMapCheckBox')
+    checkBoxLabel.innerHTML = 'Show Heat Map'
+    checkBoxDiv.appendChild(checkBoxLabel)
+
+    $("#heatMapCheckBox").change( function() {
+        updateMap()
+    });
+        
+}
+
+
+
+function updateMap(){
+    /** Updates the map based on the date selector and heat map checkbox. */
+    traps = []
+    if (select.value == '0'){
+        for (let i=0;i<markers.length;i++) {
+            if (!map.hasLayer(markers[i])) {
+                map.addLayer(markers[i])
+            }
+        }
+
+        if (document.getElementById('heatMapCheckBox').checked) {
+            map.removeLayer(heatmapLayer)
+            data = {
+                'data' : hm_data,
+                'max': individualImages.length
+            }
+            heatmapLayer.setData(data)
+            map.addLayer(heatmapLayer)
+        }else{
+            map.removeLayer(heatmapLayer)
+        }
+
+    }
+    else  {
+        
+        for (i in individualImages){
+            if(individualImages[i].timestamp.includes(select.value)){
+                if(!traps.includes(individualImages[i].trapgroup.tag)){
+                    traps.push(individualImages[i].trapgroup.tag)
+                }
+            }
+        }
+
+        for (let i=0;i<markers.length;i++) {
+            for (let t=0;t<traps.length;t++) {
+                if(markers[i]._popup._content == traps[t]){
+                    if (!map.hasLayer(markers[i])) {
+                        map.addLayer(markers[i])
+                    }
+                }
+                else{
+                    if (map.hasLayer(markers[i])) {
+                        map.removeLayer(markers[i])
+                    }
+                }
+            }
+                
+        }
+
+        if (document.getElementById('heatMapCheckBox').checked) {
+            map.removeLayer(heatmapLayer)
+            filteredArray = hm_data.filter((item) => traps.includes(item.tag));
+            data = {
+                'data' : filteredArray,
+                'max': individualImages.length
+            }
+            heatmapLayer.setData(data)
+            map.addLayer(heatmapLayer)
+        }else{
+            map.removeLayer(heatmapLayer)
+        }
+    }
+}
+
+function logslider(position) {
+    /** Converts a position value from a linear slider into a logorithmic value between 0.01 and 2. */
+    
+    // position will be between 0 and 100
+    var minp = 0;
+    var maxp = 100;
+  
+    // The result should be between 0.01 an 2
+    var minv = Math.log(0.01);
+    var maxv = Math.log(0.2);
+  
+    // calculate adjustment factor
+    var scale = (maxv-minv) / (maxp-minp);
+  
+    return Math.exp(minv + scale*(position-minp));
+}
+
 function deleteIndividual() {
     /** Deletes the selected individual. */
     modalAlertIndividuals.modal('hide')
@@ -577,7 +990,7 @@ function deleteIndividual() {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             if (reply=='success') {
-                getIndividuals()
+                getIndividuals(current_page)
             }
         }
     }
@@ -695,7 +1108,7 @@ function buildSurveySelect(){
             evt.target.parentNode.parentNode.remove();
             checkSurvey()
             if(!(modalLaunchID).is(':visible')){
-                getIndividuals()
+                getIndividuals(current_page)
             }
         });
         col3.appendChild(btnRemove);
@@ -997,7 +1410,7 @@ modalLaunchID.on('hidden.bs.modal', function(){
         individualLevel.removeChild(individualLevel.firstChild);
     }
     modalActive = false
-    getIndividuals()
+    getIndividuals(current_page)
 })
 
 modalEditName.on('hidden.bs.modal', function(){
@@ -1079,6 +1492,25 @@ modalEditTags.on('shown.bs.modal', function(){
     }
     xhttp.open("GET", '/getTags/' +  selectedIndividual);
     xhttp.send();  
+})
+
+modalIndivMap.on('hidden.bs.modal', function(){
+    /** Clears the Individual Map modal */
+    if(!helpReturn){
+        modalIndividual.modal({keyboard: true});
+    }
+    else{
+        helpReturn = false
+    }        
+})
+
+modalIndivMap.on('shown.bs.modal', function(){
+    /** Initialises the Individual Map modal */
+    indivMapDiv = document.getElementById('indivMapDiv')
+    while(indivMapDiv.firstChild){
+        indivMapDiv.removeChild(indivMapDiv.firstChild)
+    }
+    createIndivMap()
 })
 
 document.getElementById('btnCancelName').addEventListener('click', ()=>{
@@ -1163,7 +1595,7 @@ document.getElementById('btnSubmitIndivTags').addEventListener('click', ()=>{
             box.checked = false 
         }
     }
-    console.log(newTags)
+
     var formData = new FormData()
     formData.append("tags", JSON.stringify(newTags))
 
@@ -1184,12 +1616,28 @@ document.getElementById('btnSubmitIndivTags').addEventListener('click', ()=>{
     xhttp.send(formData);   
 })
 
+$('.modal').on("hidden.bs.modal", function (e) { 
+    if ($('.modal:visible').length) { 
+        $('body').addClass('modal-open');
+    }
+});
+
+$('#orderSelect').change( function() {
+    /** Listens for changes in the ordering and updates the page accordingly. */
+    getIndividuals()
+});
+
+$('#individualSearch').change( function() {
+    /** Listens for changes in the worker search bar and updates the page accordingly. */
+    getIndividuals()
+});
 
 function onload(){
     /**Function for initialising the page on load.*/
     addSurvey()
     checkSurvey()
     populateSpecies()
+    populateTags()
 
 }
 
