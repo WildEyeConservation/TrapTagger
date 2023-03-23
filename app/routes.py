@@ -1669,6 +1669,7 @@ def getDetailedTaskStatus(task_id):
         if label_id:
             admin=db.session.query(User).filter(User.username=='Admin').first()
             label = db.session.query(Label).get(int(label_id))
+            childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label_id).all()
 
             if (label_id==GLOBALS.vhl_id) or (label.task==task):
                 reply['status'] = 'success'
@@ -1698,7 +1699,7 @@ def getDetailedTaskStatus(task_id):
                 #check if one of its child labels in the survey
                 names = []
                 ids = []
-                if len(label.children[:])>0:
+                if childLabels:
                     names, ids = addChildLabels(names,ids,label,task_id)
                 test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
 
@@ -1737,7 +1738,7 @@ def getDetailedTaskStatus(task_id):
                             reply['Species Annotation']['Tagged'] = 'No'
 
                     else:
-                        if label.children[:]:
+                        if childLabels:
                             parent_label = label
                         else:
                             parent_label = label.parent
@@ -1746,8 +1747,9 @@ def getDetailedTaskStatus(task_id):
                             names, ids = addChildLabels(names,ids,parent_label,task_id)
 
                         test3 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.user_id!=admin.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
+                        parent_label_clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(parent_label)).first()
 
-                        if parent_label.clusters[:]:
+                        if parent_label_clusters:
                             reply['Species Annotation']['Complete'] = 'No'
                         else:
                             reply['Species Annotation']['Complete'] = 'Yes'
@@ -1764,7 +1766,7 @@ def getDetailedTaskStatus(task_id):
                         reply['Informational Tagging']['Tagged'] = 'No'
 
                     # AI Check
-                    ids.append(label.id)
+                    # ids.append(label.id)
 
                     if task.ai_check_complete:
                         reply['AI Check']['Status'] = 'Checked'
