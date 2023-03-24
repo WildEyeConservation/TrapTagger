@@ -4872,7 +4872,7 @@ def initKeys():
         addSkip = False
         if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
             labelChildren = db.session.query(Label).filter(Label.parent_id==int(task.tagging_level)).filter(Label.task==task).first()
-            if len(labelChildren)==0: addSkip = True
+            if labelChildren==None: addSkip = True
 
         reply = {}
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
