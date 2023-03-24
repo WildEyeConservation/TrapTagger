@@ -741,12 +741,12 @@ function createIndivMap() {
 
     L.control.layers(baseMaps).addTo(map);
     L.control.scale().addTo(map);
-    map._controlCorners['bottomleft'].style.marginBottom = "25px";
+    map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
     map._controlCorners['bottomright'].style.marginBottom = "14px";
 
     map.on('baselayerchange', function(e) {
         if (e.name.includes('Google')) {
-            map._controlCorners['bottomleft'].style.marginBottom = "25px";
+            map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
             map._controlCorners['bottomright'].style.marginBottom = "14px";
         }
     });
