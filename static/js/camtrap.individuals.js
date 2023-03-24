@@ -774,6 +774,9 @@ function createIndivMap() {
     
     var group = new L.featureGroup(markers);
     map.fitBounds(group.getBounds().pad(0.1))
+    if(markers.length == 1) {
+        map.setZoom(10)
+    }
 
     h5 = document.createElement('h5')
     h5.innerHTML = 'Date'

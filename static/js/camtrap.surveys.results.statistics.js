@@ -1364,6 +1364,9 @@ function createMap() {
 
             var group = new L.featureGroup(markers);
             map.fitBounds(group.getBounds().pad(0.1))
+            if(markers.length == 1) {
+                map.setZoom(10)
+            }
 
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
