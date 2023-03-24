@@ -1118,7 +1118,8 @@ def generate_excel(self,task_id):
                 if clusterCount > 0:
                     sheet[speciesColumns[label.description]+str(currentRow)] = clusterCount
 
-                if len(label.children[:])>0:
+                labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+                if labelChildren:
                     sheet[speciesColumns[label.description]+str(currentRow)].border = left_border
 
                 sheet[speciesColumns[label.description]+str(currentRow)].fill = currentFill
@@ -1190,7 +1191,8 @@ def generate_excel(self,task_id):
             sheet[speciesColumns[label.description]+str(currentRow+1)].border = bottom_border
             sheet[speciesColumns[label.description]+str(currentRow+1)].fill = whiteFill
 
-            if len(label.children[:])>0:
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+            if labelChildren:
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
@@ -1226,8 +1228,9 @@ def generate_excel(self,task_id):
                             .filter(Labelgroup.labels.contains(label)) \
                             .distinct(Cluster.id) \
                             .count()
-
-            for child in label.children:
+            
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).all()
+            for child in labelChildren:
                 count += db.session.query(Cluster) \
                             .join(Image, Cluster.images) \
                             .join(Detection)\
@@ -1250,7 +1253,8 @@ def generate_excel(self,task_id):
             sheet[speciesColumns[label.description]+str(currentRow+1)].border = bottom_border
             sheet[speciesColumns[label.description]+str(currentRow+1)].fill = whiteFill
 
-            if len(label.children[:])>0:
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+            if labelChildren:
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 

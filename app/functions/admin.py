@@ -452,8 +452,8 @@ def deleteChildLabels(parent):
         Parameters:
             parent (Label): Label for which the child labels should be deleted
     '''
-    
-    for label in parent.children:
+    labelChildren = db.session.query(Label).filter(Label.parent==parent).filter(Label.task==parent.task).all()
+    for label in labelChildren:
         deleteChildLabels(label)
         db.session.delete(label)
     return True
@@ -1011,7 +1011,8 @@ def createChildTranslations(classification,task_id,label):
         translation = Translation(classification=classification, label_id=label.id, task_id=task_id)
         db.session.add(translation)
 
-    for child in label.children:
+    labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task_id==task_id).all()
+    for child in labelChildren:
         createChildTranslations(classification,task_id,child)
     return True
 
@@ -1019,7 +1020,8 @@ def checkChildTranslations(label):
     '''Check if any children of a label already has a translation.'''
     
     result = False
-    for child in label.children:
+    labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==label.task).all()
+    for child in labelChildren:
         check = db.session.query(Translation)\
                         .filter(Translation.label_id==child.id)\
                         .first()

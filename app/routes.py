@@ -4829,19 +4829,21 @@ def getTaggingLevel():
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
 
-    taggingLevel = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.tagging_level
+    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    taggingLevel = task.tagging_level
 
     wrongStatus = 'false'
     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
         label = db.session.query(Label).get(int(taggingLevel))
+        labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
 
-        if len(label.children[:])==0:
+        if labelChildren:
+            taggingLabel = label.description
+        else:
             # Allow top-level re-annotation of child categories
             taggingLabel = 'None'
             taggingLevel = '-1'
             wrongStatus = 'true'
-        else:
-            taggingLabel = label.description
     else:
         taggingLabel = 'None'
 
@@ -4869,8 +4871,8 @@ def initKeys():
 
         addSkip = False
         if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
-            taggingLabel = db.session.query(Label).get(int(task.tagging_level))
-            if len(taggingLabel.children[:])==0: addSkip = True
+            labelChildren = db.session.query(Label).filter(Label.parent_id==int(task.tagging_level)).filter(Label.task==task).first()
+            if len(labelChildren)==0: addSkip = True
 
         reply = {}
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
@@ -4987,7 +4989,7 @@ def reviewClassification():
                             # Remove related labels
                             if label.parent:
                                 family_labels = [label.parent]
-                                family_labels.extend(label.parent.children)
+                                family_labels.extend(db.session.query(Label).filter(Label.parent==label.parent).filter(Label.task==cluster.task).all())
                                 for family_label in family_labels:
                                     if family_label in cluster.labels:
                                         cluster.labels.remove(family_label)
@@ -5234,7 +5236,8 @@ def getLabels(task_id):
         for label in tempLabels:
             if label != vhl:
                 labels.append(label)
-            if len(label.children[:]) != 0:
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+            if labelChildren:
                 labels = addKids(labels, label, int(task_id))
 
         for label in labels:
@@ -5727,7 +5730,8 @@ def getSpeciesandIDs(task_id):
             for label in parentLabels:
                 names.append(label.description)
                 ids.append(label.id)
-                if len(label.children[:])>0:
+                labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+                if labelChildren:
                     names, ids = addChildLabels(names,ids,label,int(task_id))
 
             for n in range(len(names)):
