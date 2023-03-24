@@ -1966,14 +1966,14 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
             labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
-        wantedImages = db.session.query(Image.id.label('image_id'))\
+        wantedImages = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
                             .filter(Labelgroup.task_id==task_id)       
         
         if include_empties:
-            labels.append(GLOBALS.nothing_id)
+            if GLOBALS.nothing_id not in labels: labels.append(GLOBALS.nothing_id)
 
             # Include non-desired labelled images without detections
             rDetImages = rDets(db.session.query(Image.id.label('image_id'))\
@@ -1992,22 +1992,22 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
         else:
             wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
 
-        wantedImages = wantedImages.subquery()
+        wantedImages = wantedImages.distinct().all()
 
-        images = db.session.query(Image)\
+        allImages = db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .outerjoin(wantedImages,wantedImages.c.image_id==Image.id)\
                             .filter(Trapgroup.survey==task.survey)\
-                            .filter(wantedImages.c.image_id==None)\
                             .distinct().all()
 
         # Get total count
-        filesToDownload = task.survey.image_count-len(images)
+        filesToDownload = len(wantedImages)
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
-        for chunk in chunker(images,10000):
+        unwantedImages = list(set(allImages) - set(wantedImages))
+
+        for chunk in chunker(unwantedImages,10000):
             for image in chunk:
                 image.downloaded = True
             db.session.commit()
