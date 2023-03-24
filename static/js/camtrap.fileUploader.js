@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-importScripts('yoctoQueue.js')
-importScripts('pLimit.js')
-
 const limitTT=pLimit(6)
 
 surveyName = null
