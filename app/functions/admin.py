@@ -452,8 +452,8 @@ def deleteChildLabels(parent):
         Parameters:
             parent (Label): Label for which the child labels should be deleted
     '''
-    
-    for label in parent.children:
+    labelChildren = db.session.query(Label).filter(Label.parent==parent).filter(Label.task==parent.task).all()
+    for label in labelChildren:
         deleteChildLabels(label)
         db.session.delete(label)
     return True
@@ -553,6 +553,9 @@ def handleTaskEdit(self,task_id,changes,user_id):
             translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
             for translation in translations:
                 db.session.delete(translation)
+
+            task = db.session.query(Task).get(task_id)
+            task.status = 'Ready'
             db.session.commit()
 
     except Exception as exc:
@@ -1008,7 +1011,8 @@ def createChildTranslations(classification,task_id,label):
         translation = Translation(classification=classification, label_id=label.id, task_id=task_id)
         db.session.add(translation)
 
-    for child in label.children:
+    labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task_id==task_id).all()
+    for child in labelChildren:
         createChildTranslations(classification,task_id,child)
     return True
 
@@ -1016,7 +1020,8 @@ def checkChildTranslations(label):
     '''Check if any children of a label already has a translation.'''
     
     result = False
-    for child in label.children:
+    labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==label.task).all()
+    for child in labelChildren:
         check = db.session.query(Translation)\
                         .filter(Translation.label_id==child.id)\
                         .first()
@@ -1429,7 +1434,7 @@ def getTaskProgress(task_id):
             label = db.session.query(Label).get(int(tL[1]))
             OtherIndividual = alias(Individual)
 
-            sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
+            sq1 = db.session.query(Individual.id.label('indID1'))\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
@@ -1443,7 +1448,7 @@ def getTaskProgress(task_id):
                             .group_by(Individual.id)\
                             .subquery()
 
-            sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
+            sq2 = db.session.query(Individual.id.label('indID2'))\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
@@ -1460,12 +1465,8 @@ def getTaskProgress(task_id):
             remaining = db.session.query(Individual)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .join(Detection,Individual.detections)\
-                            .filter(Individual.active==True)\
                             .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
+                            .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .distinct().count()
 
             total = db.session.query(Individual)\

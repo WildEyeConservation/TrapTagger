@@ -633,7 +633,13 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
     
     try:
         task = db.session.query(Task).get(selectedTasks[0])
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+        fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+
+        # # Delete old file if exists
+        # try:
+        #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+        # except:
+        #     pass
 
         if selectedLevel == 'capture':
             selectedLevel = 'unique_capture'
@@ -784,22 +790,13 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         if len(changes) != 0:
             outputDF.rename(columns=changes,inplace=True)
 
-        if os.path.isfile(fileName+'_writing.csv'):
-            try:
-                os.remove(fileName+'_writing.csv')
-            except:
-                pass
+        # Write new file to S3 for fetching
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            outputDF.to_csv(temp_file.name,index=False,date_format="%Y-%m-%d %H:%M:%S")
+            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
-        if os.path.isfile(fileName+'.csv'):
-            try:
-                os.remove(fileName+'.csv')
-            except:
-                pass
-
-        # The _writing is necessary to prevent premature downloads
-        os.makedirs('docs', exist_ok=True)
-        outputDF.to_csv(fileName+'_writing.csv',index=False,date_format="%Y-%m-%d %H:%M:%S")
-        os.rename(fileName+'_writing.csv', fileName+'.csv')
+        # Schedule deletion
+        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -827,13 +824,13 @@ def generate_wildbook_export(self,task_id, data):
     try:
         os.makedirs('docs', exist_ok=True)
         task = db.session.query(Task).get(task_id)
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+        fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
 
-        if os.path.isfile(fileName+'.zip'):
-            try:
-                os.remove(fileName+'.zip')
-            except:
-                pass
+        # # Delete old file if exists
+        # try:
+        #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
+        # except:
+        #     pass
 
         tempFolderName = fileName+'_temp'
         species = db.session.query(Label).get(int(data['species']))
@@ -895,8 +892,11 @@ def generate_wildbook_export(self,task_id, data):
             tempDF.to_csv(subsetFolder+'/metadata.csv',index=False)
 
         shutil.make_archive(tempFolderName, 'zip', tempFolderName)
-        os.rename(tempFolderName+'.zip', fileName+'.zip')
+        GLOBALS.s3client.upload_file(tempFolderName+'.zip', Config.BUCKET, fileName+'.zip')
         shutil.rmtree(tempFolderName)
+
+        # Schedule deletion
+        deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -914,26 +914,31 @@ def generate_wildbook_export(self,task_id, data):
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def deleteFile(self,fileName):
     '''
-    Celery task that periodically checks for and attempts to delete specified file. Used to cleanup files after successful download.
+    Celery task that periodically checks for and attempts to delete specified file on S3. Used to cleanup files after successful download.
 
         Parameters:
             filename (str): The path of the file to be deleted
     '''
     
-    try:
-        if os.path.isfile(fileName):
-            try:
-                os.remove(fileName)
-            except:
-                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=300)
+    # try:
+    #     if os.path.isfile(fileName):
+    #         try:
+    #             os.remove(fileName)
+    #         except:
+    #             deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=300)
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    # except Exception as exc:
+    #     app.logger.info(' ')
+    #     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #     app.logger.info(traceback.format_exc())
+    #     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    #     app.logger.info(' ')
+    #     self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     finally:
         db.session.remove()
@@ -1113,7 +1118,8 @@ def generate_excel(self,task_id):
                 if clusterCount > 0:
                     sheet[speciesColumns[label.description]+str(currentRow)] = clusterCount
 
-                if len(label.children[:])>0:
+                labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+                if labelChildren:
                     sheet[speciesColumns[label.description]+str(currentRow)].border = left_border
 
                 sheet[speciesColumns[label.description]+str(currentRow)].fill = currentFill
@@ -1185,7 +1191,8 @@ def generate_excel(self,task_id):
             sheet[speciesColumns[label.description]+str(currentRow+1)].border = bottom_border
             sheet[speciesColumns[label.description]+str(currentRow+1)].fill = whiteFill
 
-            if len(label.children[:])>0:
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+            if labelChildren:
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
@@ -1221,8 +1228,9 @@ def generate_excel(self,task_id):
                             .filter(Labelgroup.labels.contains(label)) \
                             .distinct(Cluster.id) \
                             .count()
-
-            for child in label.children:
+            
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).all()
+            for child in labelChildren:
                 count += db.session.query(Cluster) \
                             .join(Image, Cluster.images) \
                             .join(Detection)\
@@ -1245,22 +1253,23 @@ def generate_excel(self,task_id):
             sheet[speciesColumns[label.description]+str(currentRow+1)].border = bottom_border
             sheet[speciesColumns[label.description]+str(currentRow+1)].fill = whiteFill
 
-            if len(label.children[:])>0:
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+            if labelChildren:
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
         sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'))
         sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
 
-        fileName = 'docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
+        fileName = user.folder+'/docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
 
-        if os.path.isfile(fileName):
-            try:
-                os.remove(fileName)
-            except:
-                pass
+        # Write new file to S3 for fetching
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.xlsx') as temp_file:
+            workbook.save(filename=temp_file.name)
+            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
-        workbook.save(filename=fileName)
+        # Schedule deletion
+        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1838,6 +1847,13 @@ def generate_coco(self,task_id):
 
     try:
         task = db.session.query(Task).get(task_id)
+        fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+
+        # # Delete old file if exists
+        # try:
+        #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+        # except:
+        #     pass
 
         info = {
             "version" : 1,
@@ -1913,19 +1929,14 @@ def generate_coco(self,task_id):
             "annotations" : annotations
         }
 
-        fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+        # Write new file to S3 for fetching
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
+            with open(temp_file.name, 'w') as f:
+                json.dump(output, f)
+            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
-        if os.path.isfile(fileName+'.json'):
-            try:
-                os.remove(fileName+'.json')
-            except:
-                pass
-
-        # The _writing is necessary to prevent premature downloads
-        os.makedirs('docs', exist_ok=True)
-        with open(fileName+'_writing.json', 'w') as f:
-            json.dump(output, f)
-        os.rename(fileName+'_writing.json', fileName+'.json')
+        # Schedule deletion
+        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1955,14 +1966,14 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
             labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
-        wantedImages = db.session.query(Image.id.label('image_id'))\
+        wantedImages = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
                             .filter(Labelgroup.task_id==task_id)       
         
         if include_empties:
-            labels.append(GLOBALS.nothing_id)
+            if GLOBALS.nothing_id not in labels: labels.append(GLOBALS.nothing_id)
 
             # Include non-desired labelled images without detections
             rDetImages = rDets(db.session.query(Image.id.label('image_id'))\
@@ -1981,22 +1992,22 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
         else:
             wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
 
-        wantedImages = wantedImages.subquery()
+        wantedImages = wantedImages.distinct().all()
 
-        images = db.session.query(Image)\
+        allImages = db.session.query(Image)\
                             .join(Camera)\
                             .join(Trapgroup)\
-                            .outerjoin(wantedImages,wantedImages.c.image_id==Image.id)\
                             .filter(Trapgroup.survey==task.survey)\
-                            .filter(wantedImages.c.image_id==None)\
                             .distinct().all()
 
         # Get total count
-        filesToDownload = task.survey.image_count-len(images)
+        filesToDownload = len(wantedImages)
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
-        for chunk in chunker(images,10000):
+        unwantedImages = list(set(allImages) - set(wantedImages))
+
+        for chunk in chunker(unwantedImages,10000):
             for image in chunk:
                 image.downloaded = True
             db.session.commit()

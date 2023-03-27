@@ -1818,6 +1818,7 @@ def getDetailedTaskStatus(task_id):
     
     init = request.args.get('init', None)
     label_id = request.args.get('label', None)
+    if label_id: label_id=int(label_id)
     
     reply = {}
     if (task!=None) and (task.survey.user_id==current_user.id): # and (task.survey.image_count<=25000):
@@ -1865,7 +1866,10 @@ def getDetailedTaskStatus(task_id):
 
         if label_id:
             admin=db.session.query(User).filter(User.username=='Admin').first()
-            label = db.session.query(Label).get(int(label_id))
+            label = db.session.query(Label).get(label_id)
+            childLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==label_id).all()
+
+            if Config.DEBUGGING: app.logger.info('Getting {} detailled info from task {}'.format(label.description,label.task_id))
 
             if (label_id==GLOBALS.vhl_id) or (label.task==task):
                 reply['status'] = 'success'
@@ -1895,7 +1899,7 @@ def getDetailedTaskStatus(task_id):
                 #check if one of its child labels in the survey
                 names = []
                 ids = []
-                if len(label.children[:])>0:
+                if childLabels:
                     names, ids = addChildLabels(names,ids,label,task_id)
                 test2 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
 
@@ -1934,7 +1938,7 @@ def getDetailedTaskStatus(task_id):
                             reply['Species Annotation']['Tagged'] = 'No'
 
                     else:
-                        if label.children[:]:
+                        if childLabels:
                             parent_label = label
                         else:
                             parent_label = label.parent
@@ -1943,8 +1947,9 @@ def getDetailedTaskStatus(task_id):
                             names, ids = addChildLabels(names,ids,parent_label,task_id)
 
                         test3 = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.user_id!=admin.id).filter(Cluster.labels.any(Label.id.in_(ids))).first()
+                        parent_label_clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(parent_label)).first()
 
-                        if parent_label.clusters[:]:
+                        if parent_label_clusters:
                             reply['Species Annotation']['Complete'] = 'No'
                         else:
                             reply['Species Annotation']['Complete'] = 'Yes'
@@ -1961,7 +1966,7 @@ def getDetailedTaskStatus(task_id):
                         reply['Informational Tagging']['Tagged'] = 'No'
 
                     # AI Check
-                    ids.append(label.id)
+                    # ids.append(label.id)
 
                     if task.ai_check_complete:
                         reply['AI Check']['Status'] = 'Checked'
@@ -2979,6 +2984,14 @@ def exportRequest():
         app.logger.info('export request made: {}, {}, {}'.format(task_id,exportType,data))
 
         if exportType == 'WildBook':
+            fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+
+            # Delete old file if exists
+            try:
+                GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
+            except:
+                pass
+
             generate_wildbook_export.delay(task_id=task_id,data=data)
 
         return json.dumps('Success')
@@ -5046,19 +5059,21 @@ def getTaggingLevel():
     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
         return {'redirect': url_for('done')}, 278
 
-    taggingLevel = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.tagging_level
+    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    taggingLevel = task.tagging_level
 
     wrongStatus = 'false'
     if (',' not in taggingLevel) and (int(taggingLevel) > 0):
         label = db.session.query(Label).get(int(taggingLevel))
+        labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
 
-        if len(label.children[:])==0:
+        if labelChildren:
+            taggingLabel = label.description
+        else:
             # Allow top-level re-annotation of child categories
             taggingLabel = 'None'
             taggingLevel = '-1'
             wrongStatus = 'true'
-        else:
-            taggingLabel = label.description
     else:
         taggingLabel = 'None'
 
@@ -5086,8 +5101,8 @@ def initKeys():
 
         addSkip = False
         if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
-            taggingLabel = db.session.query(Label).get(int(task.tagging_level))
-            if len(taggingLabel.children[:])==0: addSkip = True
+            labelChildren = db.session.query(Label).filter(Label.parent_id==int(task.tagging_level)).filter(Label.task==task).first()
+            if labelChildren==None: addSkip = True
 
         reply = {}
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
@@ -5204,7 +5219,7 @@ def reviewClassification():
                             # Remove related labels
                             if label.parent:
                                 family_labels = [label.parent]
-                                family_labels.extend(label.parent.children)
+                                family_labels.extend(db.session.query(Label).filter(Label.parent==label.parent).filter(Label.task==cluster.task).all())
                                 for family_label in family_labels:
                                     if family_label in cluster.labels:
                                         cluster.labels.remove(family_label)
@@ -5451,7 +5466,8 @@ def getLabels(task_id):
         for label in tempLabels:
             if label != vhl:
                 labels.append(label)
-            if len(label.children[:]) != 0:
+            labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+            if labelChildren:
                 labels = addKids(labels, label, int(task_id))
 
         for label in labels:
@@ -5474,7 +5490,9 @@ def editTask(task_id):
     '''Edits the labels of a specified task. Returns a success/error state.'''
     try:
         task = db.session.query(Task).get(task_id)
-        if task and (current_user == task.survey.user):
+        if task and (current_user == task.survey.user) and (task.status.lower() in Config.TASK_READY_STATUSES):
+            task.status='Processing'
+            db.session.commit()
             editDict = request.form['editDict']
             handleTaskEdit.delay(task_id=task_id,changes=editDict,user_id=current_user.id)
         return json.dumps('success')
@@ -5828,12 +5846,13 @@ def generateExcel(selectedTask):
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
-    if os.path.isfile(fileName):
-        try:
-            os.remove(fileName)
-        except:
-            pass
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+
+    # Delete old file if exists
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     app.logger.info('Calling generate_excel')
     generate_excel.delay(task_id=int(selectedTask))
@@ -5872,12 +5891,13 @@ def generateCSV():
             return json.dumps('error')
 
     task = db.session.query(Task).get(selectedTasks[0])
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-    if os.path.isfile(fileName):
-        try:
-            os.remove(fileName)
-        except:
-            pass
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+
+    # Delete old file if exists
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes))
     generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes)
@@ -5894,6 +5914,14 @@ def generateCOCO():
 
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
+
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+
+    # Delete old file if exists
+    try:
+        GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName)
+    except:
+        pass
 
     generate_coco.delay(task_id=task_id)
 
@@ -5932,7 +5960,8 @@ def getSpeciesandIDs(task_id):
             for label in parentLabels:
                 names.append(label.description)
                 ids.append(label.id)
-                if len(label.children[:])>0:
+                labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task==task).first()
+                if labelChildren:
                     names, ids = addChildLabels(names,ids,label,int(task_id))
 
             for n in range(len(names)):
@@ -5952,7 +5981,7 @@ def checkDownload(fileType,selectedTask):
     if (task == None) or (task.survey.user != current_user):
         return json.dumps('error')
 
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
         fileName += '.csv'
     elif fileType == 'excel':
@@ -5962,45 +5991,47 @@ def checkDownload(fileType,selectedTask):
     elif fileType == 'coco':
         fileName += '.json'
 
-    if os.path.isfile(fileName):
-        return json.dumps('ready')
-    else:
+    try:
+        check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName)
+    except:
+        # file does not exist
         return json.dumps('not ready yet')
 
-
-@app.route('/Download/<fileType>/<selectedTask>')
-@login_required
-def Download(fileType,selectedTask):
-    '''Initiates the download of the specified file type for the given task.'''
+# @app.route('/Download/<fileType>/<selectedTask>')
+# @login_required
+# def Download(fileType,selectedTask):
+#     '''Initiates the download of the specified file type for the given task.'''
     
-    task = db.session.query(Task).get(selectedTask)
+#     task = db.session.query(Task).get(selectedTask)
 
-    if (task == None) or (task.survey.user != current_user):
-        return json.dumps('error')
+#     if (task == None) or (task.survey.user != current_user):
+#         return json.dumps('error')
 
-    fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-    filename = task.survey.name+'_'+task.name
-    if fileType == 'csv':
-        fileName += '.csv'
-        filename += '.csv'
-    elif fileType == 'excel':
-        fileName += '.xlsx'
-        filename += '.xlsx'
-    elif fileType == 'export':
-        fileName += '.zip'
-        filename += '.zip'
-    elif fileType == 'coco':
-        fileName += '.json'
-        filename += '.json'
+#     fileName = 'docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+#     filename = task.survey.name+'_'+task.name
+#     if fileType == 'csv':
+#         fileName += '.csv'
+#         filename += '.csv'
+#     elif fileType == 'excel':
+#         fileName += '.xlsx'
+#         filename += '.xlsx'
+#     elif fileType == 'export':
+#         fileName += '.zip'
+#         filename += '.zip'
+#     elif fileType == 'coco':
+#         fileName += '.json'
+#         filename += '.json'
 
-    if os.path.isfile(fileName):
-        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600)
-        return send_file('../'+fileName,
-                        attachment_filename=filename,
-                        as_attachment=True,
-                        cache_timeout=-1)
-    else:
-        return json.dumps('error')
+#     if os.path.isfile(fileName):
+#         deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600)
+#         return send_file('../'+fileName,
+#                         attachment_filename=filename,
+#                         as_attachment=True,
+#                         cache_timeout=-1)
+#     else:
+#         return json.dumps('error')
 
 @app.route('/undoknockdown/<imageId>/<clusterId>/<label>')
 @login_required

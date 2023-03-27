@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+importScripts('yoctoQueue.js')
+importScripts('pLimit.js')
+
+const limitTT=pLimit(6)
+
 batchSize = 200
 surveyName = null
 filesUploaded = 0
@@ -56,7 +61,7 @@ async function checkFileBatch() {
         }
 
         try {
-            fetch('/check_upload_files', {
+            limitTT(()=> fetch('/check_upload_files', {
                 method: 'post',
                 headers: {
                     accept: 'application/json',
@@ -79,7 +84,7 @@ async function checkFileBatch() {
                     }
                 }
                 checkFinishedUpload()
-            })
+            }))
         } catch(e) {
             proposedQueue.push(...items)
             setTimeout(function() { checkFileBatch(); }, 10000);

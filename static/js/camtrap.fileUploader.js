@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+const limitTT=pLimit(6)
+
 surveyName = null
 uploadID = null
 uploadStart = null
@@ -174,7 +176,7 @@ var uppy = new Uppy.Uppy({
 uppy.use(Uppy.AwsS3, {
     /** Uppy is set up to directly upload to S3 using a presigned URL from the application server */
     getUploadParameters (file) {
-        return fetch('/get_presigned_url', {
+        return limitTT(()=> fetch('/get_presigned_url', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -195,7 +197,7 @@ uppy.use(Uppy.AwsS3, {
                     'Content-Type': file.type,
                 }
             }
-        })
+        }))
     },
 })
 
