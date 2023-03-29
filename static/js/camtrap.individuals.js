@@ -15,29 +15,18 @@
 const modalIndividual = $('#modalIndividual');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
 const modalLaunchID = $('#modalLaunchID');
-const modalEditTags = $('#modalEditTags');
-const modalEditName = $('#modalEditName')
-const modalEditNotes = $('#modalEditNotes')
-const modalIndivMap = $('#modalIndivMap')
 
 var modalAlertIndividualsReturn = false
-var modalEditNameReturn = false
-var modalEditNotesReturn = false
-var modalEditTagsReturn = false
-var modalIndivMapReturn = false
 
 var individualSplide = null
 var map = null
 var displayedIndividuals = null
 var legalSurvey = false
-var tasks = []
+var validDate = false
 var currentNote = ''
 var globalTags = null
 var globalLabels = null
 var current_page = null
-var selectedSpecies = '0'
-var selectedTag = 'None'
-// var individualImages = null
 
 isTagging = false
 isReviewing = false
@@ -58,25 +47,47 @@ function prev_individuals() {
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
+    var tasks = []
+    var selectedLabel = '0'
+    var selectedTag = 'None'
+    var selectedTrap = '0'
+    var selectedStartDate = ''
+    var selectedEndDate = ''
+
     checkSurvey()
-    tasks = []
+    validateDateRange()
 
     allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
     for (let i=0;i<allTasks.length;i++) {
         if (allTasks[i].value != '-99999'){
             tasks.push(allTasks[i].value)
-        }     
+        } 
+        if(allTasks[i].value == ''){
+            tasks.push('0')
+        }
     }
 
-    if(legalSurvey && !modalActive){
-        selectedSpecies = document.getElementById('individualSpeciesSelector').value
+    if(legalSurvey && !modalActive && validDate){
+        selectedLabel = document.getElementById('individualSpeciesSelector').value
         selectedTag = document.getElementById('individualTagSelector').value
+        selectedTrap = document.getElementById('sitesSelector').value
+        selectedStartDate = document.getElementById('startDate').value 
+        selectedEndDate = document.getElementById('endDate').value 
+
+        if(selectedStartDate != '' && selectedEndDate != ''){
+            dates = [selectedStartDate + ' 00:00:00',selectedEndDate + ' 23:59:59']
+        }
+        else{
+            dates = []
+        }
 
         var formData = new FormData()
         formData.append("task_ids", JSON.stringify(tasks))
-        formData.append("species_name", JSON.stringify(selectedSpecies))
+        formData.append("species_name", JSON.stringify(selectedLabel))
         formData.append("tag_name", JSON.stringify(selectedTag))
-        
+        formData.append("trap_name", JSON.stringify(selectedTrap))
+        formData.append("dates", JSON.stringify(dates))
+        console.log(tasks, selectedLabel, selectedTag, selectedTrap, dates)
         request = '/getAllIndividuals'
         if (page != null) {
             current_page = page
@@ -140,135 +151,8 @@ function getIndividuals(page = null) {
 
                     image.addEventListener('click', function(individualID,individualName){
                         return function() {
-                            selectedIndividual = individualID
-                            var xhttp = new XMLHttpRequest();
-                            xhttp.onreadystatechange =
-                            function(){
-                                if (this.readyState == 4 && this.status == 200) {
-                                    individualImages = JSON.parse(this.responseText);
-                                    console.log(individualImages)
-                                    document.getElementById('individualName').innerHTML = individualName
-                        
-                                    document.getElementById('tgInfo').innerHTML = 'Trap: ' + individualImages[0].trapgroup.tag
-                                    document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
-
-                                    
-
-                                    center = document.getElementById('centerMap')
-                                    while(center.firstChild){
-                                        center.removeChild(center.firstChild)
-                                    }
-
-                                    mapDiv = document.createElement('div')
-                                    mapDiv.setAttribute('id','mapDiv')
-                                    mapDiv.setAttribute('style','height: 800px')
-                                    center.appendChild(mapDiv)
-
-                                    var xhttp = new XMLHttpRequest();
-                                    xhttp.onreadystatechange =
-                                    function(){
-                                        if (this.readyState == 4 && this.status == 200) {
-                                            info = JSON.parse(this.responseText);
-                                            console.log(info)
-                                            if (info != "error"){
-                                                labels = document.getElementById('idLabels')
-                                                tags = document.getElementById('idTags')
-                                                note = document.getElementById('idNotes')
-                                                labels.innerHTML = "Label: " + info.label
-                                                tags.innerHTML= "Tags: " + info.tags
-                                                note.value= info.notes
-                                                currentNote = info.notes
-                                            }
-                                        }
-                                    }
-                                    xhttp.open("GET", '/getIndividualInfo/'+individualID);
-                                    xhttp.send();
-
-                                    document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
-                                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
-                                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
-                                        modalAlertIndividualsReturn = true
-                                        modalIndividual.modal('hide')
-                                        modalAlertIndividuals.modal({keyboard: true});
-                                    });
-
-
-                                    document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
-                                        if (individualImages.length > 1){
-                                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
-                                            modalAlertIndividualsReturn = true
-                                            modalIndividual.modal('hide')
-                                            modalAlertIndividuals.modal({keyboard: true});
-                                        }
-
-                                        
-                                    });
-
-                                    document.getElementById('btnIndivMap').addEventListener('click', ()=>{
-                                        modalIndivMapReturn = true
-                                        modalIndividual.modal('hide')
-                                        modalIndivMap.modal({keyboard: true}); 
-                                        
-                                    });
-
-                                    document.getElementById('editName').addEventListener('click', ()=>{
-                                        modalEditNameReturn = true
-                                        modalIndividual.modal('hide')
-                                        modalEditName.modal({keyboard: true})
-                                    })
-
-                                    document.getElementById('editNotes').addEventListener('click', ()=>{
-                                        modalEditNotesReturn = true
-                                        modalIndividual.modal('hide')
-                                        modalEditNotes.modal({keyboard: true})
-                                    })
-
-                                    document.getElementById('editTags').addEventListener('click', ()=>{
-                                        modalEditTagsReturn = true
-                                        modalIndividual.modal('hide')
-                                        modalEditTags.modal({keyboard: true})
-                                    })
-
-
-
-                                    splideDive = document.getElementById('splideDiv')
-
-                                    while(splideDiv.firstChild){
-                                        splideDiv.removeChild(splideDiv.firstChild);
-                                    }
-
-                                    card = document.createElement('div')
-                                    card.classList.add('card')
-                                    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
-                                    splideDiv.appendChild(card)
-
-                                    body = document.createElement('div')
-                                    body.classList.add('card-body')
-                                    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
-                                    card.appendChild(body)
-
-                                    splide = document.createElement('div')
-                                    splide.classList.add('splide')
-                                    splide.setAttribute('id','splide')
-                                    body.appendChild(splide)
-
-                                    track = document.createElement('div')
-                                    track.classList.add('splide__track')
-                                    splide.appendChild(track)
-                        
-                                    list = document.createElement('ul')
-                                    list.classList.add('splide__list')
-                                    list.setAttribute('id','imageSplide')
-                                    track.appendChild(list)
-
-                                    modalIndividual.modal({keyboard: true});
-                                }
-                            }
-                            xhttp.open("GET", '/getIndividual/'+individualID);
-                            xhttp.send();
+                            getIndividual(individualID,individualName)
+                            modalIndividual.modal({keyboard: true});
                         }
                     }(newIndividual.id,newIndividual.name));
 
@@ -295,6 +179,235 @@ function getIndividuals(page = null) {
         xhttp.send(formData);
     }
     
+}
+
+function getIndividual(individualID, individualName, order_value = 'a1', site='0', dates=[]){
+    selectedIndividual = individualID
+    selectedIndividualName = individualName
+
+    var formData = new FormData()
+    formData.append("order", JSON.stringify(order_value))
+    formData.append("site", JSON.stringify(site))
+    formData.append('dates', JSON.stringify(dates))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            individualImages = JSON.parse(this.responseText);
+            console.log(individualImages)
+            if(individualImages.length > 0){
+                document.getElementById('individualName').innerHTML = individualName
+
+                document.getElementById('tgInfo').innerHTML = 'Trap: ' + individualImages[0].trapgroup.tag
+                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
+
+                center = document.getElementById('centerMap')
+                while(center.firstChild){
+                    center.removeChild(center.firstChild)
+                }
+
+                mapDiv = document.createElement('div')
+                mapDiv.setAttribute('id','mapDiv')
+                mapDiv.setAttribute('style','height: 800px')
+                center.appendChild(mapDiv)
+                
+                individualTags()
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        info = JSON.parse(this.responseText);
+                        console.log(info)
+                        if (info != "error"){
+                            document.getElementById('idLabels').innerHTML = "Label: " + info.label
+
+                            document.getElementById('idNotes').value= info.notes
+                            currentNote = info.notes
+                            document.getElementById('notesError').innerHTML = ''
+
+                            id_surveys = document.getElementById('idSurveys')
+                            id_surveys.innerHTML = "Surveys: " + info.surveys
+
+                            firstSeen = info.seen_range[0]
+                            lastSeen = info.seen_range[1]
+                            document.getElementById('idFirstSeen').innerHTML = "First Seen: " + firstSeen
+                            document.getElementById('idLastSeen').innerHTML = "Last Seen: " + lastSeen
+
+                            minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
+                            maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+
+                            document.getElementById('startDateIndiv').setAttribute('min', minDate)
+                            document.getElementById('endDateIndiv').setAttribute('min', minDate)
+                            document.getElementById('startDateIndiv').setAttribute('max', maxDate)
+                            document.getElementById('endDateIndiv').setAttribute('max', maxDate)
+
+                            individual_tags = info.tags
+                            for (let i=0;i<globalTags.length;i++) {
+                                tag = globalTags[i].tag
+                                box = document.getElementById(tag+ "box")
+                                if (individual_tags.includes(tag)){
+                                    box.checked = true
+                                } else {                    
+                                    box.checked = false
+                                }
+                            }
+                        }
+                    }
+                }
+                xhttp.open("GET", '/getIndividualInfo/'+individualID);
+                xhttp.send();
+
+                document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
+                    document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                    document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
+                    document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
+                    modalAlertIndividualsReturn = true
+                    modalIndividual.modal('hide')
+                    modalAlertIndividuals.modal({keyboard: true});
+                });
+
+
+                document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
+                    if (individualImages.length > 1){
+                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                        modalAlertIndividualsReturn = true
+                        modalIndividual.modal('hide')
+                        modalAlertIndividuals.modal({keyboard: true});
+                    }
+
+                    
+                });
+
+                splideDive = document.getElementById('splideDiv')
+
+                while(splideDiv.firstChild){
+                    splideDiv.removeChild(splideDiv.firstChild);
+                }
+
+                card = document.createElement('div')
+                card.classList.add('card')
+                card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+                splideDiv.appendChild(card)
+
+                body = document.createElement('div')
+                body.classList.add('card-body')
+                body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+                card.appendChild(body)
+
+                splide = document.createElement('div')
+                splide.classList.add('splide')
+                splide.setAttribute('id','splide')
+                body.appendChild(splide)
+
+                track = document.createElement('div')
+                track.classList.add('splide__track')
+                splide.appendChild(track)
+
+                list = document.createElement('ul')
+                list.classList.add('splide__list')
+                list.setAttribute('id','imageSplide')
+                track.appendChild(list)
+
+                // initialiseStats()
+
+                if(modalIndividual.is(':visible')){
+                    map = null
+                    individualSplide = null
+                    prepMap(individualImages[0])
+                    updateSlider()
+                }
+
+            }
+            else{
+                if(dates){
+                    document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
+                }
+                
+            }   
+
+        }
+    }
+    xhttp.open("POST", '/getIndividual/'+individualID);
+    xhttp.send(formData)
+}
+
+function individualTags(){
+    tagsDiv  = document.getElementById('editTagsDiv')
+    while(tagsDiv.firstChild){
+        tagsDiv.removeChild(tagsDiv.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            tags = JSON.parse(this.responseText);  
+            globalTags = tags
+            console.log(tags)
+            if(tags){
+                
+                for (let i=0;i<tags.length;i++) {
+                    tag = tags[i].tag
+                    hotkey = tags[i].hotkey
+
+                    checkDiv = document.createElement('div')
+                    checkDiv.setAttribute('class','custom-control custom-checkbox')
+                    tagsDiv.appendChild(checkDiv)
+            
+                    input = document.createElement('input')
+                    input.setAttribute('type','checkbox')
+                    input.classList.add('custom-control-input')
+                    input.setAttribute('id',tag+'box')
+                    input.setAttribute('name',tag+'box')
+                    checkDiv.appendChild(input)
+            
+                    label = document.createElement('label')
+                    label.classList.add('custom-control-label')
+                    label.setAttribute('for',tag+'box')
+                    label.innerHTML = tag
+                    checkDiv.appendChild(label)
+
+                    input.addEventListener('click', ()=>{
+                        submitIndividualTags()                  
+                    })
+
+                }
+            }
+            
+        }
+    }
+    xhttp.open("GET", '/getTags/' +  selectedIndividual);
+    xhttp.send();  
+}
+
+function submitIndividualTags(){
+    /** Submits the selected tags for specified individual */
+    var newTags = []
+    for (let i=0;i<globalTags.length;i++) {
+        tag = globalTags[i].tag
+        box = document.getElementById(tag+ "box")
+        if(box.checked){
+            newTags.push(tag)
+        }
+    }
+
+    var formData = new FormData()
+    formData.append("tags", JSON.stringify(newTags))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/submitTagsIndividual/' + selectedIndividual);
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)    
+        }
+    }
+    xhttp.send(formData);   
 }
 
 $("#individualSpeciesSelector").change( function() {
@@ -351,7 +464,7 @@ function populateTags() {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             console.log(reply)
-            texts = ['None', 'All' ]
+            texts = ['All', 'All Tags' ]
             texts.push(...reply.tags)
             values = ['None','All']
             values.push(...reply.tags)
@@ -368,7 +481,86 @@ $("#individualTagSelector").change( function() {
     // Listener for the tags selectors on the the individuals page.
     getIndividuals()
 })
-    
+
+function populateTraps() {
+    /**Populates the tags selector on the individuals page*/
+
+    var xhttp = new XMLHttpRequest();   
+    xhttp.open("GET", '/getAllTraps');
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            texts = ['All']
+            texts.push(...reply.traps)
+            values = ['0']
+            values.push(...reply.traps)
+            clearSelect(document.getElementById('sitesSelector'))
+            fillSelect(document.getElementById('sitesSelector'), texts, values)
+            getIndividuals()
+        }
+    }
+    xhttp.send();
+}
+
+
+$("#sitesSelector").change( function() {
+    // Listener for the tags selectors on the the individuals page.
+    getIndividuals()
+})
+
+$("#startDate").change( function() {
+    /** Listener for the start date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate) {
+        getIndividuals()
+    }
+})
+
+$("#endDate").change( function() {
+    /** Listener for the end date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate) {
+        getIndividuals()
+    }
+})
+
+function validateDateRange() {
+    /** Validates the date range on the individuals page. */
+
+    if(modalIndividual.is(':visible')){
+        var dateError = document.getElementById('dateErrorsIndiv')	
+        var startDate = document.getElementById('startDateIndiv').value;
+        var endDate = document.getElementById('endDateIndiv').value;
+    }
+    else{
+        var dateError = document.getElementById('dateErrors')
+        var startDate = document.getElementById('startDate').value;
+        var endDate = document.getElementById('endDate').value;
+    }
+    dateError.innerHTML = ''
+    if (startDate && endDate) {
+        if (startDate > endDate) {
+            dateError.innerHTML = 'Start date must be before end date.'
+            validDate = false;
+        }
+        else{
+            validDate = true
+        }
+    }
+    else if(startDate && !endDate) {
+        dateError.innerHTML = 'Please enter an end date.'
+        validDate = false;
+    }
+    else if(!startDate && endDate) {
+        dateError.innerHTML = 'Please enter a start date.'
+        validDate = false
+    }
+    else{
+        validDate = true
+    }
+}
 
 function modifyToCompURL(url) {
     /** Modifies the source URL to the compressed folder of the user */
@@ -461,6 +653,11 @@ function cleanModalIndividual() {
     mapWidth = null
     mapHeight = null
     map = null
+
+    document.getElementById('ascOrder').checked = true
+    document.getElementById('orderIndivImages').value = '1'	
+    document.getElementById('startDateIndiv').value = ''
+    document.getElementById('endDateIndiv').value = ''
 }
 
 modalIndividual.on('hidden.bs.modal', function(){
@@ -468,18 +665,6 @@ modalIndividual.on('hidden.bs.modal', function(){
     if (modalAlertIndividualsReturn) {
         modalAlertIndividualsReturn = false
     } 
-    else if (modalEditNameReturn) {
-        modalEditNameReturn = false
-    }
-    else if(modalEditNotesReturn){
-        modalEditNotesReturn = false
-    }
-    else if(modalEditTagsReturn){
-        modalEditTagsReturn = false
-    }
-    else if(modalIndivMapReturn){
-        modalIndivMapReturn = false
-    }
     else if(helpReturn){
         helpReturn = false
     }
@@ -495,7 +680,80 @@ modalIndividual.on('shown.bs.modal', function(){
         prepMap(individualImages[0])
         updateSlider()
     }
+    
+    sites = []
+    for (let i=0;i<individualImages.length;i++) {
+        if (!sites.includes(individualImages[i].trapgroup.tag)) {
+            sites.push(individualImages[i].trapgroup.tag)
+        }
+    }
+    sites.sort()
+    texts = ['All']
+    texts.push(...sites)
+    values = ['0']
+    values.push(...sites)
+    clearSelect(document.getElementById('sitesIndividualSelector'))
+    fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
+
 });
+
+$('#orderIndivImages').on('change', function() {
+    updateIndividualFilter()
+});
+
+$('#ascOrder').on('change', function() {
+    updateIndividualFilter()
+});
+
+$('#decOrder').on('change', function() {
+    updateIndividualFilter()
+});
+
+$('#sitesIndividualSelector').on('change', function() {
+    updateIndividualFilter()
+});
+
+$("#startDateIndiv").change( function() {
+    /** Listener for the start date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate){
+        updateIndividualFilter()
+    }
+})
+
+$("#endDateIndiv").change( function() {
+    /** Listener for the end date selector on the the individuals page. */
+    validateDateRange()
+    if(validDate){
+        updateIndividualFilter()
+    }
+})
+
+function updateIndividualFilter() {
+    /** Updates the individual filter. */
+    order_value = document.getElementById("orderIndivImages").value
+    if(document.getElementById('ascOrder').checked){
+        order_value = 'a' + order_value
+    }
+    else{
+        order_value = 'd' + order_value
+    }
+    site = document.getElementById("sitesIndividualSelector").value
+
+    validateDateRange()
+    if (validDate && document.getElementById("startDateIndiv").value != "" && document.getElementById("endDateIndiv").value != ""){
+        startDate = document.getElementById("startDateIndiv").value
+        endDate = document.getElementById("endDateIndiv").value
+        dates = [startDate + ' 00:00:00',endDate + ' 23:59:59']
+    }
+    else{
+        dates = []
+    }
+    
+
+    getIndividual(selectedIndividual, selectedIndividualName, order_value, site, dates)
+}
+
 
 function addDetections(image) {
     //** Adds detections to the main image displayed in the individual modal. */
@@ -656,26 +914,26 @@ function createIndivMap() {
     div.classList.add('row')
     mainDiv.appendChild(div)
 
-    space = document.createElement('div')
-    space.classList.add('col-lg-1')
-    div.appendChild(space)
+    // space = document.createElement('div')
+    // space.classList.add('col-lg-1')
+    // div.appendChild(space)
 
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     div.appendChild(col1)
 
     mapDiv = document.createElement('div')
     mapDiv.setAttribute('id','mapIndivDiv')
-    mapDiv.setAttribute('style','height: 750px')
+    mapDiv.setAttribute('style','height: 500px')
     col1.appendChild(mapDiv)
 
     selectorDiv = document.createElement('div')
     selectorDiv.classList.add('col-lg-2')
     div.appendChild(selectorDiv)
 
-    space = document.createElement('div')
-    space.classList.add('col-lg-1')
-    div.appendChild(space)
+    // space = document.createElement('div')
+    // space.classList.add('col-lg-1')
+    // div.appendChild(space)
 
     
 
@@ -771,7 +1029,7 @@ function createIndivMap() {
     }
     refData = {max:2000,data:refMarkers}
     invHeatmapLayer.setData(refData)
-    
+
     var group = new L.featureGroup(markers);
     map.fitBounds(group.getBounds().pad(0.1))
     if(markers.length == 1) {
@@ -1046,16 +1304,21 @@ function buildSurveySelect(){
     surveySelect.appendChild(row)
 
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-4')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
-    col2 = document.createElement('div')
-    col2.classList.add('col-lg-4')
-    row.appendChild(col2)
+    // col2 = document.createElement('div')
+    // col2.classList.add('col-lg-5')
+    // row.appendChild(col2)
 
     col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
     row.appendChild(col3)
+
+    if (IDNum > 0) {
+        col1.appendChild(document.createElement('br'))
+        col3.appendChild(document.createElement('br'))
+    }
 
     idSurveySelect = document.createElement('select')
     idSurveySelect.classList.add('form-control')
@@ -1077,7 +1340,7 @@ function buildSurveySelect(){
         idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
     }
     idTaskSelect.name = idTaskSelect.id
-    col2.appendChild(idTaskSelect)
+    col1.appendChild(idTaskSelect)
 
     if (surveys != null) {
         
@@ -1299,6 +1562,16 @@ function checkSurvey(){
     }
 }
 
+function initialiseStats(){
+    /** Initialises the stats for an individual*/
+
+    indivMapDiv = document.getElementById('indivMapDiv')
+    while(indivMapDiv.firstChild){
+        indivMapDiv.removeChild(indivMapDiv.firstChild)
+    }
+    createIndivMap()
+}
+
 modalLaunchID.on('shown.bs.modal', function(){
     /** Initialises the launchID modal */
     modalActive = true
@@ -1416,156 +1689,16 @@ modalLaunchID.on('hidden.bs.modal', function(){
     getIndividuals(current_page)
 })
 
-modalEditName.on('hidden.bs.modal', function(){
-    /** Clears the editName modal */
-    document.getElementById('newNameErrors').innerHTML = ''
-    document.getElementById('newIndividualName').value = ''
-            
-    modalIndividual.modal({keyboard: true});
-})
-
-modalEditName.on('shown.bs.modal', function(){
-    /** Initialises the editName modal */
-    document.getElementById('newNameErrors').innerHTML = ''
-    document.getElementById('newIndividualName').value = ''
-    document.getElementById('newIndividualName').focus()
-})
-
-modalEditNotes.on('hidden.bs.modal', function(){
-    /** Clears the editNotes modal */
-    document.getElementById('newNoteErrors').innerHTML = ''
-    document.getElementById('noteboxIndividual').value = ''
-            
-    modalIndividual.modal({keyboard: true});
-})
-
-modalEditNotes.on('shown.bs.modal', function(){
-    /** Initialises the editNotes modal */
-    document.getElementById('newNoteErrors').innerHTML = ''
-    document.getElementById('noteboxIndividual').value = currentNote
-    document.getElementById('noteboxIndividual').focus()
-
-})
-
-modalEditTags.on('hidden.bs.modal', function(){
-    /** Clears the editTags modal */
-    tagsDiv  = document.getElementById('tagsDiv')
-    while(tagsDiv.firstChild){
-        tagsDiv.removeChild(tagsDiv.firstChild)
-    }    
-    modalIndividual.modal({keyboard: true});
-    
-})
-
-modalEditTags.on('shown.bs.modal', function(){
-    /** Initialises the editTags modal */
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            tags = JSON.parse(this.responseText);  
-            globalTags = tags
-            console.log(tags)
-            if(tags){
-                tagsDiv  = document.getElementById('tagsDiv')
-                for (let i=0;i<tags.length;i++) {
-                    tag = tags[i].tag
-                    hotkey = tags[i].hotkey
-            
-                    checkDiv = document.createElement('div')
-                    checkDiv.setAttribute('class','custom-control custom-checkbox')
-                    tagsDiv.appendChild(checkDiv)
-            
-                    input = document.createElement('input')
-                    input.setAttribute('type','checkbox')
-                    input.classList.add('custom-control-input')
-                    input.setAttribute('id',tag+'box')
-                    input.setAttribute('name',tag+'box')
-                    checkDiv.appendChild(input)
-            
-                    label = document.createElement('label')
-                    label.classList.add('custom-control-label')
-                    label.setAttribute('for',tag+'box')
-                    label.innerHTML = tag
-                    checkDiv.appendChild(label)
-                }
-            }
-            
-        }
-    }
-    xhttp.open("GET", '/getTags/' +  selectedIndividual);
-    xhttp.send();  
-})
-
-modalIndivMap.on('hidden.bs.modal', function(){
-    /** Clears the Individual Map modal */
-    if(!helpReturn){
-        modalIndividual.modal({keyboard: true});
-    }
-    else{
-        helpReturn = false
-    }        
-})
-
-modalIndivMap.on('shown.bs.modal', function(){
-    /** Initialises the Individual Map modal */
-    indivMapDiv = document.getElementById('indivMapDiv')
-    while(indivMapDiv.firstChild){
-        indivMapDiv.removeChild(indivMapDiv.firstChild)
-    }
-    createIndivMap()
-})
-
-document.getElementById('btnCancelName').addEventListener('click', ()=>{
-    modalEditName.modal('hide')
-})
-
-document.getElementById('btnCancelIndivNotes').addEventListener('click', ()=>{
-    modalEditNotes.modal('hide')
-})
-
-document.getElementById('btnCancelIndivTags').addEventListener('click', ()=>{
-    modalEditTags.modal('hide')
-})
-
-document.getElementById('btnSubmitName').addEventListener('click', ()=>{
-    /** Submits the entered name for specified individual */
-    var newName = document.getElementById('newIndividualName').value
-
-    var formData = new FormData()
-    formData.append("individual_id", JSON.stringify(selectedIndividual))
-    formData.append("name", JSON.stringify(newName))
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/editIndividualName');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            console.log(reply)
-            if (reply.status == 'success'){
-                modalEditName.modal('hide')
-                document.getElementById('individualName').innerHTML = newName
-            }
-            else{
-                document.getElementById('newNameErrors').innerHTML = reply.status
-            }
-            
-        }
-    }
-    xhttp.send(formData);
-})
-
-document.getElementById('btnSubmitIndivNotes').addEventListener('click', ()=>{
+document.getElementById('editNotes').addEventListener('click', ()=>{
     /** Submits the entered notes for specified individual */
-    var newNote = document.getElementById('noteboxIndividual').value
+    var newNote = document.getElementById('idNotes').value
 
     if(newNote.length > 512)
     {
-        document.getElementById('newNoteErrors').innerHTML = "A note cannot be more than 512 characters."
+        document.getElementById('notesError').innerHTML = "A note cannot be more than 512 characters."
     }
     else{
-        document.getElementById('newNoteErrors').innerHTML = ''
+        document.getElementById('notesError').innerHTML = ''
 
         var formData = new FormData()
         formData.append("individual_id", JSON.stringify(selectedIndividual))
@@ -1577,7 +1710,6 @@ document.getElementById('btnSubmitIndivNotes').addEventListener('click', ()=>{
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
-                modalEditNotes.modal('hide')
                 document.getElementById('idNotes').value = newNote
                 currentNote = newNote                   
             }
@@ -1586,37 +1718,47 @@ document.getElementById('btnSubmitIndivNotes').addEventListener('click', ()=>{
     }  
 })
 
+document.getElementById('editName').addEventListener('click', ()=>{
+    document.getElementById('editNameDiv').hidden = false
+    document.getElementById('editName').hidden = true
+    document.getElementById('newIndividualName').value = document.getElementById('individualName').innerHTML
+})
 
-document.getElementById('btnSubmitIndivTags').addEventListener('click', ()=>{
-    /** Submits the selected tags for specified individual */
-    var newTags = []
-    for (let i=0;i<globalTags.length;i++) {
-        tag = globalTags[i].tag
-        box = document.getElementById(tag+ "box")
-        if(box.checked){
-            newTags.push(tag)
-            box.checked = false 
-        }
+document.getElementById('btnSubmitName').addEventListener('click', ()=>{
+    /** Submits the entered name for specified individual */
+    var newName = document.getElementById('newIndividualName').value
+    if(newName == ''){
+        document.getElementById('newNameErrors').innerHTML = 'Name cannot be blank'
     }
+    else if(newName == document.getElementById('individualName').innerHTML){
+        document.getElementById('editNameDiv').hidden = true
+        document.getElementById('editName').hidden = false
+    }
+    else{
+        var formData = new FormData()
+        formData.append("individual_id", JSON.stringify(selectedIndividual))
+        formData.append("name", JSON.stringify(newName))
 
-    var formData = new FormData()
-    formData.append("tags", JSON.stringify(newTags))
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/submitTagsIndividual/' + selectedIndividual);
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            console.log(reply)
-            if (reply == 'success'){
-                modalEditTags.modal('hide')
-                document.getElementById('idTags').innerHTML = "Tags: " + newTags
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/editIndividualName');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if (reply.status == 'success'){
+                    document.getElementById('individualName').innerHTML = newName
+                    document.getElementById('editNameDiv').hidden = true
+                    document.getElementById('editName').hidden = false
+                    document.getElementById('newNameErrors').innerHTML = ''
+                }
+                else{
+                    document.getElementById('newNameErrors').innerHTML = reply.status
+                }
             }
-            
         }
+        xhttp.send(formData);
     }
-    xhttp.send(formData);   
 })
 
 $('.modal').on("hidden.bs.modal", function (e) { 
@@ -1641,7 +1783,7 @@ function onload(){
     checkSurvey()
     populateSpecies()
     populateTags()
-
+    populateTraps()
 }
 
 window.addEventListener('load', onload, false);

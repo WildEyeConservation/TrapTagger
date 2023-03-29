@@ -33,6 +33,8 @@ limitations under the License. -->
                     <select name='orderSelect' id='orderSelect' class='form-control'>
                         <option value="1">Alphabetical</option>
                         <option value="2">Reverse Alphabetical</option>
+                        <option value="3">Last seen</option>
+                        <option value="4">First seen</option>
                     </select>
                 </div>
             </div>
@@ -41,37 +43,60 @@ limitations under the License. -->
 
             <div class="card-body" id="indivListDiv">
                 <div class="row">
-                    <div class="col-lg-6">
+                    <div class="col-lg-2">
+                        
                         <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to see individuals for.</i></div>
                         <div id="surveySelect"></div>
                         <div id="addSurveyTask"></div>
                         <div id="surveysErrors" style="font-size: 80%; color: #DF691A"></div>
-                    </div>
-                    <div class="col-lg-3">
+                        <br>
+                        
                         <h5 style="margin-bottom: 2px">Species</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to see individuals for.</i></div>
                         <div class="row">
-                            <div class='col-lg-8'>
+                            <div class='col-lg-10'>
                                 <select id="individualSpeciesSelector" class='form-control'>
                                 </select>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-lg-3">
+                        <br>
+
                         <h5 style="margin-bottom: 2px">Tags</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select which tags you would like to see individuals for.</i></div>
                         <div class="row">
-                            <div class='col-lg-8'>
+                            <div class='col-lg-10'>
                                 <select id="individualTagSelector" class='form-control'>
                                 </select>
                             </div>
-                        </div>
-                    </div>                   
-                </div>
-                <br>
+                        </div>                 
+                        <br>
 
-                <div id="individualsDiv"></div>
+                        <h5 style="margin-bottom: 2px">Sites</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which sites you would like to see individuals for.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <select id="sitesSelector" class='form-control'>
+                                </select>
+                            </div>
+                        </div>                 
+                        <br>
+
+                        <h5 style="margin-bottom: 2px">Date range</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see individuals for.</i></div>
+                        <div>Start: </div>
+                        <input type="date" id="startDate" name="startDate">
+                        <div>End: </div>
+                        <input type="date" id="endDate" name="endDate">
+                        <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
+                    </div>
+                    
+                    <div class="col-lg-10">
+                        <div id="individualsDiv"></div>
+                    </div>     
+                </div>
+                
             </div>
     
             <div class="card-footer">
@@ -107,10 +132,10 @@ limitations under the License. -->
 
       <!-- Modal content-->
       <div class="modal-content">
-          <div class="modal-header">
-              <div class='col-lg-11' style="padding: 0px">
-                  <h4 id="individualName" class="modal-title"></h4>
-              </div>
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 id="individualName" class="modal-title"></h4>                   
+                </div>
               <div class='col-lg-1' style="padding: 0px">
                   <div class="row">
                       <div class='col-lg-6' style="padding: 0px">
@@ -131,34 +156,63 @@ limitations under the License. -->
                 <div class="row">
                     <div class="col-lg-1"></div>
                     <div class="col-lg-2">
-                        <div class="row">
-                            <h6 id="idLabels" align="left">Label: </h6>
+                        <h5 style="margin-bottom: 2px">Edit Individual: </h5>
+                        <button id='btnDelIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Delete Individual</button>
+                        <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Remove Image</button>
+                        <button id='editName' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">Edit Name</button>
+                        <div id="editNameDiv" hidden>
+                            <input type="text" id="newIndividualName" name="newIndividualName" class="form-control" style="margin-top: 2px; margin-bottom: 2px;">     
+                            <button id='btnSubmitName' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">Submit Name</button>
+                            <div id="newNameErrors" style="font-size: 80%; color: #DF691A"></div>
                         </div>
-                        <div class="row">
-                            <h6 id="idTags" align="left">Tags: </h6>
+                        <br>
+
+                        <h5 style="margin-bottom: 2px">Filter Individual Images:</h5>
+                        <h6>Traps: </h6>
+                        <select id='sitesIndividualSelector' class='form-control'></select>            
+                        <h6 style="margin-top: 0.5rem; margin-bottom: 0.0rem;">Date range:</h6>
+                        <h6>Start: </h6>
+                        <input type="date" id="startDateIndiv" name="startDate">
+                        <h6>End: </h6>
+                        <input type="date" id="endDateIndiv" name="endDate">
+                        <div id="dateErrorsIndiv" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
+
+                        <h5 style="margin-bottom: 2px">Order Individual Images:</h5>
+                        <select name='orderIndivImages' id='orderIndivImages' class='form-control'>
+                            <option value="1">Timestamp</option>
+                            <option value="2">Site</option>
+                            <option value="3">Detection Rating</option>
+                        </select>
+
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="ascOrder" name="orderImages" value='asc' checked>
+                            <label class="custom-control-label" for="ascOrder">Ascending</label>
                         </div>
-                        <div class="row">
-                            <h6 id="labelNotes">Notes: </h6>
+                        <div class="custom-control custom-radio custom-control-inline">
+                            <input type="radio" class="custom-control-input" id="decOrder" name="orderImages" value='dec'>
+                            <label class="custom-control-label" for="decOrder">Descending</label>
                         </div>
-                        <div class="row">
-                            <textarea id="idNotes" rows="5" cols="35" style="width:100%" readonly></textarea>
-                        </div>
+                        <br>                       
+
                     </div>
                     <div class="col-lg-6">
                         <center id="centerMap"></center>
                     </div>
-                    <div class="col-lg-2">
-                        <button id='btnDelIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Delete Individual</button>
-                        <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Remove Image</button>
-                        <div class="dropdown">
-                            <button class="btn btn-primary btn-block dropdown-toggle" type="button" data-toggle="dropdown">Edit Individual</button>
-                            <div id="edit_individual" class="dropdown-menu">
-                                <button id='editName' class="dropdown-item" type="button">Name</button>
-                                <button id='editTags' class="dropdown-item" type="button">Tags</button>
-                                <button id='editNotes' class="dropdown-item" type="button">Notes</button>
-                            </div>
-                        </div>
-                        <button id='btnIndivMap' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">View Map</button>
+                    <div class="col-lg-2">    
+                        <h5 style="margin-bottom: 2px">Individual Information:</h5>                   
+                        <h6 id="idLabels" align="left">Label: </h6>    
+                        <h6 id="idSurveys" align="left">Surveys: </h6> 
+                        <h6 id="idFirstSeen" align="left">First Seen: </h6>
+                        <h6 id="idLastSeen" align="left">Last Seen: </h6>
+
+                        <h6 id="idTags" align="left">Tags: </h6>
+                        <div id="editTagsDiv"></div>
+
+                        <h6 id="labelNotes" style="margin-top: 0.5rem;">Notes: </h6> 
+                        <textarea id="idNotes" rows="5" cols="35" style="width:100%"></textarea>
+                        <button class='btn btn-primary btn-block' id="editNotes">Submit Notes</button>
+                        <div id="notesError" style="font-size: 80%; color: #DF691A"></div>
                     </div>
                     <div class="col-lg-1"></div>
                 </div>
@@ -166,6 +220,35 @@ limitations under the License. -->
                     <div class="col-lg-1"></div>
                     <div class="col-lg-10">
                         <div id="splideDiv"></div>    
+                    </div>
+                    <div class="col-lg-1"></div>
+                </div>
+                <br>
+                <div class="row">
+                    <div class="col-lg-1"></div>
+                    <div class="col-lg-10">
+                        <h5 style="margin-bottom: 2px">Individual Statistics:</h5>
+                        <br>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div id="statisticsDiv1">
+                                    <div id="indivMapDiv"></div>
+                                </div>  
+                            </div>
+                            <div class="col-lg-6">
+                                <div id="statisticsDiv2"></div>  
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div id="statisticsDiv3">
+                                    <div id="indivMapDiv"></div>
+                                </div>  
+                            </div>
+                            <div class="col-lg-6">
+                                <div id="statisticsDiv4"></div>  
+                            </div>
+                        </div>
                     </div>
                     <div class="col-lg-1"></div>
                 </div>
@@ -279,154 +362,6 @@ limitations under the License. -->
                         <button id="helpclose" type='button' class='btn btn-info btn-block' 
                         data-dismiss='modal'>Close</button>
                     </div>
-
-            </div>
-        </div>
-  
-    </div>
-</div>
-
-<!-- Edit name modal-->
-<div id="modalEditName" class="modal fade" role="dialog"  tabindex="-1">
-    <div class="modal-dialog">
-      
-        <!-- Modal content-->
-        <div class="modal-content"> 
-            <div class="modal-header">
-                <h4 class="modal-title">Edit Individual Name</h4>
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-
-            
-                <h5 style="margin-bottom: 2px">Name</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>An identifying name for the individual.</i></div>
-                <div class="row">
-                    <div class='col-lg-8'>
-                        <input type="text" class="form-control" required id="newIndividualName"></input>
-                    </div>
-                </div>
-                <div id="newNameErrors" style="font-size: 80%; color: #DF691A"></div>
-                <br>
-
-            </div>
-            <div class='modal-footer'>
-                <div class='col-lg-3'>
-                    <button id='btnCancelName' type='button' class='btn btn-info btn-block'>Cancel</button>
-                </div>
-                <div class='col-lg-3'>
-                    <button id='btnSubmitName' type='button' class='btn btn-primary btn-block'>Submit</button>
-                </div>
-            </div>
-        </div>
-      
-    </div>
-</div>
-
-<!-- Edit notes modal-->
-<div id="modalEditNotes" class="modal fade" role="dialog"  tabindex="-1">
-    <div class="modal-dialog">
-      
-        <!-- Modal content-->
-        <div class="modal-content"> 
-            <div class="modal-header">
-                <h4 class="modal-title">Individual Notes</h4>
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-
-            
-                <h5 style="margin-bottom: 2px">Notes</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information about the individual can be added here.</i></div>
-                <div class="row">
-                    <div class='col-lg-8'>
-                        <textarea id="noteboxIndividual" rows="5" cols="35" style="width:100%" autofocus></textarea>
-                    </div>
-                </div>
-                <div id="newNoteErrors" style="font-size: 80%; color: #DF691A"></div>
-                <br>
-
-            </div>
-            <div class='modal-footer'>
-                <div class='col-lg-3'>
-                    <button id='btnCancelIndivNotes' type='button' class='btn btn-info btn-block'>Cancel</button>
-                </div>
-                <div class='col-lg-3'>
-                    <button id='btnSubmitIndivNotes' type='button' class='btn btn-primary btn-block'>Submit</button>
-                </div>
-            </div>
-        </div>
-      
-    </div>
-</div>
-
-<!-- Edit tags modal-->
-<div id="modalEditTags" class="modal fade" role="dialog"  tabindex="-1">
-    <div class="modal-dialog">
-      
-        <!-- Modal content-->
-        <div class="modal-content"> 
-            <div class="modal-header">
-                <h4 class="modal-title">Individual Tags</h4>
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-
-            
-                <h5 style="margin-bottom: 2px">Tags</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the applicable tags for this individual.</i></div>
-                <div id="tagsDiv"></div>
-                <div id="tagErrors" style="font-size: 80%; color: #DF691A"></div>
-                <br>
-
-            </div>
-            <div class='modal-footer'>
-                <div class='col-lg-3'>
-                    <button id='btnCancelIndivTags' type='button' class='btn btn-info btn-block'>Cancel</button>
-                </div>
-                <div class='col-lg-3'>
-                    <button id='btnSubmitIndivTags' type='button' class='btn btn-primary btn-block'>Submit</button>
-                </div>
-            </div>
-        </div>
-      
-    </div>
-</div>
-
-
-<!-- Individual Map Modal -->
-<div id="modalIndivMap" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 95%;">
-  
-        <!-- Modal content -->
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class='col-lg-11' style="padding: 0px">
-                    <h4 class="modal-title">Individual Map</h4>
-                </div>
-                <div class='col-lg-1' style="padding: 0px">
-                    <div class="row">
-                        <div class='col-lg-6' style="padding: 0px">
-                            <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('individual_map')">Help</button>
-                        </div>
-                        <div class='col-lg-5' style="padding: 0px">
-                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
-                        </div>
-                        <div class='col-lg-1' style="padding: 0px"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-body" style="min-height:400px">     
-
-                 <div id="indivMapDiv"></div>
-          
-            </div>
-            <div class='modal-footer'>
-
-                <div class='col-lg-1'>
-                    <button id="mapClose" type='button' class='btn btn-primary btn-block' 
-                    data-dismiss='modal'>Close</button>
-                </div>
 
             </div>
         </div>
