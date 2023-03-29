@@ -20,6 +20,7 @@ var modalAlertIndividualsReturn = false
 
 var individualSplide = null
 var map = null
+var mapStats = null
 var displayedIndividuals = null
 var legalSurvey = false
 var validDate = false
@@ -642,6 +643,11 @@ function cleanModalIndividual() {
         center.removeChild(center.firstChild)
     }
 
+    statisticsDiv = document.getElementById('statisticsDiv')
+    while(statisticsDiv.firstChild){
+        statisticsDiv.removeChild(statisticsDiv.firstChild)
+    }
+    
     individualSplide = null
     individualImages = null
     mapReady = null
@@ -653,11 +659,14 @@ function cleanModalIndividual() {
     mapWidth = null
     mapHeight = null
     map = null
+    mapStats = null
 
     document.getElementById('ascOrder').checked = true
     document.getElementById('orderIndivImages').value = '1'	
     document.getElementById('startDateIndiv').value = ''
     document.getElementById('endDateIndiv').value = ''
+
+    document.getElementById('statsSelect').value = '0'
 }
 
 modalIndividual.on('hidden.bs.modal', function(){
@@ -676,7 +685,7 @@ modalIndividual.on('hidden.bs.modal', function(){
 
 modalIndividual.on('shown.bs.modal', function(){
     /** Initialises the individual modal when opened. */
-    if (map==null) {
+    if (map==null && individualImages) {
         prepMap(individualImages[0])
         updateSlider()
     }
@@ -907,8 +916,9 @@ function createIndivMap() {
         }  
 
     }
-    
-    mainDiv = document.getElementById('indivMapDiv')
+    statisticsDiv = document.getElementById('statisticsDiv')
+    mainDiv = document.createElement('indivMapDiv')
+    statisticsDiv.appendChild(mainDiv)
 
     div = document.createElement('div')
     div.classList.add('row')
@@ -922,10 +932,10 @@ function createIndivMap() {
     col1.classList.add('col-lg-10')
     div.appendChild(col1)
 
-    mapDiv = document.createElement('div')
-    mapDiv.setAttribute('id','mapIndivDiv')
-    mapDiv.setAttribute('style','height: 500px')
-    col1.appendChild(mapDiv)
+    mapDivIndiv = document.createElement('div')
+    mapDivIndiv.setAttribute('id','mapIndivDiv')
+    mapDivIndiv.setAttribute('style','height: 750px')
+    col1.appendChild(mapDivIndiv)
 
     selectorDiv = document.createElement('div')
     selectorDiv.classList.add('col-lg-2')
@@ -984,7 +994,7 @@ function createIndivMap() {
     heatmapLayer = new HeatmapOverlay(cfg);
     invHeatmapLayer = new HeatmapOverlay(invCfg);
 
-    map = new L.map('mapIndivDiv', {
+    mapStats = new L.map('mapIndivDiv', {
         layers: [gSat, heatmapLayer]
     });
 
@@ -997,24 +1007,24 @@ function createIndivMap() {
         "OpenStreetMaps Roadmap": osmSt
     };
 
-    L.control.layers(baseMaps).addTo(map);
-    L.control.scale().addTo(map);
-    map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-    map._controlCorners['bottomright'].style.marginBottom = "14px";
+    L.control.layers(baseMaps).addTo(mapStats);
+    L.control.scale().addTo(mapStats);
+    mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+    mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
 
-    map.on('baselayerchange', function(e) {
+    mapStats.on('baselayerchange', function(e) {
         if (e.name.includes('Google')) {
-            map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-            map._controlCorners['bottomright'].style.marginBottom = "14px";
+            mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+            mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
         }
     });
 
     markers = []
     refMarkers = []
     for (let i=0;i<trapgroupInfo.length;i++) {
-        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapStats)
         markers.push(marker)
-        map.addLayer(marker)
+        mapStats.addLayer(marker)
         
         marker.bindPopup(trapgroupInfo[i].tag);
         // marker.bindPopup(trapgroupSightings[i]);
@@ -1031,9 +1041,9 @@ function createIndivMap() {
     invHeatmapLayer.setData(refData)
 
     var group = new L.featureGroup(markers);
-    map.fitBounds(group.getBounds().pad(0.1))
+    mapStats.fitBounds(group.getBounds().pad(0.1))
     if(markers.length == 1) {
-        map.setZoom(10)
+        mapStats.setZoom(10)
     }
 
     h5 = document.createElement('h5')
@@ -1064,7 +1074,7 @@ function createIndivMap() {
     fillSelect(select, texts, values)
 
     $("#mapDateSelector").change( function() {
-        /** Listener for the date selector on the individual map modal. */
+        /** Listener for the date selector on the individual mapStats modal. */
         updateMap()
     })
 
@@ -1165,21 +1175,21 @@ function updateMap(){
     traps = []
     if (select.value == '0'){
         for (let i=0;i<markers.length;i++) {
-            if (!map.hasLayer(markers[i])) {
-                map.addLayer(markers[i])
+            if (!mapStats.hasLayer(markers[i])) {
+                mapStats.addLayer(markers[i])
             }
         }
 
         if (document.getElementById('heatMapCheckBox').checked) {
-            map.removeLayer(heatmapLayer)
+            mapStats.removeLayer(heatmapLayer)
             data = {
                 'data' : hm_data,
                 'max': individualImages.length
             }
             heatmapLayer.setData(data)
-            map.addLayer(heatmapLayer)
+            mapStats.addLayer(heatmapLayer)
         }else{
-            map.removeLayer(heatmapLayer)
+            mapStats.removeLayer(heatmapLayer)
         }
 
     }
@@ -1196,13 +1206,13 @@ function updateMap(){
         for (let i=0;i<markers.length;i++) {
             for (let t=0;t<traps.length;t++) {
                 if(markers[i]._popup._content == traps[t]){
-                    if (!map.hasLayer(markers[i])) {
-                        map.addLayer(markers[i])
+                    if (!mapStats.hasLayer(markers[i])) {
+                        mapStats.addLayer(markers[i])
                     }
                 }
                 else{
-                    if (map.hasLayer(markers[i])) {
-                        map.removeLayer(markers[i])
+                    if (mapStats.hasLayer(markers[i])) {
+                        mapStats.removeLayer(markers[i])
                     }
                 }
             }
@@ -1210,16 +1220,16 @@ function updateMap(){
         }
 
         if (document.getElementById('heatMapCheckBox').checked) {
-            map.removeLayer(heatmapLayer)
+            mapStats.removeLayer(heatmapLayer)
             filteredArray = hm_data.filter((item) => traps.includes(item.tag));
             data = {
                 'data' : filteredArray,
                 'max': individualImages.length
             }
             heatmapLayer.setData(data)
-            map.addLayer(heatmapLayer)
+            mapStats.addLayer(heatmapLayer)
         }else{
-            map.removeLayer(heatmapLayer)
+            mapStats.removeLayer(heatmapLayer)
         }
     }
 }
@@ -1293,29 +1303,41 @@ function buildSurveySelect(){
     if(modalActive){
         IDNum = getIdNumforNext('idSurveySelect1-')
         surveySelect = document.getElementById('surveySelect1')
+
+        row = document.createElement('div')
+        row.classList.add('row')
+        surveySelect.appendChild(row)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-4')
+        row.appendChild(col1)
+
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-4')
+        row.appendChild(col2)
+
+        col3 = document.createElement('div')
+        col3.classList.add('col-lg-2')
+        row.appendChild(col3)
     }
     else{
         IDNum = getIdNumforNext('idSurveySelect-')
         surveySelect = document.getElementById('surveySelect')
+
+        row = document.createElement('div')
+        row.classList.add('row')
+        surveySelect.appendChild(row)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-10')
+        row.appendChild(col1)
+
+        col3 = document.createElement('div')
+        col3.classList.add('col-lg-2')
+        row.appendChild(col3)
     }
 
-    row = document.createElement('div')
-    row.classList.add('row')
-    surveySelect.appendChild(row)
-
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    row.appendChild(col1)
-
-    // col2 = document.createElement('div')
-    // col2.classList.add('col-lg-5')
-    // row.appendChild(col2)
-
-    col3 = document.createElement('div')
-    col3.classList.add('col-lg-2')
-    row.appendChild(col3)
-
-    if (IDNum > 0) {
+    if (IDNum > 0 && !modalActive) {
         col1.appendChild(document.createElement('br'))
         col3.appendChild(document.createElement('br'))
     }
@@ -1340,7 +1362,12 @@ function buildSurveySelect(){
         idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
     }
     idTaskSelect.name = idTaskSelect.id
-    col1.appendChild(idTaskSelect)
+    if(modalActive){
+        col2.appendChild(idTaskSelect)
+    }
+    else{
+        col1.appendChild(idTaskSelect)
+    }
 
     if (surveys != null) {
         
@@ -1564,13 +1591,30 @@ function checkSurvey(){
 
 function initialiseStats(){
     /** Initialises the stats for an individual*/
+    statisticsDiv = document.getElementById('statisticsDiv')
+    while(statisticsDiv.firstChild){
+        statisticsDiv.removeChild(statisticsDiv.firstChild)
+    }   
 
-    indivMapDiv = document.getElementById('indivMapDiv')
-    while(indivMapDiv.firstChild){
-        indivMapDiv.removeChild(indivMapDiv.firstChild)
+    statsSelect = document.getElementById('statsSelect')
+    if(statsSelect.value == '1'){
+        statisticsDiv.appendChild(document.createElement('br'))
     }
-    createIndivMap()
+    else if(statsSelect.value == '2'){
+        // indivMapDiv = document.createElement('indivMapDiv')
+        statisticsDiv.appendChild(document.createElement('br'))
+        createIndivMap()
+    }
+    else if(statsSelect.value == '3'){
+        statisticsDiv.appendChild(document.createElement('br'))
+    }
+    
 }
+
+$('#statsSelect').on('change', function() {
+    /** Changes the stats for an individual */
+    initialiseStats()
+});
 
 modalLaunchID.on('shown.bs.modal', function(){
     /** Initialises the launchID modal */
