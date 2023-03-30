@@ -287,7 +287,8 @@ function prev_individuals() {
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
 
-    selectedSpecies = document.getElementById('individualSpeciesSelector').value
+    individualSpeciesSelector = document.getElementById('individualSpeciesSelector')
+    selectedSpecies = individualSpeciesSelector.options[individualSpeciesSelector.selectedIndex].text
     request = '/getIndividuals/'+selectedTask+'/'+selectedSpecies
     if (page != null) {
         request += '?page='+page.toString()

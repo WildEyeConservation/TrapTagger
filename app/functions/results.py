@@ -424,17 +424,20 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         query  = db.session.query( \
                     Detection.id.label('detection'), \
                     Individual.name.label('individual'),\
-                    Label.description.label('label')) \
+                    Individual.species.label('label')) \
+                    .join(Image)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
                     .join(Individual,Detection.individuals) \
-                    .join(Label) \
-                    .filter(Individual.task_id==task_id) \
+                    .filter(Trapgroup.survey==task.survey)\
+                    .filter(Individual.tasks.contains(task)) \
                     .filter(Individual.active==True)
 
         if include:
-            query = query.filter(Individual.label_id.in_(include))
+            query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
 
         if exclude:
-            query = query.filter(~Individual.label_id.in_(exclude))
+            query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
 
         df3 = pd.read_sql(query.statement,db.session.bind)
         df = pd.merge(df, df3, on=['detection','label'], how='outer')
@@ -1333,8 +1336,8 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
             individuals = db.session.query(Individual)\
                                 .join(Detection,Individual.detections)\
                                 .filter(Detection.image==image)\
-                                .filter(Individual.task==task)\
-                                .filter(Individual.label_id==label.id)\
+                                .filter(Individual.tasks.contains(task))\
+                                .filter(Individual.species==label.description)\
                                 .filter(Individual.active==True)\
                                 .distinct().all()
             if len(individuals)==0: individuals = [None]

@@ -92,8 +92,32 @@ def delete_task(self,task_id):
         #Delete Individuals
         if status != 'error':
             try:
-                individuals = db.session.query(Individual).filter(Individual.task_id==task_id).all()
-                for chunk in chunker(individuals,1000):
+                individuals_to_delete = []
+                individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
+                for individual in individuals:
+                    detections = db.session.query(Detection)\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .join(Trapgroup)\
+                                        .filter(Trapgroup.survey==task.survey)\
+                                        .filter(Detection.individuals.contains(individual))\
+                                        .distinct().all()
+                    
+                    individual.detections = [detection for detection in individual.detections if detection not in detections]
+
+                    if len(individual.detections)==0:
+                        individuals_to_delete.append(individual)
+                    else:
+                        # no point doing this if its going to be deleted
+                        individual.tags = [tag for tag in individual.tags if tag not in task.tags]
+
+                for individual in individuals:
+                    if individual not in individuals_to_delete:
+                        individual.children = [child for child in individual.children if child not in individuals_to_delete]
+
+                db.session.commit()
+
+                for chunk in chunker(individuals_to_delete,1000):
                     for individual in chunk:
                         individual.detections = []
                         individual.children = []
@@ -106,7 +130,9 @@ def delete_task(self,task_id):
                             db.session.delete(indSimilarity)
                         db.session.delete(individual)
                     db.session.commit()
+
                 app.logger.info('Individuals deleted successfully.')
+
             except:
                 status = 'error'
                 message = 'Could not delete individuals.'
@@ -242,6 +268,12 @@ def stop_task(self,task_id):
 
             task.current_name = None
             task.status = 'Stopped'
+
+            # handle multi-tasks
+            for sub_task in task.sub_tasks:
+                sub_task.status = 'Stopped'
+                sub_task.survey.status = 'Ready'
+            task.sub_tasks = []
 
             if 'processing' not in survey.status:
                 survey.status = 'Ready'
@@ -799,57 +831,36 @@ def reclusterAfterTimestampChange(survey_id):
                 cluster.tags = db.session.query(Tag).join(Labelgroup,Tag.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
             db.session.commit()
 
-            #copy individuals
-            individuals = db.session.query(Individual).filter(Individual.task_id==task.id).all()
+            # migrate individuals to new task
+            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
             for individual in individuals:
-                label = individual.label
-                if label.task_id != None:
-                    newLabel = db.session.query(Label).filter(Label.description==label.description).filter(Label.task_id==newTask.id).first()
-                else:
-                    newLabel = label
+                individual.tasks.remove(task)
+                individual.tasks.append(newTask)
 
-                newIndividual = db.session.query(Individual).filter(Individual.task_id==newTask.id).filter(Individual.label_id==newLabel.id).filter(Individual.detections.contains(individual.detections[0])).first()
-
-                if not newIndividual:
-                    newIndividual = Individual( name=individual.name,
-                                                notes=individual.notes,
-                                                active=individual.active,
-                                                task_id=newTask.id,
-                                                label_id=newLabel.id,
-                                                user_id=individual.user_id,
-                                                timestamp=individual.timestamp)
-
-                    db.session.add(newIndividual)
-
-                newIndividual.detections = individual.detections
-
+                # Update tags
                 tags = []
                 for tag in individual.tags:
-                    newTag = db.session.query(Tag).filter(Tag.description==tag.description).filter(Tag.task_id==newTask.id).first()
-                    tags.append(newTag)
-                newIndividual.tags = tags
-
-            for individual in individuals:
-                newIndividual = db.session.query(Individual).filter(Individual.task_id==newTask.id).filter(Individual.detections.contains(individual.detections[0])).first()
-                for child in individual.children:
-                    newChild = db.session.query(Individual).filter(Individual.task_id==newTask.id).filter(Individual.detections.contains(child.detections[0])).first()
-                    newIndividual.children.append(newChild)
+                    if tag.task==task:
+                        tag = db.session.query(Tag).filter(Tag.description==tag.description).filter(Tag.task_id==newTask.id).first()
+                    tags.append(tag)
+                individual.tags = tags
+            db.session.commit()
 
             # recalculate individual similarities as the heuristic values will have changed
-            if len(individuals) > 0:
-                label_ids = [r.id for r in db.session.query(Label).join(Individual).filter(Individual.task_id==newTask.id).distinct().all()]
+            species = [item[0] for item in db.session.query(Individual.species).filter(Individual.tasks.contains(newTask)).distinct().all()]
+            if species:
                 pool = Pool(processes=4)
-                for label_id in label_ids:
+                for specie in species:
                     user_ids = [r.id for r in db.session.query(User)\
                                                         .join(Individual, Individual.user_id==User.id)\
                                                         .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                        .filter(Individual.task_id==newTask.id)\
-                                                        .filter(Individual.label_id==label_id)\
+                                                        .filter(Individual.tasks.contains(newTask))\
+                                                        .filter(Individual.species==specie)\
                                                         .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
                                                         .filter(User.passed=='cTrue')\
                                                         .distinct().all()]
 
-                    pool.apply_async(calculate_individual_similarities,(newTask.id,label_id,user_ids))
+                    pool.apply_async(calculate_individual_similarities,(newTask.id,specie,user_ids))
 
                 pool.close()
                 pool.join()
@@ -1423,57 +1434,63 @@ def getSurveyInfo(survey):
     return survey_dict
 
 def getTaskProgress(task_id):
-    '''Reuturns the cluster annotatin progress of the speciefied task.'''
+    '''Reuturns the cluster annotation progress of the specified task.'''
     
     task = db.session.query(Task).get(task_id)
     taggingLevel = task.tagging_level
 
     if task and taggingLevel:
         if '-5' in taggingLevel:
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
             tL = re.split(',',taggingLevel)
-            label = db.session.query(Label).get(int(tL[1]))
+            species = tL[1]
             OtherIndividual = alias(Individual)
 
             sq1 = db.session.query(Individual.id.label('indID1'))\
+                            .join(Task,Individual.tasks)\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
                             .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.active==True)\
                             .filter(Individual.name!='unidentifiable')\
                             .group_by(Individual.id)\
                             .subquery()
 
             sq2 = db.session.query(Individual.id.label('indID2'))\
+                            .join(Task,Individual.tasks)\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
                             .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.active==True)\
                             .filter(Individual.name!='unidentifiable')\
                             .group_by(Individual.id)\
                             .subquery()
 
             remaining = db.session.query(Individual)\
+                            .join(Task,Individual.tasks)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .filter(Individual.task_id==task_id)\
+                            .filter(Task.id.in_(task_ids))\
                             .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .distinct().count()
 
             total = db.session.query(Individual)\
+                            .join(Task,Individual.tasks)\
                             .join(Detection,Individual.detections)\
                             .filter(Individual.active==True)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.name!='unidentifiable')\
                             .distinct().count()
         else:

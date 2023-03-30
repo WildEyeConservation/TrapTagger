@@ -647,14 +647,15 @@ def clusterIdComplete(task_id,label_id):
     '''
 
     label = db.session.query(Label).get(label_id)
+    task = db.session.query(Task).get(task_id)
 
     identified = db.session.query(Detection)\
                         .join(Labelgroup)\
                         .join(Individual, Detection.individuals)\
                         .filter(Labelgroup.labels.contains(label))\
-                        .filter(Individual.label_id==label.id)\
+                        .filter(Individual.species==label.description)\
                         .filter(Labelgroup.task_id==task_id)\
-                        .filter(Individual.task_id==task_id)\
+                        .filter(Individual.tasks.contains(task))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static == False) \
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -679,6 +680,7 @@ def updateIndividualIdStatus(task_id):
     '''Updates the icID_allowed status of all labels of a specified task, based on whether the first stage of individual identification has been completed.'''
     
     labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
+    task = db.session.query(Task).get(task_id)
 
     for label in labels:
         if clusterIdComplete(task_id,label.id):
@@ -690,9 +692,9 @@ def updateIndividualIdStatus(task_id):
                             .join(Labelgroup)\
                             .join(Individual, Detection.individuals)\
                             .filter(Labelgroup.labels.contains(label))\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Individual.species==label.description)\
                             .filter(Labelgroup.task_id==task_id)\
-                            .filter(Individual.task_id==task_id)\
+                            .filter(Individual.tasks.contains(task))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1538,7 +1540,7 @@ def resolve_abandoned_jobs(abandoned_jobs):
             if ('-4' in job.task.tagging_level) and (job.task.survey.status=='indprocessing'):
                 app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
                 from app.functions.individualID import calculate_individual_similarities
-                calculate_individual_similarities.delay(task_id=job.task_id,label_id=int(re.split(',',job.task.tagging_level)[1]),user_ids=[user.id])
+                calculate_individual_similarities.delay(task_id=job.task_id,species=re.split(',',job.task.tagging_level)[1],user_ids=[user.id])
             elif '-5' in job.task.tagging_level:
                 #flush allocations
                 allocateds = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
@@ -1577,39 +1579,45 @@ def coordinateDistance(lat1,lon1,lat2,lon2):
 def checkForIdWork(task_id,label,theshold):
     '''Returns the number of individuals that need to be examined during inter-cluster indentification for the specified task and label.'''
 
+    task = db.session.query(Task).get(task_id)
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     OtherIndividual = alias(Individual)
     if theshold=='-1': theshold=Config.SIMILARITY_SCORE
 
     sq1 = db.session.query(Individual.id.label('indID1'))\
+                    .join(Task,Individual.tasks)\
                     .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                     .filter(OtherIndividual.c.active==True)\
                     .filter(OtherIndividual.c.name!='unidentifiable')\
                     .filter(IndSimilarity.score>=theshold)\
-                    .filter(Individual.task_id==task_id)\
-                    .filter(Individual.label_id==label.id)\
+                    .filter(Task.id.in_(task_ids))\
+                    .filter(Individual.species==label)\
                     .filter(Individual.active==True)\
                     .filter(Individual.name!='unidentifiable')\
                     .group_by(Individual.id)\
                     .subquery()
 
     sq2 = db.session.query(Individual.id.label('indID2'))\
+                    .join(Task,Individual.tasks)\
                     .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                     .filter(OtherIndividual.c.active==True)\
                     .filter(OtherIndividual.c.name!='unidentifiable')\
                     .filter(IndSimilarity.score>=theshold)\
-                    .filter(Individual.task_id==task_id)\
-                    .filter(Individual.label_id==label.id)\
+                    .filter(Task.id.in_(task_ids))\
+                    .filter(Individual.species==label)\
                     .filter(Individual.active==True)\
                     .filter(Individual.name!='unidentifiable')\
                     .group_by(Individual.id)\
                     .subquery()
 
     num_individuals = db.session.query(Individual)\
+                    .join(Task,Individual.tasks)\
                     .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                     .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                    .filter(Individual.task_id==task_id)\
+                    .filter(Task.id.in_(task_ids))\
                     .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                     .distinct().count()
 
@@ -1843,7 +1851,9 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         # Specific label levels
         if ',' in taggingLevel:
             tL = re.split(',',taggingLevel)
-            label = db.session.query(Label).get(int(tL[1]))
+            species = tL[1]
+            label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==species).first()
+            task = db.session.query(Task).get(task_id)
             
             if tL[0] == '-4':
                 # Cluster-level individual ID
@@ -1852,9 +1862,9 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                     .join(Labelgroup)\
                                     .join(Individual, Detection.individuals)\
                                     .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.label_id==label.id)\
+                                    .filter(Individual.species==species)\
                                     .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Individual.task_id==task_id)\
+                                    .filter(Individual.tasks.contains(task))\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \

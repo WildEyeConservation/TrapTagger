@@ -84,7 +84,7 @@ def getUniqueName():
 
     task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
     tL = re.split(',',task.tagging_level)
-    name = generateUniqueName(task.id,int(tL[1]),tL[2])
+    name = generateUniqueName(task.id,tL[1],tL[2])
     return json.dumps(name)
 
 @app.route('/releaseTask/<task_id>')
@@ -99,9 +99,9 @@ def releaseTask(task_id):
         db.session.commit()
     return json.dumps('success')
 
-@app.route('/launchTask/<task_id>/<taskSize>/<taggingLevel>/<isBounding>', methods=['POST'])
+@app.route('/launchTask', methods=['POST'])
 @login_required
-def launchTask(task_id, taskSize, taggingLevel, isBounding):
+def launchTask():
     '''
     Launches the specified task with the parameters provided.
 
@@ -117,15 +117,28 @@ def launchTask(task_id, taskSize, taggingLevel, isBounding):
             tags: A list of tags is returned for a cluster-level individual identification
             untranslated: There are translated labels that must be dealt with before launching
     '''
+
+    task_ids = request.form['selectedTasks']
+    taskSize = request.form['taskSize']
+    taggingLevel = request.form['taskTaggingLevel']
+    isBounding = request.form['isBounding']
     
-    task = db.session.query(Task).get(task_id)
+    tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).distinct().all()
+
+    # check task statuses
+    statusPass = True
+    for task in tasks:
+        if task.status.lower() not in Config.TASK_READY_STATUSES:
+            statusPass = False
+
+    task = tasks[0]
     message = 'Task not ready to be launched.'
 
     if (task==None) or (taskSize in ['','none','null']) or (taggingLevel.lower() in ['','none','null']):
         message = 'An unexpected error has occurred. Please check your form and try again.'
         return json.dumps({'message': message, 'status': 'Error'})
 
-    if (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.user_id==current_user.id):
+    if (statusPass) and (task.survey.user_id==current_user.id):
         survey = task.survey
         task.status = 'PENDING'
         survey.status = 'Launched'
@@ -144,7 +157,7 @@ def launchTask(task_id, taskSize, taggingLevel, isBounding):
 
         #Check if all classifications are translated, if not, prompt
         untranslated = []
-        translations = db.session.query(Translation).filter(Translation.task_id==int(task_id)).all()
+        translations = db.session.query(Translation).filter(Translation.task==task).all()
         translations = [translation.classification for translation in translations]
 
         untranslated_prior = db.session.query(Detection.classification)\
@@ -161,12 +174,12 @@ def launchTask(task_id, taskSize, taggingLevel, isBounding):
             #Attempt to auto-translate
             for classification in untranslated_prior:
                 if classification.lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown']:
-                    species = db.session.query(Label).filter(Label.task_id==int(task_id)).filter(func.lower(Label.description)==func.lower(classification)).first()
+                    species = db.session.query(Label).filter(Label.task==task).filter(func.lower(Label.description)==func.lower(classification)).first()
                 else:
                     species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
 
                 if species:
-                    translation = Translation(classification=classification, label_id=species.id, task_id=int(task_id))
+                    translation = Translation(classification=classification, label_id=species.id, task=task)
                     db.session.add(translation)
                 else:
                     untranslated.append(classification)
@@ -179,12 +192,23 @@ def launchTask(task_id, taskSize, taggingLevel, isBounding):
                                         .filter(Label.description != 'Vehicles/Humans/Livestock')\
                                         .filter(Label.description != 'Nothing')\
                                         .filter(Label.description != 'Unknown')\
-                                        .filter(Translation.task_id==int(task_id)).all()
+                                        .filter(Translation.task==task).all()
                 for translation in translations:
                     if not checkChildTranslations(translation.label):
                         for child in translation.label.children:
-                            createChildTranslations(translation.classification,int(task_id),child)    
+                            createChildTranslations(translation.classification,task.id,child)    
                 db.session.commit()
+
+        # Handle multi-task launch
+        if len(task_ids) > 1:
+            task.sub_tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .filter(Survey.user==current_user)\
+                                        .filter(Task.id.in_(task_ids[1:]))\
+                                        .distinct().all()
+            for sub_task in task.sub_tasks:
+                sub_task.status = 'Processing'
+                sub_task.survey.status = 'Launched'
 
         task.size = taskSize
         task.tagging_level = taggingLevel
@@ -192,18 +216,25 @@ def launchTask(task_id, taskSize, taggingLevel, isBounding):
         db.session.commit()
 
         if any(level in taggingLevel for level in ['-4','-2']):
-            tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task_id==int(task_id)).order_by(Tag.description).all()
-            checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
+            tags = db.session.query(Tag.description,Tag.hotkey,Tag.id).filter(Tag.task==task).order_by(Tag.description).all()
+            checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=9)
             return json.dumps({'status': 'tags', 'tags': tags})
 
         elif len(untranslated) == 0:
-            launch_task.apply_async(kwargs={'task_id':task_id})
+            if (len(task_ids) > 1) and ('-5' in taggingLevel):
+                tL = re.split(',',taggingLevel)
+                if tL[3]=='h':
+                    calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='hotspotter')
+                elif tL[3]=='n':
+                    calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
+            else:
+                launch_task.apply_async(kwargs={'task_id':task.id})
             return json.dumps({'status': 'Success'})
 
         else:
             labels = ['Nothing (Ignore)','Vehicles/Humans/Livestock']
-            labels.extend([label.description for label in db.session.query(Label).filter(Label.task_id==int(task_id)).order_by(Label.description).all()])
-            checkAndRelease.apply_async(kwargs={'task_id': task_id},countdown=300, queue='priority', priority=9)
+            labels.extend([label.description for label in db.session.query(Label).filter(Label.task==task).order_by(Label.description).all()])
+            checkAndRelease.apply_async(kwargs={'task_id': task.id},countdown=300, queue='priority', priority=9)
             return json.dumps({'status': 'untranslated','untranslated':untranslated,'labels':labels})
 
     return json.dumps({'message': message, 'status': 'Error'})
@@ -283,9 +314,9 @@ def takeJob(task_id):
     else:
         return json.dumps({'status':'inactive'})
 
-@app.route('/getIndividuals/<task_id>/<species_id>')
+@app.route('/getIndividuals/<task_id>/<species>')
 @login_required
-def getIndividuals(task_id,species_id):
+def getIndividuals(task_id,species):
     '''Returns a paginated dictionary of all individuals associated with a specified label and task, including the individual names, ID, and best image.'''
     
     reply = []
@@ -295,10 +326,10 @@ def getIndividuals(task_id,species_id):
     if task and (task.survey.user==current_user):
         page = request.args.get('page', 1, type=int)
         
-        if int(species_id)==0:
-            individuals = db.session.query(Individual).filter(Individual.task_id==task_id).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).paginate(page, 8, False)
+        if species.lower()=='all':
+            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).paginate(page, 8, False)
         else:
-            individuals = db.session.query(Individual).filter(Individual.task_id==task_id).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.label_id==int(species_id)).order_by(Individual.name).paginate(page, 8, False)
+            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).paginate(page, 8, False)
 
         for individual in individuals.items:
             image = db.session.query(Image)\
@@ -329,28 +360,30 @@ def deleteIndividual(individual_id):
     individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
 
-    if individual and (individual.task.survey.user==current_user):
-        task_id = individual.task_id
-        label_id = individual.label_id
+    task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
+    if not task: individual.tasks[0]
+
+    if individual and (individual.tasks[0].survey.user==current_user):
 
         for detection in individual.detections:
-            newIndividual = Individual( name=generateUniqueName(task_id,label_id,'n'),
-                                        task_id=task_id,
-                                        label_id=label_id,
+            newIndividual = Individual( name=generateUniqueName(task.id,individual.species,'n'),
+                                        species=individual.species,
                                         user_id=current_user.id,
                                         timestamp=datetime.utcnow())
 
             db.session.add(newIndividual)
             newIndividual.detections.append(detection)
+            newIndividual.tasks = individual.tasks
             db.session.commit()
 
             individuals = [r.id for r in db.session.query(Individual)\
-                                                    .filter(Individual.task_id==task_id)\
-                                                    .filter(Individual.label_id==label_id)\
-                                                    .filter(Individual.name!='unidentifiable')\
-                                                    .filter(Individual.id != individual.id)\
-                                                    .filter(Individual.id != newIndividual.id)\
-                                                    .all()]
+                                                .join(Task,Individual.tasks)\
+                                                .filter(Task.id.in_([r.id for r in individual.tasks]))\
+                                                .filter(Individual.species==individual.species)\
+                                                .filter(Individual.name!='unidentifiable')\
+                                                .filter(Individual.id != individual.id)\
+                                                .filter(Individual.id != newIndividual.id)\
+                                                .all()]
 
             calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals)
 
@@ -378,7 +411,7 @@ def getIndividual(individual_id):
     individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
 
-    if individual and (individual.task.survey.user==current_user):
+    if individual and (individual.tasks[0].survey.user==current_user):
         images = db.session.query(Image)\
                             .join(Detection)\
                             .filter(Detection.individuals.contains(individual))\
@@ -474,7 +507,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 disabled[label.description] = 'true'
 
             if label.icID_allowed:
-                count = checkForIdWork(task_id,label,0)
+                count = checkForIdWork(task_id,label.description,0)
                 if count==0:
                     colours.append('#0A7850')
                 else:
@@ -1794,14 +1827,14 @@ def getDetailedTaskStatus(task_id):
                             reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                             reply['Individual ID']['Exhaustive'] = 'Incomplete'
                         else:
-                            count = checkForIdWork(task_id,label,Config.SIMILARITY_SCORE)
+                            count = checkForIdWork(task_id,label.description,Config.SIMILARITY_SCORE)
                             reply['Individual ID']['Cluster-Level'] = 'Complete'
                             if count != 0:
                                 reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                                 reply['Individual ID']['Exhaustive'] = 'Incomplete'
                             else:
                                 reply['Individual ID']['Inter-Cluster'] = 'Complete'
-                                count = checkForIdWork(task_id,label,0)
+                                count = checkForIdWork(task_id,label.description,0)
                                 if count !=0:
                                     reply['Individual ID']['Exhaustive'] = 'Incomplete'
                                 else:
@@ -2494,7 +2527,11 @@ def getJobs():
         completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task.id)
         task_dict = {}
         task_dict['id'] = task.id
-        task_dict['name'] = task.survey.name
+        if task.sub_tasks and ('-5' in task.tagging_level):
+            species = re.split(',',task.tagging_level)[1]
+            task_dict['name'] = species+' Individual ID'
+        else:
+            task_dict['name'] = task.survey.name
         task_dict['completed'] = completed
         task_dict['total'] = total
         task_dict['remaining'] = remaining
@@ -2860,7 +2897,16 @@ def editTranslations(task_id):
         task.survey.status = 'Launched'
         db.session.commit()
 
-        launch_task.apply_async(kwargs={'task_id':task_id})
+        if (task.sub_tasks) and ('-5' in task.tagging_level):
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
+            tL = re.split(',',task.tagging_level)
+            if tL[3]=='h':
+                calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='hotspotter')
+            elif tL[3]=='n':
+                calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
+        else:
+            launch_task.apply_async(kwargs={'task_id':task.id})
 
     return json.dumps('success')
 
@@ -3106,17 +3152,19 @@ def skipSuggestion(individual_1,individual_2):
 
     if individual1.active != True:
         individual1 = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
-                                .filter(Individual.task_id==individual1.task_id)\
-                                .filter(Individual.label_id==individual1.label_id)\
+                                .filter(Task.id.in_([r.id for r in individual1.tasks]))\
+                                .filter(Individual.species==individual1.species)\
                                 .filter(Individual.active==True)\
                                 .first()
 
     if individual2.active != True:
         individual2 = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
-                                .filter(Individual.task_id==individual2.task_id)\
-                                .filter(Individual.label_id==individual2.label_id)\
+                                .filter(Task.id.in_([r.id for r in individual2.tasks]))\
+                                .filter(Individual.species==individual2.species)\
                                 .filter(Individual.active==True)\
                                 .first()
 
@@ -3124,7 +3172,7 @@ def skipSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if (individual1 and individual2) and (individual1.task_id==task.id) and (individual2.task_id==task.id) and (individual1 != individual2) and ((current_user.parent in individual1.task.survey.user.workers) or (current_user.parent == individual1.task.survey.user)):
+    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                             or_(\
@@ -3156,7 +3204,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
     
-    if (individual1 and individual2) and (individual1.task_id==task.id) and (individual2.task_id==task.id) and ((current_user.parent in individual1.task.survey.user.workers) or (current_user.parent == individual1.task.survey.user)):
+    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                         or_(\
                                             and_(\
@@ -3168,7 +3216,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
                                         )).first()
 
         if indSimilarity or (individual1.name == 'unidentifiable'):
-            handleIndividualUndo(indSimilarity,individual1,individual2)
+            handleIndividualUndo(indSimilarity,individual1,individual2,task.id)
 
             db.session.commit()
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual1)).order_by(Image.corrected_timestamp).all()
@@ -3219,34 +3267,52 @@ def dissociateDetection(detection_id):
     individual_id = request.args.get('individual_id', None)
     if individual_id:
         individual = db.session.query(Individual).get(individual_id)
-        task = individual.task
+        task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
+        if not task: individual.tasks[0]
     else:
         task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
 
     detection = db.session.query(Detection).get(detection_id)
 
-    if task and detection and (detection.image.camera.trapgroup.survey==task.survey) and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
+    if task and detection and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
 
         if not individual_id:
             individual = db.session.query(Individual)\
-                                    .filter(Individual.task_id==task.id)\
+                                    .filter(Individual.tasks.contains(task))\
                                     .filter(Individual.detections.contains(detection))\
                                     .filter(Individual.active==True)\
                                     .first()
-        
-        label_id = individual.label_id
 
         if individual and (detection in individual.detections[:]):
             individual.detections.remove(detection)
 
-        newIndividual = Individual( name=generateUniqueName(task.id,label_id,'n'),
-                                    task_id=task.id,
-                                    label_id=label_id,
+        newIndividual = Individual( name=generateUniqueName(task.id,individual.species,'n'),
+                                    species=individual.species,
                                     user_id=current_user.id,
                                     timestamp=datetime.utcnow())
 
         db.session.add(newIndividual)
         newIndividual.detections.append(detection)
+
+        task_ids = [r.id for r in task.sub_tasks]
+        task_ids.append(task.id)
+        newIndividual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .filter(Image.detections.contains(detection))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
+        individual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(individual))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
         db.session.commit()
 
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
@@ -3255,9 +3321,10 @@ def dissociateDetection(detection_id):
         db.session.commit()
 
         individuals1 = [r.id for r in db.session.query(Individual)\
+                                                    .join(Task,Individual.tasks)\
                                                     .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                    .filter(Individual.task_id==task.id)\
-                                                    .filter(Individual.label_id==label_id)\
+                                                    .filter(Task.id.in_([r.id for r in task_ids]))\
+                                                    .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
                                                     .filter(Individual.id != newIndividual.id)\
@@ -3266,8 +3333,9 @@ def dissociateDetection(detection_id):
                                                     .all()]
 
         individuals2 = [r.id for r in db.session.query(Individual)\
-                                                    .filter(Individual.task_id==task.id)\
-                                                    .filter(Individual.label_id==label_id)\
+                                                    .join(Task,Individual.tasks)\
+                                                    .filter(Task.id.in_([r.id for r in task_ids]))\
+                                                    .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
                                                     .all()]
@@ -3295,12 +3363,14 @@ def reAssociateDetection(detection_id,individual_id):
     individual = db.session.query(Individual).get(individual_id)
     task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
 
-    if detection and (detection.image.camera.trapgroup.survey==task.survey) and individual and (individual.task==task) and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user)):
+    if detection and individual and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
 
         oldIndividual = db.session.query(Individual)\
-                                .filter(Individual.task_id==task.id)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_([r.id for r in individual.tasks]))\
                                 .filter(Individual.detections.contains(detection))\
                                 .filter(Individual.active==True)\
+                                .filter(Individual.species==individual.species)\
                                 .first()
 
         if oldIndividual and (detection in oldIndividual.detections[:]):
@@ -3309,7 +3379,28 @@ def reAssociateDetection(detection_id,individual_id):
             if len(oldIndividual.detections[:]) == 0:
                 oldIndividual.active = False
 
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
+
             individual.detections.append(detection)
+            individual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(individual))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
+            oldIndividual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(oldIndividual))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
 
             allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
             for similarity in allSimilarities:
@@ -3331,15 +3422,32 @@ def suggestionUnidentifiable(individual_id):
 
     individual = db.session.query(Individual).get(int(individual_id))
     task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if individual and individual.active and (individual.task_id==task.id) and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user)):
+    if individual and individual.active and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
         
         if Config.DEBUGGING: app.logger.info('Individual {} marked as unidentifiable'.format(individual.name))
 
-        unidentifiable = db.session.query(Individual).filter(Individual.task_id==task.id).filter(Individual.label_id==individual.label_id).filter(Individual.name=='unidentifiable').first()
-        unidentifiable.detections.extend(individual.detections)
+        for detection in individual.detections:
+            rootTask = db.session.query(Task)\
+                                .join(Survey)\
+                                .join(Trapgroup)\
+                                .join(Camera)\
+                                .join(Image)\
+                                .filter(Image.detections.contains(detection))\
+                                .filter(Task.id.in_([r.id for r in task_ids]))\
+                                .first()
+
+            unidentifiable = db.session.query(Individual)\
+                                .filter(Individual.tasks.contains(rootTask))\
+                                .filter(Individual.species==individual.species)\
+                                .filter(Individual.name=='unidentifiable')\
+                                .first()
+            
+            unidentifiable.detections.append(detection)
 
         # Search through & update indsimilarities
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
@@ -3367,25 +3475,29 @@ def acceptSuggestion(individual_1,individual_2):
 
     if individual1.active != True:
         individual1 = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
-                                .filter(Individual.task_id==individual1.task_id)\
-                                .filter(Individual.label_id==individual1.label_id)\
+                                .filter(Task.id.in_([r.id for r in individual1.tasks]))\
+                                .filter(Individual.species==individual1.species)\
                                 .filter(Individual.active==True)\
                                 .first()
 
     if individual2.active != True:
         individual2 = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
-                                .filter(Individual.task_id==individual2.task_id)\
-                                .filter(Individual.label_id==individual2.label_id)\
+                                .filter(Task.id.in_([r.id for r in individual2.tasks]))\
+                                .filter(Individual.species==individual2.species)\
                                 .filter(Individual.active==True)\
                                 .first()
 
     task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if (individual1 and individual2) and (individual1.task_id==task.id) and (individual2.task_id==task.id) and (individual1 != individual2) and ((current_user.parent in individual1.task.survey.user.workers) or (current_user.parent == individual1.task.survey.user)):
+    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
@@ -3412,6 +3524,16 @@ def acceptSuggestion(individual_1,individual_2):
         individual1.detections.extend(individual2.detections)
         individual1.user_id = current_user.id
         individual1.timestamp = datetime.utcnow()
+
+        individual1.tasks = db.session.query(Task)\
+                                    .join(Survey)\
+                                    .join(Trapgroup)\
+                                    .join(Camera)\
+                                    .join(Image)\
+                                    .join(Detection)\
+                                    .filter(Detection.individuals.contains(individual1))\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .distinct().all()
 
         # Search through & update indsimilarities
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==individual1.id)).distinct().all()
@@ -3463,17 +3585,19 @@ def rejectSuggestion(individual_1,individual_2):
 
     if individual1.active != True:
         individual1 = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual1.detections[0]))\
-                                .filter(Individual.task_id==individual1.task_id)\
-                                .filter(Individual.label_id==individual1.label_id)\
+                                .filter(Task.id.in_([r.id for r in individual1.tasks]))\
+                                .filter(Individual.species==individual1.species)\
                                 .filter(Individual.active==True)\
                                 .first()
 
     if individual2.active != True:
         individual2 = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
                                 .filter(Individual.detections.contains(individual2.detections[0]))\
-                                .filter(Individual.task_id==individual2.task_id)\
-                                .filter(Individual.label_id==individual2.label_id)\
+                                .filter(Task.id.in_([r.id for r in individual2.tasks]))\
+                                .filter(Individual.species==individual2.species)\
                                 .filter(Individual.active==True)\
                                 .first()
 
@@ -3481,7 +3605,7 @@ def rejectSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if (individual1 and individual2) and (individual1.task_id==task.id) and (individual2.task_id==task.id) and (individual1 != individual2) and ((current_user.parent in individual1.task.survey.user.workers) or (current_user.parent == individual1.task.survey.user)):
+    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         indSimilarity  = db.session.query(IndSimilarity).filter(\
                                     or_(\
@@ -3509,14 +3633,16 @@ def getSuggestion(individual_id):
         return {'redirect': url_for('done')}, 278
 
     suggestionID = request.args.get('suggestion', None)
-    task_id = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.id
+    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     individual1 = db.session.query(Individual).get(int(individual_id))
     reply = {}
 
-    if individual1 and (individual1.task_id==task_id) and ((current_user.parent in individual1.task.survey.user.workers) or (current_user.parent == individual1.task.survey.user)):
-        if not populateMutex(task_id): return json.dumps('error')
+    if individual1 and (task in individual1.tasks) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
+        if not populateMutex(task.id): return json.dumps('error')
 
-        GLOBALS.mutex[task_id]['global'].acquire()
+        GLOBALS.mutex[task.id]['global'].acquire()
 
         if suggestionID:
             suggestion = db.session.query(IndSimilarity).filter(\
@@ -3530,19 +3656,21 @@ def getSuggestion(individual_id):
                                         )).first()
         else:
             if individual1 and individual1.active:
-                tL = re.split(',',individual1.task.tagging_level)
+                tL = re.split(',',task.tagging_level)
 
                 inactiveIndividuals = db.session.query(Individual)\
-                                                .filter(Individual.task_id==task_id)\
-                                                .filter(Individual.label_id==individual1.label_id)\
+                                                .join(Task,Individual.tasks)\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(Individual.species==individual1.species)\
                                                 .filter(Individual.active==False)\
                                                 .filter(Individual.name!='unidentifiable')\
                                                 .all()
                 inactiveIndividuals = [r.id for r in inactiveIndividuals]
 
                 activeIndividuals = db.session.query(Individual)\
-                                                .filter(Individual.task_id==task_id)\
-                                                .filter(Individual.label_id==individual1.label_id)\
+                                                .join(Task,Individual.tasks)\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(Individual.species==individual1.species)\
                                                 .filter(Individual.allocated!=None)\
                                                 .filter(Individual.allocated!=current_user.id)\
                                                 .filter(Individual.name!='unidentifiable')\
@@ -3565,7 +3693,7 @@ def getSuggestion(individual_id):
                 suggestion = None
 
         if suggestion==None:
-            GLOBALS.mutex[task_id]['global'].release()
+            GLOBALS.mutex[task.id]['global'].release()
             reply = {'id': '-876'}
         else:
 
@@ -3587,7 +3715,7 @@ def getSuggestion(individual_id):
             suggestion.allocation_timestamp = datetime.utcnow()
             db.session.commit()
 
-            GLOBALS.mutex[task_id]['global'].release()
+            GLOBALS.mutex[task.id]['global'].release()
 
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
@@ -3740,7 +3868,7 @@ def getIndividualInfo(individual_id):
 
     individual = db.session.query(Individual).get(individual_id)
 
-    if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+    if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
         # Find all family
         family = []
         children = individual.children
@@ -3803,8 +3931,8 @@ def submitIndividuals():
         translations = {}
         individuals = ast.literal_eval(request.form['individuals'])
         tL = re.split(',',task.tagging_level)
-        label_id = int(tL[1])
-        unidentifiable = db.session.query(Individual).filter(Individual.task_id==task_id).filter(Individual.label_id==label_id).filter(Individual.name=='unidentifiable').first()
+        species = tL[1]
+        unidentifiable = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.species==species).filter(Individual.name=='unidentifiable').first()
 
         detection = db.session.query(Detection).get(individuals[list(individuals.keys())[0]]['detections'][0])
         if detection and ((current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
@@ -3817,9 +3945,9 @@ def submitIndividuals():
                     if 'n' not in individualID:
                         check = check.filter(Individual.id!=int(individualID))
 
-                    check = check.filter(Individual.label_id==label_id)\
+                    check = check.filter(Individual.species==species)\
                                         .filter(Individual.name==individuals[individualID]['name'])\
-                                        .filter(Individual.task_id==task_id)\
+                                        .filter(Individual.tasks.contains(task_id))\
                                         .first()
                     
                     if check:
@@ -3843,21 +3971,21 @@ def submitIndividuals():
                         name = individuals[individualID]['name']
 
                         check = db.session.query(Individual)\
-                                            .filter(Individual.label_id==label_id)\
+                                            .filter(Individual.species==species)\
                                             .filter(Individual.name==name)\
-                                            .filter(Individual.task_id==task_id)\
+                                            .filter(Individual.tasks.contains(task))\
                                             .first()
 
                         if check:
-                            name = generateUniqueName(task_id,label_id,tL[2])
+                            name = generateUniqueName(task_id,species,tL[2])
 
                         individual = Individual(
                             name = name,
-                            label_id = label_id,
-                            task_id = task_id,
+                            species = species,
                             user_id = current_user.id
                         )
                         db.session.add(individual)
+                        individual.tasks = [task]
 
                     individual.tags = [db.session.query(Tag).filter(Tag.description==tag).filter(Tag.task_id==task_id).first() for tag in individuals[individualID]['tags']]
                     individual.notes = individuals[individualID]['notes']
@@ -3866,7 +3994,7 @@ def submitIndividuals():
                     det = db.session.query(Detection).get(detID)
 
                     indivs = db.session.query(Individual).filter(Individual.detections.contains(det))\
-                                                        .filter(Individual.task_id==task_id)\
+                                                        .filter(Individual.tasks.contains(task))\
                                                         .filter(Individual.id!=individual.id)\
                                                         .distinct().all()
                     for indiv in indivs:
@@ -4302,7 +4430,7 @@ def individualNote():
     note = request.form['note']
 
     individual = db.session.query(Individual).get(int(individualID))
-    if individual and ((individual.task.survey.user==current_user.parent) or (current_user.parent in individual.task.survey.user.workers)):
+    if individual and ((individual.tasks[0].survey.user==current_user.parent) or (current_user.parent in individual.tasks[0].survey.user.workers)):
         individual.notes = note
         db.session.commit()
         return json.dumps({'status': 'success','message': 'Success.'})
@@ -5479,7 +5607,7 @@ def done():
     turkcode.tagging_time = int((datetime.utcnow() - turkcode.assigned).total_seconds())
 
     if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
-        calculate_individual_similarities.delay(task_id=task_id,label_id=int(re.split(',',task.tagging_level)[1]),user_ids=[current_user.id])
+        calculate_individual_similarities.delay(task_id=task_id,species=re.split(',',task.tagging_level)[1],user_ids=[current_user.id])
     elif '-5' in task.tagging_level:
         #flush allocations
         allocateds = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==current_user.id).all()
