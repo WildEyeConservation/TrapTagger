@@ -299,102 +299,87 @@ def getAllIndividuals():
     search = request.args.get('search', '', type=str)
 
     reply = []
-    task_id = []
-    tag_ids = []
-    species_id = []
     next = None
     prev = None
-    individuals = None
     if(task_ids):
         if task_ids[0] == '0':
-            surveys = db.session.query(Survey).filter(Survey.user_id==current_user.id).all()
-            task_id = [task.id for survey in surveys for task in survey.tasks]
+            task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.user==current_user).all()]
         else:
-            task_id = [int(ids) for ids in task_ids]
-            for taskid in task_id:
-                task = db.session.query(Task).get(taskid)
-                if not task or (task.survey.user != current_user):
-                    task_id.remove(taskid)
-                    # return json.dumps('error')
+            task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()]
 
-             
-    if species_name =='0':
-        individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True)
-    else:
-        species = db.session.query(Label).filter(Label.task_id.in_(task_id)).filter(Label.description==species_name).all()
-        if(species):
-            species_id = [s.id for s in species]
-        individuals = db.session.query(Individual).filter(Individual.task_id.in_(task_id)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.label_id.in_(species_id))
+    individuals = db.session.query(Individual)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .join(Task,Individual.tasks)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.name!='unidentifiable')\
+                        .filter(Individual.active==True)
 
-    if(individuals):
-        if(tag_name != 'None'):
-            if tag_name =='All':
-                tags = db.session.query(Tag).filter(Tag.task_id.in_(task_id)).all()
-            else:
-                tags = db.session.query(Tag).filter(Tag.task_id.in_(task_id)).filter(Tag.description==tag_name).all()
-            if(tags):
-                tag_ids = [t.id for t in tags]
-            individuals = individuals.filter(Individual.tags.any(Tag.id.in_(tag_ids)))
-        
-        if(trap_name != '0'):
-            images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name).all()
-            individuals = individuals.filter(Individual.detections.any(Detection.image_id.in_([image.id for image in images])))
-        
-        if(dates):
-            images = db.session.query(Image).filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1]).all()
-            individuals = individuals.filter(Individual.detections.any(Detection.image_id.in_([image.id for image in images])))
+    if species_name !='0': individuals = individuals.filter(Individual.species==species_name)
 
-        searches = re.split('[ ,]',search)
-        for search in searches:
-            individuals = individuals.filter(Individual.name.contains(search))
+    if(tag_name != 'None'):
+        if tag_name =='All':
+            individuals = individuals.filter(Individual.tags.any())
+        else:
+            individuals = individuals.filter(Individual.tags.any(Tag.description==tag_name))
+    
+    if(trap_name != '0'): individuals = individuals.join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name)
+    
+    if(dates): individuals = individuals.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
 
-        if order == 1:
-            #alphabetical
-            individuals = individuals.order_by(Individual.name)
-        elif order == 2:
-            #Reverse Alphabetical
-            individuals = individuals.order_by(desc(Individual.name))
-        elif order == 3:
-            #Last seen
-            # Get the most recent timestamp for each individual from their related images
-            subquery = db.session.query(
-                Individual.id,
-                db.func.max(Image.corrected_timestamp).label('max_timestamp')
-            ).join(Individual.detections).join(Detection.image).group_by(Individual.id).subquery()
+    searches = re.split('[ ,]',search)
+    for search in searches:
+        individuals = individuals.filter(Individual.name.contains(search))
 
-            # Join the existing query with the subquery and order by the most recent timestamp
-            individuals = individuals.join(subquery, subquery.c.id == Individual.id).order_by(desc(subquery.c.max_timestamp))
-        elif order == 4:
-            #First seen
-            # Get the most recent timestamp for each individual from their related images
-            subquery = db.session.query(
-                Individual.id,
-                db.func.min(Image.corrected_timestamp).label('min_timestamp')
-            ).join(Individual.detections).join(Detection.image).group_by(Individual.id).subquery()
-
-            # Join the existing query with the subquery and order by the most recent timestamp
-            individuals = individuals.join(subquery, subquery.c.id == Individual.id).order_by(subquery.c.min_timestamp)
-
-        individuals = individuals.paginate(page, 12, False)
-
-        for individual in individuals.items:
-            image = db.session.query(Image)\
+    if order == 1:
+        #alphabetical
+        individuals = individuals.order_by(Individual.name)
+    elif order == 2:
+        #Reverse Alphabetical
+        individuals = individuals.order_by(desc(Individual.name))
+    elif order == 3:
+        #Last seen
+        # Get the most recent timestamp for each individual from their related images
+        subquery = db.session.query(Individual.id,func.max(Image.corrected_timestamp).label('max_timestamp'))\
                             .join(Detection)\
-                            .filter(Detection.individuals.contains(individual))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .order_by(desc(Image.detection_rating)).first()
+                            .join(Image)\
+                            .group_by(Individual.id)\
+                            .subquery()
 
-            if(image):
-                reply.append({
-                                'id': individual.id,
-                                'name': individual.name,
-                                'url': image.camera.path + '/' + image.filename
-                            })
+        # Join the existing query with the subquery and order by the most recent timestamp
+        individuals = individuals.join(subquery, subquery.c.id == Individual.id).order_by(desc(subquery.c.max_timestamp))
+    elif order == 4:
+        #First seen
+        # Get the most recent timestamp for each individual from their related images
+        subquery = db.session.query(Individual.id,func.min(Image.corrected_timestamp).label('min_timestamp'))\
+                            .join(Detection)\
+                            .join(Image)\
+                            .group_by(Individual.id)\
+                            .subquery()
 
-        next = individuals.next_num if individuals.has_next else None
-        prev = individuals.prev_num if individuals.has_prev else None
+        # Join the existing query with the subquery and order by the most recent timestamp
+        individuals = individuals.join(subquery, subquery.c.id == Individual.id).order_by(subquery.c.min_timestamp)
+
+    individuals = individuals.paginate(page, 12, False)
+
+    for individual in individuals.items:
+        image = db.session.query(Image)\
+                        .join(Detection)\
+                        .filter(Detection.individuals.contains(individual))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .order_by(desc(Image.detection_rating)).first()
+
+        if image:
+            reply.append({
+                            'id': individual.id,
+                            'name': individual.name,
+                            'url': image.camera.path + '/' + image.filename
+                        })
+
+    next = individuals.next_num if individuals.has_next else None
+    prev = individuals.prev_num if individuals.has_prev else None
 
     return json.dumps({'individuals': reply, 'next':next, 'prev':prev})
 
@@ -406,17 +391,16 @@ def editIndividualName():
     individual_id = ast.literal_eval(request.form['individual_id'])
     name = ast.literal_eval(request.form['name'])
     individual = db.session.query(Individual).get(individual_id)
-    if(name!=''):
-        if(individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user))):
-            check = db.session.query(Individual)
-            check = check.filter(Individual.label_id==individual.label_id)\
+    if name != '':
+        if (individual and (current_user == individual.task.survey.user)):
+            check = db.session.query(Individual)\
+                            .join(Task,Individual.tasks)\
+                            .filter(Individual.species==individual.species)\
                             .filter(Individual.name==name)\
-                            .filter(Individual.task_id==individual.task_id)\
-                            .all()
+                            .filter(Task.id.in_([r.id for r in individual.tasks]))\
+                            .first()
             if check:
-                for c in check:
-                    if c.id != individual.id:
-                        error = "Duplicate name detected. Please enter a different name."
+                error = "Duplicate name detected. Please enter a different name."
             else:
                 individual.name = name
                 db.session.commit()
@@ -528,8 +512,7 @@ def getIndividual(individual_id):
     site = ast.literal_eval(request.form['site']) 
     dates = ast.literal_eval(request.form['dates'])
 
-
-    app.logger.info(order)
+    if Config.DEBUGGING: app.logger.info(order)
     if individual and (individual.task.survey.user==current_user):
         images = db.session.query(Image)\
                     .join(Detection)\
@@ -574,7 +557,8 @@ def getIndividual(individual_id):
                             'url': image.camera.path + '/' + image.filename,
                             'timestamp': image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S"), 
                             'trapgroup': 
-                            {
+                            {   
+                                'id': image.camera.trapgroup.id,
                                 'tag': image.camera.trapgroup.tag,
                                 'latitude': image.camera.trapgroup.latitude,
                                 'longitude': image.camera.trapgroup.longitude,
@@ -636,47 +620,17 @@ def getCameraStamps():
 @login_required
 def getAllLabels():
     '''Returns all labels for that user.'''
-    reply = []
-    surveys = db.session.query(Survey).filter(Survey.user_id==current_user.id).all()
-    for survey in surveys:
-        tasks = survey.tasks
-        for task in tasks:
-            labels = task.labels
-            for label in labels:
-                if label.description not in reply:
-                    reply.append(label.description)
-
-    return json.dumps({'labels': reply})
+    return json.dumps({'labels': [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]})
 
 @app.route('/getAllTags')
 @login_required
 def getAllTags():
-
-    reply = []
-    surveys = db.session.query(Survey).filter(Survey.user_id==current_user.id).all()
-    for survey in surveys:
-        tasks = survey.tasks
-        for task in tasks:
-            tags = task.tags
-            for tag in tags:
-                if tag.description not in reply:
-                    reply.append(tag.description)
-
-    return json.dumps({'tags': reply})
+    return json.dumps({'tags': [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]})
 
 @app.route('/getAllTraps')
 @login_required
 def getAllTraps():
-
-    reply = []
-    surveys = db.session.query(Survey).filter(Survey.user_id==current_user.id).all()
-    for survey in surveys:
-        traps = survey.trapgroups
-        for trap in traps:
-                if trap.tag not in reply:
-                    reply.append(trap.tag)
-
-    return json.dumps({'traps': reply})
+    return json.dumps({'traps': [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]})
 
 @app.route('/getTags/<individual_id>')
 @login_required
@@ -684,17 +638,9 @@ def getTags(individual_id):
     '''Returns the available tags for that individual'''
 
     reply = []
-
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
-
-    individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
-
-    if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
-        tags = db.session.query(Tag).filter(Tag.task_id == individual.task_id).all()
-
-        for tag in tags:
+    if individual and ((current_user == individual.task.survey.user)):
+        for tag in individual.tags:
             reply.append({'id': tag.id, 'tag': tag.description, 'hotkey': tag.hotkey})
 
     return json.dumps(reply)
@@ -704,16 +650,12 @@ def getTags(individual_id):
 def submitTagsIndividual(individual_id):
     ''' Edits the tags for the specified individual'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
-
-    individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
     tags = ast.literal_eval(request.form['tags'])
-    app.logger.info(tags)
-    if individual and((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+    if Config.DEBUGGING: app.logger.info(tags)
+    if individual and((current_user == individual.task.survey.user)):
         if tags:
-            individual.tags = [db.session.query(Tag).filter(Tag.description==tag).filter(Tag.task_id==individual.task_id).first() for tag in tags]
+            individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
         else:
             individual.tags = []
         db.session.commit()
@@ -1817,6 +1759,52 @@ def getPolarData(task_id, trapgroup_id, species_id, baseUnit, reqID):
 
     return json.dumps({'reqID':reqID, 'data':reply})
 
+@app.route('/getPolarDataIndividual/<individual_id>/<baseUnit>', methods=['POST'])
+@login_required
+def getPolarDataIndividual(individual_id, baseUnit):
+    '''
+    Returns the time-of-day activity data for the requested species and task.
+    
+        Parameters:
+            individual_id (int): The indidvidual for which the data is required
+            trapgroup_id (int): The trapgroup for which data is required
+            baseUnit (str): The desired base unit (image, cluster, or labelgroup)
+    '''
+
+    reply = []
+
+    trapgroup_ids = ast.literal_eval(request.form['trapgroup_ids'])  
+    dates = ast.literal_eval(request.form['dates'])
+
+    individual = db.session.query(Individual).get(int(individual_id))
+    if individual and (individual.task.survey.user==current_user):
+        if baseUnit == '1':
+            baseQuery = db.session.query(Image).join(Detection)
+        elif baseUnit == '2':
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection)
+        elif baseUnit == '3':
+            baseQuery = db.session.query(Detection).join(Image)
+        baseQuery = baseQuery.join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+        if trapgroup_ids:
+            trap_ids = [int(x) for x in trapgroup_ids]
+            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids))
+
+        if dates:
+            baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+
+
+        for n in range(24):
+            count = baseQuery.filter(extract('hour',Image.corrected_timestamp)==n).distinct().count()
+            reply.append(count)
+
+    return json.dumps({'data':reply})
+
 @app.route('/getBarData/<task_id>/<species_id>/<baseUnit>/<axis>')
 @login_required
 def getBarData(task_id, species_id, baseUnit, axis):
@@ -1865,6 +1853,61 @@ def getBarData(task_id, species_id, baseUnit, axis):
             for trapgroup in db.session.query(Task).get(int(task_id)).survey.trapgroups[:]:
                 count = baseQuery.filter(Trapgroup.id==trapgroup.id).distinct().count()
                 reply.append(count)
+
+    return json.dumps(reply)
+
+
+@app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_id>', methods=['POST'])
+@login_required
+def getBarData(individual_id, baseUnit, site_id):
+    '''
+    Returns the bar graph data for the requested species and task.
+
+        Parameters:
+            individual_id (int): The indidvidual for which the data is required
+            baseUnit (str): The desired base unit (image, cluster, or sightning)
+            site_id (int): The site for which data is required
+    '''
+
+    reply = []
+    dates = ast.literal_eval(request.form['dates'])
+
+    individual = db.session.query(Individual).get(int(individual_id))
+    if individual and (individual.task.survey.user==current_user):
+        if baseUnit == '1':
+            baseQuery = db.session.query(Image).join(Detection)
+        elif baseUnit == '2':
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection)
+        elif baseUnit == '3':
+            baseQuery = db.session.query(Detection).join(Image)
+        baseQuery = baseQuery.join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+        if site_id != '0':
+            baseQuery = baseQuery.filter(Trapgroup.id == site_id)
+
+        if dates:
+            baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+
+
+        startDate = dates[0].date()
+        endDate = dates[1].date()
+        day_count = (endDate - startDate).days + 1
+        date_list = [startDate + timedelta(days=x) for x in range(day_count)]
+        app.logger.info(date_list)
+        
+        # for n in range(day_count):
+        #     count = baseQuery.filter(extract('year/',Image.corrected_timestamp)==date_list[n]).distinct().count()
+        #     reply.append(count)
+        
+        count = baseQuery.distinct().count()
+        reply = [count]
+
+        
 
     return json.dumps(reply)
 
@@ -4031,7 +4074,6 @@ def getIndividualInfo(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
-        label = db.session.query(Label).get(individual.label_id)
 
         # Find all family
         family = []
@@ -4058,18 +4100,10 @@ def getIndividualInfo(individual_id):
         family.extend(siblings)
         family = list(set(family))
 
-        firstSeen = individual.detections[0].image.corrected_timestamp
-        lastSeen = individual.detections[0].image.corrected_timestamp
-        for detection in individual.detections:
-            if detection.image.corrected_timestamp < firstSeen:
-                firstSeen = detection.image.corrected_timestamp
-            if detection.image.corrected_timestamp > lastSeen:
-                lastSeen = detection.image.corrected_timestamp
+        firstSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()[0].strftime("%Y/%m/%d %H:%M:%S")
+        lastSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(desc(Image.corrected_timestamp)).first()[0].strftime("%Y/%m/%d %H:%M:%S")
 
-        firstSeen = firstSeen.strftime("%Y/%m/%d %H:%M:%S")
-        lastSeen = lastSeen.strftime("%Y/%m/%d %H:%M:%S")
-
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': label.description,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': individual.task.survey.name, 'seen_range': [firstSeen, lastSeen]})
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': individual.task.survey.name, 'seen_range': [firstSeen, lastSeen]})
     else:
         return json.dumps('error')
 
@@ -4789,6 +4823,47 @@ def getTrapgroupCounts(task_id,species,baseUnit):
                 baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
 
         for trapgroup in task.survey.trapgroups[:]:
+            item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
+            if item['count'] > maxVal:
+                maxVal = item['count']
+            data.append(item)
+
+    return json.dumps({'max':maxVal,'data':data})
+
+@app.route('/getTrapgroupCountsIndividual/<individual_id>/<baseUnit>', methods=['POST']	)
+@login_required
+def getTrapgroupCountsIndividual(individual_id,baseUnit):
+    '''
+    Returns the counts of the given species base units for each trapgroup of the specified task.
+    
+        Parameters:
+            individual_id (int): Individual ID
+            baseUnit (int): The base unit to be counted - images (1), clusters (2), or labelgroups (3)
+    '''
+
+    data = []
+    maxVal = 0
+    
+    dates = ast.literal_eval(request.form['dates'])
+
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and (current_user == individual.task.survey.user):
+        if int(baseUnit) == 1:
+            baseQuery = db.session.query(Image).join(Detection)
+        elif int(baseUnit) == 2:
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection)
+        elif int(baseUnit) == 3:
+            baseQuery = db.session.query(Detection).join(Image)
+        baseQuery = baseQuery.join(Camera).filter(Detection.individuals.contains(individual))\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(Detection.static==False)\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))
+
+        if dates:
+            baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+
+        trapgroups = individual.task.survey.trapgroups[:]
+        for trapgroup in trapgroups:
             item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
             if item['count'] > maxVal:
                 maxVal = item['count']

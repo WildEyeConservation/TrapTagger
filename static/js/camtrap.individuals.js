@@ -28,12 +28,8 @@ var currentNote = ''
 var globalTags = null
 var globalLabels = null
 var current_page = null
+// var allSites = null
 
-isTagging = false
-isReviewing = false
-isKnockdown = false
-isBounding = false
-isIDing = false
 
 
 function next_individuals() {
@@ -196,6 +192,10 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
     function(){
         if (this.readyState == 4 && this.status == 200) {
             individualImages = JSON.parse(this.responseText);
+            if(order_value == 'a1' && site == '0' && dates.length == 0){
+                allIndividualImages = individualImages
+            }
+
             console.log(individualImages)
             if(individualImages.length > 0){
                 document.getElementById('individualName').innerHTML = individualName
@@ -337,6 +337,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
 }
 
 function individualTags(){
+    /*Create checkboxes for individual's tags*/
     tagsDiv  = document.getElementById('editTagsDiv')
     while(tagsDiv.firstChild){
         tagsDiv.removeChild(tagsDiv.firstChild);
@@ -465,7 +466,7 @@ function populateTags() {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             console.log(reply)
-            texts = ['All', 'All Tags' ]
+            texts = ['All', 'All with Tags' ]
             texts.push(...reply.tags)
             values = ['None','All']
             values.push(...reply.tags)
@@ -691,12 +692,14 @@ modalIndividual.on('shown.bs.modal', function(){
     }
     
     sites = []
+    allSites = []
     for (let i=0;i<individualImages.length;i++) {
         if (!sites.includes(individualImages[i].trapgroup.tag)) {
             sites.push(individualImages[i].trapgroup.tag)
+            allSites.push(individualImages[i].trapgroup)
         }
     }
-    sites.sort()
+    // sites.sort()
     texts = ['All']
     texts.push(...sites)
     values = ['0']
@@ -886,369 +889,6 @@ function prepMap(image) {
         img.src = imageUrl
     }
 
-}
-
-
-function createIndivMap() {
-    /** Initialises the individual heat map. */
-    trapgroupInfo = []
-    dates = []
-    hm_data = []
-    for (images in individualImages){
-        if(!(trapgroupInfo.some(e => e.tag == individualImages[images].trapgroup.tag))){
-            trapgroupInfo.push(individualImages[images].trapgroup)
-
-            filteredArray = individualImages.filter((item) => item.trapgroup.tag == individualImages[images].trapgroup.tag)
-
-            dict_data = {
-                'lat': individualImages[images].trapgroup.latitude, 
-                'lng': individualImages[images].trapgroup.longitude, 
-                'count': filteredArray.length, 
-                'tag': individualImages[images].trapgroup.tag
-            }
-            hm_data.push(dict_data)
-        }
-
-        date = individualImages[images].timestamp
-        date = date.slice(0, date.indexOf(' ') )
-        if(!dates.includes(date)){
-            dates.push(date)
-        }  
-
-    }
-    statisticsDiv = document.getElementById('statisticsDiv')
-    mainDiv = document.createElement('indivMapDiv')
-    statisticsDiv.appendChild(mainDiv)
-
-    div = document.createElement('div')
-    div.classList.add('row')
-    mainDiv.appendChild(div)
-
-    // space = document.createElement('div')
-    // space.classList.add('col-lg-1')
-    // div.appendChild(space)
-
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    div.appendChild(col1)
-
-    mapDivIndiv = document.createElement('div')
-    mapDivIndiv.setAttribute('id','mapIndivDiv')
-    mapDivIndiv.setAttribute('style','height: 750px')
-    col1.appendChild(mapDivIndiv)
-
-    selectorDiv = document.createElement('div')
-    selectorDiv.classList.add('col-lg-2')
-    div.appendChild(selectorDiv)
-
-    // space = document.createElement('div')
-    // space.classList.add('col-lg-1')
-    // div.appendChild(space)
-
-    
-
-    // Create all the layers
-    osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        maxZoom: 18,
-        id: 'mapbox/satellite-v9',
-        tileSize: 512,
-        zoomOffset: -1,
-        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-    })
-
-    osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        maxZoom: 18,
-        id: 'mapbox/streets-v11',
-        tileSize: 512,
-        zoomOffset: -1,
-        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-    })
-
-    gSat = L.gridLayer.googleMutant({type: 'satellite'})
-    // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
-    // gTer = L.gridLayer.googleMutant({type: 'terrain'})
-    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
-
-    var cfg = {
-        "radius": 0.05,
-        "maxOpacity": .8,
-        "scaleRadius": true,
-        "useLocalExtrema": false,
-        latField: 'lat',
-        lngField: 'lng',
-        valueField: 'count'
-    };
-
-    var invCfg = {
-        "radius": 0.05,
-        "maxOpacity": 0,
-        "scaleRadius": true,
-        "useLocalExtrema": false,
-        latField: 'lat',
-        lngField: 'lng',
-        valueField: 'count'
-    };
-
-    heatmapLayer = new HeatmapOverlay(cfg);
-    invHeatmapLayer = new HeatmapOverlay(invCfg);
-
-    mapStats = new L.map('mapIndivDiv', {
-        layers: [gSat, heatmapLayer]
-    });
-
-    baseMaps = {
-        "Google Satellite": gSat,
-        // "Google Roadmap": gStr,
-        // "Google Terrain": gTer,
-        "Google Hybrid": gHyb,
-        "OpenStreetMaps Satellite": osmSat,
-        "OpenStreetMaps Roadmap": osmSt
-    };
-
-    L.control.layers(baseMaps).addTo(mapStats);
-    L.control.scale().addTo(mapStats);
-    mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-    mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
-
-    mapStats.on('baselayerchange', function(e) {
-        if (e.name.includes('Google')) {
-            mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-            mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
-        }
-    });
-
-    markers = []
-    refMarkers = []
-    for (let i=0;i<trapgroupInfo.length;i++) {
-        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapStats)
-        markers.push(marker)
-        mapStats.addLayer(marker)
-        
-        marker.bindPopup(trapgroupInfo[i].tag);
-        // marker.bindPopup(trapgroupSightings[i]);
-        marker.on('mouseover', function (e) {
-            this.openPopup();
-        });
-        marker.on('mouseout', function (e) {
-            this.closePopup();
-        });
-        
-        refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
-    }
-    refData = {max:2000,data:refMarkers}
-    invHeatmapLayer.setData(refData)
-
-    var group = new L.featureGroup(markers);
-    mapStats.fitBounds(group.getBounds().pad(0.1))
-    if(markers.length == 1) {
-        mapStats.setZoom(10)
-    }
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Date'
-    h5.setAttribute('style','margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = "<i>Select the date for which you would like to view the individual's sightings.</i>"
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','mapDateSelector')
-    selectorDiv.appendChild(select)
-
-    texts = ['All']
-    values = ['0']
-
-    dates.sort((a, b) => new Date(b) - new Date(a));
-    for (d in dates){
-        texts.push(dates[d])
-        values.push(dates[d])
-    }
-
-    clearSelect(select)
-    fillSelect(select, texts, values)
-
-    $("#mapDateSelector").change( function() {
-        /** Listener for the date selector on the individual mapStats modal. */
-        updateMap()
-    })
-
-    selectorDiv.appendChild(document.createElement('br'))
-                
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Radius'
-    h5.setAttribute('style','margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Set the heatmap radius to help identify different trends.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    slideRow = document.createElement('div')
-    slideRow.classList.add('row')
-    selectorDiv.appendChild(slideRow)
-
-    slidecol1 = document.createElement('div')
-    slidecol1.classList.add('col-lg-10')
-    slidecol1.setAttribute('style','padding: 0px')
-    slidecol1.setAttribute('align','center')
-    slideRow.appendChild(slidecol1)
-
-    slidecol2 = document.createElement('div')
-    slidecol2.classList.add('col-lg-2')
-    slidecol2.setAttribute('style','padding-left: 0px')
-    slideRow.appendChild(slidecol2)
-
-    radiusSliderdiv1 = document.createElement('div')
-    radiusSliderdiv1.setAttribute('class','justify-content-center')
-    slidecol1.appendChild(radiusSliderdiv1)
-
-    radiusSliderdiv2 = document.createElement('div')
-    radiusSliderdiv2.setAttribute('class','w-75')
-    radiusSliderdiv1.appendChild(radiusSliderdiv2)
-
-    radiusSliderspan = document.createElement('div')
-    radiusSliderspan.setAttribute('id','radiusSliderspan')
-    radiusSliderspan.setAttribute('align','right')
-    radiusSliderspan.setAttribute('style','font-size: 80%')
-    radiusSliderspan.innerHTML = '50'
-    slidecol2.appendChild(radiusSliderspan)
-
-    radiusSlider = document.createElement('input')
-    radiusSlider.setAttribute('type','range')
-    radiusSlider.setAttribute('class','custom-range')
-    radiusSlider.setAttribute('id','radiusSlider')
-    radiusSlider.setAttribute('min','0')
-    radiusSlider.setAttribute('max','100')
-    radiusSlider.value = 54
-    radiusSliderdiv2.appendChild(radiusSlider)
-
-    $("#radiusSlider").change( function() {
-        
-        value = document.getElementById('radiusSlider').value
-        value = logslider(value)
-        document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
-        
-        if(document.getElementById('heatMapCheckBox').checked){
-            heatmapLayer.cfg.radius = value
-            heatmapLayer._update()
-        }
-        
-    });
-
-    selectorDiv.appendChild(document.createElement('br'))
-
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    selectorDiv.appendChild(checkBoxDiv)
-
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','heatMapCheckBox')
-    checkBox.setAttribute('name','heatMapCheckBox')
-    checkBox.checked = false
-    checkBoxDiv.appendChild(checkBox)
-
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','heatMapCheckBox')
-    checkBoxLabel.innerHTML = 'Show Heat Map'
-    checkBoxDiv.appendChild(checkBoxLabel)
-
-    $("#heatMapCheckBox").change( function() {
-        updateMap()
-    });
-        
-}
-
-
-
-function updateMap(){
-    /** Updates the map based on the date selector and heat map checkbox. */
-    traps = []
-    if (select.value == '0'){
-        for (let i=0;i<markers.length;i++) {
-            if (!mapStats.hasLayer(markers[i])) {
-                mapStats.addLayer(markers[i])
-            }
-        }
-
-        if (document.getElementById('heatMapCheckBox').checked) {
-            mapStats.removeLayer(heatmapLayer)
-            data = {
-                'data' : hm_data,
-                'max': individualImages.length
-            }
-            heatmapLayer.setData(data)
-            mapStats.addLayer(heatmapLayer)
-        }else{
-            mapStats.removeLayer(heatmapLayer)
-        }
-
-    }
-    else  {
-        
-        for (i in individualImages){
-            if(individualImages[i].timestamp.includes(select.value)){
-                if(!traps.includes(individualImages[i].trapgroup.tag)){
-                    traps.push(individualImages[i].trapgroup.tag)
-                }
-            }
-        }
-
-        for (let i=0;i<markers.length;i++) {
-            for (let t=0;t<traps.length;t++) {
-                if(markers[i]._popup._content == traps[t]){
-                    if (!mapStats.hasLayer(markers[i])) {
-                        mapStats.addLayer(markers[i])
-                    }
-                }
-                else{
-                    if (mapStats.hasLayer(markers[i])) {
-                        mapStats.removeLayer(markers[i])
-                    }
-                }
-            }
-                
-        }
-
-        if (document.getElementById('heatMapCheckBox').checked) {
-            mapStats.removeLayer(heatmapLayer)
-            filteredArray = hm_data.filter((item) => traps.includes(item.tag));
-            data = {
-                'data' : filteredArray,
-                'max': individualImages.length
-            }
-            heatmapLayer.setData(data)
-            mapStats.addLayer(heatmapLayer)
-        }else{
-            mapStats.removeLayer(heatmapLayer)
-        }
-    }
-}
-
-function logslider(position) {
-    /** Converts a position value from a linear slider into a logorithmic value between 0.01 and 2. */
-    
-    // position will be between 0 and 100
-    var minp = 0;
-    var maxp = 100;
-  
-    // The result should be between 0.01 an 2
-    var minv = Math.log(0.01);
-    var maxv = Math.log(0.2);
-  
-    // calculate adjustment factor
-    var scale = (maxv-minv) / (maxp-minp);
-  
-    return Math.exp(minv + scale*(position-minp));
 }
 
 function deleteIndividual() {
@@ -1591,22 +1231,20 @@ function checkSurvey(){
 
 function initialiseStats(){
     /** Initialises the stats for an individual*/
-    statisticsDiv = document.getElementById('statisticsDiv')
-    while(statisticsDiv.firstChild){
-        statisticsDiv.removeChild(statisticsDiv.firstChild)
-    }   
+    clearStatistics() 
 
     statsSelect = document.getElementById('statsSelect')
     if(statsSelect.value == '1'){
         statisticsDiv.appendChild(document.createElement('br'))
+        createIndivPolarChart()
     }
     else if(statsSelect.value == '2'){
-        // indivMapDiv = document.createElement('indivMapDiv')
         statisticsDiv.appendChild(document.createElement('br'))
         createIndivMap()
     }
     else if(statsSelect.value == '3'){
         statisticsDiv.appendChild(document.createElement('br'))
+        createIndivBar()
     }
     
 }

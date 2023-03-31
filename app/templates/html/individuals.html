@@ -243,26 +243,8 @@ limitations under the License. -->
                 <div class="row">
                     <div class="col-lg-1"></div>
                     <div class="col-lg-10">
+                        <div id="statisticsErrors"></div>
                         <div id="statisticsDiv"></div>
-                        <!-- <div class="row">
-                            <div class="col-lg-6">
-                                <div id="statisticsDiv1">
-                                    <div id="indivMapDiv"></div>
-                                </div>  
-                            </div>
-                            <div class="col-lg-6">
-                                <div id="statisticsDiv2"></div>  
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-lg-6">
-                                <div id="statisticsDiv3">
-                                </div>  
-                            </div>
-                            <div class="col-lg-6">
-                                <div id="statisticsDiv4"></div>  
-                            </div>
-                        </div> -->
                     </div>
                     <div class="col-lg-1"></div>
                 </div>
@@ -387,6 +369,7 @@ limitations under the License. -->
 
 {% block page_scripts %}
 <script src="js/camtrap.individuals.v{{ version }}.js"></script>
+<script src="js/camtrap.individuals.statistics.v{{ version }}.js"></script>
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/css/splide.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@latest/dist/js/splide.min.js"></script>
@@ -400,4 +383,5 @@ limitations under the License. -->
 <script src="js/leaflet-heatmap.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ" defer></script>
 <script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
 {% endblock %}
