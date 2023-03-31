@@ -91,7 +91,7 @@ individualTasks = db.Table('individualTasks',
     db.UniqueConstraint('task_id', 'individual_id')
 )
 
-individualTaskGroupings = db.Table("individualTaskGroupings",
+taskGroupings = db.Table("taskGroupings",
     db.Column("master_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
     db.Column("sub_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
     db.UniqueConstraint('master_id', 'sub_id')
@@ -309,7 +309,7 @@ class Individual(db.Model):
     allocation_timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     detections = db.relationship('Detection', secondary=individualDetections, lazy='subquery', backref=db.backref('individuals', lazy=True))
     tags = db.relationship('Tag', secondary=individualTags, lazy='subquery', backref=db.backref('individuals', lazy=True))
-    labels = db.relationship('Task', secondary=individualTasks, lazy='subquery', backref=db.backref('individuals', lazy=True))
+    tasks = db.relationship('Task', secondary=individualTasks, lazy='subquery', backref=db.backref('individuals', lazy=True))
     children = db.relationship("Individual",
                         secondary=individual_parent_child,
                         primaryjoin=id==individual_parent_child.c.parent_id,
@@ -375,9 +375,9 @@ class Task(db.Model):
     translations = db.relationship('Translation', backref='task', lazy='dynamic')
     individuals = db.relationship('Individual', backref='task', lazy='dynamic')
     sub_tasks = db.relationship("Task",
-                        secondary=individualTaskGroupings,
-                        primaryjoin=id==individualTaskGroupings.c.master_id,
-                        secondaryjoin=id==individualTaskGroupings.c.sub_id,
+                        secondary=taskGroupings,
+                        primaryjoin=id==taskGroupings.c.master_id,
+                        secondaryjoin=id==taskGroupings.c.sub_id,
                         backref="master"
     )
 
