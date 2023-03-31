@@ -1892,7 +1892,7 @@ def getBarData(task_id, species_id, baseUnit, axis):
 
 @app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_id>', methods=['POST'])
 @login_required
-def getBarData(individual_id, baseUnit, site_id):
+def getBarDataIndividual(individual_id, baseUnit, site_id):
     '''
     Returns the bar graph data for the requested species and task.
 
