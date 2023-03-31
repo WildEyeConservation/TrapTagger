@@ -373,7 +373,7 @@ class Task(db.Model):
     tags = db.relationship('Tag', backref='task', lazy='dynamic')
     labelgroups = db.relationship('Labelgroup', backref='task', lazy='dynamic')
     translations = db.relationship('Translation', backref='task', lazy='dynamic')
-    individuals = db.relationship('Individual', backref='task', lazy='dynamic')
+    # individuals = db.relationship('Individual', backref='task', lazy='dynamic')
     sub_tasks = db.relationship("Task",
                         secondary=taskGroupings,
                         primaryjoin=id==taskGroupings.c.master_id,
