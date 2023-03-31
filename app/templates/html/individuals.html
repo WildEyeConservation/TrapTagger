@@ -315,9 +315,17 @@ limitations under the License. -->
                 </div>
             </div>
             <div class="modal-body">
-
                 <h5 style="margin-bottom: 2px">Description</h5>
                 <div style="font-size: 80%; margin-bottom: 2px" id="annotationDescription"><i>Identify specific individuals for a chosen individual across surveys. It is required that you complete individual identification for each survey of interest before beginning this process.</i></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Annotation Level</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to annotate.</i></div>
+                <div class="row">
+                    <div class='col-lg-4'>
+                        <select class="form-control" id="taskTaggingLevel"></select>
+                    </div>
+                </div>
                 <br>
 
                 <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
@@ -336,23 +344,16 @@ limitations under the License. -->
                 </div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Annotation Level</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>The label category you would like to annotate.</i></div>
-                <div class="row">
-                    <div class='col-lg-4'>
-                        <select class="form-control" id="taskTaggingLevel"></select>
-                    </div>
-                </div>
-                <br>
-
                 <div id="individualLevel"></div>
+
+                <div id="launchErrors" style="font-size: 80%; color: #DF691A"></div>
 
           
             </div>
             <div class='modal-footer'>
 
                     <div class='col-lg-2'>
-                        <button id="launchIDbtn" type='button' class='btn btn-primary btn-block' >Launch</button>
+                        <button id="btnLaunch" type='button' class='btn btn-primary btn-block' >Launch</button>
                     </div>
                     <div class='col-lg-2'>
                         <button id="helpclose" type='button' class='btn btn-info btn-block' 

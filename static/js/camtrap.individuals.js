@@ -44,13 +44,8 @@ function prev_individuals() {
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
-    var tasks = []
-    var selectedLabel = '0'
-    var selectedTag = 'None'
-    var selectedTrap = '0'
-    var selectedStartDate = ''
-    var selectedEndDate = ''
-
+    tasks = []
+    
     checkSurvey()
     validateDateRange()
 
@@ -65,11 +60,22 @@ function getIndividuals(page = null) {
     }
 
     if(legalSurvey && !modalActive && validDate){
+
         selectedLabel = document.getElementById('individualSpeciesSelector').value
+        if(selectedLabel == ''){
+            selectedLabel = '0'
+        }
         selectedTag = document.getElementById('individualTagSelector').value
+        if(selectedTag == ''){
+            selectedTag = 'None'
+        }
         selectedTrap = document.getElementById('sitesSelector').value
+        if(selectedTrap == ''){
+            selectedTrap = '0'
+        }
         selectedStartDate = document.getElementById('startDate').value 
         selectedEndDate = document.getElementById('endDate').value 
+
 
         if(selectedStartDate != '' && selectedEndDate != ''){
             dates = [selectedStartDate + ' 00:00:00',selectedEndDate + ' 23:59:59']
@@ -98,9 +104,10 @@ function getIndividuals(page = null) {
         }
         
         search = document.getElementById('individualSearch').value
-        if( search != null){
-            request += '&search='+search.toString()
-        }
+        formData.append("search", JSON.stringify(search))
+        // if( search != null){
+        //     request += '&search='+search.toString()
+        // }
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", request);
@@ -412,16 +419,10 @@ function submitIndividualTags(){
     xhttp.send(formData);   
 }
 
-$("#individualSpeciesSelector").change( function() {
-    /** Listener for the species selector on the the individuals page. */
-    getIndividuals()
-})
-
-function populateSpecies() {
-    /**Populates the species selector on the individuals page*/
-
+function populateSelectors(){
+    /** Populates the species ,tag, and site selectors on the individuals page. */
     var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/getAllLabels');
+    xhttp.open("GET", '/getAllLabelsTagsTraps');
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
@@ -436,13 +437,32 @@ function populateSpecies() {
                 fillSelect(document.getElementById('taskTaggingLevel'), texts, values)
             }
             else{
+                //Populate species selector
                 texts = ['All']
                 texts.push(...reply.labels)
                 values = ['0']
                 values.push(...reply.labels)
                 clearSelect(document.getElementById('individualSpeciesSelector'))
                 fillSelect(document.getElementById('individualSpeciesSelector'), texts, values)
+
+                //Populate tag selector
+                texts = ['All', 'All with Tags' ]
+                texts.push(...reply.tags)
+                values = ['None','All']
+                values.push(...reply.tags)
+                clearSelect(document.getElementById('individualTagSelector'))
+                fillSelect(document.getElementById('individualTagSelector'), texts, values)
+
+                //Populate site selector
+                texts = ['All']
+                texts.push(...reply.traps)
+                values = ['0']
+                values.push(...reply.traps)
+                clearSelect(document.getElementById('sitesSelector'))
+                fillSelect(document.getElementById('sitesSelector'), texts, values)
+
                 getIndividuals()
+
             }
             
         }
@@ -456,56 +476,15 @@ function populateSpecies() {
 
 }
 
-function populateTags() {
-    /**Populates the tags selector on the individuals page*/
-
-    var xhttp = new XMLHttpRequest();   
-    xhttp.open("GET", '/getAllTags');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            console.log(reply)
-            texts = ['All', 'All with Tags' ]
-            texts.push(...reply.tags)
-            values = ['None','All']
-            values.push(...reply.tags)
-            clearSelect(document.getElementById('individualTagSelector'))
-            fillSelect(document.getElementById('individualTagSelector'), texts, values)
-            getIndividuals()
-        }
-    }
-    xhttp.send();
-}
-
+$("#individualSpeciesSelector").change( function() {
+    /** Listener for the species selector on the the individuals page. */
+    getIndividuals()
+})
 
 $("#individualTagSelector").change( function() {
     // Listener for the tags selectors on the the individuals page.
     getIndividuals()
 })
-
-function populateTraps() {
-    /**Populates the tags selector on the individuals page*/
-
-    var xhttp = new XMLHttpRequest();   
-    xhttp.open("GET", '/getAllTraps');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            console.log(reply)
-            texts = ['All']
-            texts.push(...reply.traps)
-            values = ['0']
-            values.push(...reply.traps)
-            clearSelect(document.getElementById('sitesSelector'))
-            fillSelect(document.getElementById('sitesSelector'), texts, values)
-            getIndividuals()
-        }
-    }
-    xhttp.send();
-}
-
 
 $("#sitesSelector").change( function() {
     // Listener for the tags selectors on the the individuals page.
@@ -1106,24 +1085,185 @@ function buildSurveySelect(){
     
 }
 
+function buildSurveySelectLaunchID(){
+    /** Builds the survey selectors for the modal  */
+    
+    IDNum = getIdNumforNext('idSurveySelect1-')
+    surveySelect = document.getElementById('surveySelect1')
 
-function addSurvey(){
-    /** Initialises the survey selectors  */
+    row = document.createElement('div')
+    row.classList.add('row')
+    surveySelect.appendChild(row)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-4')
+    row.appendChild(col1)
+
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-4')
+    row.appendChild(col2)
+
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+    
+    idSurveySelect = document.createElement('select')
+    idSurveySelect.classList.add('form-control')
+
+    idSurveySelect.id = 'idSurveySelect1-'+String(IDNum)
+    
+    
+    idSurveySelect.name = idSurveySelect.id
+    col1.appendChild(idSurveySelect)
+
+    idTaskSelect = document.createElement('select')
+    idTaskSelect.classList.add('form-control')
+
+    idTaskSelect.id = 'idTaskSelect1-'+String(IDNum)
+    
+
+    idTaskSelect.name = idTaskSelect.id
+
+    col2.appendChild(idTaskSelect)
+    
+
+    if (surveys != null) {
+        
+        if(IDNum==0){
+            optionTexts = ['All']
+            optionValues = ["0"]  
+            fillSelect(idTaskSelect, [''], ['0'])
+        }
+        else{
+            optionTexts = ['None']
+            optionValues = ['-99999'] 
+            fillSelect(idTaskSelect, [''], ['-99999'])
+        }
+                 
+        // for (let i=0;i<surveys.length;i++) {
+        //     optionTexts.push(surveys[i])
+        //     optionValues.push(surveys[i])
+        // }
+
+        for (survey_name in surveys){
+            optionTexts.push(survey_name)
+            optionValues.push(survey_name)
+        }
+
+        clearSelect(idSurveySelect)
+        fillSelect(idSurveySelect, optionTexts, optionValues)  
+        
+    }
+
+    if (IDNum!=0) {
+        btnRemove = document.createElement('button');
+        btnRemove.classList.add('btn');
+        btnRemove.classList.add('btn-info');
+        btnRemove.innerHTML = '&times;';
+        btnRemove.addEventListener('click', (evt)=>{
+            evt.target.parentNode.parentNode.remove();
+            checkSurvey()
+            if(!(modalLaunchID).is(':visible')){
+                getIndividuals(current_page)
+            }
+        });
+        col3.appendChild(btnRemove);
+    }
+
+    $("#"+idSurveySelect.id).change( function(wrapIDNum) {
+        return function() {
+            if(modalActive){
+                idSurveySelect = document.getElementById('idSurveySelect1-'+String(wrapIDNum))
+                idTaskSelect = document.getElementById('idTaskSelect1-'+String(wrapIDNum))
+            }
+            else{
+                idSurveySelect = document.getElementById('idSurveySelect-'+String(wrapIDNum))
+                idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
+            }
+            
+            survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
+            if (survey=="0") {
+                clearSelect(idTaskSelect)
+                fillSelect(idTaskSelect, [''], ['0'])
+                checkSurvey()
+            } else {
+
+                optionTexts = []      
+                optionValues = []
+
+                survey_name = idSurveySelect.options[idSurveySelect.selectedIndex].text
+                for (let i=0;i<surveys[survey_name].length;i++) {
+                    optionTexts.push(surveys[survey_name][i].name)
+                    optionValues.push(surveys[survey_name][i].task_id)
+                }
+
+                clearSelect(idTaskSelect)
+                fillSelect(idTaskSelect, optionTexts, optionValues)
+
+                checkSurvey()
+                            
+            }
+                               
+        }
+    }(IDNum));
+
+    $("#"+idTaskSelect.id).change( function() {
+        checkSurvey()
+    })
+}
+
+$('#taskTaggingLevel').change(function(){
+    /** Changes the survey selectors when the tagging level is changed  */
+    addSurveyTask = document.getElementById('addSurveyTask1')
+    while(addSurveyTask.firstChild){
+        addSurveyTask.removeChild(addSurveyTask.firstChild);
+    }
+    surveySelect = document.getElementById('surveySelect1')
+    while(surveySelect.firstChild){
+        surveySelect.removeChild(surveySelect.firstChild);
+    }
+    addSurvey()
+})
+
+function getSurveysandTasks(){
+    /** Get surveys and tasks for Launch ID */
+
+    species = document.getElementById('taskTaggingLevel').value
+    var formData = new FormData();
+    formData.append('species', species)
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             surveys = JSON.parse(this.responseText);  
-            buildSurveySelect()
+            console.log(surveys)
+            buildSurveySelectLaunchID()
         }
     }
-    xhttp.open("GET", '/getSurveys');
-    xhttp.send();
+    xhttp.open("POST", '/getIndividualIDSurveysTasks');
+    xhttp.send(formData);
+}
+
+function addSurvey(){
+    /** Initialises the survey selectors  */
 
     if(modalActive){
+        getSurveysandTasks()
         addSurveyTask = document.getElementById('addSurveyTask1')
     }
     else{
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                surveys = JSON.parse(this.responseText);  
+                buildSurveySelect()
+            }
+        }
+        xhttp.open("GET", '/getSurveys');
+        xhttp.send();
+
         addSurveyTask = document.getElementById('addSurveyTask')
     }
     row = document.createElement('div')
@@ -1139,7 +1279,12 @@ function addSurvey(){
     btnAdd.classList.add('btn-info');
     btnAdd.innerHTML = '&plus;';
     btnAdd.addEventListener('click', ()=>{
-        buildSurveySelect()
+        if(modalActive){    
+            buildSurveySelectLaunchID()
+        }
+        else{
+            buildSurveySelect()
+        }
         checkSurvey()
         if(!(modalLaunchID).is(':visible')){
             getIndividuals()
@@ -1259,7 +1404,7 @@ modalLaunchID.on('shown.bs.modal', function(){
     modalActive = true
     addSurvey()
     checkSurvey()
-    populateSpecies()
+    populateSelectors()
 
     individualLevel = document.getElementById('individualLevel')
     while(individualLevel.firstChild){
@@ -1349,7 +1494,96 @@ modalLaunchID.on('shown.bs.modal', function(){
 
     individualOptionsDiv.appendChild(document.createElement('br'))
       
+    btnLaunch = document.getElementById('btnLaunch')
 
+    btnLaunch.addEventListener('click', function(){
+        /** Launches the individual ID */
+        selectedTasks = []
+        allTasks = document.querySelectorAll('[id^=idTaskSelect1-]')
+        for (let i=0;i<allTasks.length;i++) {
+            if (allTasks[i].value != '-99999'){
+                selectedTasks.push(allTasks[i].value)
+            } 
+            if(allTasks[i].value == ''){
+                selectedTasks.push('0')
+            }
+        }
+
+        taskSize = document.getElementById('taskSize').value
+        taskTaggingLevel = '-5,' + document.getElementById('taskTaggingLevel').value
+        isBounding = false
+
+        allow = true
+        document.getElementById('launchErrors').innerHTML = ''
+
+        checkSurvey()
+        if(!legalSurvey){
+            document.getElementById('launchErrors').innerHTML = 'Please fix the survey errors before launching.'
+            allow = false
+        }
+
+        if (document.getElementById('idStage')[document.getElementById('idStage').selectedIndex].text == 'Exhaustive') {
+            taskTaggingLevel += ',0'
+        } else {
+            taskTaggingLevel += ',-1'
+        }
+
+        if (document.getElementById('hotspotter').checked) {
+            taskTaggingLevel += ',h'
+        } else if (document.getElementById('heuristic').checked) {
+            taskTaggingLevel += ',n'
+        } else {
+            document.getElementById('launchErrors').innerHTML = 'Please select an algorithm.'
+            allow = false
+        }
+
+        if( taskSize == ''){	
+            document.getElementById('launchErrors').innerHTML = 'Batch size cannot be empty.'
+            allow = false
+        }
+        else if (isNaN(taskSize)) {
+            document.getElementById('launchErrors').innerHTML = 'Batch size must be a number.'
+            allow = false
+        } else if (taskSize>10000) {
+            document.getElementById('launchErrors').innerHTML = 'Batch size cannot be greater than 10000.'
+            allow = false
+        } else if (taskSize<1) {
+            document.getElementById('launchErrors').innerHTML = 'Batch size cannot be less than 1.'
+            allow = false
+        }
+
+        if(allow){
+            btnLaunch.disabled=true
+            document.getElementById('launchErrors').innerHTML = ''	
+
+            var formData = new FormData()
+            formData.append("selectedTasks", selectedTasks)
+            formData.append("taskSize", taskSize)
+            formData.append("taskTaggingLevel", taskTaggingLevel)
+            formData.append("isBounding", isBounding)
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+
+                    if (reply.status=='Success') {
+                        modalLaunchTask.modal('hide')
+                    }
+                    else {
+                        document.getElementById('launchErrors').innerHTML = reply.message
+                    }
+
+                    btnLaunch.disabled=false
+
+                }
+                    
+            }
+            xhttp.open("POST", '/launchTask');
+            xhttp.send(formData);
+        }
+    });
     
 })
 
@@ -1367,7 +1601,9 @@ modalLaunchID.on('hidden.bs.modal', function(){
     while(individualLevel.firstChild){
         individualLevel.removeChild(individualLevel.firstChild);
     }
+    document.getElementById('launchErrors').innerHTML = ''
     modalActive = false
+    btnLaunch.disabled=false
     getIndividuals(current_page)
 })
 
@@ -1463,9 +1699,7 @@ function onload(){
     /**Function for initialising the page on load.*/
     addSurvey()
     checkSurvey()
-    populateSpecies()
-    populateTags()
-    populateTraps()
+    populateSelectors()
 }
 
 window.addEventListener('load', onload, false);

@@ -334,10 +334,11 @@ def getAllIndividuals():
     tag_name = ast.literal_eval(request.form['tag_name'])
     trap_name = ast.literal_eval(request.form['trap_name']) 
     dates = ast.literal_eval(request.form['dates'])
+    search = ast.literal_eval(request.form['search'])
 
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
-    search = request.args.get('search', '', type=str)
+    
 
     reply = []
     next = None
@@ -660,21 +661,14 @@ def getCameraStamps():
 
     return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
 
-@app.route('/getAllLabels')
+@app.route('/getAllLabelsTagsTraps')
 @login_required
-def getAllLabels():
-    '''Returns all labels for that user.'''
-    return json.dumps({'labels': [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]})
+def getAllLabelsTagsTraps():
+    labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+    tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+    traps = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
 
-@app.route('/getAllTags')
-@login_required
-def getAllTags():
-    return json.dumps({'tags': [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]})
-
-@app.route('/getAllTraps')
-@login_required
-def getAllTraps():
-    return json.dumps({'traps': [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]})
+    return json.dumps({'labels': labels, 'tags': tags, 'traps': traps})
 
 @app.route('/getTags/<individual_id>')
 @login_required
@@ -6984,7 +6978,7 @@ def download_complete():
     
     return json.dumps('error')
 
-@app.route('/getIndividualIDSurveysTasks')
+@app.route('/getIndividualIDSurveysTasks', methods=['POST'])
 @login_required
 def getIndividualIDSurveysTasks():
     '''Returns surveys and tasks available for individual ID for the specified species.'''
@@ -7007,7 +7001,7 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_count==0)\
                         .filter(Task.survey==survey)\
                         .distinct().all()
-        
+
         reply[survey.name] = []
         for task in tasks:
             reply[survey.name].append({'task_id':task.id,'name':task.name})
