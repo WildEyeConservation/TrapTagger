@@ -672,7 +672,7 @@ def getTags(individual_id):
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and ((current_user == individual.task.survey.user)):
+    if individual and ((current_user == individual.tasks[0].survey.user)):
         for tag in individual.tags:
             reply.append({'id': tag.id, 'tag': tag.description, 'hotkey': tag.hotkey})
 
@@ -686,7 +686,7 @@ def submitTagsIndividual(individual_id):
     individual = db.session.query(Individual).get(individual_id)
     tags = ast.literal_eval(request.form['tags'])
     if Config.DEBUGGING: app.logger.info(tags)
-    if individual and((current_user == individual.task.survey.user)):
+    if individual and((current_user == individual.tasks[0].survey.user)):
         if tags:
             individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
         else:
@@ -1810,7 +1810,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
     dates = ast.literal_eval(request.form['dates'])
 
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and (individual.task.survey.user==current_user):
+    if individual and (individual.tasks[0].survey.user==current_user):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -1906,7 +1906,7 @@ def getBarData(individual_id, baseUnit, site_id):
     dates = ast.literal_eval(request.form['dates'])
 
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and (individual.task.survey.user==current_user):
+    if individual and (individual.tasks[0].survey.user==current_user):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -4231,7 +4231,7 @@ def getIndividualInfo(individual_id):
         firstSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()[0].strftime("%Y/%m/%d %H:%M:%S")
         lastSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(desc(Image.corrected_timestamp)).first()[0].strftime("%Y/%m/%d %H:%M:%S")
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': individual.task.survey.name, 'seen_range': [firstSeen, lastSeen]})
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': individual.tasks[0].survey.name, 'seen_range': [firstSeen, lastSeen]})
     else:
         return json.dumps('error')
 
@@ -4975,7 +4975,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
     dates = ast.literal_eval(request.form['dates'])
 
     individual = db.session.query(Individual).get(individual_id)
-    if individual and (current_user == individual.task.survey.user):
+    if individual and (current_user == individual.tasks[0].survey.user):
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection)
         elif int(baseUnit) == 2:
@@ -4990,7 +4990,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
         if dates:
             baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
 
-        trapgroups = individual.task.survey.trapgroups[:]
+        trapgroups = individual.tasks[0].survey.trapgroups[:]
         for trapgroup in trapgroups:
             item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
             if item['count'] > maxVal:
@@ -5086,7 +5086,7 @@ def assignNote():
         else:
             individualID = ast.literal_eval(request.form['individual_id'])
             individual = db.session.query(Individual).get(individualID)
-            if individual and ((current_user.parent in individual.task.survey.user.workers) or (current_user.parent == individual.task.survey.user) or (current_user == individual.task.survey.user)):
+            if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
                 if len(note) > 512:
                     note = note[:512]
                 individual.notes = note
