@@ -269,6 +269,7 @@ class Label(db.Model):
     hotkey = db.Column(db.String(1), index=False)
     complete = db.Column(db.Boolean, default=False, index=False)
     icID_allowed = db.Column(db.Boolean, default=False, index=False)
+    icID_count = db.Column(db.Integer, index=False)
     cluster_count = db.Column(db.Integer, index=False)
     bounding_count = db.Column(db.Integer, index=False)
     info_tag_count = db.Column(db.Integer, index=False)

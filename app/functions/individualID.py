@@ -788,6 +788,7 @@ def cleanUpIndividuals(task_id):
         individual.detections = []
         individual.children = []
         individual.parents = []
+        individual.tasks = []
         db.session.delete(individual)
     db.session.commit()
 

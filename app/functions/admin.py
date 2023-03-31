@@ -122,6 +122,7 @@ def delete_task(self,task_id):
                         individual.detections = []
                         individual.children = []
                         individual.tags = []
+                        individual.tasks = []
                     db.session.commit()
 
                     for individual in chunk:

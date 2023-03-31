@@ -303,7 +303,7 @@ def launch_task(self,task_id):
         
         # Mark clusters that need to be examined
         if '-5' in taggingLevel:
-            cluster_count = checkForIdWork(task_id,species,tL[2])
+            cluster_count = checkForIdWork(task_ids,species,tL[2])
 
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate

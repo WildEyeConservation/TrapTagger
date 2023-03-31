@@ -1733,6 +1733,7 @@ def remove_duplicate_images(survey_id):
     for individual in individuals:
         individual.children = []
         individual.tags = []
+        individual.tasks = []
     db.session.commit()
 
     for individual in individuals:

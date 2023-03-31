@@ -713,6 +713,8 @@ def updateIndividualIdStatus(task_id):
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().count()
         
+        label.icID_count = checkForIdWork([label.task_id],label.description,'-1')
+        
     db.session.commit()
 
     return True
@@ -1576,40 +1578,52 @@ def coordinateDistance(lat1,lon1,lat2,lon2):
     
     return distance
 
-def checkForIdWork(task_id,label,theshold):
+def checkForIdWork(task_ids,label,theshold):
     '''Returns the number of individuals that need to be examined during inter-cluster indentification for the specified task and label.'''
 
-    task = db.session.query(Task).get(task_id)
-    task_ids = [r.id for r in task.sub_tasks]
-    task_ids.append(task.id)
     OtherIndividual = alias(Individual)
     if theshold=='-1': theshold=Config.SIMILARITY_SCORE
 
+    relevant_detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .join(Camera)\
+                                    .join(Trapgroup)\
+                                    .join(Survey)\
+                                    .join(Task)\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .subquery()
+    
+    relevant_individuals = db.session.query(Individual)\
+                                    .join(Detection,Individual.detections)\
+                                    .join(relevant_detections,relevant_detections.c.id==Detection.id)\
+                                    .filter(Individual.species==label)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .subquery()
+    
+    relevant_individuals2 = db.session.query(Individual)\
+                                    .join(Detection,Individual.detections)\
+                                    .join(relevant_detections,relevant_detections.c.id==Detection.id)\
+                                    .filter(Individual.species==label)\
+                                    .filter(Individual.active==True)\
+                                    .filter(Individual.name!='unidentifiable')\
+                                    .subquery()
+
     sq1 = db.session.query(Individual.id.label('indID1'))\
-                    .join(Task,Individual.tasks)\
                     .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                    .filter(OtherIndividual.c.active==True)\
-                    .filter(OtherIndividual.c.name!='unidentifiable')\
+                    .join(relevant_individuals,relevant_individuals.c.id==Individual.id)\
+                    .join(relevant_individuals2,relevant_individuals2.c.id==OtherIndividual.id)\
                     .filter(IndSimilarity.score>=theshold)\
-                    .filter(Task.id.in_(task_ids))\
-                    .filter(Individual.species==label)\
-                    .filter(Individual.active==True)\
-                    .filter(Individual.name!='unidentifiable')\
                     .group_by(Individual.id)\
                     .subquery()
 
     sq2 = db.session.query(Individual.id.label('indID2'))\
-                    .join(Task,Individual.tasks)\
                     .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                    .filter(OtherIndividual.c.active==True)\
-                    .filter(OtherIndividual.c.name!='unidentifiable')\
+                    .join(relevant_individuals,relevant_individuals.c.id==Individual.id)\
+                    .join(relevant_individuals2,relevant_individuals2.c.id==OtherIndividual.id)\
                     .filter(IndSimilarity.score>=theshold)\
-                    .filter(Task.id.in_(task_ids))\
-                    .filter(Individual.species==label)\
-                    .filter(Individual.active==True)\
-                    .filter(Individual.name!='unidentifiable')\
                     .group_by(Individual.id)\
                     .subquery()
 

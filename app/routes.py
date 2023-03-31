@@ -122,7 +122,17 @@ def launchTask():
     taskSize = request.form['taskSize']
     taggingLevel = request.form['taskTaggingLevel']
     isBounding = request.form['isBounding']
-    
+
+    if task_ids==['0']:
+        species = re.split(',',taggingLevel)[1]
+        task_ids = [r[0] for r in db.session.query(Task.id)\
+                                        .join(Survey)\
+                                        .join(Label)\
+                                        .filter(Label.description==species)\
+                                        .filter(Label.icID_count==0)\
+                                        .filter(Survey.user==current_user)\
+                                        .distinct().all()]
+                    
     tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).distinct().all()
 
     # check task statuses
@@ -348,15 +358,15 @@ def getAllIndividuals():
 
     if species_name !='0': individuals = individuals.filter(Individual.species==species_name)
 
-    if(tag_name != 'None'):
+    if tag_name != 'None':
         if tag_name =='All':
             individuals = individuals.filter(Individual.tags.any())
         else:
             individuals = individuals.filter(Individual.tags.any(Tag.description==tag_name))
     
-    if(trap_name != '0'): individuals = individuals.join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name)
+    if trap_name != '0': individuals = individuals.join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name)
     
-    if(dates): individuals = individuals.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+    if dates: individuals = individuals.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
 
     searches = re.split('[ ,]',search)
     for search in searches:
@@ -524,6 +534,7 @@ def deleteIndividual(individual_id):
         individual.tags = []
         individual.children = []
         individual.parents = []
+        individual.tasks = []
         db.session.delete(individual)
         db.session.commit()
 
@@ -720,7 +731,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
                 disabled[label.description] = 'true'
 
             if label.icID_allowed:
-                count = checkForIdWork(task_id,label.description,0)
+                count = label.icID_count
                 if count==0:
                     colours.append('#0A7850')
                 else:
@@ -2141,14 +2152,14 @@ def getDetailedTaskStatus(task_id):
                             reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                             reply['Individual ID']['Exhaustive'] = 'Incomplete'
                         else:
-                            count = checkForIdWork(task_id,label.description,Config.SIMILARITY_SCORE)
+                            count = label.icID_count
                             reply['Individual ID']['Cluster-Level'] = 'Complete'
                             if count != 0:
                                 reply['Individual ID']['Inter-Cluster'] = 'Incomplete'
                                 reply['Individual ID']['Exhaustive'] = 'Incomplete'
                             else:
                                 reply['Individual ID']['Inter-Cluster'] = 'Complete'
-                                count = checkForIdWork(task_id,label.description,0)
+                                count = checkForIdWork([task_id],label.description,0)
                                 if count !=0:
                                     reply['Individual ID']['Exhaustive'] = 'Incomplete'
                                 else:
@@ -5404,7 +5415,6 @@ def initKeys():
     else:
         return json.dumps('error')
 
-
 @app.route('/getSurveys')
 @login_required
 def getSurvey():
@@ -6973,3 +6983,33 @@ def download_complete():
         return json.dumps('success')
     
     return json.dumps('error')
+
+@app.route('/getIndividualIDSurveysTasks')
+@login_required
+def getIndividualIDSurveysTasks():
+    '''Returns surveys and tasks available for individual ID for the specified species.'''
+
+    species = request.form['species']
+
+    surveys = db.session.query(Survey)\
+                        .join(Task)\
+                        .join(Label)\
+                        .filter(Label.description==species)\
+                        .filter(Label.icID_count==0)\
+                        .filter(Survey.user==current_user)\
+                        .distinct().all()
+
+    reply = {}
+    for survey in surveys:
+        tasks = db.session.query(Task)\
+                        .join(Label)\
+                        .filter(Label.description==species)\
+                        .filter(Label.icID_count==0)\
+                        .filter(Task.survey==survey)\
+                        .distinct().all()
+        
+        reply[survey.name] = []
+        for task in tasks:
+            reply[survey.name].append({'task_id':task.id,'name':task.name})
+
+    return json.dumps(reply)
