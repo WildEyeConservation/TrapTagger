@@ -339,7 +339,7 @@ def getAllIndividuals():
             task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()]
 
     individuals = db.session.query(Individual)\
-                        .join(Detection)\
+                        .join(Detection,Individual.detections)\
                         .join(Image)\
                         .join(Task,Individual.tasks)\
                         .filter(Task.id.in_(task_ids))\
@@ -372,7 +372,7 @@ def getAllIndividuals():
         #Last seen
         # Get the most recent timestamp for each individual from their related images
         subquery = db.session.query(Individual.id,func.max(Image.corrected_timestamp).label('max_timestamp'))\
-                            .join(Detection)\
+                            .join(Detection,Individual.detections)\
                             .join(Image)\
                             .group_by(Individual.id)\
                             .subquery()
@@ -383,7 +383,7 @@ def getAllIndividuals():
         #First seen
         # Get the most recent timestamp for each individual from their related images
         subquery = db.session.query(Individual.id,func.min(Image.corrected_timestamp).label('min_timestamp'))\
-                            .join(Detection)\
+                            .join(Detection,Individual.detections)\
                             .join(Image)\
                             .group_by(Individual.id)\
                             .subquery()
