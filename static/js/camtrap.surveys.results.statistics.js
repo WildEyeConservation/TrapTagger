@@ -1334,12 +1334,12 @@ function createMap() {
 
             L.control.layers(baseMaps).addTo(map);
             L.control.scale().addTo(map);
-            map._controlCorners['bottomleft'].style.marginBottom = "25px";
+            map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
             map._controlCorners['bottomright'].style.marginBottom = "14px";
 
             map.on('baselayerchange', function(e) {
                 if (e.name.includes('Google')) {
-                    map._controlCorners['bottomleft'].style.marginBottom = "25px";
+                    map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
                     map._controlCorners['bottomright'].style.marginBottom = "14px";
                 }
             });
@@ -1364,6 +1364,9 @@ function createMap() {
 
             var group = new L.featureGroup(markers);
             map.fitBounds(group.getBounds().pad(0.1))
+            if(markers.length == 1) {
+                map.setZoom(10)
+            }
 
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =

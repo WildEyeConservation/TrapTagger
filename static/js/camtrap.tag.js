@@ -53,6 +53,9 @@ function loadNewCluster(mapID = 'map1') {
                                         clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)
                                     } else {
                                         clusters[mapID].push(newcluster)
+                                        if (isClassCheck) {
+                                            tempClassifications[mapID].push(newcluster.classification.slice())
+                                        }
                                     }
 
                                     // if (taggingLevel.includes('-2') && (multipleStatus==false)) {
