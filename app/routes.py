@@ -5754,7 +5754,8 @@ def getLabels(task_id):
     task = db.session.query(Task).get(task_id)
     if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
         if int(task_id) == -1: #template
-            task_id = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first().id
+            task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
+            task_id = task.id
         
         tempLabels = db.session.query(Label).filter(Label.task_id == int(task_id)).filter(Label.parent_id==None).all()
         vhl = db.session.query(Label).get(GLOBALS.vhl_id)
