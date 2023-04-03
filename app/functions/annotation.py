@@ -1523,7 +1523,7 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
         if '-4' in taggingLevel:
             tL = re.split(',',taggingLevel)
             species = tL[1]
-            label = db.session.query(Label).filter(Label.task_id==cluster.task_id).filter(label.description==species).first()
+            label = db.session.query(Label).filter(Label.task_id==cluster.task_id).filter(Label.description==species).first()
 
             images = []
             for image in sortedImages:

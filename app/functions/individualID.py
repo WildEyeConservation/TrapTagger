@@ -51,7 +51,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
             task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
         task.survey.status = 'processing'
         db.session.commit()
-        # label = db.session.query(Label).filter(Label.description==species).filter(label.task==task).first()
+        # label = db.session.query(Label).filter(Label.description==species).filter(Label.task==task).first()
 
         queryDetections = db.session.query(Detection)\
                             .join(Labelgroup)\
