@@ -118,7 +118,7 @@ def launchTask():
             untranslated: There are translated labels that must be dealt with before launching
     '''
 
-    task_ids = request.form['selectedTasks']
+    task_ids = ast.literal_eval(request.form['selectedTasks'])
     taskSize = request.form['taskSize']
     taggingLevel = request.form['taskTaggingLevel']
     isBounding = request.form['isBounding']
