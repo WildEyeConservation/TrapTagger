@@ -339,6 +339,8 @@ def getAllIndividuals():
     order = request.args.get('order', 1, type=int)
     search = request.args.get('search', '', type=str)
 
+    if Config.DEBUGGING: app.logger.info(task_ids,species_name,tag_name,trap_name,dates,page,order,search)
+
     reply = []
     next = None
     prev = None
