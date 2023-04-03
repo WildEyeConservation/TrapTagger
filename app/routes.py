@@ -3516,7 +3516,7 @@ def skipSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                             or_(\
@@ -3548,7 +3548,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
     
-    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
+    if (individual1 and individual2) and ((any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks))) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                         or_(\
                                             and_(\
@@ -3841,7 +3841,7 @@ def acceptSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
@@ -3949,7 +3949,7 @@ def rejectSuggestion(individual_1,individual_2):
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
-    if (individual1 and individual2) and (task in individual1.tasks) and (task in individual2.tasks) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         indSimilarity  = db.session.query(IndSimilarity).filter(\
                                     or_(\
@@ -3983,7 +3983,7 @@ def getSuggestion(individual_id):
     individual1 = db.session.query(Individual).get(int(individual_id))
     reply = {}
 
-    if individual1 and (task in individual1.tasks) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
+    if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
         if not populateMutex(task.id): return json.dumps('error')
 
         GLOBALS.mutex[task.id]['global'].acquire()
