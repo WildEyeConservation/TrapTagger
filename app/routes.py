@@ -4307,7 +4307,7 @@ def submitIndividuals():
 
                     check = check.filter(Individual.species==species)\
                                         .filter(Individual.name==individuals[individualID]['name'])\
-                                        .filter(Individual.tasks.contains(task_id))\
+                                        .filter(Individual.tasks.contains(task))\
                                         .first()
                     
                     if check:
