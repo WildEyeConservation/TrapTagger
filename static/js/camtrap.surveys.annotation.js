@@ -26,7 +26,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
 
     allow = true
     if (document.getElementById('individualID').checked) {
-        taskTaggingLevel = document.getElementById('idStage').value+','+taskTaggingLevel
+        taskTaggingLevel = document.getElementById('idStage').value+','+document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
         if (document.getElementById('idStage').value=='-4') {
             // if (document.getElementById('wordName').checked) {
             //     taskTaggingLevel += ',w'
