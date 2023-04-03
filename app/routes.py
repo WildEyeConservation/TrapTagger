@@ -506,7 +506,7 @@ def deleteIndividual(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
-    if not task: individual.tasks[0]
+    if not task: task = individual.tasks[0]
 
     if individual and (individual.tasks[0].survey.user==current_user):
 
@@ -3624,7 +3624,7 @@ def dissociateDetection(detection_id):
     if individual_id:
         individual = db.session.query(Individual).get(individual_id)
         task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
-        if not task: individual.tasks[0]
+        if not task: task = individual.tasks[0]
     else:
         task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
 

@@ -45,7 +45,10 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
     try:
         OverallStartTime = time.time()
-        task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
+        if len(task_ids)==1:
+            task = db.session.query(Task).get(task_ids[0])
+        else:
+            task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
         task.survey.status = 'processing'
         db.session.commit()
         # label = db.session.query(Label).filter(Label.description==species).filter(label.task==task).first()
@@ -801,7 +804,7 @@ def getProgress(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
-    if not task: individual.tasks[0]
+    if not task: task = individual.tasks[0]
     
     tL = re.split(',',task.tagging_level)
     task_ids = [r.id for r in task.sub_tasks]
