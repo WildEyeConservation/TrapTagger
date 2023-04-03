@@ -134,6 +134,7 @@ def launchTask():
                                         .filter(Label.icID_count==0)\
                                         .filter(Label.icID_allowed==True)\
                                         .filter(Survey.user==current_user)\
+                                        .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                                         .distinct().all()]
                     
     tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).distinct().all()
@@ -6997,6 +6998,7 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_count==0)\
                         .filter(Label.icID_allowed==True)\
                         .filter(Survey.user==current_user)\
+                        .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .distinct().all()
 
     reply = {}
@@ -7007,6 +7009,7 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_count==0)\
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.survey==survey)\
+                        .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .distinct().all()
 
         reply[survey.name] = []
