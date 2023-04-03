@@ -1540,7 +1540,7 @@ modalLaunchID.on('shown.bs.modal', function(){
                     reply = JSON.parse(this.responseText);  
 
                     if (reply.status=='Success') {
-                        modalLaunchTask.modal('hide')
+                        modalLaunchID.modal('hide')
                     }
                     else {
                         document.getElementById('launchErrors').innerHTML = reply.message

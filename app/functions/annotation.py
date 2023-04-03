@@ -364,7 +364,7 @@ def launch_task(self,task_id):
                                 .filter(IndSimilarity.score>=tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==label)\
+                                .filter(Individual.species==species)\
                                 .filter(Individual.active==True)\
                                 .filter(Individual.name!='unidentifiable')\
                                 .group_by(Individual.id)\
@@ -379,7 +379,7 @@ def launch_task(self,task_id):
                                 .filter(IndSimilarity.score>=tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
                                 .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==label)\
+                                .filter(Individual.species==species)\
                                 .filter(Individual.active==True)\
                                 .filter(Individual.name!='unidentifiable')\
                                 .group_by(Individual.id)\
