@@ -334,13 +334,14 @@ def getAllIndividuals():
     species_name = ast.literal_eval(request.form['species_name'])
     tag_name = ast.literal_eval(request.form['tag_name'])
     trap_name = ast.literal_eval(request.form['trap_name']) 
-    dates = ast.literal_eval(request.form['dates'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
     search = ast.literal_eval(request.form['search'])
 
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
 
-    if Config.DEBUGGING: app.logger.info('{}, {}, {}, {}, {}, {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,dates,page,order,search))
+    if Config.DEBUGGING: app.logger.info('{}, {}, {}, {}, {},{} , {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
 
     reply = []
     next = None
@@ -369,7 +370,9 @@ def getAllIndividuals():
     
     if trap_name != '0': individuals = individuals.join(Camera).join(Trapgroup).filter(Trapgroup.tag == trap_name)
     
-    if dates: individuals = individuals.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+    if start_date: individuals = individuals.filter(Image.corrected_timestamp >= start_date)
+
+    if end_date: individuals = individuals.filter(Image.corrected_timestamp <= end_date)
 
     searches = re.split('[ ,]',search)
     for search in searches:
@@ -456,7 +459,7 @@ def editIndividualName():
 
     return json.dumps({'status': error}) 
 
-@app.route('/getIndividuals/<task_id>/<species_id>')
+@app.route('/getIndividuals/<task_id>/<species>')
 @login_required
 def getIndividuals(task_id,species):
     '''Returns a paginated dictionary of all individuals associated with a specified label and task, including the individual names, ID, and best image.'''
@@ -557,7 +560,8 @@ def getIndividual(individual_id):
     # order = request.args.get('order', 'a1', type=str)
     order = ast.literal_eval(request.form['order']) 
     site = ast.literal_eval(request.form['site']) 
-    dates = ast.literal_eval(request.form['dates'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
 
     if Config.DEBUGGING: app.logger.info(order)
     if individual and (individual.tasks[0].survey.user==current_user):
@@ -572,13 +576,13 @@ def getIndividual(individual_id):
 
         if site != '0':
             images = images.filter(Trapgroup.tag==site)
+ 
+        if start_date: images = images.filter(Image.corrected_timestamp >= start_date)
 
-        if dates:
-            images = images.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+        if end_date: images = images.filter(Image.corrected_timestamp <= end_date)
 
         if order == 'a1':
             images = images.order_by(Image.corrected_timestamp).all()
-            app.logger.info(images)
         elif order == 'd1':
             images = images.order_by(desc(Image.corrected_timestamp)).all()
         elif order == 'a2':
@@ -1815,7 +1819,8 @@ def getPolarDataIndividual(individual_id, baseUnit):
     reply = []
 
     trapgroup_ids = ast.literal_eval(request.form['trapgroup_ids'])  
-    dates = ast.literal_eval(request.form['dates'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(int(individual_id))
     if individual and (individual.tasks[0].survey.user==current_user):
@@ -1836,9 +1841,9 @@ def getPolarDataIndividual(individual_id, baseUnit):
             trap_ids = [int(x) for x in trapgroup_ids]
             baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids))
 
-        if dates:
-            baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+        if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
 
+        if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
         for n in range(24):
             count = baseQuery.filter(extract('hour',Image.corrected_timestamp)==n).distinct().count()
@@ -1911,7 +1916,8 @@ def getBarDataIndividual(individual_id, baseUnit, site_id):
     '''
 
     reply = []
-    dates = ast.literal_eval(request.form['dates'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(int(individual_id))
     if individual and (individual.tasks[0].survey.user==current_user):
@@ -1931,8 +1937,9 @@ def getBarDataIndividual(individual_id, baseUnit, site_id):
         if site_id != '0':
             baseQuery = baseQuery.filter(Trapgroup.id == site_id)
 
-        if dates:
-            baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+        if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
+
+        if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
 
         startDate = dates[0].date()
@@ -4980,7 +4987,8 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
     data = []
     maxVal = 0
     
-    dates = ast.literal_eval(request.form['dates'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(individual_id)
     if individual and (current_user == individual.tasks[0].survey.user):
@@ -4995,8 +5003,9 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
                                         .filter(Detection.static==False)\
                                         .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if dates:
-            baseQuery = baseQuery.filter(Image.corrected_timestamp >= dates[0], Image.corrected_timestamp <= dates[1])
+        if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
+
+        if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
         trapgroups = individual.tasks[0].survey.trapgroups[:]
         for trapgroup in trapgroups:

@@ -84,9 +84,10 @@ limitations under the License. -->
 
                         <h5 style="margin-bottom: 2px">Date range</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see individuals for.</i></div>
-                        <div>Start: </div>
+                        <label for="startDate">Start date:</label><br>
                         <input type="date" id="startDate" name="startDate">
-                        <div>End: </div>
+                        <br>
+                        <label for="endDate">End date:</label><br>
                         <input type="date" id="endDate" name="endDate">
                         <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
@@ -159,21 +160,17 @@ limitations under the License. -->
                         <h5 style="margin-bottom: 2px">Edit Individual: </h5>
                         <button id='btnDelIndiv' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Delete Individual</button>
                         <button id='btnRemoveImg' class="btn btn-danger btn-block" style="margin-top: 2px; margin-bottom: 2px;">Remove Image</button>
-                        <button id='editName' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">Edit Name</button>
-                        <div id="editNameDiv" hidden>
-                            <input type="text" id="newIndividualName" name="newIndividualName" class="form-control" style="margin-top: 2px; margin-bottom: 2px;">     
-                            <button id='btnSubmitName' class="btn btn-primary btn-block" style="margin-top: 2px; margin-bottom: 2px;">Submit Name</button>
-                            <div id="newNameErrors" style="font-size: 80%; color: #DF691A"></div>
-                        </div>
+                        <button class='btn btn-primary btn-block' id="btnSubmitInfoChange" style="margin-top: 2px; margin-bottom: 2px;">Submit Changes</button>
                         <br>
 
                         <h5 style="margin-bottom: 2px">Filter Individual Images:</h5>
                         <h6>Traps: </h6>
                         <select id='sitesIndividualSelector' class='form-control'></select>            
                         <h6 style="margin-top: 0.5rem; margin-bottom: 0.0rem;">Date range:</h6>
-                        <h6>Start: </h6>
+                        <label for="startDateIndiv">Start date:</label><br>
                         <input type="date" id="startDateIndiv" name="startDate">
-                        <h6>End: </h6>
+                        <br>
+                        <label for="endDateIndiv">End date:</label><br>
                         <input type="date" id="endDateIndiv" name="endDate">
                         <div id="dateErrorsIndiv" style="font-size: 80%; color: #DF691A"></div>
                         <br>
@@ -200,7 +197,11 @@ limitations under the License. -->
                         <center id="centerMap"></center>
                     </div>
                     <div class="col-lg-2">    
-                        <h5 style="margin-bottom: 2px">Individual Information:</h5>                   
+                        <h5 style="margin-bottom: 2px">Individual Information:</h5>     
+                        <h6 id="idName" align="left">Name: </h6> 
+                        <input type="text" id="newIndividualName" name="newIndividualName" class="form-control" style="margin-top: 2px; margin-bottom: 2px;">     
+                        <div id="newNameErrors" style="font-size: 80%; color: #DF691A"></div>
+                                     
                         <h6 id="idLabels" align="left">Label: </h6>    
                         <h6 id="idSurveys" align="left">Surveys: </h6> 
                         <h6 id="idFirstSeen" align="left">First Seen: </h6>
@@ -211,8 +212,10 @@ limitations under the License. -->
 
                         <h6 id="labelNotes" style="margin-top: 0.5rem;">Notes: </h6> 
                         <textarea id="idNotes" rows="5" cols="35" style="width:100%"></textarea>
-                        <button class='btn btn-primary btn-block' id="editNotes">Submit Notes</button>
+                        
                         <div id="notesError" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
+                        
                     </div>
                     <div class="col-lg-1"></div>
                 </div>

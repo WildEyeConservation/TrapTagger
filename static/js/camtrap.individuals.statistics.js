@@ -193,15 +193,21 @@ function createIndivMap() {
     startDateLabel.setAttribute('for', 'startDateSpatial');
     dateRange.appendChild(startDateLabel)
 
+    dateRange.appendChild(document.createElement('br'));
+
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateSpatial');
     dateRange.appendChild(startDateInput)
 
+    dateRange.appendChild(document.createElement('br'));
+
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateSpatial');
     dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
@@ -455,13 +461,16 @@ function updateHeatMap(){
     formData = new FormData()
     startDateSpat = document.getElementById('startDateSpatial').value
     endDateSpat = document.getElementById('endDateSpatial').value
-    if(startDateSpat != '' && endDateSpat != ''){
-        dates = [startDateSpat + ' 00:00:00',endDateSpat + ' 23:59:59']
+    if(startDateSpat != '' ){
+        startDateSpat = startDateSpat + ' 00:00:00'
     }
-    else{
-        dates = []
-    }
-    formData.append('dates',JSON.stringify(dates))
+
+    if(endDateSpat != '' ){
+        endDateSpat = endDateSpat + ' 23:59:59'
+    }   
+
+    formData.append('start_date',JSON.stringify(startDateSpat))
+    formData.append('end_date',JSON.stringify(endDateSpat))
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -727,15 +736,21 @@ function createIndivPolarChart() {
     startDateLabel.setAttribute('for', 'startDateTemp');
     dateRange.appendChild(startDateLabel)
 
+    dateRange.appendChild(document.createElement('br'));
+
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateTemp');
     dateRange.appendChild(startDateInput)
 
+    dateRange.appendChild(document.createElement('br'));
+
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateTemp');
     dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
@@ -922,14 +937,17 @@ function updatePolarData(IDNum) {
 
         startDateTemp = document.getElementById('startDateTemp').value
         endDateTemp = document.getElementById('endDateTemp').value
-        if(startDateTemp != '' && endDateTemp != ''){
-            dates = [startDateTemp + ' 00:00:00',endDateTemp + ' 23:59:59']
-        }
-        else{
-            dates = []
-        }
+        if(startDateTemp != '' ){
+            startDateTemp = startDateTemp + ' 00:00:00'
+        }    
+    
+        if(endDateTemp != '' ){
+            endDateTemp = endDateTemp + ' 23:59:59'
+        }   
 
-        formData.append('dates', JSON.stringify(dates));  
+    
+        formData.append('start_date',JSON.stringify(startDateTemp))
+        formData.append('end_date',JSON.stringify(endDateTemp))
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -1218,15 +1236,21 @@ function createIndivBar() {
     startDateLabel.setAttribute('for', 'startDateNum');
     dateRange.appendChild(startDateLabel)
 
+    dateRange.appendChild(document.createElement('br'));
+
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateNum');
     dateRange.appendChild(startDateInput)
 
+    dateRange.appendChild(document.createElement('br'));
+
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateNum');
     dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
@@ -1394,13 +1418,16 @@ function createIndivBar() {
 //         var formData = new FormData();
 //         startDateNum = document.getElementById('startDateNum').value
 //         endDateNum = document.getElementById('endDateNum').value
-//         if(startDateNum != '' && endDateNum != ''){
-//             dates = [startDateNum + ' 00:00:00',endDateNum + ' 23:59:59']
-//         }
-//         else{
-//             dates = []
-//         }
-//         formData.append('dates',JSON.stringify(dates))
+        // if(startDateNum != '' ){
+        //     startDateNum = startDateNum + ' 00:00:00'
+        // }
+
+        // if(endDateNum != '' ){
+        //     endDateNum = endDateNum + ' 23:59:59'
+        // }   
+
+        // formData.append('start_date',JSON.stringify(startDateNum))
+        // formData.append('end_date',JSON.stringify(endDateNum))
 
 //         var xhttp = new XMLHttpRequest();
 //         xhttp.onreadystatechange =

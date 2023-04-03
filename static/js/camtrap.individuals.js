@@ -28,6 +28,8 @@ var currentNote = ''
 var globalTags = null
 var globalLabels = null
 var current_page = null
+var individualImages = null
+var currentTags = null
 // var allSites = null
 
 
@@ -61,6 +63,9 @@ function getIndividuals(page = null) {
 
     if(legalSurvey && !modalActive && validDate){
 
+        if(tasks.length == 0){
+            tasks = ['0']
+        }
         selectedLabel = document.getElementById('individualSpeciesSelector').value
         if(selectedLabel == ''){
             selectedLabel = '0'
@@ -77,11 +82,18 @@ function getIndividuals(page = null) {
         selectedEndDate = document.getElementById('endDate').value 
 
 
-        if(selectedStartDate != '' && selectedEndDate != ''){
-            dates = [selectedStartDate + ' 00:00:00',selectedEndDate + ' 23:59:59']
+        if(selectedStartDate != ''){
+            selectedStartDate = selectedStartDate + ' 00:00:00'
         }
         else{
-            dates = []
+            selectedStartDate = ''
+        }
+
+        if(selectedEndDate != ''){
+            selectedEndDate = selectedEndDate + ' 23:59:59'
+        }
+        else{
+            selectedEndDate = ''
         }
 
         var formData = new FormData()
@@ -89,7 +101,8 @@ function getIndividuals(page = null) {
         formData.append("species_name", JSON.stringify(selectedLabel))
         formData.append("tag_name", JSON.stringify(selectedTag))
         formData.append("trap_name", JSON.stringify(selectedTrap))
-        formData.append("dates", JSON.stringify(dates))
+        formData.append('start_date', JSON.stringify(selectedStartDate))
+        formData.append('end_date', JSON.stringify(selectedEndDate))
 
         request = '/getAllIndividuals'
         if (page != null) {
@@ -182,27 +195,29 @@ function getIndividuals(page = null) {
     
 }
 
-function getIndividual(individualID, individualName, order_value = 'a1', site='0', dates=[]){
+function getIndividual(individualID, individualName, order_value = 'a1', site='0', start_date='', end_date=''){
     selectedIndividual = individualID
     selectedIndividualName = individualName
 
     var formData = new FormData()
     formData.append("order", JSON.stringify(order_value))
     formData.append("site", JSON.stringify(site))
-    formData.append('dates', JSON.stringify(dates))
+    formData.append('start_date', JSON.stringify(start_date))
+    formData.append('end_date', JSON.stringify(end_date))
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             individualImages = JSON.parse(this.responseText);
-            if(order_value == 'a1' && site == '0' && dates.length == 0){
+            console.log(individualImages)
+            if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
                 allIndividualImages = individualImages
             }
 
-            // console.log(individualImages)
             if(individualImages.length > 0){
                 document.getElementById('individualName').innerHTML = individualName
+                document.getElementById('newIndividualName').value = individualName
 
                 document.getElementById('tgInfo').innerHTML = 'Trap: ' + individualImages[0].trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
@@ -249,6 +264,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             document.getElementById('endDateIndiv').setAttribute('max', maxDate)
 
                             individual_tags = info.tags
+                            currentTags = individual_tags
                             for (let i=0;i<globalTags.length;i++) {
                                 tag = globalTags[i].tag
                                 box = document.getElementById(tag+ "box")
@@ -328,7 +344,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
 
             }
             else{
-                if(dates){
+                if(start_date != '' || end_date != ''){
                     document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
                 }
                 
@@ -377,10 +393,6 @@ function individualTags(){
                     label.innerHTML = tag
                     checkDiv.appendChild(label)
 
-                    input.addEventListener('click', ()=>{
-                        submitIndividualTags()                  
-                    })
-
                 }
             }
             
@@ -393,27 +405,103 @@ function individualTags(){
 function submitIndividualTags(){
     /** Submits the selected tags for specified individual */
     var newTags = []
+    var tagsChanged = false
     for (let i=0;i<globalTags.length;i++) {
         tag = globalTags[i].tag
         box = document.getElementById(tag+ "box")
         if(box.checked){
             newTags.push(tag)
+            if(!currentTags.includes(tag)){
+                tagsChanged = true
+            }
+        }
+        else{
+            if(currentTags.includes(tag)){
+                tagsChanged = true
+            }
         }
     }
 
-    var formData = new FormData()
-    formData.append("tags", JSON.stringify(newTags))
+    if(tagsChanged){
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/submitTagsIndividual/' + selectedIndividual);
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            // console.log(reply)    
+        var formData = new FormData()
+        formData.append("tags", JSON.stringify(newTags))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/submitTagsIndividual/' + selectedIndividual);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                currentTags = newTags
+            }
         }
+        xhttp.send(formData);   
     }
-    xhttp.send(formData);   
+}
+
+function submitIndividualName(){
+    /** Submits the entered name for specified individual */
+    var newName = document.getElementById('newIndividualName').value
+    if(newName == ''){
+        document.getElementById('newNameErrors').innerHTML = 'Name cannot be blank'
+    }
+    else if(newName == document.getElementById('individualName').innerHTML){
+        document.getElementById('newNameErrors').innerHTML = 'Name is the same as the current name'
+    }
+    else{
+        var formData = new FormData()
+        formData.append("individual_id", JSON.stringify(selectedIndividual))
+        formData.append("name", JSON.stringify(newName))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/editIndividualName');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+
+                if (reply.status == 'success'){
+                    document.getElementById('individualName').innerHTML = newName
+                    document.getElementById('newNameErrors').innerHTML = ''
+                }
+                else{
+                    document.getElementById('newNameErrors').innerHTML = reply.status
+                }
+            }
+        }
+        xhttp.send(formData);
+    }
+}
+
+function submitIndividualNotes(){
+        /** Submits the entered notes for specified individual */
+    var newNote = document.getElementById('idNotes').value
+
+    if(newNote.length > 512)
+    {
+        document.getElementById('notesError').innerHTML = "A note cannot be more than 512 characters."
+    }
+    else{
+        document.getElementById('notesError').innerHTML = ''
+
+        var formData = new FormData()
+        formData.append("individual_id", JSON.stringify(selectedIndividual))
+        formData.append("note", JSON.stringify(newNote))
+        formData.append("type", JSON.stringify('individual'))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/assignNote');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                document.getElementById('idNotes').value = newNote
+                currentNote = newNote                   
+            }
+        }
+        xhttp.send(formData);
+    }  
+    
 }
 
 function populateSelectors(){
@@ -424,14 +512,14 @@ function populateSelectors(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-
+            globalLabels = reply.labels
             if (modalActive){
                 texts = []
                 texts.push(...reply.labels)
                 values = []
                 values.push(...reply.labels)
                 clearSelect(document.getElementById('taskTaggingLevel'))
-                fillSelect(document.getElementById('taskTaggingLevel'), texts, values)
+                fillSelect(document.getElementById('taskTaggingLevel'), texts, values)       
             }
             else{
                 //Populate species selector
@@ -527,14 +615,14 @@ function validateDateRange() {
             validDate = true
         }
     }
-    else if(startDate && !endDate) {
-        dateError.innerHTML = 'Please enter an end date.'
-        validDate = false;
-    }
-    else if(!startDate && endDate) {
-        dateError.innerHTML = 'Please enter a start date.'
-        validDate = false
-    }
+    // else if(startDate && !endDate) {
+    //     dateError.innerHTML = 'Please enter an end date.'
+    //     validDate = false;
+    // }
+    // else if(!startDate && endDate) {
+    //     dateError.innerHTML = 'Please enter a start date.'
+    //     validDate = false
+    // }
     else{
         validDate = true
     }
@@ -685,21 +773,23 @@ modalIndividual.on('shown.bs.modal', function(){
         updateSlider()
     }
     
-    sites = []
-    allSites = []
-    for (let i=0;i<individualImages.length;i++) {
-        if (!sites.includes(individualImages[i].trapgroup.tag)) {
-            sites.push(individualImages[i].trapgroup.tag)
-            allSites.push(individualImages[i].trapgroup)
+    if (individualImages) {
+        sites = []
+        allSites = []
+        for (let i=0;i<individualImages.length;i++) {
+            if (!sites.includes(individualImages[i].trapgroup.tag)) {
+                sites.push(individualImages[i].trapgroup.tag)
+                allSites.push(individualImages[i].trapgroup)
+            }
         }
+        // sites.sort()
+        texts = ['All']
+        texts.push(...sites)
+        values = ['0']
+        values.push(...sites)
+        clearSelect(document.getElementById('sitesIndividualSelector'))
+        fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
     }
-    // sites.sort()
-    texts = ['All']
-    texts.push(...sites)
-    values = ['0']
-    values.push(...sites)
-    clearSelect(document.getElementById('sitesIndividualSelector'))
-    fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
 
 });
 
@@ -747,17 +837,23 @@ function updateIndividualFilter() {
     site = document.getElementById("sitesIndividualSelector").value
 
     validateDateRange()
-    if (validDate && document.getElementById("startDateIndiv").value != "" && document.getElementById("endDateIndiv").value != ""){
-        startDate = document.getElementById("startDateIndiv").value
-        endDate = document.getElementById("endDateIndiv").value
-        dates = [startDate + ' 00:00:00',endDate + ' 23:59:59']
+    
+    if(validDate && document.getElementById("startDateIndiv").value != "" ){
+        startDate = document.getElementById("startDateIndiv").value + ' 00:00:00'
     }
     else{
-        dates = []
+        startDate = ''
     }
-    
 
-    getIndividual(selectedIndividual, selectedIndividualName, order_value, site, dates)
+    if(validDate && document.getElementById("endDateIndiv").value != "" ){
+        endDate = document.getElementById("endDateIndiv").value + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+
+    getIndividual(selectedIndividual, selectedIndividualName, order_value, site, startDate, endDate)
 }
 
 
@@ -1200,6 +1296,10 @@ function getSurveysandTasks(){
     /** Get surveys and tasks for Launch ID */
 
     species = document.getElementById('taskTaggingLevel').value
+    if (species == ''){
+        species = globalLabels[0]	
+    }
+        
     var formData = new FormData();
     formData.append('species', species)
 
@@ -1578,77 +1678,19 @@ modalLaunchID.on('hidden.bs.modal', function(){
     getIndividuals(current_page)
 })
 
-document.getElementById('editNotes').addEventListener('click', ()=>{
-    /** Submits the entered notes for specified individual */
-    var newNote = document.getElementById('idNotes').value
+document.getElementById('btnSubmitInfoChange').addEventListener('click', function(){
+    /** Submits the changes to the individual's information. */
 
-    if(newNote.length > 512)
-    {
-        document.getElementById('notesError').innerHTML = "A note cannot be more than 512 characters."
+    submitIndividualTags()
+
+    if(document.getElementById('individualName').innerHTML != document.getElementById('newIndividualName').value){
+        submitIndividualName()
     }
-    else{
-        document.getElementById('notesError').innerHTML = ''
 
-        var formData = new FormData()
-        formData.append("individual_id", JSON.stringify(selectedIndividual))
-        formData.append("note", JSON.stringify(newNote))
-        formData.append("type", JSON.stringify('individual'))
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/assignNote');
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                document.getElementById('idNotes').value = newNote
-                currentNote = newNote                   
-            }
-        }
-        xhttp.send(formData);
-    }  
-})
-
-document.getElementById('editName').addEventListener('click', ()=>{
-    document.getElementById('editNameDiv').hidden = false
-    document.getElementById('editName').hidden = true
-    document.getElementById('newIndividualName').value = document.getElementById('individualName').innerHTML
-})
-
-document.getElementById('btnSubmitName').addEventListener('click', ()=>{
-    /** Submits the entered name for specified individual */
-    var newName = document.getElementById('newIndividualName').value
-    if(newName == ''){
-        document.getElementById('newNameErrors').innerHTML = 'Name cannot be blank'
+    if(currentNote != document.getElementById('idNotes').value){
+        submitIndividualNotes()
     }
-    else if(newName == document.getElementById('individualName').innerHTML){
-        document.getElementById('editNameDiv').hidden = true
-        document.getElementById('editName').hidden = false
-    }
-    else{
-        var formData = new FormData()
-        formData.append("individual_id", JSON.stringify(selectedIndividual))
-        formData.append("name", JSON.stringify(newName))
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/editIndividualName');
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-
-                if (reply.status == 'success'){
-                    document.getElementById('individualName').innerHTML = newName
-                    document.getElementById('editNameDiv').hidden = true
-                    document.getElementById('editName').hidden = false
-                    document.getElementById('newNameErrors').innerHTML = ''
-                }
-                else{
-                    document.getElementById('newNameErrors').innerHTML = reply.status
-                }
-            }
-        }
-        xhttp.send(formData);
-    }
-})
+});
 
 $('.modal').on("hidden.bs.modal", function (e) { 
     if ($('.modal:visible').length) { 
