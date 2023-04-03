@@ -1335,7 +1335,10 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .order_by(desc(sq3.c.count3)).first()
 
-        clusters = [cluster]
+        if cluster:
+            clusters = [cluster]
+        else:
+            clusters = []
     else:
         clusters = db.session.query(Cluster) \
                         .join(Image, Cluster.images) \
