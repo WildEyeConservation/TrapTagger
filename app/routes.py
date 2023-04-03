@@ -134,7 +134,7 @@ def launchTask():
                                         .filter(Survey.user==current_user)\
                                         .distinct().all()]
                     
-    tasks = db.session.query(Task).filter(Task.id.in_(task_ids)).distinct().all()
+    tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).distinct().all()
 
     # check task statuses
     statusPass = True
