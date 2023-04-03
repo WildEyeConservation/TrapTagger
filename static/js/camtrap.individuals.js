@@ -1528,7 +1528,7 @@ modalLaunchID.on('shown.bs.modal', function(){
             document.getElementById('launchErrors').innerHTML = ''	
 
             var formData = new FormData()
-            formData.append("selectedTasks", selectedTasks)
+            formData.append("selectedTasks", JSON.stringify(selectedTasks))
             formData.append("taskSize", taskSize)
             formData.append("taskTaggingLevel", taskTaggingLevel)
             formData.append("isBounding", isBounding)

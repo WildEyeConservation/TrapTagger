@@ -74,7 +74,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
         document.getElementById('launchMTurkTaskBtn').disabled=true
 
         var formData = new FormData()
-        formData.append("selectedTasks", [selectedTask])
+        formData.append("selectedTasks", JSON.stringify([selectedTask]))
         formData.append("taskSize", taskSize)
         formData.append("taskTaggingLevel", taskTaggingLevel)
         formData.append("isBounding", isBounding)
