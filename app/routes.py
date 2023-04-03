@@ -338,9 +338,8 @@ def getAllIndividuals():
 
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
-    
 
-    if Config.DEBUGGING: app.logger.info(task_ids,species_name,tag_name,trap_name,dates,page,order,search)
+    if Config.DEBUGGING: app.logger.info('{}, {}, {}, {}, {}, {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,dates,page,order,search))
 
     reply = []
     next = None
@@ -404,7 +403,7 @@ def getAllIndividuals():
         # Join the existing query with the subquery and order by the most recent timestamp
         individuals = individuals.join(subquery, subquery.c.id == Individual.id).order_by(subquery.c.min_timestamp)
 
-    individuals = individuals.paginate(page, 12, False)
+    individuals = individuals.distinct().paginate(page, 12, False)
 
     for individual in individuals.items:
         image = db.session.query(Image)\
@@ -469,9 +468,9 @@ def getIndividuals(task_id,species):
         page = request.args.get('page', 1, type=int)
         
         if species.lower()=='all':
-            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).paginate(page, 8, False)
+            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).order_by(Individual.name).distinct().paginate(page, 8, False)
         else:
-            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).paginate(page, 8, False)
+            individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.name!='unidentifiable').filter(Individual.active==True).filter(Individual.species==species).order_by(Individual.name).distinct().paginate(page, 8, False)
 
         for individual in individuals.items:
             image = db.session.query(Image)\
@@ -2861,7 +2860,7 @@ def getJobs():
         #Add date descending
         tasks = tasks.order_by(desc(Survey.id))
 
-    tasks = tasks.paginate(page, 5, False)
+    tasks = tasks.distinct().paginate(page, 5, False)
 
     task_list = []
     for task in tasks.items:
@@ -2915,7 +2914,7 @@ def getWorkers():
         #join date
         workers = workers.order_by(User.id)
 
-    workers = workers.paginate(page, 5, False)
+    workers = workers.distinct().paginate(page, 5, False)
 
     worker_list = []
     for worker in workers.items:
@@ -6716,7 +6715,7 @@ def getClassifierInfo():
                                                 Classifier.region.contains(search),
                                                 Classifier.description.contains(search)))
 
-        classifiers = classifiers.distinct().order_by(Classifier.name).paginate(page, 10, False)
+        classifiers = classifiers.order_by(Classifier.name).distinct().paginate(page, 10, False)
 
         if showCurrent:
             survey = db.session.query(Survey).get(showCurrent)
