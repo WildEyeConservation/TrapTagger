@@ -649,32 +649,42 @@ def clusterIdComplete(task_id,label_id):
     label = db.session.query(Label).get(label_id)
     task = db.session.query(Task).get(task_id)
 
-    identified = db.session.query(Detection)\
-                        .join(Labelgroup)\
-                        .join(Individual, Detection.individuals)\
-                        .filter(Labelgroup.labels.contains(label))\
-                        .filter(Individual.species==label.description)\
-                        .filter(Labelgroup.task_id==task_id)\
-                        .filter(Individual.tasks.contains(task))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                        .filter(Detection.static == False) \
-                        .filter(~Detection.status.in_(['deleted','hidden'])) \
-                        .distinct().all()
-
-    count = db.session.query(Detection)\
+    check = db.session.query(Detection)\
                         .join(Labelgroup)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(label))\
-                        .filter(~Detection.id.in_([r.id for r in identified]))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static == False) \
                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                        .distinct().count()
+                        .distinct().first()
 
-    if count==0:
-        return True
-    else:
-        return False
+    if check:
+        identified = db.session.query(Detection)\
+                            .join(Labelgroup)\
+                            .join(Individual, Detection.individuals)\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(Individual.species==label.description)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Individual.tasks.contains(task))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                            .distinct().all()
+
+        count = db.session.query(Detection)\
+                            .join(Labelgroup)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(~Detection.id.in_([r.id for r in identified]))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                            .distinct().count()
+
+        if count==0:
+            return True
+    
+    return False
 
 def updateIndividualIdStatus(task_id):
     '''Updates the icID_allowed status of all labels of a specified task, based on whether the first stage of individual identification has been completed.'''
@@ -683,10 +693,7 @@ def updateIndividualIdStatus(task_id):
     task = db.session.query(Task).get(task_id)
 
     for label in labels:
-        if clusterIdComplete(task_id,label.id):
-            label.icID_allowed = True
-        else:
-            label.icID_allowed = False
+        label.icID_allowed = clusterIdComplete(task_id,label.id)
 
         identified = db.session.query(Detection)\
                             .join(Labelgroup)\

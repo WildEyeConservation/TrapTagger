@@ -130,6 +130,7 @@ def launchTask():
                                         .join(Label)\
                                         .filter(Label.description==species)\
                                         .filter(Label.icID_count==0)\
+                                        .filter(Label.icID_allowed==True)\
                                         .filter(Survey.user==current_user)\
                                         .distinct().all()]
                     
@@ -6992,6 +6993,7 @@ def getIndividualIDSurveysTasks():
                         .join(Label)\
                         .filter(Label.description==species)\
                         .filter(Label.icID_count==0)\
+                        .filter(Label.icID_allowed==True)\
                         .filter(Survey.user==current_user)\
                         .distinct().all()
 
@@ -7001,6 +7003,7 @@ def getIndividualIDSurveysTasks():
                         .join(Label)\
                         .filter(Label.description==species)\
                         .filter(Label.icID_count==0)\
+                        .filter(Label.icID_allowed==True)\
                         .filter(Task.survey==survey)\
                         .distinct().all()
 
