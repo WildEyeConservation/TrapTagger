@@ -123,7 +123,7 @@ def launchTask():
     taggingLevel = request.form['taskTaggingLevel']
     isBounding = request.form['isBounding']
 
-    if Config.debugging: app.logger.info('Task launched: {}, {}, {}, {}'.format(task_ids,taskSize,taggingLevel,isBounding))
+    if Config.DEBUGGING: app.logger.info('Task launched: {}, {}, {}, {}'.format(task_ids,taskSize,taggingLevel,isBounding))
 
     if task_ids==['0']:
         species = re.split(',',taggingLevel)[1]
