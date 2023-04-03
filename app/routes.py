@@ -237,9 +237,9 @@ def launchTask():
             if (len(task_ids) > 1) and ('-5' in taggingLevel):
                 tL = re.split(',',taggingLevel)
                 if tL[3]=='h':
-                    calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='hotspotter')
+                    calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='hotspotter')
                 elif tL[3]=='n':
-                    calculate_detection_similarities.delay(task_ids=[task_ids],species=tL[1],algorithm='none')
+                    calculate_detection_similarities.delay(task_ids=task_ids,species=tL[1],algorithm='none')
             else:
                 launch_task.apply_async(kwargs={'task_id':task.id})
             return json.dumps({'status': 'Success'})
