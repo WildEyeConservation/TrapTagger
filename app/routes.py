@@ -2835,12 +2835,15 @@ def getJobs():
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 5, type=int)
     search = request.args.get('search', '', type=str)
+    individual_id = request.args.get('individual_id', 'false', type=str)
 
     quals = [r.id for r in current_user.qualifications]
     if current_user.admin:
         quals.append(current_user.id)
 
     tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS')
+
+    if individual_id=='true': tasks = tasks.filter(Task.sub_tasks.any())
 
     searches = re.split('[ ,]',search)
     for search in searches:
@@ -2867,13 +2870,22 @@ def getJobs():
     tasks = tasks.distinct().paginate(page, 5, False)
 
     task_list = []
+    individual_id_names = []
     for task in tasks.items:
         completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task.id)
         task_dict = {}
         task_dict['id'] = task.id
         if task.sub_tasks and ('-5' in task.tagging_level):
             species = re.split(',',task.tagging_level)[1]
-            task_dict['name'] = species+' Individual ID'
+            name = species+' Individual ID'
+
+            count = 1
+            while name in individual_id_names:
+                count += 1
+                name = species+' Individual ID '+str(count)
+            individual_id_names.append(name)
+
+            task_dict['name'] = name
         else:
             task_dict['name'] = task.survey.name
         task_dict['completed'] = completed
