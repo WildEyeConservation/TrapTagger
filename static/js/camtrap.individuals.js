@@ -90,7 +90,7 @@ function getIndividuals(page = null) {
         formData.append("tag_name", JSON.stringify(selectedTag))
         formData.append("trap_name", JSON.stringify(selectedTrap))
         formData.append("dates", JSON.stringify(dates))
-        console.log(tasks, selectedLabel, selectedTag, selectedTrap, dates)
+
         request = '/getAllIndividuals'
         if (page != null) {
             current_page = page
@@ -105,9 +105,6 @@ function getIndividuals(page = null) {
         
         search = document.getElementById('individualSearch').value
         formData.append("search", JSON.stringify(search))
-        // if( search != null){
-        //     request += '&search='+search.toString()
-        // }
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", request);
@@ -203,7 +200,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 allIndividualImages = individualImages
             }
 
-            console.log(individualImages)
+            // console.log(individualImages)
             if(individualImages.length > 0){
                 document.getElementById('individualName').innerHTML = individualName
 
@@ -227,7 +224,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 function(){
                     if (this.readyState == 4 && this.status == 200) {
                         info = JSON.parse(this.responseText);
-                        console.log(info)
+                        // console.log(info)
                         if (info != "error"){
                             document.getElementById('idLabels').innerHTML = "Label: " + info.label
 
@@ -356,7 +353,7 @@ function individualTags(){
         if (this.readyState == 4 && this.status == 200) {
             tags = JSON.parse(this.responseText);  
             globalTags = tags
-            console.log(tags)
+
             if(tags){
                 
                 for (let i=0;i<tags.length;i++) {
@@ -413,7 +410,7 @@ function submitIndividualTags(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)    
+            // console.log(reply)    
         }
     }
     xhttp.send(formData);   
@@ -427,7 +424,7 @@ function populateSelectors(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+
             if (modalActive){
                 texts = []
                 texts.push(...reply.labels)
@@ -627,6 +624,11 @@ function cleanModalIndividual() {
     while(statisticsDiv.firstChild){
         statisticsDiv.removeChild(statisticsDiv.firstChild)
     }
+
+    editTagsDiv = document.getElementById('editTagsDiv')
+    while(editTagsDiv.firstChild){
+        editTagsDiv.removeChild(editTagsDiv.firstChild);
+    }
     
     individualSplide = null
     individualImages = null
@@ -640,6 +642,19 @@ function cleanModalIndividual() {
     mapHeight = null
     map = null
     mapStats = null
+
+    document.getElementById('tgInfo').innerHTML = 'Trap: '
+    document.getElementById('timeInfo').innerHTML = ''
+    document.getElementById('idLabels').innerHTML = 'Label: '    
+    document.getElementById('idSurveys').innerHTML = 'Surveys: '
+    document.getElementById('idFirstSeen').innerHTML = 'First Seen: '
+    document.getElementById('idLastSeen').innerHTML = 'Last Seen: '    
+    document.getElementById('idNotes').value = ''
+    document.getElementById('newIndividualName').value = ''
+
+    document.getElementById('newNameErrors').innerHTML = ''
+    document.getElementById('dateErrorsIndiv').innerHTML = ''
+    document.getElementById('notesError').innerHTML = ''
 
     document.getElementById('ascOrder').checked = true
     document.getElementById('orderIndivImages').value = '1'	
@@ -919,42 +934,22 @@ function removeImage() {
 
 function buildSurveySelect(){
     /** Builds the selectors for the surveys and annotation sets */
-    if(modalActive){
-        IDNum = getIdNumforNext('idSurveySelect1-')
-        surveySelect = document.getElementById('surveySelect1')
 
-        row = document.createElement('div')
-        row.classList.add('row')
-        surveySelect.appendChild(row)
+    IDNum = getIdNumforNext('idSurveySelect-')
+    surveySelect = document.getElementById('surveySelect')
 
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-4')
-        row.appendChild(col1)
+    row = document.createElement('div')
+    row.classList.add('row')
+    surveySelect.appendChild(row)
 
-        col2 = document.createElement('div')
-        col2.classList.add('col-lg-4')
-        row.appendChild(col2)
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
 
-        col3 = document.createElement('div')
-        col3.classList.add('col-lg-2')
-        row.appendChild(col3)
-    }
-    else{
-        IDNum = getIdNumforNext('idSurveySelect-')
-        surveySelect = document.getElementById('surveySelect')
-
-        row = document.createElement('div')
-        row.classList.add('row')
-        surveySelect.appendChild(row)
-
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-10')
-        row.appendChild(col1)
-
-        col3 = document.createElement('div')
-        col3.classList.add('col-lg-2')
-        row.appendChild(col3)
-    }
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+    
 
     if (IDNum > 0 && !modalActive) {
         col1.appendChild(document.createElement('br'))
@@ -963,30 +958,16 @@ function buildSurveySelect(){
 
     idSurveySelect = document.createElement('select')
     idSurveySelect.classList.add('form-control')
-    if(modalActive){
-        idSurveySelect.id = 'idSurveySelect1-'+String(IDNum)
-    }
-    else{
-        idSurveySelect.id = 'idSurveySelect-'+String(IDNum)
-    }
+    idSurveySelect.id = 'idSurveySelect-'+String(IDNum)
     idSurveySelect.name = idSurveySelect.id
     col1.appendChild(idSurveySelect)
 
     idTaskSelect = document.createElement('select')
     idTaskSelect.classList.add('form-control')
-    if(modalActive){
-        idTaskSelect.id = 'idTaskSelect1-'+String(IDNum)
-    }
-    else{
-        idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
-    }
+    idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
     idTaskSelect.name = idTaskSelect.id
-    if(modalActive){
-        col2.appendChild(idTaskSelect)
-    }
-    else{
-        col1.appendChild(idTaskSelect)
-    }
+    col1.appendChild(idTaskSelect)
+    
 
     if (surveys != null) {
         
@@ -1028,14 +1009,9 @@ function buildSurveySelect(){
 
     $("#"+idSurveySelect.id).change( function(wrapIDNum) {
         return function() {
-            if(modalActive){
-                idSurveySelect = document.getElementById('idSurveySelect1-'+String(wrapIDNum))
-                idTaskSelect = document.getElementById('idTaskSelect1-'+String(wrapIDNum))
-            }
-            else{
-                idSurveySelect = document.getElementById('idSurveySelect-'+String(wrapIDNum))
-                idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
-            }
+
+            idSurveySelect = document.getElementById('idSurveySelect-'+String(wrapIDNum))
+            idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
             
             survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
             if (survey=="0") {
@@ -1139,11 +1115,6 @@ function buildSurveySelectLaunchID(){
             optionValues = ['-99999'] 
             fillSelect(idTaskSelect, [''], ['-99999'])
         }
-                 
-        // for (let i=0;i<surveys.length;i++) {
-        //     optionTexts.push(surveys[i])
-        //     optionValues.push(surveys[i])
-        // }
 
         for (survey_name in surveys){
             optionTexts.push(survey_name)
@@ -1663,7 +1634,7 @@ document.getElementById('btnSubmitName').addEventListener('click', ()=>{
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+
                 if (reply.status == 'success'){
                     document.getElementById('individualName').innerHTML = newName
                     document.getElementById('editNameDiv').hidden = true

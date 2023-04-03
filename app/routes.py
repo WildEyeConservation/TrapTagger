@@ -678,7 +678,8 @@ def getTags(individual_id):
     reply = []
     individual = db.session.query(Individual).get(individual_id)
     if individual and ((current_user == individual.tasks[0].survey.user)):
-        for tag in individual.tags:
+        tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).distinct().all()
+        for tag in tags:
             reply.append({'id': tag.id, 'tag': tag.description, 'hotkey': tag.hotkey})
 
     return json.dumps(reply)
