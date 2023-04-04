@@ -1941,23 +1941,25 @@ def getBarDataIndividual(individual_id, baseUnit, site_id):
 
         if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
+        if start_date and end_date:
+            reply = [0]
+            startDate = datetime.strptime(start_date, '%Y/%m/%d %H:%M:%S')
+            endDate = datetime.strptime(end_date, '%Y/%m/%d %H:%M:%S')
+            day_count = (endDate - startDate).days + 1
+            date_list = [startDate + timedelta(days=x) for x in range(day_count)]
+            
+            for n in range(day_count):
+                year = date_list[n].year
+                month = date_list[n].month
+                day = date_list[n].day
+                count = baseQuery.filter(extract('year',Image.corrected_timestamp)==year).filter(extract('month',Image.corrected_timestamp)==month).filter(extract('day',Image.corrected_timestamp)==day).distinct().count()
+                reply.append(count)       
 
-        startDate = dates[0].date()
-        endDate = dates[1].date()
-        day_count = (endDate - startDate).days + 1
-        date_list = [startDate + timedelta(days=x) for x in range(day_count)]
-        app.logger.info(date_list)
-        
-        # for n in range(day_count):
-        #     count = baseQuery.filter(extract('year/',Image.corrected_timestamp)==date_list[n]).distinct().count()
-        #     reply.append(count)
-        
-        count = baseQuery.distinct().count()
-        reply = [count]
+            reply.append(0)
+            date_list.insert(0, startDate - timedelta(days=1))
+            date_list.append(endDate + timedelta(days=1))
 
-        
-
-    return json.dumps(reply)
+    return json.dumps({'data' :reply, 'labels': [date.strftime('%Y/%m/%d') for date in date_list]})
 
 @app.route('/setAdminTask/<task>')
 @login_required

@@ -30,6 +30,8 @@ var globalLabels = null
 var current_page = null
 var individualImages = null
 var currentTags = null
+var individualFirstSeen = ""
+var individualLastSeen = ""
 // var allSites = null
 
 
@@ -210,7 +212,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
     function(){
         if (this.readyState == 4 && this.status == 200) {
             individualImages = JSON.parse(this.responseText);
-            console.log(individualImages)
+            // console.log(individualImages)
             if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
                 allIndividualImages = individualImages
             }
@@ -251,7 +253,10 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             id_surveys.innerHTML = "Surveys: " + info.surveys
 
                             firstSeen = info.seen_range[0]
+                            individualFirstSeen = firstSeen
                             lastSeen = info.seen_range[1]
+                            individualLastSeen = lastSeen
+
                             document.getElementById('idFirstSeen').innerHTML = "First Seen: " + firstSeen
                             document.getElementById('idLastSeen').innerHTML = "Last Seen: " + lastSeen
 
@@ -1309,7 +1314,7 @@ function getSurveysandTasks(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             surveys = JSON.parse(this.responseText);  
-            console.log(surveys)
+            // console.log(surveys)
             buildSurveySelectLaunchID()
         }
     }
