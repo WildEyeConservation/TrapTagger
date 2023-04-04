@@ -4267,7 +4267,7 @@ def getIndividualInfo(individual_id):
         firstSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()[0].strftime("%Y/%m/%d %H:%M:%S")
         lastSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(desc(Image.corrected_timestamp)).first()[0].strftime("%Y/%m/%d %H:%M:%S")
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': individual.tasks[0].survey.name, 'seen_range': [firstSeen, lastSeen]})
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen]})
     else:
         return json.dumps('error')
 
