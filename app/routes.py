@@ -7027,6 +7027,7 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_allowed==True)\
                         .filter(Survey.user==current_user)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                        .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
                         .distinct().all()
 
     reply = {}
