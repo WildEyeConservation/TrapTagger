@@ -763,6 +763,7 @@ modalIndividual.on('hidden.bs.modal', function(){
     else {
         cleanModalIndividual()
         getIndividuals(current_page)
+        getTasks()
     }
 });
 
@@ -1044,6 +1045,7 @@ function buildSurveySelect(){
 
     col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
+    col3.setAttribute('style','padding: 0px;')
     row.appendChild(col3)
     
 
@@ -1051,7 +1053,7 @@ function buildSurveySelect(){
         col1.appendChild(document.createElement('br'))
         col3.appendChild(document.createElement('br'))
     }
-
+    
     idSurveySelect = document.createElement('select')
     idSurveySelect.classList.add('form-control')
     idSurveySelect.id = 'idSurveySelect-'+String(IDNum)
@@ -1090,8 +1092,7 @@ function buildSurveySelect(){
 
     if (IDNum!=0) {
         btnRemove = document.createElement('button');
-        btnRemove.classList.add('btn');
-        btnRemove.classList.add('btn-info');
+        btnRemove.setAttribute("class",'btn btn-info');
         btnRemove.innerHTML = '&times;';
         btnRemove.addEventListener('click', (evt)=>{
             evt.target.parentNode.parentNode.remove();
@@ -1342,12 +1343,11 @@ function addSurvey(){
     addSurveyTask.appendChild(row)
 
     col = document.createElement('div')
-    col.classList.add('col-lg-2')
+    col.classList.add('col-lg-3')
     row.appendChild(col)
 
     btnAdd = document.createElement('button');
-    btnAdd.classList.add('btn');
-    btnAdd.classList.add('btn-info');
+    btnAdd.setAttribute("class",'btn btn-info');
     btnAdd.innerHTML = '&plus;';
     btnAdd.addEventListener('click', ()=>{
         if(modalActive){    
@@ -1676,6 +1676,7 @@ modalLaunchID.on('hidden.bs.modal', function(){
     modalActive = false
     btnLaunch.disabled=false
     getIndividuals(current_page)
+    getTasks()
 })
 
 document.getElementById('btnSubmitInfoChange').addEventListener('click', function(){
@@ -1708,11 +1709,134 @@ $('#individualSearch').change( function() {
     getIndividuals()
 });
 
+function buildIdTask(task){
+    idTasksListDiv = document.getElementById('idTasksListDiv'); 
+    newTask = document.createElement('div')
+
+    idTasksListDiv.appendChild(newTask)
+
+    entireRow = document.createElement('div')
+    entireRow.classList.add('row');
+    newTask.appendChild(entireRow)
+
+    taskDiv = document.createElement('div')
+    taskDiv.classList.add('col-lg-9');
+    entireRow.appendChild(taskDiv)
+    headingElement = document.createElement('h5')
+    headingElement.innerHTML = task.name
+    taskDiv.appendChild(headingElement)
+
+    stopTaskCol = document.createElement('div')
+    stopTaskCol.classList.add('col-lg-3');
+    stopTaskBtn = document.createElement('button')
+    stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
+    stopTaskBtn.innerHTML = '&times;'
+    stopTaskCol.appendChild(stopTaskBtn)
+    entireRow.appendChild(stopTaskCol)
+
+    stopTaskBtn.addEventListener('click', function(wrapTaskId) {
+        return function() {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);   
+                    if (reply=='success') {
+                        getTasks()
+                    }
+                }
+            }
+            xhttp.open("GET", '/stopTask/'+wrapTaskId);
+            xhttp.send();
+        }
+    }(task.id));
+        
+
+    entireRow = document.createElement('div')
+    entireRow.classList.add('row');
+    newTask.appendChild(entireRow)
+
+    jobProgressBarCol = document.createElement('div')
+    jobProgressBarCol.classList.add('col-lg-9');
+    
+    jobProgressBarDiv = document.createElement('div')
+    jobProgressBarDiv.setAttribute("id","jobProgressBarDiv"+task.id)
+
+    var newProg = document.createElement('div');
+    newProg.classList.add('progress');
+    newProg.setAttribute('style','background-color: #3C4A59')
+
+    var newProgInner = document.createElement('div');
+    newProgInner.classList.add('progress-bar');
+    newProgInner.classList.add('progress-bar-striped');
+    newProgInner.classList.add('progress-bar-animated');
+    newProgInner.classList.add('active');
+    newProgInner.setAttribute("role", "progressbar");
+    newProgInner.setAttribute("id", "progBar"+task.id);
+    newProgInner.setAttribute("aria-valuenow", task.completed);
+    newProgInner.setAttribute("aria-valuemin", "0");
+    newProgInner.setAttribute("aria-valuemax", task.total);
+    newProgInner.setAttribute("style", "width:"+(task.completed/task.total)*100+"%;transition:none; ");
+    newProgInner.innerHTML = task.remaining
+
+    newProg.appendChild(newProgInner);
+    jobProgressBarDiv.appendChild(newProg);
+    jobProgressBarCol.appendChild(jobProgressBarDiv);
+    entireRow.appendChild(jobProgressBarCol)
+
+    tagTaskCol = document.createElement('div')
+    tagTaskCol.classList.add('col-lg-3');
+
+    tagTaskLink = document.createElement('a')
+    tagTaskLink.setAttribute("href","/jobs")
+    
+    tagTaskBtn = document.createElement('button')
+    tagTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
+
+    icon = document.createElement('i')
+    icon.classList.add('fa');
+    icon.classList.add('fa-external-link');
+
+    tagTaskBtn.appendChild(icon)
+    tagTaskLink.appendChild(tagTaskBtn)
+    tagTaskCol.appendChild(tagTaskLink)
+    entireRow.appendChild(tagTaskCol)
+
+    newTask.appendChild(document.createElement('br'))
+
+}
+
+
+function getTasks(){
+    /** Gets the current individual ID tasks */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            idTasksListDiv = document.getElementById('idTasksListDiv'); 
+            while(idTasksListDiv.firstChild){
+                idTasksListDiv.removeChild(idTasksListDiv.firstChild);
+            }
+
+            for (let i=0;i<reply.jobs.length;i++) {
+                buildIdTask(reply.jobs[i])
+            }
+
+        }
+    }
+    xhttp.open("GET", '/getJobs?individual_id=' + true);
+    xhttp.send();
+}
+
 function onload(){
     /**Function for initialising the page on load.*/
     addSurvey()
     checkSurvey()
     populateSelectors()
+    getTasks()
+
 }
 
 window.addEventListener('load', onload, false);
