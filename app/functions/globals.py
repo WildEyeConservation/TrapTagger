@@ -1622,6 +1622,7 @@ def checkForIdWork(task_ids,label,theshold):
                     .join(relevant_individuals,relevant_individuals.c.id==Individual.id)\
                     .join(relevant_individuals2,relevant_individuals2.c.id==OtherIndividual.c.id)\
                     .filter(IndSimilarity.score>=theshold)\
+                    .filter(IndSimilarity.skipped==False)\
                     .group_by(Individual.id)\
                     .subquery()
 
@@ -1631,6 +1632,7 @@ def checkForIdWork(task_ids,label,theshold):
                     .join(relevant_individuals,relevant_individuals.c.id==Individual.id)\
                     .join(relevant_individuals2,relevant_individuals2.c.id==OtherIndividual.c.id)\
                     .filter(IndSimilarity.score>=theshold)\
+                    .filter(IndSimilarity.skipped==False)\
                     .group_by(Individual.id)\
                     .subquery()
 
