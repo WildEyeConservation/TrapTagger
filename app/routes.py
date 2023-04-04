@@ -145,6 +145,36 @@ def launchTask():
         if task.status.lower() not in Config.TASK_READY_STATUSES:
             statusPass = False
 
+    # Check individuals not already associated to another task in a survey
+    if (len(task_ids)>1) and ('-5' in taggingLevel):
+        species = re.split(',',taggingLevel)[1]
+
+        individuals_in_selection = db.session.query(Individual)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
+                                            .subquery()
+
+        problem_surveys_sq = db.session.query(Survey,func.count(distinct(Task.id)).label('count'))\
+                                            .join(Task)\
+                                            .join(Individual,Task.individuals)\
+                                            .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
+                                            .group_by(Survey.id)\
+                                            .subquery()
+
+        problem_surveys = db.session.query(Survey)\
+                                            .join(problem_surveys_sq, Survey.id==problem_surveys_sq.c.id)\
+                                            .filter(problem_surveys_sq.c.count>1)\
+                                            .distinct().all()
+
+        if problem_surveys:
+            message = 'The following surveys already have another annotation set assoicated with the stipulated individual pool: '
+            for survey in problem_surveys:
+                message += survey.name + ', '
+            message = message[:-2] + '.'
+
+            return json.dumps({'message': message, 'status': 'Error'})
+
     task = tasks[0]
     message = 'Task not ready to be launched.'
 
@@ -4482,6 +4512,11 @@ def get_clusters():
 
     reply = {'id': reqId, 'info': []}
     for cluster in clusters:
+        if time.time() - OverallStartTime > 30:
+            # If this is taking too long, cut the request short
+            current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
+            db.session.commit()
+            break
         reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user))
 
     if (id is None) and (current_user.clusters_allocated >= task.size):
@@ -5281,6 +5316,7 @@ def assignLabel(clusterID):
                                         #                         .distinct().count()
 
                                         if tgs_available and (not explore) and removable_detections:
+                                            OverallStartTime = time.time()
                                             reAllocated = True
                                             trapgroup = cluster.images[0].camera.trapgroup
                                             trapgroup.processing = True
@@ -5314,6 +5350,11 @@ def assignLabel(clusterID):
                                             else:
                                                 newClusters = []
                                                 for cluster in clusters:
+                                                    if time.time() - OverallStartTime > 30:
+                                                        # If this is taking too long, cut the request short
+                                                        current_user.clusters_allocated -= (len(clusters) - len(newClusters))
+                                                        db.session.commit()
+                                                        break
                                                     newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user))
 
                                                 if current_user.clusters_allocated >= task.size:
