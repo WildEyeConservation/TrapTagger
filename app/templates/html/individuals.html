@@ -19,7 +19,7 @@ limitations under the License. -->
     <!-- <div class='col-lg-1'></div> -->
     <div class="col-lg-2" style="padding-left: 30px;">
         <div class="card" style='min-height:400px' id="filterCard">
-            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
                 <h3>Filters</h3>
             </div>
             <div class="card-body" id="filterCardDiv">
@@ -69,10 +69,17 @@ limitations under the License. -->
                     <label for="endDate">End date:</label><br>
                     <input type="date" id="endDate" name="endDate">
                     <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
-                    <br>
                 </div>
             </div>
-            <div class="card-footer"></div>          
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+                <div class="row">
+                    <div class="col-lg-2"></div>
+                    <div class="col-lg-8">
+                        <button type='button' class='btn btn-primary btn-block' id='btnClearFilters' onclick=clear_filters()>Clear</button>  
+                    </div>
+                    <div class="col-lg-2"></div>
+                </div>
+            </div>          
         </div>
 
     </div>
@@ -80,7 +87,7 @@ limitations under the License. -->
 
         <div class="card" style='min-height:400px' id="mainCard">
 
-            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
             <div class='row' style="margin-top: 0px; margin-bottom: 0px">
                 <div class='col-lg-4'>
                     <h3>Your Individuals</h3>
@@ -102,24 +109,20 @@ limitations under the License. -->
 
 
             <div class="card-body" id="indivListDiv">
-                <div class="row">
-                    <div id="individualsDiv" style="padding-left: 15px; padding-right: 15px;"></div>
-                </div>
+              
+                <div id="individualsDiv" ></div>
+
                 
             </div>
     
-            <div class="card-footer">
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
               <div class="row">
                 <div class="col-lg-2">
                   <button type='button' class='btn btn-info btn-block' id='btnPrevIndividuals' style="visibility: hidden;" onclick=prev_individuals()>
                     Previous
                   </button>  
                 </div>
-                <div class="col-lg-3"></div>
-                <div class="col-lg-2" align="center">
-                    <button type='button' class='btn btn-primary btn-block' id='btnLaunchID' onclick=launchID()>Launch Individual ID</button>  
-                </div>
-                <div class="col-lg-3"></div>
+                <div class="col-lg-8"></div>
                 <div class="col-lg-2">
                   <button type='button' class='btn btn-info btn-block' id='btnNextIndividuals' style="visibility: hidden;"  onclick=next_individuals()>
                     Next 
@@ -132,19 +135,25 @@ limitations under the License. -->
     </div>
     <div class="col-lg-2" style="padding-right: 30px;">
         <div class="card" style='min-height:400px' id="tasksCard">
-            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
                 <h3>Tasks</h3>
             </div>
-            <div class="card-body" id="tasksDiv">
+            <div class="card-body" id="tasksDiv" style="padding: 0px;">
                     <div id="idTasksListDiv"></div>
             </div>
-            <div class="card-footer">
-                <!-- <div class="row">
-                  <div class="col-lg-10" align="center">
-                      <button type='button' class='btn btn-primary btn-block' id='btnLaunchID' onclick=launchID()>Launch Individual ID</button>  
-                  </div>
-                </div>    -->
-              </div>  
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+                <div class="row">
+                    <div class="col-lg-2"  style="padding: 0rem;">
+                        <button type='button' class='btn btn-info btn-block' id='btnPrevTasks' style="visibility: hidden;">&lt;</button>  
+                    </div>
+                    <div class="col-lg-8" align="center">
+                      <button type='button' class='btn btn-primary btn-block' id='btnLaunchID' onclick=launchID()>Launch ID</button>
+                    </div>
+                    <div class="col-lg-2" style="padding: 0rem;">
+                        <button type='button' class='btn btn-info btn-block' id='btnNextTasks' style="visibility: hidden;">&gt;</button>  
+                    </div>
+                </div>  
+            </div>  
                     
         </div>
 
