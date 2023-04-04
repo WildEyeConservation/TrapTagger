@@ -2850,9 +2850,13 @@ def getJobs():
     if current_user.admin:
         quals.append(current_user.id)
 
-    tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals)).filter(Task.status=='PROGRESS')
+    tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals))
 
-    if individual_id=='true': tasks = tasks.filter(Task.sub_tasks.any())
+    if individual_id=='true':
+        # We need to included the launching tasks on the individual ID page
+        tasks = tasks.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any())
+    else:
+        tasks = tasks.filter(Task.status=='PROGRESS')
 
     searches = re.split('[ ,]',search)
     for search in searches:
