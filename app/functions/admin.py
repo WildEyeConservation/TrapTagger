@@ -1441,6 +1441,8 @@ def getTaskProgress(task_id):
     taggingLevel = task.tagging_level
 
     if task and taggingLevel:
+        if task.status=='PENDING':
+            return 100, 100, 'Preparing...', 0, 0
         if '-5' in taggingLevel:
             task_ids = [r.id for r in task.sub_tasks]
             task_ids.append(task.id)
