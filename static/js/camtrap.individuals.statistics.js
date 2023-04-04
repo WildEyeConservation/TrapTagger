@@ -26,6 +26,38 @@ var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(140,26,234,0.2)':false
                 }
 
+var barColours = [
+    'rgba(67,115,98,0.4)',
+    'rgba(89,228,170,0.4)',
+    'rgba(97,167,152,0.4)',
+    'rgba(57,159,113,0.4)',
+    'rgba(35,108,144,0.4)',
+    'rgba(20,48,55,0.4)',
+    'rgba(61,105,121,0.4)',
+    'rgba(104,38,137,0.4)',
+    'rgba(88,63,124,0.4)',
+    'rgba(78,46,176,0.4)',
+    'rgba(182,92,88,0.4)',
+    'rgba(149,88,63,0.4)',
+    'rgba(225,158,139,0.4)',
+    'rgba(214,131,97,0.4)',
+    'rgba(222,156,183,0.4)',
+    'rgba(202,90,156,0.4)',
+    'rgba(215,61,113,0.4)',
+    'rgba(150,90,115,0.4)',
+    'rgba(229,177,54,0.4)',
+    'rgba(157,110,35,0.4)',
+    'rgba(220,173,105,0.4)',
+    'rgba(143,115,79,0.4)',
+    'rgba(223,138,46,0.4)',
+    'rgba(220,191,155,0.4)',
+    'rgba(203,218,69,0.4)',
+    'rgba(85,159,58,0.4)',
+    'rgba(111,129,54,0.4)',
+    'rgba(117,223,84,0.4)',
+    'rgba(189,218,138,0.4)'
+    ]
+
 function createIndivMap() {
     /** Initialises the individual heat map. */
     trapgroupInfo = []
@@ -193,15 +225,21 @@ function createIndivMap() {
     startDateLabel.setAttribute('for', 'startDateSpatial');
     dateRange.appendChild(startDateLabel)
 
+    dateRange.appendChild(document.createElement('br'));
+
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateSpatial');
     dateRange.appendChild(startDateInput)
 
+    dateRange.appendChild(document.createElement('br'));
+
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateSpatial');
     dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
@@ -455,20 +493,23 @@ function updateHeatMap(){
     formData = new FormData()
     startDateSpat = document.getElementById('startDateSpatial').value
     endDateSpat = document.getElementById('endDateSpatial').value
-    if(startDateSpat != '' && endDateSpat != ''){
-        dates = [startDateSpat + ' 00:00:00',endDateSpat + ' 23:59:59']
+    if(startDateSpat != '' ){
+        startDateSpat = startDateSpat + ' 00:00:00'
     }
-    else{
-        dates = []
-    }
-    formData.append('dates',JSON.stringify(dates))
+
+    if(endDateSpat != '' ){
+        endDateSpat = endDateSpat + ' 23:59:59'
+    }   
+
+    formData.append('start_date',JSON.stringify(startDateSpat))
+    formData.append('end_date',JSON.stringify(endDateSpat))
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             hm_data = []
             hm_max = 0
             traps = []
@@ -727,15 +768,21 @@ function createIndivPolarChart() {
     startDateLabel.setAttribute('for', 'startDateTemp');
     dateRange.appendChild(startDateLabel)
 
+    dateRange.appendChild(document.createElement('br'));
+
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateTemp');
     dateRange.appendChild(startDateInput)
 
+    dateRange.appendChild(document.createElement('br'));
+
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateTemp');
     dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
@@ -922,14 +969,17 @@ function updatePolarData(IDNum) {
 
         startDateTemp = document.getElementById('startDateTemp').value
         endDateTemp = document.getElementById('endDateTemp').value
-        if(startDateTemp != '' && endDateTemp != ''){
-            dates = [startDateTemp + ' 00:00:00',endDateTemp + ' 23:59:59']
-        }
-        else{
-            dates = []
-        }
+        if(startDateTemp != '' ){
+            startDateTemp = startDateTemp + ' 00:00:00'
+        }    
+    
+        if(endDateTemp != '' ){
+            endDateTemp = endDateTemp + ' 23:59:59'
+        }   
 
-        formData.append('dates', JSON.stringify(dates));  
+    
+        formData.append('start_date',JSON.stringify(startDateTemp))
+        formData.append('end_date',JSON.stringify(endDateTemp))
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -939,7 +989,7 @@ function updatePolarData(IDNum) {
                     response = JSON.parse(this.responseText);
                     IDkey = wrapIDNum.toString()
                     reply = response.data
-                    console.log(reply)
+                    // console.log(reply)
                     if (!polarData.hasOwnProperty(IDkey)) {
                         colour = null
                         for (let key in polarColours) {
@@ -1183,9 +1233,11 @@ function editPolarData(data,colour) {
 function createIndivBar() {
     /** Initialises a numerical-analysis bar chart. */
 
-    barData = {}
-
-                    
+    barData = {
+        'labels': [],
+        'data': [],
+    }
+              
     mainDiv = document.getElementById('statisticsDiv')
 
     div = document.createElement('div')
@@ -1218,15 +1270,21 @@ function createIndivBar() {
     startDateLabel.setAttribute('for', 'startDateNum');
     dateRange.appendChild(startDateLabel)
 
+    dateRange.appendChild(document.createElement('br'));
+
     startDateInput = document.createElement('input');
     startDateInput.setAttribute('type', 'date');
     startDateInput.setAttribute('id', 'startDateNum');
     dateRange.appendChild(startDateInput)
 
+    dateRange.appendChild(document.createElement('br'));
+
     endDateLabel = document.createElement('label');
     endDateLabel.textContent = 'End date:';
     endDateLabel.setAttribute('for', 'endDateNum');
     dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
 
     endDateInput = document.createElement('input');
     endDateInput.setAttribute('type', 'date');
@@ -1239,15 +1297,55 @@ function createIndivBar() {
     endDateInput.setAttribute('max', maxDate)
     
     $("#startDateNum").change( function() {
-        /** Listener for the date selector on the individual mapStats modal. */
-        // updateBarData()
-        console.log('start date changed')
+        /** Listener for the date selector */
+        valid = false
+        if(startDateInput.value == '' && endDateInput.value == ''){
+            valid = true
+        }
+        else if(startDateInput.value == ''){
+            valid = false
+        }
+        else if(endDateInput.value == ''){
+            valid = false
+        }
+        else{
+            if(startDateInput.value > endDateInput.value){
+                valid = false
+            }
+            else{
+                valid = true
+            }
+        }    
+
+        if (valid) {
+            updateBarData()
+        }
     })
 
     $("#endDateNum").change( function() {
-        /** Listener for the date selector on the individual mapStats modal. */
-        // updateBarData()
-        console.log('end date changed')
+        /** Listener for the date selector*/
+        valid = false
+        if(startDateInput.value == '' && endDateInput.value == ''){
+            valid = true
+        }
+        else if(startDateInput.value == ''){
+            valid = false
+        }
+        else if(endDateInput.value == ''){
+            valid = false
+        }
+        else{
+            if(startDateInput.value > endDateInput.value){
+                valid = false
+            }
+            else{
+                valid = true
+            }
+        }    
+
+        if (valid) {
+            updateBarData()
+        }
     })
 
     selectorDiv.appendChild(document.createElement('br'))
@@ -1269,8 +1367,7 @@ function createIndivBar() {
 
     fillSelect(select, ['Sightings', 'Clusters' ,'Images'], ['3','2','1'])
     $("#baseUnitSelector").change( function() {
-        // updateBaseUnitBar()
-        console.log('changed')
+        updateBarData()
     });
 
 
@@ -1303,8 +1400,7 @@ function createIndivBar() {
 
     fillSelect(select, trapgroupNames, trapgroupValues)
     $("#barSiteSelector").change( function() {
-        // updateBarData()
-        console.log('changed')
+        updateBarData()
     });
 
     div = document.createElement('div')
@@ -1325,7 +1421,7 @@ function createIndivBar() {
 
     var data = {
         datasets: [],
-        labels: ['Date range']
+        labels: []
     };
 
     var options = {
@@ -1335,24 +1431,6 @@ function createIndivBar() {
         },
         tooltips: {
             displayColors: false,
-            callbacks: {
-                title: function(tooltipItems, data) {
-                    return '';
-                },
-                // label: function(tooltipItem, data) {
-                //     xAxisSelector = document.getElementById('xAxisSelector')
-                //     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-                //     var datasetLabel = '';
-                //     var label = data.labels[tooltipItem.index];
-                //     if (xAxisSelection=='1') {
-                //         selector = document.querySelectorAll('[id^=speciesSelect-]')[tooltipItem.datasetIndex]
-                //         speciesName = selector.options[selector.selectedIndex].text
-                //         return speciesName+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                //     } else {
-                //         return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                //     }
-                // }           
-            }
         },
         ticks: {
             min: 0
@@ -1362,11 +1440,31 @@ function createIndivBar() {
                 ticks: {
                     fontColor: "white",
                     beginAtZero: true
+                },
+                scaleLabel: {
+                    display: true,
+                    labelString: 'Count',
+                    fontColor: "white"
                 }
             }],
             xAxes: [{
+                type: 'time',
+                time: {
+                    unit: 'day',
+                    displayFormats: {
+                        day: 'YYYY/MM/DD'
+                    },
+                    tooltipFormat: 'YYYY/MM/DD'
+                },
                 ticks: {
                     fontColor: "white"
+                },
+                scaleLabel: {
+                    display: true,
+                    labelString: 'Date range',
+                    fontColor: "white"
+                    
+
                 }
             }]
         }
@@ -1381,197 +1479,90 @@ function createIndivBar() {
 
 }
 
-// function updateBarData(IDNum) {
-//     /** Requests the dataset associated with the specified ID number, for the active bar chart. */
+function updateBarData() {
+    /** Requests the dataset for the active bar chart. */
 
-//     baseUnitSelector = document.getElementById('baseUnitSelector')
-//     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-//     siteSelector = document.getElementById('barSiteSelector')
-//     siteSelection = siteSelector.options[siteSelector.selectedIndex].value
+    baseUnitSelector = document.getElementById('baseUnitSelector')
+    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    siteSelector = document.getElementById('barSiteSelector')
+    siteSelection = siteSelector.options[siteSelector.selectedIndex].value
 
-//     if (siteSelection!='-1') {
+    if (siteSelection!='-1') {
 
-//         var formData = new FormData();
-//         startDateNum = document.getElementById('startDateNum').value
-//         endDateNum = document.getElementById('endDateNum').value
-//         if(startDateNum != '' && endDateNum != ''){
-//             dates = [startDateNum + ' 00:00:00',endDateNum + ' 23:59:59']
-//         }
-//         else{
-//             dates = []
-//         }
-//         formData.append('dates',JSON.stringify(dates))
+        var formData = new FormData();
+        startDateNum = document.getElementById('startDateNum').value
+        endDateNum = document.getElementById('endDateNum').value
+        if(startDateNum != '' ){
+            startDateNum = startDateNum.replace(/-/g, '/') + ' 00:00:00'
+        }
+        else{
+            startDateNum = individualFirstSeen.split(' ')[0] +' 00:00:00'
+        }
 
-//         var xhttp = new XMLHttpRequest();
-//         xhttp.onreadystatechange =
-//         function(wrapIDNum){
-//             return function() {
-//                 if (this.readyState == 4 && this.status == 200) {
-//                     reply = JSON.parse(this.responseText);
-//                     IDkey = wrapIDNum.toString()
-    
-//                     if (!barData.hasOwnProperty(IDkey)) {
-//                         colour = null
-//                         for (let key in barColours) {
-//                             if (barColours[key]==false) {
-//                                 barColours[key] = true
-//                                 colour = key
-//                                 break
-//                             }
-//                         }
-//                         if (colour != null) {
-//                             btnColour = colour
-//                             btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-//                             btnRemove.setAttribute('style','background-color: '+btnColour)
-//                             barData[IDkey] = {}
-//                             barData[IDkey]['colour'] = colour
-//                             barData[IDkey]['new'] = true
-//                         }
-//                     }
-//                     barData[IDkey]['data'] = reply
-    
-//                     total = 0
-//                     for (let i=0;i<reply.length;i++) {
-//                         total += reply[i]
-//                     }
-//                     barData[IDkey]['total'] = total
-    
-//                     updateBarDisplay(wrapIDNum)
-//                 }
-//             }
-//         }(IDNum);
-//         xhttp.open("POST", 'getBarDataIndividual/'+selectedIndividual+'/'+baseUnitSelection+'/'+siteSelection);
-//         xhttp.send(formData);
-//     } else {
-//         barData[IDkey]['data'] = [0]
-//         barData[IDkey]['total'] = 0
-//         updateBarDisplay(IDNum)
-//     }
-// }
+        if(endDateNum != '' ){
+            endDateNum = endDateNum.replace(/-/g, '/') + ' 23:59:59'
+        }   
+        else{
+            endDateNum = individualLastSeen.split(' ')[0] +' 23:59:59'
+        }
 
-// function updateBarDisplay(IDNum) {
-//     /**
-//      * Updates the dispay of a dataset on the active bar chart.
-//      * @param {int} IDNum The ID number of the item to be updated
-//      */
+        formData.append('start_date',JSON.stringify(startDateNum))
+        formData.append('end_date',JSON.stringify(endDateNum))
 
-//     IDkey = IDNum.toString()
-//     data = barData[IDkey]['data']
-//     colour = barData[IDkey]['colour']
-//     xAxisSelector = document.getElementById('xAxisSelector')
-//     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            return function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    barData.data = []
+                    barData.labels = []
 
-//     if (xAxisSelection == '1') { //don't check normal
-//         newData = data
-//     } else if (xAxisSelection == '2') {
-//         normalisationSelector = document.getElementById('normalisationSelector')
-//         normalisationSelection = normalisationSelector.options[normalisationSelector.selectedIndex].value
-//         newData = []
-//         if (normalisationSelection == '2') { //Normalised
-//             total = barData[IDkey]['total']
-//             if (total != 0) {
-//                 for (let i=0;i<data.length;i++) {
-//                     newData.push(+((data[i]/total).toFixed(2)))
-//                 }
-//             }
-//         } else {
-//             newData = data
-//         }
-//     }
+                    var nr_data = reply.data.length
+                    for (let i=0;i<nr_data;i++) {
+                        barData.data.push(reply.data[i])
+                        barData.labels.push(reply.labels[i])
+                    }
+                    
+                    updateBarDisplay()
+                }
+            }
+        }();
+        xhttp.open("POST", 'getBarDataIndividual/'+selectedIndividual+'/'+baseUnitSelection+'/'+siteSelection);
+        xhttp.send(formData);
+    } else {
+        barData.data = [0]
+        updateBarDisplay()
+    }
+}
 
-//     if (barData[IDkey]['new']) {
-//         addBarData(newData,colour)
-//         barData[IDkey]['new'] = false
-//     } else {
-//         editBarData(newData,colour)
-//     }
-// }
+function updateBarDisplay() {
+    /** Updates the dispay of a dataset on the active bar chart.*/
 
-// function addBarData(data,colour) {
-//     /**
-//      * Adds the stipulated data to an active bar chart.
-//      * @param {arr} data The data points
-//      * @param {str} colour The colour with which to display the data
-//      */
-    
-//     xAxisSelector = document.getElementById('xAxisSelector')
-//     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-//     if (xAxisSelection=='1') {
-//         dataset = {
-//             data: data,
-//             hoverBackgroundColor: colour,
-//             borderColor: 'rgba(255,255,255,1)',
-//             borderWidth: 1,
-//             barPercentage: 1.0,
-//             categoryPercentage: 1.0,
-//             backgroundColor: colour
-//         }
-//     } else {
-//         if (colour=='rgba(255,255,255,0.2)') {
-//             background = 'rgba(0,0,0,0.2)'
-//         } else {
-//             background = 'rgba(255,255,255,0.2)'
-//         }
-//         dataset = {
-//             data: data,
-//             hoverBackgroundColor: background,
-//             borderColor: 'rgba(255,255,255,1)',
-//             borderWidth: 1,
-//             barPercentage: 1.0,
-//             categoryPercentage: 1.0,
-//             backgroundColor: colour
-//         }
-//     }
-//     chart.data.datasets.push(dataset)
-//     chart.update()
-// }
+    data = barData.data
+    labels = barData.labels
+    color = "rgba(255,255,255,0.2)"
+    addBarData(data, labels, color) 
 
-// function removeBarData(colour) {
-//     /** 
-//      * Removes a dataset from the active bar chart based on colour.
-//      * @param {str} colour The colour dataset to remove
-//      */
-    
-//     pieces = colour.split(', ')
-//     if (pieces.length>1) {
-//         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
-//     }
-//     for (let i=0;i<chart.data.datasets.length;i++) {
-//         if (chart.data.datasets[i].backgroundColor==colour) {
-//             chart.data.datasets.splice(i, 1);
-//             break
-//         }
-//     }
-//     barColours[colour] = false
-//     chart.update()
-// }
+}
 
-// function editBarData(data,colour) {
-//     /** 
-//      * Edits the data associated with the specified colour in the active bar chart.
-//      * @param {arr} data The data points
-//      * @param {str} colour The colour to edit
-//      */
+function addBarData(data,labels, colour) {
+    /** Adds a dataset to the active bar chart. */ 
+    chart.data.datasets = []
+    chart.data.labels = []
 
-//     xAxisSelector = document.getElementById('xAxisSelector')
-//     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-//     pieces = colour.split(', ')
-//     if (pieces.length>1) {
-//         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
-//     }
-//     for (let i=0;i<chart.data.datasets.length;i++) {
-//         if (chart.data.datasets[i].backgroundColor==colour) {
-//             if (xAxisSelection=='1') {
-//                 chart.data.datasets[i].hoverBackgroundColor = chart.data.datasets[i].backgroundColor
-//             } else {
-//                 chart.data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
-//             }
-//             chart.data.datasets[i].data=data
-//             break
-//         }
-//     }
-//     chart.update()
-// }
+    chart.data.datasets.push({
+        data: data,
+        hoverBackgroundColor: colour,
+        borderColor: 'rgba(255,255,255,1)',
+        borderWidth: 1,
+        backgroundColor: barColours
+    })
+
+    chart.data.labels = labels
+
+    chart.update()
+}
 
 
 function clearStatistics() {
