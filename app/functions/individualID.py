@@ -546,13 +546,17 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         task_ids = [r.id for r in task.sub_tasks]
         task_ids.append(task.id)
 
-        individuals1 = [r.id for r in db.session.query(Individual)\
+        individuals1 = db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
-                                            .filter(Individual.user_id.in_(user_ids))\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .all()]
+                                            .filter(Individual.name!='unidentifiable')
+
+        # Don't need to do this for multi-task individual ID because all the individuals are already defined and we want to 
+        # calculate similarities between all of them
+        if len(task_ids)==1: individuals1 = individuals1.filter(Individual.user_id.in_(user_ids))\
+
+        individuals1 = [r.id for r in individuals1.all()]
 
         individuals2 = [r.id for r in db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
