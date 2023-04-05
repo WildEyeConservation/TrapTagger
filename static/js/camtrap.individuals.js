@@ -254,8 +254,13 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             currentNote = info.notes
                             document.getElementById('notesError').innerHTML = ''
 
-                            id_surveys = document.getElementById('idSurveys')
-                            id_surveys.innerHTML = "Surveys: " + info.surveys
+                            surveysDiv = document.getElementById('surveysDiv')                           
+                            for(let i=0;i<info.surveys.length;i++){
+                                survey = info.surveys[i]
+                                surveyDiv = document.createElement('div')
+                                surveyDiv.innerHTML = survey
+                                surveysDiv.appendChild(surveyDiv)
+                            }
 
                             firstSeen = info.seen_range[0]
                             individualFirstSeen = firstSeen
@@ -721,6 +726,11 @@ function cleanModalIndividual() {
     editTagsDiv = document.getElementById('editTagsDiv')
     while(editTagsDiv.firstChild){
         editTagsDiv.removeChild(editTagsDiv.firstChild);
+    }
+
+    surveysDiv = document.getElementById('surveysDiv')
+    while(surveysDiv.firstChild){
+        surveysDiv.removeChild(surveysDiv.firstChild);
     }
     
     individualSplide = null
