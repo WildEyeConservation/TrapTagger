@@ -7087,10 +7087,3 @@ def getIndividualIDSurveysTasks():
             reply[survey.name].append({'task_id':task.id,'name':task.name})
 
     return json.dumps(reply)
-
-@app.route('/testFunc')
-@login_required
-def testFunc():
-    '''Test function for debugging'''
-
-    return json.dumps('success2')

@@ -1329,7 +1329,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .group_by(Individual.id)\
                         .subquery()
         
-        cluster = db.session.query(Individual)\
+        clusters = db.session.query(Individual)\
                         .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                         .outerjoin(sq2,sq2.c.indID2==Individual.id)\
                         .join(sq3,sq3.c.indID3==Individual.id)\
@@ -1339,12 +1339,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(Individual.allocated==None)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
-                        .order_by(desc(sq3.c.count3)).first()
+                        .order_by(desc(sq3.c.count3)).all()
+        
+        if len(clusters) <= 1:
+            trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
+            trapgroup.active = False
+            db.session.commit()
 
-        if cluster:
-            clusters = [cluster]
-        else:
-            clusters = []
+        clusters = clusters[:1]
+
     else:
         clusters = db.session.query(Cluster) \
                         .join(Image, Cluster.images) \
