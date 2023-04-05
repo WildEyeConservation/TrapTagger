@@ -346,7 +346,8 @@ function getIndividuals(page = null) {
                         var formData = new FormData()
                         formData.append("order", JSON.stringify('d3'))
                         formData.append("site", JSON.stringify('0'))
-                        formData.append('dates', JSON.stringify([]))
+                        formData.append('start_date', JSON.stringify(''))
+                        formData.append('end_date', JSON.stringify(''))
 
                         var xhttp = new XMLHttpRequest();
                         xhttp.onreadystatechange =
