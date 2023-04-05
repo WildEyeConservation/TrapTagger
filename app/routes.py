@@ -175,7 +175,7 @@ def launchTask():
 
             return json.dumps({'message': message, 'status': 'Error'})
 
-    task = tasks[0]
+    task = db.session.query(Task).get(task_ids[0])
     message = 'Task not ready to be launched.'
 
     if (task==None) or (taskSize in ['','none','null']) or (taggingLevel.lower() in ['','none','null']):
@@ -7087,3 +7087,10 @@ def getIndividualIDSurveysTasks():
             reply[survey.name].append({'task_id':task.id,'name':task.name})
 
     return json.dumps(reply)
+
+@app.route('/testFunc')
+@login_required
+def testFunc():
+    '''Test function for debugging'''
+
+    return json.dumps('success2')
