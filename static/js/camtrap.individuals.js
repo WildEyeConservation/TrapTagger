@@ -37,7 +37,8 @@ var individualLastSeen = ""
 var processingTimer
 var prev_url = null
 var next_url = null
-// var allSites = null
+var allSites = null
+var allIndividualImages = null
 
 
 
@@ -172,6 +173,7 @@ function getIndividuals(page = null) {
 
                     image.addEventListener('click', function(individualID,individualName){
                         return function() {
+                            individualTags(individualID)
                             getIndividual(individualID,individualName)
                             modalIndividual.modal({keyboard: true});
                         }
@@ -238,8 +240,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 mapDiv.setAttribute('id','mapDiv')
                 mapDiv.setAttribute('style','height: 800px')
                 center.appendChild(mapDiv)
-                
-                individualTags()
+        
 
                 var xhttp = new XMLHttpRequest();
                 xhttp.onreadystatechange =
@@ -253,6 +254,10 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             document.getElementById('idNotes').value= info.notes
                             currentNote = info.notes
                             document.getElementById('notesError').innerHTML = ''
+
+                            while(surveysDiv.firstChild){
+                                surveysDiv.removeChild(surveysDiv.firstChild)
+                            }
 
                             surveysDiv = document.getElementById('surveysDiv')                           
                             for(let i=0;i<info.surveys.length;i++){
@@ -371,7 +376,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
     xhttp.send(formData)
 }
 
-function individualTags(){
+function individualTags(individual_id){
     /*Create checkboxes for individual's tags*/
     tagsDiv  = document.getElementById('editTagsDiv')
     while(tagsDiv.firstChild){
@@ -413,7 +418,7 @@ function individualTags(){
             
         }
     }
-    xhttp.open("GET", '/getTags/' +  selectedIndividual);
+    xhttp.open("GET", '/getTags/' +  individual_id);
     xhttp.send();  
 }
 
