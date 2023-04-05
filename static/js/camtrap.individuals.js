@@ -15,6 +15,8 @@
 const modalIndividual = $('#modalIndividual');
 const modalAlertIndividuals = $('#modalAlertIndividuals');
 const modalLaunchID = $('#modalLaunchID');
+const btnPrevTasks = document.getElementById('btnPrevTasks');
+const btnNextTasks = document.getElementById('btnNextTasks');
 
 var modalAlertIndividualsReturn = false
 
@@ -32,6 +34,9 @@ var individualImages = null
 var currentTags = null
 var individualFirstSeen = ""
 var individualLastSeen = ""
+var processingTimer
+var prev_url = null
+var next_url = null
 // var allSites = null
 
 
@@ -249,8 +254,13 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             currentNote = info.notes
                             document.getElementById('notesError').innerHTML = ''
 
-                            id_surveys = document.getElementById('idSurveys')
-                            id_surveys.innerHTML = "Surveys: " + info.surveys
+                            surveysDiv = document.getElementById('surveysDiv')                           
+                            for(let i=0;i<info.surveys.length;i++){
+                                survey = info.surveys[i]
+                                surveyDiv = document.createElement('div')
+                                surveyDiv.innerHTML = survey
+                                surveysDiv.appendChild(surveyDiv)
+                            }
 
                             firstSeen = info.seen_range[0]
                             individualFirstSeen = firstSeen
@@ -559,11 +569,6 @@ function populateSelectors(){
     }
     xhttp.send();
 
-    individualsDiv = document.getElementById('individualsDiv')
-    while(individualsDiv.firstChild){
-        individualsDiv.removeChild(individualsDiv.firstChild);
-    }
-
 }
 
 $("#individualSpeciesSelector").change( function() {
@@ -721,6 +726,11 @@ function cleanModalIndividual() {
     editTagsDiv = document.getElementById('editTagsDiv')
     while(editTagsDiv.firstChild){
         editTagsDiv.removeChild(editTagsDiv.firstChild);
+    }
+
+    surveysDiv = document.getElementById('surveysDiv')
+    while(surveysDiv.firstChild){
+        surveysDiv.removeChild(surveysDiv.firstChild);
     }
     
     individualSplide = null
@@ -1717,6 +1727,7 @@ $('#individualSearch').change( function() {
 function buildIdTask(task){
     idTasksListDiv = document.getElementById('idTasksListDiv'); 
     newTask = document.createElement('div')
+    newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 15px;")
 
     idTasksListDiv.appendChild(newTask)
 
@@ -1738,6 +1749,13 @@ function buildIdTask(task){
     stopTaskBtn.innerHTML = '&times;'
     stopTaskCol.appendChild(stopTaskBtn)
     entireRow.appendChild(stopTaskCol)
+
+    if (task.remaining == 'Preparing...'){
+        stopTaskBtn.disabled = true
+    }
+    else{
+        stopTaskBtn.disabled = false
+    }
 
     stopTaskBtn.addEventListener('click', function(wrapTaskId) {
         return function() {
@@ -1762,7 +1780,7 @@ function buildIdTask(task){
     newTask.appendChild(entireRow)
 
     jobProgressBarCol = document.createElement('div')
-    jobProgressBarCol.classList.add('col-lg-9');
+    jobProgressBarCol.classList.add('col-lg-12');
     
     jobProgressBarDiv = document.createElement('div')
     jobProgressBarDiv.setAttribute("id","jobProgressBarDiv"+task.id)
@@ -1789,37 +1807,24 @@ function buildIdTask(task){
     jobProgressBarCol.appendChild(jobProgressBarDiv);
     entireRow.appendChild(jobProgressBarCol)
 
-    tagTaskCol = document.createElement('div')
-    tagTaskCol.classList.add('col-lg-3');
-
-    tagTaskLink = document.createElement('a')
-    tagTaskLink.setAttribute("href","/jobs")
-    
-    tagTaskBtn = document.createElement('button')
-    tagTaskBtn.setAttribute("class","btn btn-primary btn-block btn-sm")
-
-    icon = document.createElement('i')
-    icon.classList.add('fa');
-    icon.classList.add('fa-external-link');
-
-    tagTaskBtn.appendChild(icon)
-    tagTaskLink.appendChild(tagTaskBtn)
-    tagTaskCol.appendChild(tagTaskLink)
-    entireRow.appendChild(tagTaskCol)
-
-    newTask.appendChild(document.createElement('br'))
-
 }
 
-
-function getTasks(){
+function getTasks(url=null){
     /** Gets the current individual ID tasks */
+
+    if (url==null) {
+        request = '/getJobs?individual_id=' + true
+    }
+    else{
+        request = url
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-
+            console.log(reply)
             idTasksListDiv = document.getElementById('idTasksListDiv'); 
             while(idTasksListDiv.firstChild){
                 idTasksListDiv.removeChild(idTasksListDiv.firstChild);
@@ -1829,10 +1834,58 @@ function getTasks(){
                 buildIdTask(reply.jobs[i])
             }
 
+            if (reply.next_url==null) {
+                btnNextTasks.style.visibility = 'hidden'
+            } else {
+                btnNextTasks.style.visibility = 'visible'
+                next_url = reply.next_url + '&individual_id=' + true
+            }
+
+            if (reply.prev_url==null) {
+                btnPrevTasks.style.visibility = 'hidden'
+            } else {
+                btnPrevTasks.style.visibility = 'visible'
+                prev_url = reply.prev_url + '&individual_id=' + true
+            }
+
         }
     }
-    xhttp.open("GET", '/getJobs?individual_id=' + true);
+    xhttp.open("GET", request);
     xhttp.send();
+}
+
+btnNextTasks.addEventListener('click', ()=>{
+    /** Loads the next set of paginated surveys. */
+    getTasks(next_url)
+});
+
+btnPrevTasks.addEventListener('click', ()=>{
+    /** Loads the previous set of paginated surveys. */
+    getTasks(prev_url)
+});
+
+function clear_filters(){
+    /** Clears all the filters and updates the page accordingly. */
+
+    surveySelect = document.getElementById('surveySelect')
+    while(surveySelect.firstChild){
+        surveySelect.removeChild(surveySelect.firstChild);
+    }
+    addSurveyTask = document.getElementById('addSurveyTask')
+    while(addSurveyTask.firstChild){
+        addSurveyTask.removeChild(addSurveyTask.firstChild);
+    }
+
+    addSurvey()
+
+    document.getElementById('individualSpeciesSelector').value = '0'
+    document.getElementById('individualTagSelector').value = 'None'
+    document.getElementById('sitesSelector').value = '0'
+
+    document.getElementById('startDate').value = ''
+    document.getElementById('endDate').value = ''
+
+    getIndividuals()
 }
 
 function onload(){
@@ -1841,6 +1894,7 @@ function onload(){
     checkSurvey()
     populateSelectors()
     getTasks()
+    processingTimer = setInterval(getTasks, 30000)
 
 }
 
