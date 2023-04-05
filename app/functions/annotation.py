@@ -486,13 +486,14 @@ def freeUpWork(self,task_id):
                             .join(Image)\
                             .join(Detection)\
                             .join(Individual,Detection.individuals)\
+                            .join(Task,Individual.tasks)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
                             .filter(Individual.allocated==None)\
                             .filter(Trapgroup.active == False)\
                             .filter(Trapgroup.processing == False)\
                             .filter(Trapgroup.queueing == False)\
-                            .filter(Trapgroup.survey_id==task.survey_id)\
+                            .filter(Task.id.in_(task_ids))\
                             .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .distinct().all()
 
@@ -999,8 +1000,10 @@ def allocate_new_trapgroup(task_id,user_id):
                         .subquery()
         
         trapgroup = db.session.query(Trapgroup)\
+                        .join(Survey)\
+                        .join(Task)\
                         .join(sq4,sq4.c.trapID==Trapgroup.id)\
-                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Task.id.in_(task_ids))\
                         .filter(Trapgroup.active == True) \
                         .filter(Trapgroup.user_id == None)\
                         .order_by(desc(sq4.c.count4))\
@@ -1058,9 +1061,10 @@ def allocate_new_trapgroup(task_id,user_id):
                             .join(Image)\
                             .join(Detection)\
                             .join(Individual,Detection.individuals)\
+                            .join(Task,Individual.tasks)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(Task.id.in_(task_ids))\
                             .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .filter(Trapgroup.active == False) \
                             .filter(Trapgroup.processing == False) \
@@ -1185,8 +1189,10 @@ def allocate_new_trapgroup(task_id,user_id):
                                 .subquery()
                 
                 trapgroup = db.session.query(Trapgroup)\
+                                .join(Survey)\
+                                .join(Task)\
                                 .join(sq4,sq4.c.trapID==Trapgroup.id)\
-                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Task.id.in_(task_ids))\
                                 .filter(Trapgroup.active == True) \
                                 .filter(Trapgroup.user_id == None)\
                                 .order_by(desc(sq4.c.count4))\
