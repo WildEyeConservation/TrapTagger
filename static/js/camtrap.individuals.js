@@ -222,6 +222,23 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
             // console.log(individualImages)
             if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
                 allIndividualImages = individualImages
+                allSites = []
+                var valueExists = false
+                for (let i=0;i<allIndividualImages.length;i++) {
+                    for (let j=0;j<allSites.length;j++) {
+                        if(allIndividualImages[i].trapgroup.tag == allSites[j].tag){
+                            valueExists = true
+                            break
+                        }
+                        else{
+                            valueExists = false
+                        }
+                    }
+
+                    if(!valueExists){
+                        allSites.push(allIndividualImages[i].trapgroup)
+                    }
+                }
             }
 
             if(individualImages.length > 0){
@@ -294,6 +311,8 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                                     box.checked = false
                                 }
                             }
+
+                            initialiseStats()
                         }
                     }
                 }
@@ -353,7 +372,6 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 list.setAttribute('id','imageSplide')
                 track.appendChild(list)
 
-                // initialiseStats()
 
                 if(modalIndividual.is(':visible')){
                     map = null
@@ -361,7 +379,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                     prepMap(individualImages[0])
                     updateSlider()
                 }
-
+                
             }
             else{
                 if(start_date != '' || end_date != ''){
@@ -769,7 +787,7 @@ function cleanModalIndividual() {
     document.getElementById('startDateIndiv').value = ''
     document.getElementById('endDateIndiv').value = ''
 
-    document.getElementById('statsSelect').value = '0'
+    document.getElementById('statsSelect').value = '2'
 }
 
 modalIndividual.on('hidden.bs.modal', function(){
@@ -789,6 +807,7 @@ modalIndividual.on('hidden.bs.modal', function(){
 
 modalIndividual.on('shown.bs.modal', function(){
     /** Initialises the individual modal when opened. */
+
     if (map==null && individualImages) {
         prepMap(individualImages[0])
         updateSlider()
@@ -796,11 +815,10 @@ modalIndividual.on('shown.bs.modal', function(){
     
     if (individualImages) {
         sites = []
-        allSites = []
         for (let i=0;i<individualImages.length;i++) {
             if (!sites.includes(individualImages[i].trapgroup.tag)) {
                 sites.push(individualImages[i].trapgroup.tag)
-                allSites.push(individualImages[i].trapgroup)
+
             }
         }
         // sites.sort()
@@ -810,9 +828,11 @@ modalIndividual.on('shown.bs.modal', function(){
         values.push(...sites)
         clearSelect(document.getElementById('sitesIndividualSelector'))
         fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
+
     }
 
 });
+
 
 $('#orderIndivImages').on('change', function() {
     updateIndividualFilter()
