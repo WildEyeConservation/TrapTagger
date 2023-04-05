@@ -1851,7 +1851,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
 
     reply = []
 
-    trapgroup_ids = ast.literal_eval(request.form['trapgroup_ids'])  
+    trapgroup_tags = ast.literal_eval(request.form['trapgroup_tags'])  
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
@@ -1870,9 +1870,9 @@ def getPolarDataIndividual(individual_id, baseUnit):
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if trapgroup_ids:
-            trap_ids = [int(x) for x in trapgroup_ids]
-            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids))
+        if trapgroup_tags:
+            # trap_ids = [int(x) for x in trapgroup_ids]
+            baseQuery = baseQuery.filter(Trapgroup.tag.in_(trapgroup_tags))
 
         if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
 
@@ -1936,9 +1936,9 @@ def getBarData(task_id, species_id, baseUnit, axis):
     return json.dumps(reply)
 
 
-@app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_id>', methods=['POST'])
+@app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_tag>', methods=['POST'])
 @login_required
-def getBarDataIndividual(individual_id, baseUnit, site_id):
+def getBarDataIndividual(individual_id, baseUnit, site_tag):
     '''
     Returns the bar graph data for the requested species and task.
 
@@ -1967,8 +1967,8 @@ def getBarDataIndividual(individual_id, baseUnit, site_id):
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if site_id != '0':
-            baseQuery = baseQuery.filter(Trapgroup.id == site_id)
+        if site_tag != '0':
+            baseQuery = baseQuery.filter(Trapgroup.tag == site_tag)
 
         if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
 
@@ -5063,7 +5063,10 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
-        trapgroups = individual.tasks[0].survey.trapgroups[:]
+        trapgroups = []
+        for task in individual.tasks:
+            trapgroups.extend(task.survey.trapgroups[:])
+
         for trapgroup in trapgroups:
             item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
             if item['count'] > maxVal:

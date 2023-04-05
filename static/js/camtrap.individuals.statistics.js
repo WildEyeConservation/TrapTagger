@@ -887,7 +887,7 @@ function buildPolarSelectorRow() {
     }
 
     trapgroupNames = ['None', 'All', ...sites]
-    trapgroupValues = ['-1', '0', ...sites_id]
+    trapgroupValues = ['-1', '0', ...sites]
 
     IDNum = getIdNumforNext('trapgroupSelect')
     selectorColumn = document.getElementById('selectorColumn')
@@ -957,14 +957,14 @@ function updatePolarData(IDNum) {
     if (trapgroup!='-1') {
         var formData = new FormData();
         if(trapgroup=='0') {
-            trapgroup_ids = []
+            trapgroup_tags = []
             for (let i=0;i<allSites.length;i++) {
-                trapgroup_ids.push(allSites[i].id) 
+                trapgroup_tags.push(allSites[i].tag) 
             }
-            formData.append('trapgroup_ids', JSON.stringify(trapgroup_ids));
+            formData.append('trapgroup_tags', JSON.stringify(trapgroup_tags));
         }
         else {
-            formData.append('trapgroup_ids', JSON.stringify([trapgroup]));
+            formData.append('trapgroup_tags', JSON.stringify([trapgroup]));
         }
 
         startDateTemp = document.getElementById('startDateTemp').value
@@ -1396,7 +1396,7 @@ function createIndivBar() {
     }
 
     trapgroupNames = ['None', 'All', ...sites]
-    trapgroupValues = ['-1', '0', ...sites_id]
+    trapgroupValues = ['-1', '0', ...sites]
 
     fillSelect(select, trapgroupNames, trapgroupValues)
     $("#barSiteSelector").change( function() {
