@@ -578,9 +578,9 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         app.logger.info("Task status: {}".format(task.status))
         if task.sub_tasks and ('-5' in task.tagging_level):
             from app.functions.annotation import launch_task
-            launch_task.apply_async(kwargs={'task_id':task.id})
             task.survey.status = 'Launched'
             db.session.commit()
+            launch_task.apply_async(kwargs={'task_id':task.id})
         elif task.status != 'PROGRESS':
             #Check if complete
             incompleteIndividuals = db.session.query(Individual)\

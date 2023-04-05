@@ -312,6 +312,9 @@ def launch_task(self,task_id):
                 updateIndividualIdStatus(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
+                for tsk in task.sub_tasks:
+                    tsk.status = 'SUCCESS'
+                    tsk.survey.status = 'Ready'
                 db.session.commit()
                 return True
 
@@ -339,6 +342,9 @@ def launch_task(self,task_id):
                 updateIndividualIdStatus(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
+                for tsk in task.sub_tasks:
+                    tsk.status = 'SUCCESS'
+                    tsk.survey.status = 'Ready'
                 db.session.commit()
                 return True
 
