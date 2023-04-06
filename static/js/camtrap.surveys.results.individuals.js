@@ -59,7 +59,7 @@ function updateSlider() {
             if (bucketName!=null) {
                 finishedDisplaying = false
                 image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = "Trap: " + image.trapgroup.tag
+                document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = image.timestamp
                 addedDetections = false
                 activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -365,7 +365,7 @@ function getIndividuals(page = null) {
                                 info = document.createElement('h5')
                                 info.setAttribute('id','tgInfo')
                                 info.setAttribute('align','center')
-                                info.innerHTML = 'Trap: ' + individualImages[0].trapgroup.tag
+                                info.innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                                 individualDiv.appendChild(info)
 
                                 info2 = document.createElement('h6')
