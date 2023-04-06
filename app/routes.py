@@ -4489,26 +4489,55 @@ def get_clusters():
     if id:
         clusters = [cluster]
     else:
-        GLOBALS.mutex[int(task_id)]['global'].acquire()
-        db.session.commit()
 
-        trapgroup = allocate_new_trapgroup(int(task_id),current_user.id)
-        if trapgroup == None:
+        if '-5' in taggingLevel:
+            # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
+            GLOBALS.mutex[int(task_id)]['global'].acquire()
+            db.session.commit()
+            
+            clusters = fetch_clusters(taggingLevel,task_id,isBounding,None,1)
+
+            for cluster in clusters:
+                bufferCount = db.session.query(Individual).filter(Individual.allocated==current_user.id).count()
+                if bufferCount >= 5:
+                    remInds = db.session.query(Individual)\
+                                    .filter(Individual.allocated==current_user.id)\
+                                    .order_by(Individual.allocation_timestamp).limit(bufferCount-4).all()
+                    for remInd in remInds:
+                        remInd.allocated = None
+                        remInd.allocation_timestamp = None
+
+                cluster.allocated = current_user.id
+                cluster.allocation_timestamp = datetime.utcnow()
+
+            current_user.clusters_allocated += len(clusters)
+            db.session.commit()
             GLOBALS.mutex[int(task_id)]['global'].release()
-            return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
-        GLOBALS.mutex[int(task_id)]['global'].release()
 
-        GLOBALS.mutex[int(task_id)]['user'][current_user.id].acquire()
-        limit = task.size - current_user.clusters_allocated
-        clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
-        current_user.clusters_allocated += len(clusters)
-        db.session.commit()
-        GLOBALS.mutex[int(task_id)]['user'][current_user.id].release()
+        else:
+            if current_user.trapgroup:
+                trapgroup = current_user.trapgroup[0]
+            else:
+                GLOBALS.mutex[int(task_id)]['global'].acquire()
+                db.session.commit()
+
+                trapgroup = allocate_new_trapgroup(int(task_id),current_user.id)
+                if trapgroup == None:
+                    GLOBALS.mutex[int(task_id)]['global'].release()
+                    return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+                GLOBALS.mutex[int(task_id)]['global'].release()
+
+            GLOBALS.mutex[int(task_id)]['user'][current_user.id].acquire()
+            limit = task.size - current_user.clusters_allocated
+            clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
+            current_user.clusters_allocated += len(clusters)
+            db.session.commit()
+            GLOBALS.mutex[int(task_id)]['user'][current_user.id].release()
 
     if clusters == []:
         current_user.trapgroup = []
         db.session.commit()
-        return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+        # return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
     reply = {'id': reqId, 'info': []}
     for cluster in clusters:
