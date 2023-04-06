@@ -37,6 +37,7 @@ var individualLastSeen = ""
 var processingTimer
 var prev_url = null
 var next_url = null
+var allSites = null
 var allIndividualImages = null
 
 
@@ -221,6 +222,23 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
             // console.log(individualImages)
             if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
                 allIndividualImages = individualImages
+                allSites = []
+                var valueExists = false
+                for (let i=0;i<allIndividualImages.length;i++) {
+                    for (let j=0;j<allSites.length;j++) {
+                        if(allIndividualImages[i].trapgroup.tag == allSites[j].tag){
+                            valueExists = true
+                            break
+                        }
+                        else{
+                            valueExists = false
+                        }
+                    }
+
+                    if(!valueExists){
+                        allSites.push(allIndividualImages[i].trapgroup)
+                    }
+                }
             }
 
             if(individualImages.length > 0){
