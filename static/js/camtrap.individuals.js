@@ -82,9 +82,9 @@ function getIndividuals(page = null) {
         if(selectedTag == ''){
             selectedTag = 'None'
         }
-        selectedTrap = document.getElementById('sitesSelector').value
-        if(selectedTrap == ''){
-            selectedTrap = '0'
+        selectedSite = document.getElementById('sitesSelector').value
+        if(selectedSite == ''){
+            selectedSite = '0'
         }
         selectedStartDate = document.getElementById('startDate').value 
         selectedEndDate = document.getElementById('endDate').value 
@@ -108,7 +108,7 @@ function getIndividuals(page = null) {
         formData.append("task_ids", JSON.stringify(tasks))
         formData.append("species_name", JSON.stringify(selectedLabel))
         formData.append("tag_name", JSON.stringify(selectedTag))
-        formData.append("trap_name", JSON.stringify(selectedTrap))
+        formData.append("trap_name", JSON.stringify(selectedSite))
         formData.append('start_date', JSON.stringify(selectedStartDate))
         formData.append('end_date', JSON.stringify(selectedEndDate))
 
@@ -245,7 +245,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 document.getElementById('individualName').innerHTML = individualName
                 document.getElementById('newIndividualName').value = individualName
 
-                document.getElementById('tgInfo').innerHTML = 'Trap: ' + individualImages[0].trapgroup.tag
+                document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
                 center = document.getElementById('centerMap')
@@ -266,7 +266,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                         info = JSON.parse(this.responseText);
                         // console.log(info)
                         if (info != "error"){
-                            document.getElementById('idLabels').innerHTML = "Label: " + info.label
+                            document.getElementById('labelsDiv').innerHTML = info.label
 
                             document.getElementById('idNotes').value= info.notes
                             currentNote = info.notes
@@ -289,8 +289,8 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                             lastSeen = info.seen_range[1]
                             individualLastSeen = lastSeen
 
-                            document.getElementById('idFirstSeen').innerHTML = "First Seen: " + firstSeen
-                            document.getElementById('idLastSeen').innerHTML = "Last Seen: " + lastSeen
+                            document.getElementById('firstSeenDiv').innerHTML =  firstSeen
+                            document.getElementById('lastSeenDiv').innerHTML = lastSeen
 
                             minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
                             maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
@@ -414,6 +414,7 @@ function individualTags(individual_id){
 
                     checkDiv = document.createElement('div')
                     checkDiv.setAttribute('class','custom-control custom-checkbox')
+                    checkDiv.setAttribute('style','display: inline-block; padding-right: 0.5rem')
                     tagsDiv.appendChild(checkDiv)
             
                     input = document.createElement('input')
@@ -706,7 +707,7 @@ function updateSlider() {
             if (bucketName!=null) {
                 finishedDisplaying = false
                 image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = "Trap: " + image.trapgroup.tag
+                document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = image.timestamp
                 addedDetections = false
                 activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -767,12 +768,11 @@ function cleanModalIndividual() {
     map = null
     mapStats = null
 
-    document.getElementById('tgInfo').innerHTML = 'Trap: '
+    document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
-    document.getElementById('idLabels').innerHTML = 'Label: '    
-    document.getElementById('idSurveys').innerHTML = 'Surveys: '
-    document.getElementById('idFirstSeen').innerHTML = 'First Seen: '
-    document.getElementById('idLastSeen').innerHTML = 'Last Seen: '    
+    document.getElementById('labelsDiv').innerHTML = ''    
+    document.getElementById('firstSeenDiv').innerHTML = ''
+    document.getElementById('lastSeenDiv').innerHTML = ''    
     document.getElementById('idNotes').value = ''
     document.getElementById('newIndividualName').value = ''
 
