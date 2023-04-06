@@ -60,426 +60,413 @@ var barColours = [
 
 function createIndivMap() {
     /** Initialises the individual heat map. */
-    trapgroupInfo = []
-    dates = []
-    hm_data = []
 
-    for(i=0; i<allSites.length; i++){
-        filteredArray = allIndividualImages.filter((item) => item.trapgroup.tag == allSites[i].tag)
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            info = JSON.parse(this.responseText);
 
-        dict_data = {
-            'lat': allSites[i].latitude, 
-            'lng': allSites[i].longitude, 
-            'count': filteredArray.length, 
-            'tag': allSites[i].tag
-        }
-        hm_data.push(dict_data)
-    }
-    trapgroupInfo = allSites
-    
-    statisticsDiv = document.getElementById('statisticsDiv')
-    mainDiv = document.createElement('indivMapDiv')
-    statisticsDiv.appendChild(mainDiv)
+            trapgroupInfo = info.trapgroups
+            
+            statisticsDiv = document.getElementById('statisticsDiv')
+            mainDiv = document.createElement('indivMapDiv')
+            statisticsDiv.appendChild(mainDiv)
 
-    div = document.createElement('div')
-    div.classList.add('row')
-    mainDiv.appendChild(div)
+            div = document.createElement('div')
+            div.classList.add('row')
+            mainDiv.appendChild(div)
 
-    // space = document.createElement('div')
-    // space.classList.add('col-lg-1')
-    // div.appendChild(space)
+            col1 = document.createElement('div')
+            col1.classList.add('col-lg-10')
+            div.appendChild(col1)
 
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    div.appendChild(col1)
+            mapDivIndiv = document.createElement('div')
+            mapDivIndiv.setAttribute('id','mapIndivDiv')
+            mapDivIndiv.setAttribute('style','height: 750px')
+            col1.appendChild(mapDivIndiv)
 
-    mapDivIndiv = document.createElement('div')
-    mapDivIndiv.setAttribute('id','mapIndivDiv')
-    mapDivIndiv.setAttribute('style','height: 750px')
-    col1.appendChild(mapDivIndiv)
+            selectorDiv = document.createElement('div')
+            selectorDiv.classList.add('col-lg-2')
+            div.appendChild(selectorDiv)           
 
-    selectorDiv = document.createElement('div')
-    selectorDiv.classList.add('col-lg-2')
-    div.appendChild(selectorDiv)
+            // Create all the layers
+            osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/satellite-v9',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+            })
 
-    // space = document.createElement('div')
-    // space.classList.add('col-lg-1')
-    // div.appendChild(space)
+            osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/streets-v11',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+            })
 
-    
+            gSat = L.gridLayer.googleMutant({type: 'satellite'})
+            // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
+            // gTer = L.gridLayer.googleMutant({type: 'terrain'})
+            gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
-    // Create all the layers
-    osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        maxZoom: 18,
-        id: 'mapbox/satellite-v9',
-        tileSize: 512,
-        zoomOffset: -1,
-        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-    })
+            var cfg = {
+                "radius": 0.05,
+                "maxOpacity": .8,
+                "scaleRadius": true,
+                "useLocalExtrema": false,
+                latField: 'lat',
+                lngField: 'lng',
+                valueField: 'count'
+            };
 
-    osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        maxZoom: 18,
-        id: 'mapbox/streets-v11',
-        tileSize: 512,
-        zoomOffset: -1,
-        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-    })
+            var invCfg = {
+                "radius": 0.05,
+                "maxOpacity": 0,
+                "scaleRadius": true,
+                "useLocalExtrema": false,
+                latField: 'lat',
+                lngField: 'lng',
+                valueField: 'count'
+            };
 
-    gSat = L.gridLayer.googleMutant({type: 'satellite'})
-    // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
-    // gTer = L.gridLayer.googleMutant({type: 'terrain'})
-    gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+            heatmapLayer = new HeatmapOverlay(cfg);
+            invHeatmapLayer = new HeatmapOverlay(invCfg);
 
-    var cfg = {
-        "radius": 0.05,
-        "maxOpacity": .8,
-        "scaleRadius": true,
-        "useLocalExtrema": false,
-        latField: 'lat',
-        lngField: 'lng',
-        valueField: 'count'
-    };
+            mapStats = new L.map('mapIndivDiv', {
+                layers: [gSat, heatmapLayer]
+            });
 
-    var invCfg = {
-        "radius": 0.05,
-        "maxOpacity": 0,
-        "scaleRadius": true,
-        "useLocalExtrema": false,
-        latField: 'lat',
-        lngField: 'lng',
-        valueField: 'count'
-    };
+            baseMaps = {
+                "Google Satellite": gSat,
+                // "Google Roadmap": gStr,
+                // "Google Terrain": gTer,
+                "Google Hybrid": gHyb,
+                "OpenStreetMaps Satellite": osmSat,
+                "OpenStreetMaps Roadmap": osmSt
+            };
 
-    heatmapLayer = new HeatmapOverlay(cfg);
-    invHeatmapLayer = new HeatmapOverlay(invCfg);
-
-    mapStats = new L.map('mapIndivDiv', {
-        layers: [gSat, heatmapLayer]
-    });
-
-    baseMaps = {
-        "Google Satellite": gSat,
-        // "Google Roadmap": gStr,
-        // "Google Terrain": gTer,
-        "Google Hybrid": gHyb,
-        "OpenStreetMaps Satellite": osmSat,
-        "OpenStreetMaps Roadmap": osmSt
-    };
-
-    L.control.layers(baseMaps).addTo(mapStats);
-    L.control.scale().addTo(mapStats);
-    mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-    mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
-
-    mapStats.on('baselayerchange', function(e) {
-        if (e.name.includes('Google')) {
+            L.control.layers(baseMaps).addTo(mapStats);
+            L.control.scale().addTo(mapStats);
             mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
             mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
-        }
-    });
 
-    markers = []
-    refMarkers = []
-    for (let i=0;i<trapgroupInfo.length;i++) {
-        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapStats)
-        markers.push(marker)
-        mapStats.addLayer(marker)
-        
-        marker.bindPopup(trapgroupInfo[i].tag);
-        // marker.bindPopup(trapgroupSightings[i]);
-        marker.on('mouseover', function (e) {
-            this.openPopup();
-        });
-        marker.on('mouseout', function (e) {
-            this.closePopup();
-        });
-        
-        refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
-    }
-    refData = {max:2000,data:refMarkers}
-    invHeatmapLayer.setData(refData)
-
-    var group = new L.featureGroup(markers);
-    mapStats.fitBounds(group.getBounds().pad(0.1))
-    if(markers.length == 1) {
-        mapStats.setZoom(10)
-    }
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Date'
-    h5.setAttribute('style','margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = "<i>Select the date range for which you would like to view the individual's sightings.</i>"
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    dateRange = document.createElement('div')
-    selectorDiv.appendChild(dateRange)
-
-    startDateLabel = document.createElement('label');
-    startDateLabel.textContent = 'Start date:';
-    startDateLabel.setAttribute('for', 'startDateSpatial');
-    dateRange.appendChild(startDateLabel)
-
-    dateRange.appendChild(document.createElement('br'));
-
-    startDateInput = document.createElement('input');
-    startDateInput.setAttribute('type', 'date');
-    startDateInput.setAttribute('id', 'startDateSpatial');
-    dateRange.appendChild(startDateInput)
-
-    dateRange.appendChild(document.createElement('br'));
-
-    endDateLabel = document.createElement('label');
-    endDateLabel.textContent = 'End date:';
-    endDateLabel.setAttribute('for', 'endDateSpatial');
-    dateRange.appendChild(endDateLabel)
-
-    dateRange.appendChild(document.createElement('br'));
-
-    endDateInput = document.createElement('input');
-    endDateInput.setAttribute('type', 'date');
-    endDateInput.setAttribute('id', 'endDateSpatial');
-    dateRange.appendChild(endDateInput)
-
-    startDateInput.setAttribute('min', minDate)
-    startDateInput.setAttribute('max', maxDate)
-    endDateInput.setAttribute('min', minDate)
-    endDateInput.setAttribute('max', maxDate)
-    
-    $("#startDateSpatial").change( function() {
-        /** Listener for the date selector on the individual mapStats modal. */
-        // updateMap()
-        valid = false 
-        startDateSpat = document.getElementById('startDateSpatial').value
-        endDateSpat = document.getElementById('endDateSpatial').value
-        
-        if(startDateSpat == '' && endDateSpat == '') 
-        {
-            valid = true
-        } else if (startDateSpat == '' || endDateSpat == '') {
-            valid = false
-        } else{
-    
-            if (startDateSpat > endDateSpat) {
-                valid = false
-            }
-            else{
-                valid = true
-            }
-        } 
-        if(valid){
-            updateHeatMap()
-        }  
-        
-    })
-
-    $("#endDateSpatial").change( function() {
-        /** Listener for the date selector on the individual mapStats modal. */
-        // updateMap()
-        
-        valid = false 
-        startDateSpat = document.getElementById('startDateSpatial').value
-        endDateSpat = document.getElementById('endDateSpatial').value
-        
-        if(startDateSpat == '' && endDateSpat == '') 
-        {
-            valid = true
-        } else if (startDateSpat == '' || endDateSpat == '') {
-            valid = false
-        } else{
-    
-            if (startDateSpat > endDateSpat) {
-                valid = false
-            }
-            else{
-                valid = true
-            }
-        } 
-        if(valid){
-            updateHeatMap()
-        }  
-    })
-
-    selectorDiv.appendChild(document.createElement('br'))
-    
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Data Unit'
-    h5.setAttribute('style','margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select which unit of data to count.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','baseUnitSelector')
-    selectorDiv.appendChild(select)
-
-    fillSelect(select, ['Sightings', 'Clusters' ,'Images'], ['3','2','1'])
-    $("#baseUnitSelector").change( function() {
-        updateHeatMap()
-    });
-
-    selectorDiv.appendChild(document.createElement('br'))
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Radius'
-    h5.setAttribute('style','margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Set the heatmap radius to help identify different trends.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    selectorDiv.appendChild(h5)
-
-    slideRow = document.createElement('div')
-    slideRow.classList.add('row')
-    selectorDiv.appendChild(slideRow)
-
-    slidecol1 = document.createElement('div')
-    slidecol1.classList.add('col-lg-10')
-    slidecol1.setAttribute('style','padding: 0px')
-    slidecol1.setAttribute('align','center')
-    slideRow.appendChild(slidecol1)
-
-    slidecol2 = document.createElement('div')
-    slidecol2.classList.add('col-lg-2')
-    slidecol2.setAttribute('style','padding-left: 0px')
-    slideRow.appendChild(slidecol2)
-
-    radiusSliderdiv1 = document.createElement('div')
-    radiusSliderdiv1.setAttribute('class','justify-content-center')
-    slidecol1.appendChild(radiusSliderdiv1)
-
-    radiusSliderdiv2 = document.createElement('div')
-    radiusSliderdiv2.setAttribute('class','w-75')
-    radiusSliderdiv1.appendChild(radiusSliderdiv2)
-
-    radiusSliderspan = document.createElement('div')
-    radiusSliderspan.setAttribute('id','radiusSliderspan')
-    radiusSliderspan.setAttribute('align','right')
-    radiusSliderspan.setAttribute('style','font-size: 80%')
-    radiusSliderspan.innerHTML = '50'
-    slidecol2.appendChild(radiusSliderspan)
-
-    radiusSlider = document.createElement('input')
-    radiusSlider.setAttribute('type','range')
-    radiusSlider.setAttribute('class','custom-range')
-    radiusSlider.setAttribute('id','radiusSlider')
-    radiusSlider.setAttribute('min','0')
-    radiusSlider.setAttribute('max','100')
-    radiusSlider.value = 54
-    radiusSliderdiv2.appendChild(radiusSlider)
-
-    $("#radiusSlider").change( function() {
-        
-        value = document.getElementById('radiusSlider').value
-        value = logslider(value)
-        document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
-        
-        if(document.getElementById('normalisationCheckBox').checked){
-            reScaleNormalisation(value)
-        }
-        else{
-            heatmapLayer.cfg.radius = value
-            heatmapLayer._update()
-        }
-     
-    });
-
-    selectorDiv.appendChild(document.createElement('br'))
-
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    selectorDiv.appendChild(checkBoxDiv)
-
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','markerCheckBox')
-    checkBox.setAttribute('name','markerCheckBox')
-    checkBox.checked = true
-    checkBoxDiv.appendChild(checkBox)
-
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','markerCheckBox')
-    checkBoxLabel.innerHTML = 'Show Traps'
-    checkBoxDiv.appendChild(checkBoxLabel)
-
-    $("#markerCheckBox").change( function() {
-        if (document.getElementById('markerCheckBox').checked) {
-            for (let i=0;i<markers.length;i++) {
-                if (!mapStats.hasLayer(markers[i])) {
-                    mapStats.addLayer(markers[i])
+            mapStats.on('baselayerchange', function(e) {
+                if (e.name.includes('Google')) {
+                    mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+                    mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
                 }
+            });
+
+            markers = []
+            refMarkers = []
+            for (let i=0;i<trapgroupInfo.length;i++) {
+                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapStats)
+                markers.push(marker)
+                mapStats.addLayer(marker)
+                
+                marker.bindPopup(trapgroupInfo[i].tag);
+                // marker.bindPopup(trapgroupSightings[i]);
+                marker.on('mouseover', function (e) {
+                    this.openPopup();
+                });
+                marker.on('mouseout', function (e) {
+                    this.closePopup();
+                });
+                
+                refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
             }
-        } else {
-            for (let i=0;i<markers.length;i++) {
-                if (mapStats.hasLayer(markers[i])) {
-                    mapStats.removeLayer(markers[i])
+            refData = {max:2000,data:refMarkers}
+            invHeatmapLayer.setData(refData)
+
+            var group = new L.featureGroup(markers);
+            mapStats.fitBounds(group.getBounds().pad(0.1))
+            if(markers.length == 1) {
+                mapStats.setZoom(10)
+            }
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = 'Date'
+            h5.setAttribute('style','margin-bottom: 2px')
+            selectorDiv.appendChild(h5)
+
+            h5 = document.createElement('div')
+            h5.innerHTML = "<i>Select the date range for which you would like to view the individual's sightings.</i>"
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            selectorDiv.appendChild(h5)
+
+            dateRange = document.createElement('div')
+            selectorDiv.appendChild(dateRange)
+
+            startDateLabel = document.createElement('label');
+            startDateLabel.textContent = 'Start date:';
+            startDateLabel.setAttribute('for', 'startDateSpatial');
+            dateRange.appendChild(startDateLabel)
+
+            dateRange.appendChild(document.createElement('br'));
+
+            startDateInput = document.createElement('input');
+            startDateInput.setAttribute('type', 'date');
+            startDateInput.setAttribute('id', 'startDateSpatial');
+            dateRange.appendChild(startDateInput)
+
+            dateRange.appendChild(document.createElement('br'));
+
+            endDateLabel = document.createElement('label');
+            endDateLabel.textContent = 'End date:';
+            endDateLabel.setAttribute('for', 'endDateSpatial');
+            dateRange.appendChild(endDateLabel)
+
+            dateRange.appendChild(document.createElement('br'));
+
+            endDateInput = document.createElement('input');
+            endDateInput.setAttribute('type', 'date');
+            endDateInput.setAttribute('id', 'endDateSpatial');
+            dateRange.appendChild(endDateInput)
+
+            startDateInput.setAttribute('min', minDate)
+            startDateInput.setAttribute('max', maxDate)
+            endDateInput.setAttribute('min', minDate)
+            endDateInput.setAttribute('max', maxDate)
+            
+            $("#startDateSpatial").change( function() {
+                /** Listener for the date selector on the individual mapStats modal. */
+                // updateMap()
+                valid = false 
+                startDateSpat = document.getElementById('startDateSpatial').value
+                endDateSpat = document.getElementById('endDateSpatial').value
+                
+                if(startDateSpat == '' && endDateSpat == '') 
+                {
+                    valid = true
+                } else if (startDateSpat == '' || endDateSpat == '') {
+                    valid = false
+                } else{
+            
+                    if (startDateSpat > endDateSpat) {
+                        valid = false
+                    }
+                    else{
+                        valid = true
+                    }
+                } 
+                if(valid){
+                    updateHeatMap()
+                }  
+                
+            })
+
+            $("#endDateSpatial").change( function() {
+                /** Listener for the date selector on the individual mapStats modal. */
+                // updateMap()
+                
+                valid = false 
+                startDateSpat = document.getElementById('startDateSpatial').value
+                endDateSpat = document.getElementById('endDateSpatial').value
+                
+                if(startDateSpat == '' && endDateSpat == '') 
+                {
+                    valid = true
+                } else if (startDateSpat == '' || endDateSpat == '') {
+                    valid = false
+                } else{
+            
+                    if (startDateSpat > endDateSpat) {
+                        valid = false
+                    }
+                    else{
+                        valid = true
+                    }
+                } 
+                if(valid){
+                    updateHeatMap()
+                }  
+            })
+
+            selectorDiv.appendChild(document.createElement('br'))
+            
+            h5 = document.createElement('h5')
+            h5.innerHTML = 'Data Unit'
+            h5.setAttribute('style','margin-bottom: 2px')
+            selectorDiv.appendChild(h5)
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>Select which unit of data to count.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            selectorDiv.appendChild(h5)
+
+            select = document.createElement('select')
+            select.classList.add('form-control')
+            select.setAttribute('id','baseUnitSelector')
+            selectorDiv.appendChild(select)
+
+            fillSelect(select, ['Sightings', 'Clusters' ,'Images'], ['3','2','1'])
+            $("#baseUnitSelector").change( function() {
+                updateHeatMap()
+            });
+
+            selectorDiv.appendChild(document.createElement('br'))
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = 'Radius'
+            h5.setAttribute('style','margin-bottom: 2px')
+            selectorDiv.appendChild(h5)
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>Set the heatmap radius to help identify different trends.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            selectorDiv.appendChild(h5)
+
+            slideRow = document.createElement('div')
+            slideRow.classList.add('row')
+            selectorDiv.appendChild(slideRow)
+
+            slidecol1 = document.createElement('div')
+            slidecol1.classList.add('col-lg-10')
+            slidecol1.setAttribute('style','padding: 0px')
+            slidecol1.setAttribute('align','center')
+            slideRow.appendChild(slidecol1)
+
+            slidecol2 = document.createElement('div')
+            slidecol2.classList.add('col-lg-2')
+            slidecol2.setAttribute('style','padding-left: 0px')
+            slideRow.appendChild(slidecol2)
+
+            radiusSliderdiv1 = document.createElement('div')
+            radiusSliderdiv1.setAttribute('class','justify-content-center')
+            slidecol1.appendChild(radiusSliderdiv1)
+
+            radiusSliderdiv2 = document.createElement('div')
+            radiusSliderdiv2.setAttribute('class','w-75')
+            radiusSliderdiv1.appendChild(radiusSliderdiv2)
+
+            radiusSliderspan = document.createElement('div')
+            radiusSliderspan.setAttribute('id','radiusSliderspan')
+            radiusSliderspan.setAttribute('align','right')
+            radiusSliderspan.setAttribute('style','font-size: 80%')
+            radiusSliderspan.innerHTML = '50'
+            slidecol2.appendChild(radiusSliderspan)
+
+            radiusSlider = document.createElement('input')
+            radiusSlider.setAttribute('type','range')
+            radiusSlider.setAttribute('class','custom-range')
+            radiusSlider.setAttribute('id','radiusSlider')
+            radiusSlider.setAttribute('min','0')
+            radiusSlider.setAttribute('max','100')
+            radiusSlider.value = 54
+            radiusSliderdiv2.appendChild(radiusSlider)
+
+            $("#radiusSlider").change( function() {
+                
+                value = document.getElementById('radiusSlider').value
+                value = logslider(value)
+                document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
+                
+                if(document.getElementById('normalisationCheckBox').checked){
+                    reScaleNormalisation(value)
                 }
-            }
-        }
-    });
+                else{
+                    heatmapLayer.cfg.radius = value
+                    heatmapLayer._update()
+                }
+            
+            });
 
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    selectorDiv.appendChild(checkBoxDiv)
+            selectorDiv.appendChild(document.createElement('br'))
 
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','normalisationCheckBox')
-    checkBox.setAttribute('name','normalisationCheckBox')
-    checkBox.checked = false
-    checkBoxDiv.appendChild(checkBox)
+            checkBoxDiv = document.createElement('div')
+            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+            selectorDiv.appendChild(checkBoxDiv)
 
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','normalisationCheckBox')
-    checkBoxLabel.innerHTML = 'Normalise for Trap Density'
-    checkBoxDiv.appendChild(checkBoxLabel)
+            checkBox = document.createElement('input')
+            checkBox.setAttribute('type','checkbox')
+            checkBox.setAttribute('class','custom-control-input')
+            checkBox.setAttribute('id','markerCheckBox')
+            checkBox.setAttribute('name','markerCheckBox')
+            checkBox.checked = true
+            checkBoxDiv.appendChild(checkBox)
 
-    $("#normalisationCheckBox").change( function() {
-        updateHeatMap()
-    });
+            checkBoxLabel = document.createElement('label')
+            checkBoxLabel.setAttribute('class','custom-control-label')
+            checkBoxLabel.setAttribute('for','markerCheckBox')
+            checkBoxLabel.innerHTML = 'Show Traps'
+            checkBoxDiv.appendChild(checkBoxLabel)
 
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    selectorDiv.appendChild(checkBoxDiv)
+            $("#markerCheckBox").change( function() {
+                if (document.getElementById('markerCheckBox').checked) {
+                    for (let i=0;i<markers.length;i++) {
+                        if (!mapStats.hasLayer(markers[i])) {
+                            mapStats.addLayer(markers[i])
+                        }
+                    }
+                } else {
+                    for (let i=0;i<markers.length;i++) {
+                        if (mapStats.hasLayer(markers[i])) {
+                            mapStats.removeLayer(markers[i])
+                        }
+                    }
+                }
+            });
 
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','heatMapCheckBox')
-    checkBox.setAttribute('name','heatMapCheckBox')
-    checkBox.checked = true
-    checkBoxDiv.appendChild(checkBox)
+            checkBoxDiv = document.createElement('div')
+            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+            selectorDiv.appendChild(checkBoxDiv)
 
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','heatMapCheckBox')
-    checkBoxLabel.innerHTML = 'Show Heat Map'
-    checkBoxDiv.appendChild(checkBoxLabel)
+            checkBox = document.createElement('input')
+            checkBox.setAttribute('type','checkbox')
+            checkBox.setAttribute('class','custom-control-input')
+            checkBox.setAttribute('id','normalisationCheckBox')
+            checkBox.setAttribute('name','normalisationCheckBox')
+            checkBox.checked = false
+            checkBoxDiv.appendChild(checkBox)
 
-    $("#heatMapCheckBox").change( function() {
-        if (document.getElementById('heatMapCheckBox').checked) {
+            checkBoxLabel = document.createElement('label')
+            checkBoxLabel.setAttribute('class','custom-control-label')
+            checkBoxLabel.setAttribute('for','normalisationCheckBox')
+            checkBoxLabel.innerHTML = 'Normalise for Trap Density'
+            checkBoxDiv.appendChild(checkBoxLabel)
+
+            $("#normalisationCheckBox").change( function() {
+                updateHeatMap()
+            });
+
+            checkBoxDiv = document.createElement('div')
+            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+            selectorDiv.appendChild(checkBoxDiv)
+
+            checkBox = document.createElement('input')
+            checkBox.setAttribute('type','checkbox')
+            checkBox.setAttribute('class','custom-control-input')
+            checkBox.setAttribute('id','heatMapCheckBox')
+            checkBox.setAttribute('name','heatMapCheckBox')
+            checkBox.checked = true
+            checkBoxDiv.appendChild(checkBox)
+
+            checkBoxLabel = document.createElement('label')
+            checkBoxLabel.setAttribute('class','custom-control-label')
+            checkBoxLabel.setAttribute('for','heatMapCheckBox')
+            checkBoxLabel.innerHTML = 'Show Heat Map'
+            checkBoxDiv.appendChild(checkBoxLabel)
+
+            $("#heatMapCheckBox").change( function() {
+                if (document.getElementById('heatMapCheckBox').checked) {
+                    updateHeatMap()
+                    mapStats.addLayer(heatmapLayer)
+                } else {
+                    mapStats.removeLayer(heatmapLayer)
+                }
+            });
+            
             updateHeatMap()
-            mapStats.addLayer(heatmapLayer)
-        } else {
-            mapStats.removeLayer(heatmapLayer)
         }
-    });
-    
-    updateHeatMap()
+    }
+    xhttp.open("GET", '/getCoordsIndividual/'+selectedIndividual);
+    xhttp.send();
+
 }
 
 function updateHeatMap(){
@@ -512,22 +499,13 @@ function updateHeatMap(){
             // console.log(reply)
             hm_data = []
             hm_max = 0
-            traps = []
             for(let i=0;i<reply.data.length;i++){
-                for(let j=0; j < allSites.length; j++){
-                    if(reply.data[i].tag == allSites[j].tag && reply.data[i].count > 0){
-                        hm_data.push(reply.data[i])
+                if(reply.data[i].count > 0){
+                    hm_data.push(reply.data[i])
+                    if(reply.data[i].count > hm_max){
+                        hm_max = reply.data[i].count
                     }
-                }
-            }
-            hm_max = 0
-            for(let i=0;i<hm_data.length;i++){
-                if (hm_data[i].count > 0){
-                    traps.push(hm_data[i])
-                    if(hm_data[i].count > hm_max){
-                        hm_max = hm_data[i].count
-                    }
-                }
+                } 
             }
 
             heatMapData = JSON.parse(JSON.stringify(hm_data))

@@ -4971,6 +4971,25 @@ def getCoords(task_id):
 
     return json.dumps({'trapgroups':trapgroups})
 
+@app.route('/getCoordsIndividual/<individual_id>')
+@login_required
+def getCoordsIndividual(individual_id):
+    '''Returns a list of trapgroup latitudes, longitudes and altitudes for the specified individual.'''
+
+    individual = db.session.query(Individual).get(individual_id)
+    trapgroups = []
+    trapgroups_data = []
+
+    for task in individual.tasks:
+        trapgroups.extend(task.survey.trapgroups)
+
+    for trapgroup in trapgroups:
+        item = {'tag':trapgroup.tag,'latitude':trapgroup.latitude,'longitude':trapgroup.longitude,'altitude':trapgroup.altitude}
+        if item not in trapgroups_data:
+            trapgroups_data.append(item)      
+
+    return json.dumps({'trapgroups':trapgroups_data})
+
 @app.route('/getTrapgroupCounts/<task_id>/<species>/<baseUnit>')
 @login_required
 def getTrapgroupCounts(task_id,species,baseUnit):
@@ -5072,6 +5091,15 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
             if item['count'] > maxVal:
                 maxVal = item['count']
             data.append(item)
+
+        if len(individual.tasks) > 1:           
+            for item in data:
+                for item2 in data:
+                    if item['tag'] == item2['tag'] and item['lat'] == item2['lat'] and item['lng'] == item2['lng'] and item != item2:
+                        item['count'] = item['count'] + item2['count']
+                        data.remove(item2)
+                        if item['count'] > maxVal:
+                            maxVal = item['count']
 
     return json.dumps({'max':maxVal,'data':data})
 
