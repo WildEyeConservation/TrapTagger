@@ -4075,7 +4075,15 @@ def getSuggestion(individual_id):
                                                 .filter(Individual.name!='unidentifiable')\
                                                 .all()
 
-                activeIndividuals = [r.id for r in activeIndividuals]                                            
+                activeIndividuals = [r.id for r in activeIndividuals]
+
+                taskIndividuals = db.session.query(Individual)\
+                                                .join(Task,Individual.tasks)\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(Individual.species==individual1.species)\
+                                                .all()\
+
+                taskIndividuals = [r.id for r in taskIndividuals]
 
                 suggestion = db.session.query(IndSimilarity)\
                                     .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
@@ -4085,6 +4093,8 @@ def getSuggestion(individual_id):
                                     .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\
                                     .filter(~IndSimilarity.individual_1.in_(activeIndividuals))\
                                     .filter(~IndSimilarity.individual_2.in_(activeIndividuals))\
+                                    .filter(IndSimilarity.individual_1.in_(taskIndividuals))\
+                                    .filter(IndSimilarity.individual_2.in_(taskIndividuals))\
                                     .filter(IndSimilarity.allocated==None)\
                                     .order_by(desc(IndSimilarity.score))\
                                     .first()
@@ -4515,7 +4525,7 @@ def get_clusters():
             GLOBALS.mutex[int(task_id)]['global'].release()
 
         else:
-            if current_user.trapgroup:
+            if current_user.trapgroup[:]:
                 trapgroup = current_user.trapgroup[0]
             else:
                 GLOBALS.mutex[int(task_id)]['global'].acquire()
