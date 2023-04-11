@@ -354,6 +354,8 @@ def delete_survey(self,survey_id):
                         detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
                         for detSimilarity in detSimilarities:
                             db.session.delete(detSimilarity)
+                    db.session.commit()
+                    for detection in chunk:
                         db.session.delete(detection)
                     db.session.commit()
                 app.logger.info('Detections deleted successfully.')
