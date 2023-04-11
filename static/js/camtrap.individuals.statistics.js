@@ -228,10 +228,12 @@ function createIndivMap() {
             endDateInput.setAttribute('id', 'endDateSpatial');
             dateRange.appendChild(endDateInput)
 
-            startDateInput.setAttribute('min', minDate)
-            startDateInput.setAttribute('max', maxDate)
-            endDateInput.setAttribute('min', minDate)
-            endDateInput.setAttribute('max', maxDate)
+            if(minDate && maxDate) {
+                startDateInput.setAttribute('min', minDate)
+                startDateInput.setAttribute('max', maxDate)
+                endDateInput.setAttribute('min', minDate)
+                endDateInput.setAttribute('max', maxDate)
+            }
             
             $("#startDateSpatial").change( function() {
                 /** Listener for the date selector on the individual mapStats modal. */

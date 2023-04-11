@@ -39,7 +39,8 @@ var prev_url = null
 var next_url = null
 var allSites = null
 var allIndividualImages = null
-
+var minDate = null
+var maxDate = null
 
 
 function next_individuals() {
@@ -204,7 +205,75 @@ function getIndividuals(page = null) {
     
 }
 
+function getIndividualInfo(individualID){
+    /** Gets the specified individual's information and display's it */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            info = JSON.parse(this.responseText);
+            // console.log(info)
+            if (info != "error"){
+                document.getElementById('labelsDiv').innerHTML = info.label
+
+                document.getElementById('idNotes').value= info.notes
+                currentNote = info.notes
+                document.getElementById('notesError').innerHTML = ''
+
+                while(surveysDiv.firstChild){
+                    surveysDiv.removeChild(surveysDiv.firstChild)
+                }
+
+                surveysDiv = document.getElementById('surveysDiv')                           
+                for(let i=0;i<info.surveys.length;i++){
+                    survey = info.surveys[i]
+                    surveyDiv = document.createElement('div')
+                    surveyDiv.innerHTML = survey
+                    surveysDiv.appendChild(surveyDiv)
+                }
+
+                firstSeen = info.seen_range[0]
+                individualFirstSeen = firstSeen
+                lastSeen = info.seen_range[1]
+                individualLastSeen = lastSeen
+
+                document.getElementById('firstSeenDiv').innerHTML =  firstSeen
+                document.getElementById('lastSeenDiv').innerHTML = lastSeen
+
+                minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
+                maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+
+                document.getElementById('startDateIndiv').setAttribute('min', minDate)
+                document.getElementById('endDateIndiv').setAttribute('min', minDate)
+                document.getElementById('startDateIndiv').setAttribute('max', maxDate)
+                document.getElementById('endDateIndiv').setAttribute('max', maxDate)
+
+                individual_tags = info.tags
+                currentTags = individual_tags
+                for (let i=0;i<globalTags.length;i++) {
+                    tag = globalTags[i].tag
+                    box = document.getElementById(tag+ "box")
+                    if (individual_tags.includes(tag)){
+                        box.checked = true
+                    } else {                    
+                        box.checked = false
+                    }
+                }
+
+            }
+
+            initialiseStats()
+        }
+    }
+    xhttp.open("GET", '/getIndividualInfo/'+individualID);
+    xhttp.send();
+
+}
+
 function getIndividual(individualID, individualName, order_value = 'a1', site='0', start_date='', end_date=''){
+    /** Gets the specified individual*/
+
     selectedIndividual = individualID
     selectedIndividualName = individualName
 
@@ -220,6 +289,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
         if (this.readyState == 4 && this.status == 200) {
             individualImages = JSON.parse(this.responseText);
             // console.log(individualImages)
+            var sites = []
             if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
                 allIndividualImages = individualImages
                 allSites = []
@@ -237,9 +307,22 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
 
                     if(!valueExists){
                         allSites.push(allIndividualImages[i].trapgroup)
+                        sites.push(allIndividualImages[i].trapgroup.tag)
                     }
                 }
             }
+            else{
+                for(let i = 0; i < allSites.length; i++){
+                    sites.push(allSites[i].tag)
+                }
+            }
+
+            texts = ['All']
+            texts.push(...sites)
+            values = ['0']
+            values.push(...sites)
+            clearSelect(document.getElementById('sitesIndividualSelector'))
+            fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
 
             if(individualImages.length > 0){
                 document.getElementById('individualName').innerHTML = individualName
@@ -248,74 +331,9 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
-                center = document.getElementById('centerMap')
-                while(center.firstChild){
-                    center.removeChild(center.firstChild)
-                }
+                initialiseMapAndSlider()
 
-                mapDiv = document.createElement('div')
-                mapDiv.setAttribute('id','mapDiv')
-                mapDiv.setAttribute('style','height: 800px')
-                center.appendChild(mapDiv)
-        
-
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange =
-                function(){
-                    if (this.readyState == 4 && this.status == 200) {
-                        info = JSON.parse(this.responseText);
-                        // console.log(info)
-                        if (info != "error"){
-                            document.getElementById('labelsDiv').innerHTML = info.label
-
-                            document.getElementById('idNotes').value= info.notes
-                            currentNote = info.notes
-                            document.getElementById('notesError').innerHTML = ''
-
-                            while(surveysDiv.firstChild){
-                                surveysDiv.removeChild(surveysDiv.firstChild)
-                            }
-
-                            surveysDiv = document.getElementById('surveysDiv')                           
-                            for(let i=0;i<info.surveys.length;i++){
-                                survey = info.surveys[i]
-                                surveyDiv = document.createElement('div')
-                                surveyDiv.innerHTML = survey
-                                surveysDiv.appendChild(surveyDiv)
-                            }
-
-                            firstSeen = info.seen_range[0]
-                            individualFirstSeen = firstSeen
-                            lastSeen = info.seen_range[1]
-                            individualLastSeen = lastSeen
-
-                            document.getElementById('firstSeenDiv').innerHTML =  firstSeen
-                            document.getElementById('lastSeenDiv').innerHTML = lastSeen
-
-                            minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
-                            maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
-
-                            document.getElementById('startDateIndiv').setAttribute('min', minDate)
-                            document.getElementById('endDateIndiv').setAttribute('min', minDate)
-                            document.getElementById('startDateIndiv').setAttribute('max', maxDate)
-                            document.getElementById('endDateIndiv').setAttribute('max', maxDate)
-
-                            individual_tags = info.tags
-                            currentTags = individual_tags
-                            for (let i=0;i<globalTags.length;i++) {
-                                tag = globalTags[i].tag
-                                box = document.getElementById(tag+ "box")
-                                if (individual_tags.includes(tag)){
-                                    box.checked = true
-                                } else {                    
-                                    box.checked = false
-                                }
-                            }
-                        }
-                    }
-                }
-                xhttp.open("GET", '/getIndividualInfo/'+individualID);
-                xhttp.send();
+                getIndividualInfo(individualID)
 
                 document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
                     document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
@@ -340,36 +358,52 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                     
                 });
 
-                splideDive = document.getElementById('splideDiv')
-
-                while(splideDiv.firstChild){
-                    splideDiv.removeChild(splideDiv.firstChild);
+                if(modalIndividual.is(':visible')){
+                    map = null
+                    individualSplide = null
+                    prepMap(individualImages[0])
+                    updateSlider()
                 }
+             
+            }
+            else{
+                if(start_date != '' || end_date != ''){
+                    document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
+                }
+                
+            }   
 
-                card = document.createElement('div')
-                card.classList.add('card')
-                card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
-                splideDiv.appendChild(card)
+        }
+    }
+    xhttp.open("POST", '/getIndividual/'+individualID);
+    xhttp.send(formData)
+}
 
-                body = document.createElement('div')
-                body.classList.add('card-body')
-                body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
-                card.appendChild(body)
+function updateIndividual(individualID, individualName, order_value = 'a1', site='0', start_date='', end_date=''){
+    selectedIndividual = individualID
+    selectedIndividualName = individualName
 
-                splide = document.createElement('div')
-                splide.classList.add('splide')
-                splide.setAttribute('id','splide')
-                body.appendChild(splide)
+    var formData = new FormData()
+    formData.append("order", JSON.stringify(order_value))
+    formData.append("site", JSON.stringify(site))
+    formData.append('start_date', JSON.stringify(start_date))
+    formData.append('end_date', JSON.stringify(end_date))
 
-                track = document.createElement('div')
-                track.classList.add('splide__track')
-                splide.appendChild(track)
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            individualImages = JSON.parse(this.responseText);
+            // console.log(individualImages)
 
-                list = document.createElement('ul')
-                list.classList.add('splide__list')
-                list.setAttribute('id','imageSplide')
-                track.appendChild(list)
+            if(individualImages.length > 0){
+                document.getElementById('individualName').innerHTML = individualName
+                document.getElementById('newIndividualName').value = individualName
 
+                document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
+                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
+
+                initialiseMapAndSlider()
 
                 if(modalIndividual.is(':visible')){
                     map = null
@@ -390,6 +424,53 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
     }
     xhttp.open("POST", '/getIndividual/'+individualID);
     xhttp.send(formData)
+}
+
+function initialiseMapAndSlider(){
+    /** Creates map and slider to diplay individual images */
+    map = null
+    individualSplide = null
+
+    center = document.getElementById('centerMap')
+    while(center.firstChild){
+        center.removeChild(center.firstChild)
+    }
+
+    mapDiv = document.createElement('div')
+    mapDiv.setAttribute('id','mapDiv')
+    mapDiv.setAttribute('style','height: 800px')
+    center.appendChild(mapDiv)
+
+
+    splideDive = document.getElementById('splideDiv')
+
+    while(splideDiv.firstChild){
+        splideDiv.removeChild(splideDiv.firstChild);
+    }
+
+    card = document.createElement('div')
+    card.classList.add('card')
+    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+    splideDiv.appendChild(card)
+
+    body = document.createElement('div')
+    body.classList.add('card-body')
+    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+    card.appendChild(body)
+
+    splide = document.createElement('div')
+    splide.classList.add('splide')
+    splide.setAttribute('id','splide')
+    body.appendChild(splide)
+
+    track = document.createElement('div')
+    track.classList.add('splide__track')
+    splide.appendChild(track)
+
+    list = document.createElement('ul')
+    list.classList.add('splide__list')
+    list.setAttribute('id','imageSplide')
+    track.appendChild(list)
 }
 
 function individualTags(individual_id){
@@ -810,24 +891,6 @@ modalIndividual.on('shown.bs.modal', function(){
         prepMap(individualImages[0])
         updateSlider()
     }
-    
-    if (individualImages) {
-        sites = []
-        for (let i=0;i<individualImages.length;i++) {
-            if (!sites.includes(individualImages[i].trapgroup.tag)) {
-                sites.push(individualImages[i].trapgroup.tag)
-            }
-        }
-        // sites.sort()
-        texts = ['All']
-        texts.push(...sites)
-        values = ['0']
-        values.push(...sites)
-        clearSelect(document.getElementById('sitesIndividualSelector'))
-        fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
-
-        initialiseStats()
-    }
 
 });
 
@@ -892,7 +955,7 @@ function updateIndividualFilter() {
     }
 
 
-    getIndividual(selectedIndividual, selectedIndividualName, order_value, site, startDate, endDate)
+    updateIndividual(selectedIndividual, selectedIndividualName, order_value, site, startDate, endDate)
 }
 
 
@@ -1750,7 +1813,7 @@ $('#individualSearch').change( function() {
 function buildIdTask(task){
     idTasksListDiv = document.getElementById('idTasksListDiv'); 
     newTask = document.createElement('div')
-    newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 15px;")
+    newTask.setAttribute("style", "border-bottom: 1px solid rgb(60,74,89); padding: 1.25rem;")
 
     idTasksListDiv.appendChild(newTask)
 
@@ -1766,7 +1829,7 @@ function buildIdTask(task){
     taskDiv.appendChild(headingElement)
 
     stopTaskCol = document.createElement('div')
-    stopTaskCol.classList.add('col-lg-3');
+    stopTaskCol.setAttribute('class', 'col-lg-3');
     stopTaskBtn = document.createElement('button')
     stopTaskBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
     stopTaskBtn.innerHTML = '&times;'
