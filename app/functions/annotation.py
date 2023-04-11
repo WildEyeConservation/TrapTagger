@@ -1133,7 +1133,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .group_by(Individual.id)\
                         .subquery()
         
-        clusters = db.session.query(Individual)\
+        cluster = db.session.query(Individual)\
                         .join(Task,Individual.tasks)\
                         .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                         .outerjoin(sq2,sq2.c.indID2==Individual.id)\
@@ -1143,7 +1143,10 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .order_by(desc(sq3.c.count3)).first()
 
-        clusters = [cluster]
+        if cluster:
+            clusters = [cluster]
+        else:
+            clusters = []
 
     else:
         clusters = db.session.query(Cluster) \
