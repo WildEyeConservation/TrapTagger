@@ -702,8 +702,8 @@ def getCameraStamps():
         for key in temp_results.keys():
             reply.append({'tag': key, 'cameras': temp_results[key]})
 
-        next_url = url_for('getCameraStamps', page=trapgroups.next_num, survey_id=survey_id) if trapgroups.has_next else None
-        prev_url = url_for('getCameraStamps', page=trapgroups.prev_num, survey_id=survey_id) if trapgroups.has_prev else None
+        next_url = url_for('getCameraStamps', page=data.next_num, survey_id=survey_id) if data.has_next else None
+        prev_url = url_for('getCameraStamps', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
 
     return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
 
