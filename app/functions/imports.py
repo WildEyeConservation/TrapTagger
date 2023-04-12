@@ -1335,6 +1335,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             trapgroup_id = item['trapgroup_id']
             survey_id = item['survey_id']
             destBucket = item['destBucket']
+            camera_id = item['camera_id']
 
             if csv:
                 # Allows for the fetching of images according to a csv eg. for collecting Snapshot Safari data for training
@@ -1352,9 +1353,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                 jpegs = jpegs[int(lower_index):int(upper_index)]
             
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
-            camera = Camera.get_or_create(db.session, trapgroup_id, dirpath)
-            db.session.commit()
-            camera_id = camera.id
                 
             for filenames in chunker(jpegs,200):
                 pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external))
@@ -1365,7 +1363,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
         # Fetch the results
         print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
         counter = 0
-        db.session.remove()
         GLOBALS.lock.acquire()
         with allow_join_result():
             for images, result in GLOBALS.results_queue:
@@ -1788,6 +1785,8 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
                 survey.images_processing += len(jpegs)
                 localsession.commit()
+                camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+                localsession.commit()
                 tid=trapgroup.id
 
                 #Break folders down into chunks to prevent overly-large folders causing issues
@@ -1799,6 +1798,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                                     'lower_index': n*chunk_size,
                                     'upper_index': (n+1)*chunk_size,
                                     'trapgroup_id':tid,
+                                    'camera_id': camera.id,
                                     'survey_id':sid,
                                     'destBucket':destinationBucket})
 
@@ -1903,7 +1903,10 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
             trapgroup = Trapgroup.get_or_create(localsession, tag, survey_id)
             survey.images_processing += number_of_images
             localsession.commit()
+            camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+            localsession.commit()
             trapgroup_id=trapgroup.id
+            camera_id=camera.id
 
             #Break folders down into chunks to prevent overly-large folders causing issues
             number_of_chunks = math.ceil(number_of_images/chunk_size)
@@ -1925,6 +1928,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                                 'lower_index': n*chunk_size,
                                 'upper_index': (n+1)*chunk_size,
                                 'trapgroup_id':trapgroup_id,
+                                'camera_id':camera_id,
                                 'survey_id':survey_id,
                                 'destBucket':destBucket})
 
