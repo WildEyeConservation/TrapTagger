@@ -719,9 +719,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         tag_list = {}
         individual_list = {}
         if label_type=='column':
+            if Config.DEBUGGING: app.logger.info('label_levels: {}'.format(label_levels))
             for label_level in label_levels:
                 
-                if label_level=='sighting':
+                if label_level=='detection':
                     sq = rDets(db.session.query(Detection,func.count(distinct(Label.id)).label('count'))\
                                         .group_by(Detection.id))
                 elif label_level=='image':
@@ -729,7 +730,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .group_by(Image.id)\
                                         .join(Detection))
                 elif label_level=='capture':
-                    pass
+                    sq = rDets(db.session.query(Image,func.count(distinct(Label.id)).label('count'))\
+                                        .join(Camera)\
+                                        .group_by(Camera.id,Image.corrected_timestamp)\
+                                        .join(Detection))
                 elif label_level=='cluster':
                     sq = rDets(db.session.query(Cluster,func.count(distinct(Label.id)).label('count'))\
                                         .group_by(Cluster.id)\
@@ -740,7 +744,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .group_by(Camera.id)\
                                         .join(Image)\
                                         .join(Detection))
-                elif label_level=='site':
+                elif label_level=='trapgroup':
                     sq = rDets(db.session.query(Trapgroup,func.count(distinct(Label.id)).label('count'))\
                                         .group_by(Trapgroup.id)\
                                         .join(Camera)\
@@ -788,7 +792,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
             for tag_level in tag_levels:
 
-                if tag_level=='sighting':
+                if tag_level=='detection':
                     sq = rDets(db.session.query(Detection,func.count(distinct(Tag.id)).label('count'))\
                                         .group_by(Detection.id))
                 elif tag_level=='image':
@@ -796,7 +800,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .group_by(Image.id)\
                                         .join(Detection))
                 elif tag_level=='capture':
-                    pass
+                    sq = rDets(db.session.query(Image,func.count(distinct(Tag.id)).label('count'))\
+                                        .join(Detection)\
+                                        .join(Camera)\
+                                        .group_by(Camera.id,Image.corrected_timestamp))
                 elif tag_level=='cluster':
                     sq = rDets(db.session.query(Cluster,func.count(distinct(Tag.id)).label('count'))\
                                         .group_by(Cluster.id)\
@@ -807,7 +814,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .group_by(Camera.id)\
                                         .join(Image)\
                                         .join(Detection))
-                elif tag_level=='site':
+                elif tag_level=='trapgroup':
                     sq = rDets(db.session.query(Trapgroup,func.count(distinct(Tag.id)).label('count'))\
                                         .group_by(Trapgroup.id)\
                                         .join(Camera)\
@@ -842,7 +849,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
         for individual_level in individual_levels:
             
-            if individual_level=='sighting':
+            if individual_level=='detection':
                 sq = rDets(db.session.query(Detection,func.count(distinct(Individual.id)).label('count'))\
                                     .group_by(Detection.id))
             elif individual_level=='image':
@@ -850,7 +857,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                     .group_by(Image.id)\
                                     .join(Detection))
             elif individual_level=='capture':
-                pass
+                sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
+                                    .join(Detection)\
+                                    .join(Camera)\
+                                    .group_by(Camera.id,Image.corrected_timestamp))
             elif individual_level=='cluster':
                 sq = rDets(db.session.query(Cluster,func.count(distinct(Individual.id)).label('count'))\
                                     .group_by(Cluster.id)\
@@ -861,7 +871,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                     .group_by(Camera.id)\
                                     .join(Image)\
                                     .join(Detection))
-            elif individual_level=='site':
+            elif individual_level=='trapgroup':
                 sq = rDets(db.session.query(Trapgroup,func.count(distinct(Individual.id)).label('count'))\
                                     .group_by(Trapgroup.id)\
                                     .join(Camera)\
