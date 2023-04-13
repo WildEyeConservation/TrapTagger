@@ -1285,9 +1285,8 @@ function buildSurveySelectLaunchID(){
     idTaskSelect.name = idTaskSelect.id
 
     col2.appendChild(idTaskSelect)
-    
 
-    if (surveys != null) {
+    if (surveys_launch != null) {
         
         if(IDNum==0){
             optionTexts = ['All']
@@ -1300,7 +1299,7 @@ function buildSurveySelectLaunchID(){
             fillSelect(idTaskSelect, [''], ['-99999'])
         }
 
-        for (survey_name in surveys){
+        for (survey_name in surveys_launch){
             optionTexts.push(survey_name)
             optionValues.push(survey_name)
         }
@@ -1347,9 +1346,9 @@ function buildSurveySelectLaunchID(){
                 optionValues = []
 
                 survey_name = idSurveySelect.options[idSurveySelect.selectedIndex].text
-                for (let i=0;i<surveys[survey_name].length;i++) {
-                    optionTexts.push(surveys[survey_name][i].name)
-                    optionValues.push(surveys[survey_name][i].task_id)
+                for (let i=0;i<surveys_launch[survey_name].length;i++) {
+                    optionTexts.push(surveys_launch[survey_name][i].name)
+                    optionValues.push(surveys_launch[survey_name][i].task_id)
                 }
 
                 clearSelect(idTaskSelect)
@@ -1395,8 +1394,8 @@ function getSurveysandTasks(){
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            surveys = JSON.parse(this.responseText);  
-            // console.log(surveys)
+            surveys_launch = JSON.parse(this.responseText);  
+            // console.log(surveys_launch)
             buildSurveySelectLaunchID()
         }
     }
