@@ -803,13 +803,10 @@ def cleanUpIndividuals(task_id):
 
     return True
 
-def getProgress(individual_id):
+def getProgress(individual_id,task_id):
     '''Gets the progress of inter-cluster ID for the specified individual.'''
     individual = db.session.query(Individual).get(individual_id)
-
-    task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
-    if not task: task = individual.tasks[0]
-    
+    task = db.session.query(Task).get(task_id)
     tL = re.split(',',task.tagging_level)
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
