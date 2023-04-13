@@ -50,6 +50,9 @@ from calendar import monthrange
 from botocore.client import Config as botoConfig
 from multiprocessing.pool import ThreadPool as Pool
 import urllib
+import PIL
+from PIL import ImageDraw, ImageFont
+import io
 
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.s3UploadClient = boto3.client('s3', 
@@ -749,8 +752,10 @@ def getTags(individual_id):
     individual = db.session.query(Individual).get(individual_id)
     if individual and ((current_user == individual.tasks[0].survey.user)):
         tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).distinct().all()
+
         for tag in tags:
-            reply.append({'id': tag.id, 'tag': tag.description, 'hotkey': tag.hotkey})
+            if tag.description not in [r['tag'] for r in reply]:
+                reply.append({'id': tag.id, 'tag': tag.description, 'hotkey': tag.hotkey})
 
     return json.dumps(reply)
 
@@ -1882,7 +1887,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
 
     reply = []
 
-    trapgroup_ids = ast.literal_eval(request.form['trapgroup_ids'])  
+    trapgroup_tags = ast.literal_eval(request.form['trapgroup_tags'])  
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
@@ -1891,7 +1896,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection)
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id.in_([x.id for x in individual.tasks]))
         elif baseUnit == '3':
             baseQuery = db.session.query(Detection).join(Image)
         baseQuery = baseQuery.join(Camera)\
@@ -1901,9 +1906,9 @@ def getPolarDataIndividual(individual_id, baseUnit):
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if trapgroup_ids:
-            trap_ids = [int(x) for x in trapgroup_ids]
-            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids))
+        if trapgroup_tags:
+            # trap_ids = [int(x) for x in trapgroup_ids]
+            baseQuery = baseQuery.filter(Trapgroup.tag.in_(trapgroup_tags))
 
         if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
 
@@ -1967,9 +1972,9 @@ def getBarData(task_id, species_id, baseUnit, axis):
     return json.dumps(reply)
 
 
-@app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_id>', methods=['POST'])
+@app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_tag>', methods=['POST'])
 @login_required
-def getBarDataIndividual(individual_id, baseUnit, site_id):
+def getBarDataIndividual(individual_id, baseUnit, site_tag):
     '''
     Returns the bar graph data for the requested species and task.
 
@@ -1988,7 +1993,7 @@ def getBarDataIndividual(individual_id, baseUnit, site_id):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection)
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id.in_([x.id for x in individual.tasks]))
         elif baseUnit == '3':
             baseQuery = db.session.query(Detection).join(Image)
         baseQuery = baseQuery.join(Camera)\
@@ -1998,8 +2003,8 @@ def getBarDataIndividual(individual_id, baseUnit, site_id):
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if site_id != '0':
-            baseQuery = baseQuery.filter(Trapgroup.id == site_id)
+        if site_tag != '0':
+            baseQuery = baseQuery.filter(Trapgroup.tag == site_tag)
 
         if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
 
@@ -5041,6 +5046,25 @@ def getCoords(task_id):
 
     return json.dumps({'trapgroups':trapgroups})
 
+@app.route('/getCoordsIndividual/<individual_id>')
+@login_required
+def getCoordsIndividual(individual_id):
+    '''Returns a list of trapgroup latitudes, longitudes and altitudes for the specified individual.'''
+
+    individual = db.session.query(Individual).get(individual_id)
+    trapgroups = []
+    trapgroups_data = []
+
+    for task in individual.tasks:
+        trapgroups.extend(task.survey.trapgroups)
+
+    for trapgroup in trapgroups:
+        item = {'tag':trapgroup.tag,'latitude':trapgroup.latitude,'longitude':trapgroup.longitude,'altitude':trapgroup.altitude}
+        if item not in trapgroups_data:
+            trapgroups_data.append(item)      
+
+    return json.dumps({'trapgroups':trapgroups_data})
+
 @app.route('/getTrapgroupCounts/<task_id>/<species>/<baseUnit>')
 @login_required
 def getTrapgroupCounts(task_id,species,baseUnit):
@@ -5121,7 +5145,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection)
         elif int(baseUnit) == 2:
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection)
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id.in_([x.id for x in individual.tasks]))
         elif int(baseUnit) == 3:
             baseQuery = db.session.query(Detection).join(Image)
         baseQuery = baseQuery.join(Camera).filter(Detection.individuals.contains(individual))\
@@ -5133,12 +5157,24 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
-        trapgroups = individual.tasks[0].survey.trapgroups[:]
+        trapgroups = []
+        for task in individual.tasks:
+            trapgroups.extend(task.survey.trapgroups[:])
+
         for trapgroup in trapgroups:
             item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
             if item['count'] > maxVal:
                 maxVal = item['count']
             data.append(item)
+
+        if len(individual.tasks) > 1:           
+            for item in data:
+                for item2 in data:
+                    if item['tag'] == item2['tag'] and item['lat'] == item2['lat'] and item['lng'] == item2['lng'] and item != item2:
+                        item['count'] = item['count'] + item2['count']
+                        data.remove(item2)
+                        if item['count'] > maxVal:
+                            maxVal = item['count']
 
     return json.dumps({'max':maxVal,'data':data})
 
@@ -7157,3 +7193,174 @@ def getIndividualIDSurveysTasks():
             reply[survey.name].append({'task_id':task.id,'name':task.name})
 
     return json.dumps(reply)
+
+
+@app.route('/writeInfoToImages/<type_id>/<id>')
+@login_required
+def writeInfoToImages(type_id,id):
+    if type_id == 'task':
+        task = db.session.query(Task).get(id)
+        if task and (task.survey.user==current_user):
+            for individual in task.individuals:
+                images = db.session.query(Image)\
+                    .join(Detection)\
+                    .filter(Detection.individuals.contains(individual))\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                    .filter(Detection.static==False)\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                    .order_by(Image.corrected_timestamp).all()
+
+                count = 0
+                for image in images:
+                    count +=1
+                    url = image.camera.path + '/' + image.filename
+
+                    splits = url.split('/')
+                    splits[0] = splits[0] + '-comp'
+                    url_new = '/'.join(splits)    
+
+                    app.logger.info(url_new)
+
+                    s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=url)
+                    imageData = s3_response_object['Body'].read()
+
+                    img = PIL.Image.open(io.BytesIO(imageData))
+
+                    tasks_str = ""
+                    for task in individual.tasks:
+                        # tasks_str += task.survey.name + " " + task.name + "\n"	
+                        tasks_str += task.survey.name + " " + task.name + ", "
+
+                    tags_str = ''
+                    for tag in individual.tags:
+                        # tags_str += tag.description + '\n'
+                        tags_str += tag.description + ', '
+
+                    # text =  'ID:' + str(individual.id) + '\n' + \
+                    #         'Name: ' + individual.name + '\n' +\
+                    #         'Species: ' + individual.species + '\n' +\
+                    #         'Tags: \n' + tags_str  + \
+                    #         'Surveys & Tasks: \n' + tasks_str + \
+                    #         'Image ID: ' + str(image.id) + '\n' + \
+                    #         'Image Nr: ' + str(count) + '\n' 
+
+                    text =  'ID:' + str(individual.id) + '  ' + \
+                            'Name: ' + individual.name + '  ' +\
+                            'Species: ' + individual.species + '  ' +\
+                            'Image ID: ' + str(image.id) + '  ' + \
+                            'Image Nr: ' + str(count) + '\n' + \
+                            'Tags: ' + tags_str  + '\n' +\
+                            'Surveys & Tasks: ' + tasks_str + '\n' 
+                                                
+
+                    font = ImageFont.truetype('Vera.ttf', 60)
+
+                    draw = ImageDraw.Draw(img)
+                    # text_width, text_height = draw.textsize(text, font=font)
+                    x = img.width/11
+                    y = 15
+
+                    draw.text((x, y), text, font=font, fill=(255, 0, 0, 1))
+
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                        img.save(temp_file.name)
+
+                        with wandImage(filename=temp_file.name).convert('jpeg') as img1:
+                            # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                            # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                            # problems for MegaDetector which expects a 3 channel image as input.
+                            img1.metadata['colorspace:auto-grayscale'] = 'false'
+                            img1.transform(resize='800')
+
+                            # Upload the compressed image to S3
+                            GLOBALS.s3client.upload_fileobj(BytesIO(img1.make_blob()), Config.BUCKET, url_new)
+                    
+                    # Save the original image with text locally for debugging purposes
+                    # img.save(str(individual.id) + "_image" + str(count) + "_with_text.jpg")
+
+        return json.dumps('success')
+    elif type_id == 'individual':
+        individual = db.session.query(Individual).get(id)
+        if individual and (individual.tasks[0].survey.user==current_user):
+            images = db.session.query(Image)\
+                    .join(Detection)\
+                    .filter(Detection.individuals.contains(individual))\
+                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                    .filter(Detection.static==False)\
+                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                    .order_by(Image.corrected_timestamp).all()
+
+            count = 0
+            for image in images:
+                count +=1
+                url = image.camera.path + '/' + image.filename
+
+                splits = url.split('/')
+                splits[0] = splits[0] + '-comp'
+                url_new = '/'.join(splits)    
+
+                app.logger.info(url_new)
+
+                s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=url)
+                imageData = s3_response_object['Body'].read()
+
+                img = PIL.Image.open(io.BytesIO(imageData))
+
+                tasks_str = ""
+                for task in individual.tasks:
+                    # tasks_str += task.survey.name + " " + task.name + "\n"	
+                    tasks_str += task.survey.name + " " + task.name + ", "
+
+                tags_str = ''
+                for tag in individual.tags:
+                    # tags_str += tag.description + '\n'
+                    tags_str += tag.description + ', '
+
+                # text =  'ID:' + str(individual.id) + '\n' + \
+                #         'Name: ' + individual.name + '\n' +\
+                #         'Species: ' + individual.species + '\n' +\
+                #         'Tags: \n' + tags_str  + \
+                #         'Surveys & Tasks: \n' + tasks_str + \
+                #         'Image ID: ' + str(image.id) + '\n' + \
+                #         'Image Nr: ' + str(count) + '\n' 
+
+                text =  'ID:' + str(individual.id) + '  ' + \
+                        'Name: ' + individual.name + '  ' +\
+                        'Species: ' + individual.species + '  ' +\
+                        'Image ID: ' + str(image.id) + '  ' + \
+                        'Image Nr: ' + str(count) + '\n' + \
+                        'Tags: ' + tags_str  + '\n' +\
+                        'Surveys & Tasks: ' + tasks_str + '\n' 
+                                              
+
+                font = ImageFont.truetype('Vera.ttf', 60)
+
+                draw = ImageDraw.Draw(img)
+                # text_width, text_height = draw.textsize(text, font=font)
+                x = img.width/11
+                y = 15
+
+                draw.text((x, y), text, font=font, fill=(255, 0, 0, 1))
+
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                    img.save(temp_file.name)
+
+                    with wandImage(filename=temp_file.name).convert('jpeg') as img1:
+                        # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                        # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                        # problems for MegaDetector which expects a 3 channel image as input.
+                        img1.metadata['colorspace:auto-grayscale'] = 'false'
+                        img1.transform(resize='800')
+
+                        # Upload the compressed image to S3
+                        GLOBALS.s3client.upload_fileobj(BytesIO(img1.make_blob()), Config.BUCKET, url_new)
+                
+                # Save the original image with text locally for debugging purposes
+                # img.save(str(individual.id) + "_image" + str(count) + "_with_text.jpg")
+
+        return json.dumps('success')
+    else:
+        return json.dumps('error')
+    
+
+

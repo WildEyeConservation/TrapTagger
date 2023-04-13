@@ -1593,7 +1593,7 @@ function createMap() {
                     checkBoxLabel = document.createElement('label')
                     checkBoxLabel.setAttribute('class','custom-control-label')
                     checkBoxLabel.setAttribute('for','markerCheckBox')
-                    checkBoxLabel.innerHTML = 'Show Traps'
+                    checkBoxLabel.innerHTML = 'Show Sites'
                     checkBoxDiv.appendChild(checkBoxLabel)
         
                     $("#markerCheckBox").change( function() {
@@ -1627,7 +1627,7 @@ function createMap() {
                     checkBoxLabel = document.createElement('label')
                     checkBoxLabel.setAttribute('class','custom-control-label')
                     checkBoxLabel.setAttribute('for','normalisationCheckBox')
-                    checkBoxLabel.innerHTML = 'Normalise for Trap Density'
+                    checkBoxLabel.innerHTML = 'Normalise for Site Density'
                     checkBoxDiv.appendChild(checkBoxLabel)
         
                     $("#normalisationCheckBox").change( function() {
