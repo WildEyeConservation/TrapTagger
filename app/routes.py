@@ -166,7 +166,7 @@ def launchTask():
             for task in missing_tasks:
                 message += task.survey.name + ': ' + task.name + ', '
             message = message[:-2]
-            
+
             return json.dumps({'message': message, 'status': 'Error'})
 
         # Check individuals not already associated to another task in a survey     
@@ -2213,7 +2213,7 @@ def getDetailedTaskStatus(task_id):
                         reply['Individual ID']['Exhaustive'] = '-'
                         reply['Summary']['Individuals'] = '-'
                     else:
-                        if len(label.individuals[:]) == 0:
+                        if db.session.query(Individual).filter(Individual.species==label.description).filter(Individual.tasks.contains(task)).count() == 0:
                             reply['Individual ID']['Cluster-Level'] = '-'
                             reply['Individual ID']['Inter-Cluster'] = '-'
                             reply['Individual ID']['Exhaustive'] = '-'
