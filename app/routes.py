@@ -2754,20 +2754,10 @@ def getTaskCompletionStatus(task_id):
     task = db.session.query(Task).get(task_id)
     if task and (task.survey.user==current_user):
 
-        check = db.session.query(Cluster)\
-                        .join(Image,Cluster.images)\
-                        .join(Detection)\
-                        .filter(Cluster.task_id==int(task_id))\
-                        .filter(~Cluster.labels.any())\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .first()
-
-        if check:
-            return json.dumps(str(False))
-        else:
+        if task.init_complete:
             return json.dumps(str(True))
+        else:
+            return json.dumps(str(False))
     
     return json.dumps('error')
 
