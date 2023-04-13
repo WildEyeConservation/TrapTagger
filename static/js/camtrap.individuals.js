@@ -273,7 +273,7 @@ function getIndividualInfo(individualID){
 
 function getIndividual(individualID, individualName, order_value = 'a1', site='0', start_date='', end_date=''){
     /** Gets the specified individual*/
-
+    initialiseMapAndSlider()
     selectedIndividual = individualID
     selectedIndividualName = individualName
 
@@ -329,9 +329,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                 document.getElementById('newIndividualName').value = individualName
 
                 document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
-                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
-
-                initialiseMapAndSlider()
+                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp     
 
                 getIndividualInfo(individualID)
 
@@ -358,12 +356,8 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                     
                 });
 
-                if(modalIndividual.is(':visible')){
-                    map = null
-                    individualSplide = null
-                    prepMap(individualImages[0])
-                    updateSlider()
-                }
+                prepMap(individualImages[0])
+                updateSlider()
              
             }
             else{
@@ -397,20 +391,12 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
             // console.log(individualImages)
 
             if(individualImages.length > 0){
-                document.getElementById('individualName').innerHTML = individualName
-                document.getElementById('newIndividualName').value = individualName
-
                 document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
                 initialiseMapAndSlider()
-
-                if(modalIndividual.is(':visible')){
-                    map = null
-                    individualSplide = null
-                    prepMap(individualImages[0])
-                    updateSlider()
-                }
+                prepMap(individualImages[0])
+                updateSlider()        
                 
             }
             else{
@@ -884,15 +870,15 @@ modalIndividual.on('hidden.bs.modal', function(){
     }
 });
 
-modalIndividual.on('shown.bs.modal', function(){
-    /** Initialises the individual modal when opened. */
+// modalIndividual.on('shown.bs.modal', function(){
+//     /** Initialises the individual modal when opened. */
 
-    if (map==null && individualImages) {
-        prepMap(individualImages[0])
-        updateSlider()
-    }
+//     if (map==null) {
+//         prepMap(individualImages[0])
+//         updateSlider()
+//     }
 
-});
+// });
 
 
 $('#orderIndivImages').on('change', function() {
