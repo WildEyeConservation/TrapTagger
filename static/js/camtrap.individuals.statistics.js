@@ -1359,7 +1359,7 @@ function createIndivBar() {
     selectorDiv.appendChild(h5)
 
     h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select which unit of data to count.</i>'
+    h5.innerHTML = '<i>Select which site you would like to see.</i>'
     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     selectorDiv.appendChild(h5)
 

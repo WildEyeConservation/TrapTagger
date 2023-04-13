@@ -1286,18 +1286,11 @@ function buildSurveySelectLaunchID(){
 
     col2.appendChild(idTaskSelect)
 
-    if (surveys_launch != null) {
+    if (surveys_launch != null) {    
         
-        if(IDNum==0){
-            optionTexts = ['All']
-            optionValues = ["0"]  
-            fillSelect(idTaskSelect, [''], ['0'])
-        }
-        else{
-            optionTexts = ['None']
-            optionValues = ['-99999'] 
-            fillSelect(idTaskSelect, [''], ['-99999'])
-        }
+        optionTexts = ['None']
+        optionValues = ['-99999'] 
+        fillSelect(idTaskSelect, [''], ['-99999'])  
 
         for (survey_name in surveys_launch){
             optionTexts.push(survey_name)
@@ -1336,9 +1329,9 @@ function buildSurveySelectLaunchID(){
             }
             
             survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
-            if (survey=="0") {
+            if (survey=="-99999") {
                 clearSelect(idTaskSelect)
-                fillSelect(idTaskSelect, [''], ['0'])
+                fillSelect(idTaskSelect, [''], ['-99999'])
                 checkSurvey()
             } else {
 
@@ -1464,6 +1457,7 @@ function checkSurvey(){
     var duplicateTask = false
     var surveyAll = false
     var oneSurvey = false
+    var noneSurvey = false
     legalSurvey = false
     
     
@@ -1499,7 +1493,12 @@ function checkSurvey(){
         surveyAll = false
     }
     else if(allSurveys.length == 1 && !surveyAll && modalActive){
-        oneSurvey = true
+        if(allSurveys[0].value == '-99999'){
+            noneSurvey = true
+        }
+        else{
+            oneSurvey = true
+        }
     }
     
 
@@ -1518,13 +1517,17 @@ function checkSurvey(){
 
     if(oneSurvey){
         newdiv = document.createElement('div')
-        newdiv.innerHTML =  'You cannot complete individual ID for only one survey. Please add additional surveys or select "All" surveys.'
+        newdiv.innerHTML =  'You cannot complete individual ID for only one survey. Please add additional surveys.'
         surveyErrors.appendChild(newdiv)
     }
 
-    
+    if(noneSurvey){
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have not selected any surveys. Please select a survey and add addional surveys.'
+        surveyErrors.appendChild(newdiv)
+    }
 
-    if (duplicateTask||surveyAll||oneSurvey) {
+    if (duplicateTask||surveyAll||oneSurvey||noneSurvey) {
         legalSurvey = false
     } else {
         legalSurvey = true
