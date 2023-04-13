@@ -165,7 +165,7 @@ def launchTask():
         missing_tasks = [task for task in tasks if task not in applicableTasks]
         
         if missing_tasks:
-            message = 'The following annotation sets are already associated with individuals in your selection and thus must also be inculuded: '
+            message = 'The following annotation sets are already associated with individuals in your selection and thus must also be included: '
             for task in missing_tasks:
                 message += task.survey.name + ': ' + task.name + ', '
             message = message[:-2]
@@ -7198,6 +7198,9 @@ def getIndividualIDSurveysTasks():
 @app.route('/writeInfoToImages/<type_id>/<id>')
 @login_required
 def writeInfoToImages(type_id,id):
+    ''' Writes the info of the individual to its images for a specified individual or 
+    for all the individuals associated with a specific task. '''
+
     if type_id == 'task':
         task = db.session.query(Task).get(id)
         if task and (task.survey.user==current_user):
