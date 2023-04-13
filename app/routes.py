@@ -3758,7 +3758,7 @@ def dissociateDetection(detection_id):
         individuals1 = [r.id for r in db.session.query(Individual)\
                                                     .join(Task,Individual.tasks)\
                                                     .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                    .filter(Task.id.in_([r.id for r in task_ids]))\
+                                                    .filter(Task.id.in_(task_ids))\
                                                     .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
@@ -3769,7 +3769,7 @@ def dissociateDetection(detection_id):
 
         individuals2 = [r.id for r in db.session.query(Individual)\
                                                     .join(Task,Individual.tasks)\
-                                                    .filter(Task.id.in_([r.id for r in task_ids]))\
+                                                    .filter(Task.id.in_(task_ids))\
                                                     .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
@@ -7257,6 +7257,8 @@ def writeInfoToImages(type_id,id):
 
                     draw = ImageDraw.Draw(img)
                     # text_width, text_height = draw.textsize(text, font=font)
+                    # x = 2
+                    # y = 2
                     x = img.width/11
                     y = 15
 
@@ -7337,6 +7339,8 @@ def writeInfoToImages(type_id,id):
 
                 draw = ImageDraw.Draw(img)
                 # text_width, text_height = draw.textsize(text, font=font)
+                # x = 2
+                # y = 2
                 x = img.width/11
                 y = 15
 
