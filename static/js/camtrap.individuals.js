@@ -134,7 +134,7 @@ function getIndividuals(page = null) {
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 individuals = reply.individuals
                 individualsDiv = document.getElementById('individualsDiv')
 
@@ -1895,7 +1895,7 @@ function getTasks(url=null){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             idTasksListDiv = document.getElementById('idTasksListDiv'); 
             while(idTasksListDiv.firstChild){
                 idTasksListDiv.removeChild(idTasksListDiv.firstChild);
