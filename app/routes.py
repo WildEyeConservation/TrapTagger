@@ -145,16 +145,31 @@ def launchTask():
         if task.status.lower() not in Config.TASK_READY_STATUSES:
             statusPass = False
 
-    # Check individuals not already associated to another task in a survey
     if (len(task_ids)>1) and ('-5' in taggingLevel):
         species = re.split(',',taggingLevel)[1]
-
         individuals_in_selection = db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
                                             .subquery()
 
+        # Check that all tasks associated with indivuals in this grouping are included
+        applicableTasks = db.session.query(Task)\
+                                    .join(Individual,Task.individuals)\
+                                    .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
+                                    .distinct().all()
+
+        missing_tasks = [task for task in tasks if task not in applicableTasks]
+        
+        if missing_tasks:
+            message = 'The following annotation sets are already associated with individuals in your selection and thus must also be inculuded: '
+            for task in missing_tasks:
+                message += task.survey.name + ': ' + task.name + ', '
+            message = message[:-2]
+            
+            return json.dumps({'message': message, 'status': 'Error'})
+
+        # Check individuals not already associated to another task in a survey     
         problem_surveys_sq = db.session.query(Survey,func.count(distinct(Task.id)).label('count'))\
                                             .join(Task)\
                                             .join(Individual,Task.individuals)\
@@ -542,6 +557,7 @@ def deleteIndividual(individual_id):
     if not task: task = individual.tasks[0]
 
     if individual and (individual.tasks[0].survey.user==current_user):
+        task_ids = [r.id for r in individual.tasks]
 
         for detection in individual.detections:
             newIndividual = Individual( name=generateUniqueName(task.id,individual.species,'n'),
@@ -551,7 +567,15 @@ def deleteIndividual(individual_id):
 
             db.session.add(newIndividual)
             newIndividual.detections.append(detection)
-            newIndividual.tasks = individual.tasks
+            newIndividual.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.id==detection.id)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
             db.session.commit()
 
             individuals = [r.id for r in db.session.query(Individual)\
