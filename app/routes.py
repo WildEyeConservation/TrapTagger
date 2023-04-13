@@ -162,7 +162,7 @@ def launchTask():
                                     .join(individuals_in_selection, individuals_in_selection.c.id==Individual.id)\
                                     .distinct().all()
 
-        missing_tasks = [task for task in tasks if task not in applicableTasks]
+        missing_tasks = [task for task in applicableTasks if task not in tasks]
         
         if missing_tasks:
             message = 'The following annotation sets are already associated with individuals in your selection and thus must also be inculuded: '
@@ -3622,7 +3622,7 @@ def skipSuggestion(individual_1,individual_2):
         if indSimilarity:
             indSimilarity.skipped = True
             db.session.commit()
-            return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1))})
+            return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id)})
     return json.dumps({'status': 'error'})
 
 @app.route('/undoPreviousSuggestion/<individual_1>/<individual_2>')
@@ -3686,7 +3686,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
 
                 images.append(output)
 
-            return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1)), 'images': images, 'id': individual1.id})
+            return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id), 'images': images, 'id': individual1.id})
 
     return json.dumps({'status': 'error'})
 
@@ -4003,7 +4003,7 @@ def acceptSuggestion(individual_1,individual_2):
         individual2.active = False
         db.session.commit()
         
-        return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1))})
+        return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id)})
     return json.dumps({'status': 'error'})
 
 @app.route('/rejectSuggestion/<individual_1>/<individual_2>')
@@ -4056,7 +4056,7 @@ def rejectSuggestion(individual_1,individual_2):
         indSimilarity.score = -2000
         db.session.commit()
 
-        return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1))})
+        return json.dumps({'status': 'success', 'progress': getProgress(int(individual_1),task.id)})
     return json.dumps({'status': 'error'})
 
 @app.route('/getSuggestion/<individual_id>')
@@ -5517,7 +5517,7 @@ def updateProgress():
         if '-5' in task.tagging_level:
             individual_id = request.args.get('id', None)
             if individual_id:
-                progress = getProgress(individual_id)
+                progress = getProgress(individual_id,task.id)
         else:
             num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
             progress = (num, (task.size + task.test_size))
