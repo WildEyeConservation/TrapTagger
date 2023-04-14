@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets
 import GLOBALS
-from sqlalchemy.sql import alias, func, or_, and_
+from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
 import math
 import ast
