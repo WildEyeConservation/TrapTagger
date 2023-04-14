@@ -88,7 +88,7 @@ class Config(object):
     PRIVATE_SUBNET_ID = os.environ.get('PRIVATE_SUBNET_ID')
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
-    MAX_PARALLEL = 50
+    MAX_PARALLEL = 25
     MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
 

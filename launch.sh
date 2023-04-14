@@ -113,13 +113,15 @@ while $flag; do
   if [ $(($(date -u +%s)-$LAUNCH_TIME)) -ge $SETUP_PERIOD ] && [ $((COUNT/$IDLE_MULTIPLIER)) -ge 1 ]; then
     echo "Checking idleness.."
     COUNT=0
-    docker exec parallel_worker bash celery_worker_monitor.sh || STATUS=$?
-    echo "STATUS="$STATUS
-    if [ $STATUS == 23 ] || [ $STATUS == 100 ]; then
+    docker exec parallel_worker bash celery_worker_monitor.sh ${WORKER_NAME} || STATUS1=$?
+    echo "STATUS1="$STATUS1
+    docker exec parallel_worker bash celery_worker_monitor.sh ${WORKER_NAME}2 || STATUS2=$?
+    echo "STATUS2="$STATUS2
+    if [ $STATUS1 == 50 ] || [ $STATUS2 == 50 ]; then
+      IDLE_COUNT=0
+    else
       # Worker is idle or is in an error state
       IDLE_COUNT=$((IDLE_COUNT+1))
-    else
-      IDLE_COUNT=0
     fi
     if [ $IDLE_COUNT == 2 ]; then
       echo "Worker idle. Shutting down..."
