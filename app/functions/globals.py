@@ -475,7 +475,7 @@ def importMonitor():
 
     finally:
         db.session.remove()
-        countdown = 150 - (datetime.utcnow()-startTime).total_seconds()
+        countdown = 30 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         importMonitor.apply_async(queue='priority', priority=0, countdown=countdown)
 

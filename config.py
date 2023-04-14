@@ -76,7 +76,7 @@ class Config(object):
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
-    CPU_INSTANCE_TYPES = ['t2.medium', 't3a.medium']
+    CPU_INSTANCE_TYPES = ['t3a.large'] #['t2.medium', 't3a.medium']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
@@ -186,8 +186,8 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_DEFAULT,
-            'launch_delay': 180,
-            'rate': 3,
+            'launch_delay': 120,
+            'rate': 4,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
