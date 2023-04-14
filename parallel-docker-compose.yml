@@ -58,5 +58,48 @@ services:
         networks:
             - my-network
 
+    parallel_worker2:
+        # Parallel celery worker
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: parallel_worker2
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=${REDIS_IP}
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET=${BUCKET}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+        command: celery -A app.celery worker -E -n ${WORKER_NAME}2 -Q ${QUEUE} -Ofair --concurrency=${CONCURRENCY} --loglevel=info
+        networks:
+            - my-network
+
 networks:
     my-network:

@@ -19,7 +19,7 @@
 # 23 -> idle
 # 100 -> error state
 {
-  RESPONSE=$(celery -A app.celery inspect -d celery@$WORKER_NAME active)
+  RESPONSE=$(celery -A app.celery inspect -d celery@$1 active)
 } || {
   exit 100
 }

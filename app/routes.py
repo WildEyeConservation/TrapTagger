@@ -53,6 +53,9 @@ import urllib
 import PIL
 from PIL import ImageDraw, ImageFont
 import io
+import tracemalloc
+
+tracemalloc.start(40)
 
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.s3UploadClient = boto3.client('s3', 
@@ -101,6 +104,18 @@ def releaseTask(task_id):
         task.survey.status = 'Ready'
         db.session.commit()
     return json.dumps('success')
+
+@app.route('/traceMalloc',methods=['GET'])
+def traceMalloc():
+  snapshot = tracemalloc.take_snapshot()
+  top_stats = snapshot.statistics('lineno')
+  return json.dumps([obj.__str__() for obj in top_stats])
+
+@app.route('/traceMallocSnapshot',methods=['GET'])
+def traceMallocSnapshot():
+  snapshot = tracemalloc.take_snapshot()
+  snapshot.dump('/code/snapshot.bin')
+  return send_file('/code/snapshot.bin', attachment_filename='snapshot.bin')
 
 @app.route('/launchTask', methods=['POST'])
 @login_required
@@ -731,6 +746,10 @@ def getCameraStamps():
 
         next_url = url_for('getCameraStamps', page=data.next_num, survey_id=survey_id) if data.has_next else None
         prev_url = url_for('getCameraStamps', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/tracemalloc
 
     return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
 

@@ -123,7 +123,10 @@ login.login_view = 'login_page'
 mail = Mail(app)
 
 if not os.path.exists('logs'):
-    os.mkdir('logs')
+    try:
+        os.mkdir('logs')
+    except:
+        pass
 
 logger = logging.getLogger(__name__)
 file_handler = RotatingFileHandler('logs/traptagger.log', maxBytes=1024000, backupCount=10)

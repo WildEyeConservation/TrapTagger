@@ -385,7 +385,6 @@ def importMonitor():
             client = boto3.client('ec2',region_name=Config.AWS_REGION)
             images_processing = getImagesProcessing()
             print('Images being imported: {}'.format(images_processing))
-
             current_instances = {}
             instances_required = {'default':0,'parallel':0}
             for queue in queues:
@@ -405,12 +404,9 @@ def importMonitor():
                     queue_type = Config.CLASSIFIER['queue_type']
                     init_size = Config.CLASSIFIER['init_size']
                     max_instances = Config.CLASSIFIER['max_instances']
-
                 current_instances[queue] = getInstanceCount(client,queue,ami,Config.HOST_IP,instances)
-
                 if not redisClient.get(queue+'_last_launch'):
                     redisClient.set(queue+'_last_launch',0)
-
                 instances_required[queue] = getInstancesRequired(current_instances[queue],
                                                                 queue_type,
                                                                 queues[queue],
@@ -419,7 +415,6 @@ def importMonitor():
                                                                 rate,
                                                                 launch_delay,
                                                                 max_instances)
-
                 # pre-emptively launch GPU instances with the CPU importers to smooth out control loop
                 if queue=='celery':
                     instances_required[queue] += round(images_processing[queue]/Config.QUEUES['parallel']['rate'])*Config.QUEUES[queue]['init_size']
@@ -475,7 +470,7 @@ def importMonitor():
 
     finally:
         db.session.remove()
-        countdown = 150 - (datetime.utcnow()-startTime).total_seconds()
+        countdown = 10 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         importMonitor.apply_async(queue='priority', priority=0, countdown=countdown)
 
