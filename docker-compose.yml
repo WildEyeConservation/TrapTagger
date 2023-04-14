@@ -68,7 +68,7 @@ services:
             - ./wildbook-ia/wbia:/code/wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
-            - GUNICORN_CMD_ARGS="--threads=4"
+            - GUNICORN_CMD_ARGS="--threads=16"
             - REDIS_IP=traptagger_redis
             - DATABASE_NAME=${DATABASE_NAME}
             - HOST_IP=${HOST_IP}
@@ -153,146 +153,146 @@ services:
         networks:
             - my-network
 
-    traptagger_worker1:
-        # Celery worker
-        restart: always
-        build:
-            context: ./
-            dockerfile: Dockerfile.flask
-        image: traptagger:1.0.1
-        container_name: traptagger_worker1
-        volumes:
-            - ./:/code/
-            - ./wildbook-ia/wbia:/code/wbia
-        environment:
-            - PYTHONPATH=/code
-            - FLASK_APP=/code/TrapTagger.py
-            - REDIS_IP=traptagger_redis
-            - DATABASE_NAME=${DATABASE_NAME}
-            - HOST_IP=${HOST_IP}
-            - DNS=${DNS}
-            - DATABASE_SERVER=${DATABASE_SERVER}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - REGION_NAME=${REGION_NAME}
-            - SECRET_KEY=${SECRET_KEY}
-            - MAIL_USERNAME=${MAIL_USERNAME}
-            - MAIL_PASSWORD=${MAIL_PASSWORD}
-            - BRANCH=${BRANCH}
-            - SG_ID=${SG_ID}
-            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
-            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
-            - TOKEN=${TOKEN}
-            - PARALLEL_AMI=${PARALLEL_AMI}
-            - KEY_NAME=${KEY_NAME}
-            - QUEUE=${QUEUE}
-            - WORKER_NAME=${WORKER_NAME}
-            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
-            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
-            - BUCKET=${BUCKET}
-            - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
-            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
-            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
-            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
-            - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
-            - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
-        networks:
-            - my-network
+    # traptagger_worker1:
+    #     # Celery worker
+    #     restart: always
+    #     build:
+    #         context: ./
+    #         dockerfile: Dockerfile.flask
+    #     image: traptagger:1.0.1
+    #     container_name: traptagger_worker1
+    #     volumes:
+    #         - ./:/code/
+    #         - ./wildbook-ia/wbia:/code/wbia
+    #     environment:
+    #         - PYTHONPATH=/code
+    #         - FLASK_APP=/code/TrapTagger.py
+    #         - REDIS_IP=traptagger_redis
+    #         - DATABASE_NAME=${DATABASE_NAME}
+    #         - HOST_IP=${HOST_IP}
+    #         - DNS=${DNS}
+    #         - DATABASE_SERVER=${DATABASE_SERVER}
+    #         - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+    #         - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    #         - REGION_NAME=${REGION_NAME}
+    #         - SECRET_KEY=${SECRET_KEY}
+    #         - MAIL_USERNAME=${MAIL_USERNAME}
+    #         - MAIL_PASSWORD=${MAIL_PASSWORD}
+    #         - BRANCH=${BRANCH}
+    #         - SG_ID=${SG_ID}
+    #         - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+    #         - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+    #         - TOKEN=${TOKEN}
+    #         - PARALLEL_AMI=${PARALLEL_AMI}
+    #         - KEY_NAME=${KEY_NAME}
+    #         - QUEUE=${QUEUE}
+    #         - WORKER_NAME=${WORKER_NAME}
+    #         - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+    #         - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+    #         - BUCKET=${BUCKET}
+    #         - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+    #         - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+    #         - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+    #         - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+    #         - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
+    #         - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+    #     command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
+    #     networks:
+    #         - my-network
 
-    traptagger_worker2:
-        # Celery worker
-        restart: always
-        build:
-            context: ./
-            dockerfile: Dockerfile.flask
-        image: traptagger:1.0.1
-        container_name: traptagger_worker2
-        volumes:
-            - ./:/code/
-            - ./wildbook-ia/wbia:/code/wbia
-        environment:
-            - PYTHONPATH=/code
-            - FLASK_APP=/code/TrapTagger.py
-            - REDIS_IP=traptagger_redis
-            - DATABASE_NAME=${DATABASE_NAME}
-            - HOST_IP=${HOST_IP}
-            - DNS=${DNS}
-            - DATABASE_SERVER=${DATABASE_SERVER}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - REGION_NAME=${REGION_NAME}
-            - SECRET_KEY=${SECRET_KEY}
-            - MAIL_USERNAME=${MAIL_USERNAME}
-            - MAIL_PASSWORD=${MAIL_PASSWORD}
-            - BRANCH=${BRANCH}
-            - SG_ID=${SG_ID}
-            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
-            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
-            - TOKEN=${TOKEN}
-            - PARALLEL_AMI=${PARALLEL_AMI}
-            - KEY_NAME=${KEY_NAME}
-            - QUEUE=${QUEUE}
-            - WORKER_NAME=${WORKER_NAME}
-            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
-            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
-            - BUCKET=${BUCKET}
-            - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
-            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
-            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
-            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
-            - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
-            - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default -Ofair --concurrency=1 --loglevel=info
-        networks:
-            - my-network
+    # traptagger_worker2:
+    #     # Celery worker
+    #     restart: always
+    #     build:
+    #         context: ./
+    #         dockerfile: Dockerfile.flask
+    #     image: traptagger:1.0.1
+    #     container_name: traptagger_worker2
+    #     volumes:
+    #         - ./:/code/
+    #         - ./wildbook-ia/wbia:/code/wbia
+    #     environment:
+    #         - PYTHONPATH=/code
+    #         - FLASK_APP=/code/TrapTagger.py
+    #         - REDIS_IP=traptagger_redis
+    #         - DATABASE_NAME=${DATABASE_NAME}
+    #         - HOST_IP=${HOST_IP}
+    #         - DNS=${DNS}
+    #         - DATABASE_SERVER=${DATABASE_SERVER}
+    #         - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+    #         - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    #         - REGION_NAME=${REGION_NAME}
+    #         - SECRET_KEY=${SECRET_KEY}
+    #         - MAIL_USERNAME=${MAIL_USERNAME}
+    #         - MAIL_PASSWORD=${MAIL_PASSWORD}
+    #         - BRANCH=${BRANCH}
+    #         - SG_ID=${SG_ID}
+    #         - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+    #         - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+    #         - TOKEN=${TOKEN}
+    #         - PARALLEL_AMI=${PARALLEL_AMI}
+    #         - KEY_NAME=${KEY_NAME}
+    #         - QUEUE=${QUEUE}
+    #         - WORKER_NAME=${WORKER_NAME}
+    #         - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+    #         - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+    #         - BUCKET=${BUCKET}
+    #         - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+    #         - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+    #         - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+    #         - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+    #         - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
+    #         - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+    #     command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default -Ofair --concurrency=1 --loglevel=info
+    #     networks:
+    #         - my-network
 
-    traptagger_worker3:
-        # Celery worker
-        restart: always
-        build:
-            context: ./
-            dockerfile: Dockerfile.flask
-        image: traptagger:1.0.1
-        container_name: traptagger_worker3
-        volumes:
-            - ./:/code/
-            - ./wildbook-ia/wbia:/code/wbia
-        environment:
-            - PYTHONPATH=/code
-            - FLASK_APP=/code/TrapTagger.py
-            - REDIS_IP=traptagger_redis
-            - DATABASE_NAME=${DATABASE_NAME}
-            - HOST_IP=${HOST_IP}
-            - DNS=${DNS}
-            - DATABASE_SERVER=${DATABASE_SERVER}
-            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-            - REGION_NAME=${REGION_NAME}
-            - SECRET_KEY=${SECRET_KEY}
-            - MAIL_USERNAME=${MAIL_USERNAME}
-            - MAIL_PASSWORD=${MAIL_PASSWORD}
-            - BRANCH=${BRANCH}
-            - SG_ID=${SG_ID}
-            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
-            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
-            - TOKEN=${TOKEN}
-            - PARALLEL_AMI=${PARALLEL_AMI}
-            - KEY_NAME=${KEY_NAME}
-            - QUEUE=${QUEUE}
-            - WORKER_NAME=${WORKER_NAME}
-            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
-            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
-            - BUCKET=${BUCKET}
-            - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
-            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
-            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
-            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
-            - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
-            - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
-        command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default -Ofair --concurrency=1 --loglevel=info
-        networks:
-            - my-network
+    # traptagger_worker3:
+    #     # Celery worker
+    #     restart: always
+    #     build:
+    #         context: ./
+    #         dockerfile: Dockerfile.flask
+    #     image: traptagger:1.0.1
+    #     container_name: traptagger_worker3
+    #     volumes:
+    #         - ./:/code/
+    #         - ./wildbook-ia/wbia:/code/wbia
+    #     environment:
+    #         - PYTHONPATH=/code
+    #         - FLASK_APP=/code/TrapTagger.py
+    #         - REDIS_IP=traptagger_redis
+    #         - DATABASE_NAME=${DATABASE_NAME}
+    #         - HOST_IP=${HOST_IP}
+    #         - DNS=${DNS}
+    #         - DATABASE_SERVER=${DATABASE_SERVER}
+    #         - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+    #         - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    #         - REGION_NAME=${REGION_NAME}
+    #         - SECRET_KEY=${SECRET_KEY}
+    #         - MAIL_USERNAME=${MAIL_USERNAME}
+    #         - MAIL_PASSWORD=${MAIL_PASSWORD}
+    #         - BRANCH=${BRANCH}
+    #         - SG_ID=${SG_ID}
+    #         - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+    #         - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+    #         - TOKEN=${TOKEN}
+    #         - PARALLEL_AMI=${PARALLEL_AMI}
+    #         - KEY_NAME=${KEY_NAME}
+    #         - QUEUE=${QUEUE}
+    #         - WORKER_NAME=${WORKER_NAME}
+    #         - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+    #         - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+    #         - BUCKET=${BUCKET}
+    #         - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+    #         - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+    #         - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+    #         - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+    #         - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
+    #         - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+    #     command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default -Ofair --concurrency=1 --loglevel=info
+    #     networks:
+    #         - my-network
 
     traptagger_redis:
         # Redis server
@@ -307,26 +307,26 @@ services:
         networks:
             - my-network
 
-    traptagger_endpoint:
-        # Species-identifier API
-        restart: always
-        build:
-            context: ./
-            dockerfile: gpuworker/Dockerfile
-        image: gpu_worker
-        container_name: traptagger_endpoint
-        volumes:
-            - ./gpuworker:/code/gpuworker 
-            - ./CameraTraps/detection:/code/CameraTraps/detection 
-            - ./CameraTraps/data_management:/code/CameraTraps/data_management 
-            - ./CameraTraps/visualization:/code/CameraTraps/visualization 
-            - ./CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py 
-        environment:
-            - CUDA_VISIBLE_DEVICES=0
-            - REDIS_IP=traptagger_redis
-        command: celery -A gpuworker.worker worker -n traptagger_endpoint -Q local -Ofair --concurrency=1 -l info
-        networks:
-            - my-network
+    # traptagger_endpoint:
+    #     # Species-identifier API
+    #     restart: always
+    #     build:
+    #         context: ./
+    #         dockerfile: gpuworker/Dockerfile
+    #     image: gpu_worker
+    #     container_name: traptagger_endpoint
+    #     volumes:
+    #         - ./gpuworker:/code/gpuworker 
+    #         - ./CameraTraps/detection:/code/CameraTraps/detection 
+    #         - ./CameraTraps/data_management:/code/CameraTraps/data_management 
+    #         - ./CameraTraps/visualization:/code/CameraTraps/visualization 
+    #         - ./CameraTraps/ct_utils.py:/code/CameraTraps/ct_utils.py 
+    #     environment:
+    #         - CUDA_VISIBLE_DEVICES=0
+    #         - REDIS_IP=traptagger_redis
+    #     command: celery -A gpuworker.worker worker -n traptagger_endpoint -Q local -Ofair --concurrency=1 -l info
+    #     networks:
+    #         - my-network
 
 networks:
     my-network:

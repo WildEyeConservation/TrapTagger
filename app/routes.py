@@ -128,17 +128,17 @@ def launchTask():
 
     if Config.DEBUGGING: app.logger.info('Task launched: {}, {}, {}, {}'.format(task_ids,taskSize,taggingLevel,isBounding))
 
-    if task_ids==['0']:
-        species = re.split(',',taggingLevel)[1]
-        task_ids = [r[0] for r in db.session.query(Task.id)\
-                                        .join(Survey)\
-                                        .join(Label)\
-                                        .filter(Label.description==species)\
-                                        .filter(Label.icID_count==0)\
-                                        .filter(Label.icID_allowed==True)\
-                                        .filter(Survey.user==current_user)\
-                                        .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
-                                        .distinct().all()]
+    # if task_ids==['0']:
+    #     species = re.split(',',taggingLevel)[1]
+    #     task_ids = [r[0] for r in db.session.query(Task.id)\
+    #                                     .join(Survey)\
+    #                                     .join(Label)\
+    #                                     .filter(Label.description==species)\
+    #                                     .filter(Label.icID_count==0)\
+    #                                     .filter(Label.icID_allowed==True)\
+    #                                     .filter(Survey.user==current_user)\
+    #                                     .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+    #                                     .distinct().all()]
                     
     tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).distinct().all()
 

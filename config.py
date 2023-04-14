@@ -20,7 +20,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config(object):
     LOAD_TESTING = False
-    DEBUGGING = False
+    DEBUGGING = True
     MAINTENANCE = False
     INITIAL_SETUP = False
     VERSION = 13
@@ -99,7 +99,7 @@ class Config(object):
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
     # Individual ID Config
-    SIMILARITY_SCORE = 0.05
+    SIMILARITY_SCORE = 0.1
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
