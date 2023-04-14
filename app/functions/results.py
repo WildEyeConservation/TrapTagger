@@ -649,6 +649,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         task = db.session.query(Task).get(selectedTasks[0])
         filePath = task.survey.user.folder+'/docs/'
         fileName = task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+        randomness = randomString()
 
         # # Delete old file if exists
         # try:
@@ -999,14 +1000,14 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                 # append to local file
                 # os.makedirs('docs', exist_ok=True)
-                outputDF.to_csv(fileName, index=False, mode='a', header=not os.path.exists(fileName))
+                outputDF.to_csv(randomness+fileName, index=False, mode='a', header=not os.path.exists(randomness+fileName))
 
         # Upload file to S3 for fetching
         # with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             # outputDF.to_csv(temp_file.name,index=False,date_format="%Y-%m-%d %H:%M:%S")
             # GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-        GLOBALS.s3client.upload_file(Filename=fileName, Bucket=Config.BUCKET, Key=filePath+fileName)
-        os.remove(fileName)
+        GLOBALS.s3client.upload_file(Filename=randomness+fileName, Bucket=Config.BUCKET, Key=filePath+fileName)
+        os.remove(randomness+fileName)
 
         # Schedule deletion
         deleteFile.apply_async(kwargs={'fileName': filePath+fileName}, countdown=86400)

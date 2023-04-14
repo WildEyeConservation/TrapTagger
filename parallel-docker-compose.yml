@@ -65,7 +65,7 @@ services:
             context: ./
             dockerfile: Dockerfile.flask
         image: traptagger:1.0.1
-        container_name: parallel_worker
+        container_name: parallel_worker2
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
