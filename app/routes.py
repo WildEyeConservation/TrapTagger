@@ -3882,7 +3882,7 @@ def suggestionUnidentifiable(individual_id):
                                 .join(Camera)\
                                 .join(Image)\
                                 .filter(Image.detections.contains(detection))\
-                                .filter(Task.id.in_([r.id for r in task_ids]))\
+                                .filter(Task.id.in_(task_ids))\
                                 .first()
 
             unidentifiable = db.session.query(Individual)\
@@ -7219,7 +7219,7 @@ def writeInfoToImages(type_id,id):
                 individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id==id).filter(Individual.species == species).all()
             else:
                 individuals = task.individuals
-                
+
             for individual in individuals:
                 images = db.session.query(Image)\
                     .join(Detection)\
