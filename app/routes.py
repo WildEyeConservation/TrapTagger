@@ -7201,10 +7201,17 @@ def writeInfoToImages(type_id,id):
     ''' Writes the info of the individual to its images for a specified individual or 
     for all the individuals associated with a specific task. '''
 
+    species = request.args.get('species', '0', type=str)
+
     if type_id == 'task':
         task = db.session.query(Task).get(id)
         if task and (task.survey.user==current_user):
-            for individual in task.individuals:
+            if species != '0':
+                individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id==id).filter(Individual.species == species).all()
+            else:
+                individuals = task.individuals
+                
+            for individual in individuals:
                 images = db.session.query(Image)\
                     .join(Detection)\
                     .filter(Detection.individuals.contains(individual))\
