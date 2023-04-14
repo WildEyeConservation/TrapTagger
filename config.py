@@ -188,7 +188,7 @@ class Config(object):
             'max_instances': MAX_DEFAULT,
             'launch_delay': 180,
             'rate': 3,
-            'queue_type': 'local',
+            'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data':
