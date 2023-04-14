@@ -385,13 +385,13 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     similarity = IndSimilarity(individual_1=individual1.id, individual_2=individual2.id)
                     db.session.add(similarity)
                     db.session.commit()
-
-                # If similarity has already been rejected etc., then skip
-                # -2500 suggestion unidentifiable
-                # -2000 rejected
-                # -1000 share an image
-                # -1500 family
-                if similarity.score < 0: continue
+                else:
+                    # If similarity has already been rejected etc., then skip
+                    # -2500 suggestion unidentifiable
+                    # -2000 rejected
+                    # -1000 share an image
+                    # -1500 family
+                    if similarity.score < 0: continue
 
                 if individual2 in family:
                     max_similarity = -1500
