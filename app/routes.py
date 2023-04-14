@@ -746,10 +746,6 @@ def getCameraStamps():
 
         next_url = url_for('getCameraStamps', page=data.next_num, survey_id=survey_id) if data.has_next else None
         prev_url = url_for('getCameraStamps', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/tracemalloc
 
     return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
 
