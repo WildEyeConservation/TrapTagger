@@ -391,7 +391,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     # -2000 rejected
                     # -1000 share an image
                     # -1500 family
-                    if similarity.score < 0: continue
+                    if similarity.score and (similarity.score < 0): continue
 
                 if individual2 in family:
                     max_similarity = -1500
