@@ -105,17 +105,17 @@ def releaseTask(task_id):
         db.session.commit()
     return json.dumps('success')
 
-@app.route('/traceMalloc',methods=['GET'])
-def traceMalloc():
-  snapshot = tracemalloc.take_snapshot()
-  top_stats = snapshot.statistics('lineno')
-  return json.dumps([obj.__str__() for obj in top_stats])
+# @app.route('/traceMalloc',methods=['GET'])
+# def traceMalloc():
+#   snapshot = tracemalloc.take_snapshot()
+#   top_stats = snapshot.statistics('lineno')
+#   return json.dumps([obj.__str__() for obj in top_stats])
 
-@app.route('/traceMallocSnapshot',methods=['GET'])
-def traceMallocSnapshot():
-  snapshot = tracemalloc.take_snapshot()
-  snapshot.dump('/code/snapshot.bin')
-  return send_file('/code/snapshot.bin', attachment_filename='snapshot.bin')
+# @app.route('/traceMallocSnapshot',methods=['GET'])
+# def traceMallocSnapshot():
+#   snapshot = tracemalloc.take_snapshot()
+#   snapshot.dump('/code/snapshot.bin')
+#   return send_file('/code/snapshot.bin', attachment_filename='snapshot.bin')
 
 @app.route('/launchTask', methods=['POST'])
 @login_required
