@@ -134,7 +134,7 @@ function getIndividuals(page = null) {
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 individuals = reply.individuals
                 individualsDiv = document.getElementById('individualsDiv')
 
@@ -1285,22 +1285,14 @@ function buildSurveySelectLaunchID(){
     idTaskSelect.name = idTaskSelect.id
 
     col2.appendChild(idTaskSelect)
-    
 
-    if (surveys != null) {
+    if (surveys_launch != null) {    
         
-        if(IDNum==0){
-            optionTexts = ['All']
-            optionValues = ["0"]  
-            fillSelect(idTaskSelect, [''], ['0'])
-        }
-        else{
-            optionTexts = ['None']
-            optionValues = ['-99999'] 
-            fillSelect(idTaskSelect, [''], ['-99999'])
-        }
+        optionTexts = ['None']
+        optionValues = ['-99999'] 
+        fillSelect(idTaskSelect, [''], ['-99999'])  
 
-        for (survey_name in surveys){
+        for (survey_name in surveys_launch){
             optionTexts.push(survey_name)
             optionValues.push(survey_name)
         }
@@ -1337,9 +1329,9 @@ function buildSurveySelectLaunchID(){
             }
             
             survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
-            if (survey=="0") {
+            if (survey=="-99999") {
                 clearSelect(idTaskSelect)
-                fillSelect(idTaskSelect, [''], ['0'])
+                fillSelect(idTaskSelect, [''], ['-99999'])
                 checkSurvey()
             } else {
 
@@ -1347,9 +1339,9 @@ function buildSurveySelectLaunchID(){
                 optionValues = []
 
                 survey_name = idSurveySelect.options[idSurveySelect.selectedIndex].text
-                for (let i=0;i<surveys[survey_name].length;i++) {
-                    optionTexts.push(surveys[survey_name][i].name)
-                    optionValues.push(surveys[survey_name][i].task_id)
+                for (let i=0;i<surveys_launch[survey_name].length;i++) {
+                    optionTexts.push(surveys_launch[survey_name][i].name)
+                    optionValues.push(surveys_launch[survey_name][i].task_id)
                 }
 
                 clearSelect(idTaskSelect)
@@ -1395,8 +1387,8 @@ function getSurveysandTasks(){
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            surveys = JSON.parse(this.responseText);  
-            // console.log(surveys)
+            surveys_launch = JSON.parse(this.responseText);  
+            // console.log(surveys_launch)
             buildSurveySelectLaunchID()
         }
     }
@@ -1465,6 +1457,7 @@ function checkSurvey(){
     var duplicateTask = false
     var surveyAll = false
     var oneSurvey = false
+    var noneSurvey = false
     legalSurvey = false
     
     
@@ -1500,7 +1493,12 @@ function checkSurvey(){
         surveyAll = false
     }
     else if(allSurveys.length == 1 && !surveyAll && modalActive){
-        oneSurvey = true
+        if(allSurveys[0].value == '-99999'){
+            noneSurvey = true
+        }
+        else{
+            oneSurvey = true
+        }
     }
     
 
@@ -1519,13 +1517,17 @@ function checkSurvey(){
 
     if(oneSurvey){
         newdiv = document.createElement('div')
-        newdiv.innerHTML =  'You cannot complete individual ID for only one survey. Please add additional surveys or select "All" surveys.'
+        newdiv.innerHTML =  'You cannot complete individual ID for only one survey. Please add additional surveys.'
         surveyErrors.appendChild(newdiv)
     }
 
-    
+    if(noneSurvey){
+        newdiv = document.createElement('div')
+        newdiv.innerHTML =  'You have not selected any surveys. Please select a survey and add addional surveys.'
+        surveyErrors.appendChild(newdiv)
+    }
 
-    if (duplicateTask||surveyAll||oneSurvey) {
+    if (duplicateTask||surveyAll||oneSurvey||noneSurvey) {
         legalSurvey = false
     } else {
         legalSurvey = true
@@ -1896,7 +1898,7 @@ function getTasks(url=null){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             idTasksListDiv = document.getElementById('idTasksListDiv'); 
             while(idTasksListDiv.firstChild){
                 idTasksListDiv.removeChild(idTasksListDiv.firstChild);

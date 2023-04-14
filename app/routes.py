@@ -165,7 +165,7 @@ def launchTask():
         missing_tasks = [task for task in applicableTasks if task not in tasks]
         
         if missing_tasks:
-            message = 'The following annotation sets are already associated with individuals in your selection and thus must also be inculuded: '
+            message = 'The following annotation sets are already associated with individuals in your selection and thus must also be included: '
             for task in missing_tasks:
                 message += task.survey.name + ': ' + task.name + ', '
             message = message[:-2]
@@ -3748,7 +3748,7 @@ def dissociateDetection(detection_id):
         individuals1 = [r.id for r in db.session.query(Individual)\
                                                     .join(Task,Individual.tasks)\
                                                     .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                    .filter(Task.id.in_([r.id for r in task_ids]))\
+                                                    .filter(Task.id.in_(task_ids))\
                                                     .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
@@ -3759,7 +3759,7 @@ def dissociateDetection(detection_id):
 
         individuals2 = [r.id for r in db.session.query(Individual)\
                                                     .join(Task,Individual.tasks)\
-                                                    .filter(Task.id.in_([r.id for r in task_ids]))\
+                                                    .filter(Task.id.in_(task_ids))\
                                                     .filter(Individual.species==individual.species)\
                                                     .filter(Individual.name!='unidentifiable')\
                                                     .filter(Individual.id != individual.id)\
@@ -7188,10 +7188,20 @@ def getIndividualIDSurveysTasks():
 @app.route('/writeInfoToImages/<type_id>/<id>')
 @login_required
 def writeInfoToImages(type_id,id):
+    ''' Writes the info of the individual to its images for a specified individual or 
+    for all the individuals associated with a specific task. '''
+
+    species = request.args.get('species', '0', type=str)
+
     if type_id == 'task':
         task = db.session.query(Task).get(id)
         if task and (task.survey.user==current_user):
-            for individual in task.individuals:
+            if species != '0':
+                individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id==id).filter(Individual.species == species).all()
+            else:
+                individuals = task.individuals
+                
+            for individual in individuals:
                 images = db.session.query(Image)\
                     .join(Detection)\
                     .filter(Detection.individuals.contains(individual))\
@@ -7247,6 +7257,8 @@ def writeInfoToImages(type_id,id):
 
                     draw = ImageDraw.Draw(img)
                     # text_width, text_height = draw.textsize(text, font=font)
+                    # x = 2
+                    # y = 2
                     x = img.width/11
                     y = 15
 
@@ -7327,6 +7339,8 @@ def writeInfoToImages(type_id,id):
 
                 draw = ImageDraw.Draw(img)
                 # text_width, text_height = draw.textsize(text, font=font)
+                # x = 2
+                # y = 2
                 x = img.width/11
                 y = 15
 

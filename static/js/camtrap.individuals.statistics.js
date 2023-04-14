@@ -1359,7 +1359,7 @@ function createIndivBar() {
     selectorDiv.appendChild(h5)
 
     h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select which unit of data to count.</i>'
+    h5.innerHTML = '<i>Select which site you would like to see.</i>'
     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     selectorDiv.appendChild(h5)
 
@@ -1530,13 +1530,23 @@ function addBarData(data,labels, colour) {
     /** Adds a dataset to the active bar chart. */ 
     chart.data.datasets = []
     chart.data.labels = []
+    var backgroundColours = []
+
+    var count_bc = 0
+    while(backgroundColours.length < data.length){
+        if (count_bc >= barColours.length) {
+            count_bc = 0
+        }
+        backgroundColours.push(barColours[count_bc])
+        count_bc += 1
+    }
 
     chart.data.datasets.push({
         data: data,
         hoverBackgroundColor: colour,
         borderColor: 'rgba(255,255,255,1)',
         borderWidth: 1,
-        backgroundColor: barColours
+        backgroundColor: backgroundColours
     })
 
     chart.data.labels = labels
