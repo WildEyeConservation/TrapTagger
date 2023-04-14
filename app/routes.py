@@ -50,6 +50,9 @@ from calendar import monthrange
 from botocore.client import Config as botoConfig
 from multiprocessing.pool import ThreadPool as Pool
 import urllib
+import tracemalloc
+
+tracemalloc.start(40)
 
 GLOBALS.s3client = boto3.client('s3')
 GLOBALS.s3UploadClient = boto3.client('s3', 
@@ -98,6 +101,19 @@ def releaseTask(task_id):
         task.survey.status = 'Ready'
         db.session.commit()
     return json.dumps('success')
+
+@app.route('/traceMalloc',methods=['GET'])
+def traceMalloc():
+  snapshot = tracemalloc.take_snapshot()
+  top_stats = snapshot.statistics('lineno')
+  return json.dumps([obj.__str__() for obj in top_stats])
+
+@app.route('/traceMallocSnapshot',methods=['GET'])
+def traceMallocSnapshot():
+  snapshot = tracemalloc.take_snapshot()
+  snapshot.dump('/code/snapshot.bin')
+  return send_file('/code/snapshot.bin', attachment_filename='snapshot.bin')
+
 
 @app.route('/launchTask/<task_id>/<taskSize>/<taggingLevel>/<isBounding>', methods=['POST'])
 @login_required
@@ -432,22 +448,30 @@ def getCameraStamps():
 
     if survey and (survey.user==current_user):
 
-        trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).order_by(Trapgroup.tag).distinct().paginate(page, 5, False)
+        data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Image)\
+                            .filter(Trapgroup.survey_id==survey_id)\
+                            .group_by(Trapgroup.id, Camera.id)\
+                            .order_by(Trapgroup.tag)\
+                            .distinct()\
+                            .paginate(page, 10, False)
 
-        for trapgroup in trapgroups.items:
-            data = {'tag': trapgroup.tag, 'cameras': []}
-            # groups = get_groups(trapgroup)
-            # for group in groups:
-            for camera in trapgroup.cameras:
-                first = db.session.query(Image).filter(Image.camera==camera).order_by(Image.corrected_timestamp).first()
-                data['cameras'].append({    'id': camera.id,
-                                            'folder': camera.path,
-                                            'timestamp': first.timestamp.strftime("%Y/%m/%d %H:%M:%S"),
-                                            'corrected_timestamp': first.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S")})
-            reply.append(data)
+        temp_results = {}
+        for row in data.items:
+            if row[0] not in temp_results.keys():
+                temp_results[row[0]] = []
+            temp_results[row[0]].append({    'id': row[1],
+                                            'folder': row[2],
+                                            'timestamp': row[3].strftime("%Y/%m/%d %H:%M:%S"),
+                                            'corrected_timestamp': row[4].strftime("%Y/%m/%d %H:%M:%S")})
 
-        next_url = url_for('getCameraStamps', page=trapgroups.next_num, survey_id=survey_id) if trapgroups.has_next else None
-        prev_url = url_for('getCameraStamps', page=trapgroups.prev_num, survey_id=survey_id) if trapgroups.has_prev else None
+        for key in temp_results.keys():
+            reply.append({'tag': key, 'cameras': temp_results[key]})
+
+        next_url = url_for('getCameraStamps', page=data.next_num, survey_id=survey_id) if data.has_next else None
+        prev_url = url_for('getCameraStamps', page=data.prev_num, survey_id=survey_id) if data.has_prev else None
+
 
     return json.dumps({'survey': survey_id, 'data': reply, 'next_url':next_url, 'prev_url':prev_url})
 

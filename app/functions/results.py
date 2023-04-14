@@ -796,7 +796,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
         # Schedule deletion
-        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=86400)
 
     except Exception as exc:
         app.logger.info(' ')

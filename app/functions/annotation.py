@@ -987,7 +987,7 @@ def allocate_new_trapgroup(task_id,user_id):
     if trapgroup == None:
         #Check that a non-empty trapgroup hasn't been deactivated
         if '-5' in taggingLevel:
-
+            OtherIndividual = alias(Individual)
             sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
