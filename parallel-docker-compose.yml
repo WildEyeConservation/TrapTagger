@@ -26,9 +26,8 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
-            - ./wildbook-ia/wbia:/code/app/wbia
-            - ./wildbook-ia/wbia:/wbia
         environment:
+            - PYTHONPATH=/code
             - FLASK_APP=/code/TrapTagger.py
             - REDIS_IP=${REDIS_IP}
             - DATABASE_NAME=${DATABASE_NAME}
@@ -56,8 +55,6 @@ services:
             - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
             - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
             - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
-            - PYTHONPATH=/code
-            - WORKDIR=/code
         command: celery -A app.celery worker -E -n ${WORKER_NAME} -Q ${QUEUE} -Ofair --concurrency=${CONCURRENCY} --loglevel=info
         networks:
             - my-network
@@ -73,9 +70,8 @@ services:
         volumes:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
-            - ./wildbook-ia/wbia:/code/app/wbia
-            - ./wildbook-ia/wbia:/wbia
         environment:
+            - PYTHONPATH=/code
             - FLASK_APP=/code/TrapTagger.py
             - REDIS_IP=${REDIS_IP}
             - DATABASE_NAME=${DATABASE_NAME}
