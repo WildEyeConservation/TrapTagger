@@ -27,6 +27,7 @@ services:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
             - ./wildbook-ia/wbia:/code/app/wbia
+            - ./wildbook-ia/wbia:wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
             - REDIS_IP=${REDIS_IP}
@@ -71,6 +72,7 @@ services:
             - ./:/code/
             - ./wildbook-ia/wbia:/code/wbia
             - ./wildbook-ia/wbia:/code/app/wbia
+            - ./wildbook-ia/wbia:wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
             - REDIS_IP=${REDIS_IP}
