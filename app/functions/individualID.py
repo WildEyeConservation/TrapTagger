@@ -53,7 +53,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         db.session.commit()
         # label = db.session.query(Label).filter(Label.description==species).filter(Label.task==task).first()
 
-        queryDetections = db.session.query(Detection)\
+        rootQuery = db.session.query(Detection)\
                             .join(Labelgroup)\
                             .join(Task)\
                             .join(Label,Labelgroup.labels)\
@@ -61,10 +61,25 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             .filter(Label.description==species)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+                    
+        sq = rootQuery.subquery()
+        sq2 = rootQuery.subquery()
+        queryDetections = rootQuery.distinct().all()
 
-        if len(queryDetections) != 0:
+        # Ensure that we only do this when we need to
+        calculation_needed = False
+        for detection in queryDetections:
+            count = db.session.query(DetSimilarity)\
+                        .filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id))\
+                        .join(sq,DetSimilarity.detection_1==sq.c.id)\
+                        .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+                        .distinct().count()
+            if count<(len(queryDetections)-1):
+                calculation_needed = True
+                break
+
+        if calculation_needed:
             images = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
