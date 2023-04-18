@@ -85,6 +85,18 @@ userNotifications = db.Table('userNotifications',
     db.UniqueConstraint('user_id', 'notification_id')
 )
 
+individualTasks = db.Table('individualTasks',
+    db.Column('task_id', db.Integer, db.ForeignKey('task.id'), index=True),
+    db.Column('individual_id', db.Integer, db.ForeignKey('individual.id')),
+    db.UniqueConstraint('task_id', 'individual_id')
+)
+
+taskGroupings = db.Table("taskGroupings",
+    db.Column("master_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
+    db.Column("sub_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
+    db.UniqueConstraint('master_id', 'sub_id')
+)
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -257,6 +269,7 @@ class Label(db.Model):
     hotkey = db.Column(db.String(1), index=False)
     complete = db.Column(db.Boolean, default=False, index=False)
     icID_allowed = db.Column(db.Boolean, default=False, index=False)
+    icID_count = db.Column(db.Integer, index=False)
     cluster_count = db.Column(db.Integer, index=False)
     bounding_count = db.Column(db.Integer, index=False)
     info_tag_count = db.Column(db.Integer, index=False)
@@ -290,12 +303,14 @@ class Individual(db.Model):
     active = db.Column(db.Boolean, default=True, index=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
     label_id = db.Column(db.Integer, db.ForeignKey('label.id'), index=True)
+    species = db.Column(db.String(64), index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
     allocated = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     allocation_timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     detections = db.relationship('Detection', secondary=individualDetections, lazy='subquery', backref=db.backref('individuals', lazy=True))
     tags = db.relationship('Tag', secondary=individualTags, lazy='subquery', backref=db.backref('individuals', lazy=True))
+    tasks = db.relationship('Task', secondary=individualTasks, lazy='subquery', backref=db.backref('individuals', lazy=True))
     children = db.relationship("Individual",
                         secondary=individual_parent_child,
                         primaryjoin=id==individual_parent_child.c.parent_id,
@@ -359,7 +374,13 @@ class Task(db.Model):
     tags = db.relationship('Tag', backref='task', lazy='dynamic')
     labelgroups = db.relationship('Labelgroup', backref='task', lazy='dynamic')
     translations = db.relationship('Translation', backref='task', lazy='dynamic')
-    individuals = db.relationship('Individual', backref='task', lazy='dynamic')
+    # individuals = db.relationship('Individual', backref='task', lazy='dynamic')
+    sub_tasks = db.relationship("Task",
+                        secondary=taskGroupings,
+                        primaryjoin=id==taskGroupings.c.master_id,
+                        secondaryjoin=id==taskGroupings.c.sub_id,
+                        backref="master"
+    )
 
     def __repr__(self):
         return '<Task {} for survey {}>'.format(self.name,self.survey_id)

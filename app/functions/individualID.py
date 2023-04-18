@@ -33,38 +33,60 @@ import sqlalchemy as sa
 import shutil
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def calculate_detection_similarities(self,task_id,label_id,algorithm):
+def calculate_detection_similarities(self,task_ids,species,algorithm):
     '''
     Celery task for calculating the similarity between detections for individual ID purposes.
 
         Parameters:
-            task_id (int): Task for which the calculation must take place
-            label_id (int): The species for which the individual ID is being performed
+            task_ids (list): Tasks for which the calculation must take place
+            species (str): The species for which the individual ID is being performed
             algorithm (str): The selected algorithm
     '''
 
     try:
         OverallStartTime = time.time()
-        task = db.session.query(Task).get(task_id)
+        if len(task_ids)==1:
+            task = db.session.query(Task).get(task_ids[0])
+        else:
+            task = db.session.query(Task).filter(Task.id.in_(task_ids)).filter(Task.sub_tasks.any()).first()
         task.survey.status = 'processing'
         db.session.commit()
-        label = db.session.query(Label).get(label_id)
+        # label = db.session.query(Label).filter(Label.description==species).filter(Label.task==task).first()
 
-        queryDetections = db.session.query(Detection)\
+        rootQuery = db.session.query(Detection)\
                             .join(Labelgroup)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(label))\
+                            .join(Task)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+                    
+        sq = rootQuery.subquery()
+        sq2 = rootQuery.subquery()
+        queryDetections = rootQuery.distinct().all()
 
-        if len(queryDetections) != 0:
+        # Ensure that we only do this when we need to
+        calculation_needed = False
+        for detection in queryDetections:
+            count = db.session.query(DetSimilarity)\
+                        .filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id))\
+                        .join(sq,DetSimilarity.detection_1==sq.c.id)\
+                        .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+                        .distinct().count()
+            if count<(len(queryDetections)-1):
+                calculation_needed = True
+                break
+
+        if calculation_needed:
             images = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
-                            .filter(Labelgroup.task_id==task_id)\
-                            .filter(Labelgroup.labels.contains(label))\
+                            .join(Task)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -82,7 +104,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                     from wbia.algo.hots.pipeline import request_wbia_query_L0
 
                 startTime = time.time()
-                labelName = label.description.replace(' ','_').lower()
+                labelName = species.replace(' ','_').lower()
                 dbName = 'hots_' + task.survey.name.replace(' ','_').lower() + '_' + task.name.replace(' ','_').lower() + '_' + labelName
                 imFolder = dbName + '_images'
 
@@ -97,7 +119,7 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
                 ibs = opendb(dbdir=dbName,allow_newdir=True)
 
                 # Add species
-                species_nice_list = [label.description]
+                species_nice_list = [species]
                 species_text_list = [labelName]
                 species_code_list = ['SH']
                 species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
@@ -118,9 +140,11 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
 
                     imDetections = db.session.query(Detection)\
                                     .join(Labelgroup)\
+                                    .join(Task)\
+                                    .join(Label,Labelgroup.labels)\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Label.description==species)\
                                     .filter(Detection.image_id==image.id)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -192,8 +216,10 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
 
                     non_covered_detections = db.session.query(Detection)\
                                                     .join(Labelgroup)\
-                                                    .filter(Labelgroup.task_id==task_id)\
-                                                    .filter(Labelgroup.labels.contains(label))\
+                                                    .join(Task)\
+                                                    .join(Label,Labelgroup.labels)\
+                                                    .filter(Task.id.in_(task_ids))\
+                                                    .filter(Label.description==species)\
                                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                                     .filter(Detection.static == False) \
                                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -230,8 +256,10 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
             elif algorithm == 'none':
                 allDetections = db.session.query(Detection)\
                                     .join(Labelgroup)\
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
+                                    .join(Task)\
+                                    .join(Label,Labelgroup.labels)\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Label.description==species)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -262,14 +290,15 @@ def calculate_detection_similarities(self,task_id,label_id,algorithm):
 
         user_ids = [r.id for r in db.session.query(User)\
                                             .join(Individual, Individual.user_id==User.id)\
+                                            .join(Task,Individual.tasks)\
                                             .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Individual.task_id==task_id)\
-                                            .filter(Individual.label_id==label_id)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
                                             .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
                                             .filter(or_(User.passed=='cTrue',User.username=='Admin'))\
                                             .distinct().all()]
 
-        calculate_individual_similarities.delay(task_id=task_id,label_id=label_id,user_ids=user_ids)
+        calculate_individual_similarities.delay(task_id=task.id,species=species,user_ids=user_ids)
 
         task.survey.status = 'indprocessing'
         db.session.commit()
@@ -371,6 +400,13 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     similarity = IndSimilarity(individual_1=individual1.id, individual_2=individual2.id)
                     db.session.add(similarity)
                     db.session.commit()
+                else:
+                    # If similarity has already been rejected etc., then skip
+                    # -2500 suggestion unidentifiable
+                    # -2000 rejected
+                    # -1000 share an image
+                    # -1500 family
+                    if similarity.score and (similarity.score < 0): continue
 
                 if individual2 in family:
                     max_similarity = -1500
@@ -512,13 +548,13 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def calculate_individual_similarities(self,task_id,label_id,user_ids):
+def calculate_individual_similarities(self,task_id,species,user_ids):
     '''
     Celery task for calculating the individual similarities between all individuals generated by the specified users, against all others with the same label from the same task.
 
     Parameters:
         task_id (int): The task for which individual similarities must be calculated
-        label_id (int): The species for which individual similarities must be calculated
+        species (str): The species for which individual similarities must be calculated
         user_ids (int): The users whose individuals must hae their similarities calculated
     '''
     
@@ -529,16 +565,25 @@ def calculate_individual_similarities(self,task_id,label_id,user_ids):
         task.survey.status = 'indprocessing'
         db.session.commit()
 
-        individuals1 = [r.id for r in db.session.query(Individual)\
-                                            .filter(Individual.task_id==task_id)\
-                                            .filter(Individual.label_id==label_id)\
-                                            .filter(Individual.user_id.in_(user_ids))\
-                                            .filter(Individual.name!='unidentifiable')\
-                                            .all()]
+        task_ids = [r.id for r in task.sub_tasks]
+        task_ids.append(task.id)
+
+        individuals1 = db.session.query(Individual)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
+                                            .filter(Individual.name!='unidentifiable')
+
+        # Don't need to do this for multi-task individual ID because all the individuals are already defined and we want to 
+        # calculate similarities between all of them
+        if len(task_ids)==1: individuals1 = individuals1.filter(Individual.user_id.in_(user_ids))\
+
+        individuals1 = [r.id for r in individuals1.all()]
 
         individuals2 = [r.id for r in db.session.query(Individual)\
-                                            .filter(Individual.task_id==task_id)\
-                                            .filter(Individual.label_id==label_id)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
                                             .all()]
 
@@ -557,12 +602,18 @@ def calculate_individual_similarities(self,task_id,label_id,user_ids):
         db.session.commit()
         task = db.session.query(Task).get(task_id)
         app.logger.info("Task status: {}".format(task.status))
-        if task.status != 'PROGRESS':
+        if task.sub_tasks and ('-5' in task.tagging_level):
+            from app.functions.annotation import launch_task
+            task.survey.status = 'Launched'
+            db.session.commit()
+            launch_task.apply_async(kwargs={'task_id':task.id})
+        elif task.status != 'PROGRESS':
             #Check if complete
             incompleteIndividuals = db.session.query(Individual)\
+                                            .join(Task,Individual.tasks)\
                                             .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Individual.task_id==task_id)\
-                                            .filter(Individual.label_id==label_id)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
                                             .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
                                             .distinct().count()
@@ -586,8 +637,10 @@ def calculate_individual_similarities(self,task_id,label_id,user_ids):
 
     return True
 
-def generateUniqueName(task_id,label_id,name_type):
+def generateUniqueName(task_id,species,name_type):
     '''Returns a unique name for an individual of the type requested for the specified task and species.'''
+
+    task = db.session.query(Task).get(task_id)
 
     if name_type == 'w':
         check = 1
@@ -595,17 +648,16 @@ def generateUniqueName(task_id,label_id,name_type):
             name = random.choice(Config.COLOURS) + ' ' + random.choice(Config.ADJECTIVES) + ' ' + random.choice(Config.NOUNS)
             check = db.session.query(Individual)\
                         .filter(Individual.name==name)\
-                        .filter(Individual.label_id==label_id)\
-                        .filter(Individual.task_id==task_id)\
+                        .filter(Individual.species==species)\
+                        .filter(Individual.tasks.contains(task))\
                         .count()
     else:
-        task = db.session.query(Task).get(task_id)
         if task.current_name:
             name = str(int(task.current_name)+1)
         else:
             count = db.session.query(Individual)\
-                            .filter(Individual.label_id==label_id)\
-                            .filter(Individual.task_id==task_id)\
+                            .filter(Individual.species==species)\
+                            .filter(Individual.tasks.contains(task))\
                             .order_by(desc(cast(Individual.name, sa.Integer)))\
                             .first()
             if count and count.name.isnumeric():
@@ -616,7 +668,7 @@ def generateUniqueName(task_id,label_id,name_type):
         db.session.commit()
     return name
 
-def handleIndividualUndo(indSimilarity,individual1,individual2):
+def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
     '''
     Handles the undoing of a user's last action based on the info recieved.
 
@@ -624,6 +676,7 @@ def handleIndividualUndo(indSimilarity,individual1,individual2):
             indSimilarity (IndSimilarity): The individual similarity object between the two individuals
             individual1 (Individual): The first individual
             individual2 (Individual): The second individual
+            task_id (int): The current task
     '''
 
     if indSimilarity and (indSimilarity.skipped == True):
@@ -639,6 +692,31 @@ def handleIndividualUndo(indSimilarity,individual1,individual2):
 
             for detection in individual2.detections:
                 individual1.detections.remove(detection)
+
+            # Handle multi-tasks
+            task = db.session.query(Task).get(task_id)
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
+
+            individual1.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(individual1))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
+
+            individual2.tasks = db.session.query(Task)\
+                                        .join(Survey)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection)\
+                                        .filter(Detection.individuals.contains(individual2))\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .distinct().all()
 
             ####################################################
             #TODO: This could be improved - not very efficient, but will do the job for now
@@ -724,8 +802,14 @@ def handleIndividualUndo(indSimilarity,individual1,individual2):
     
 def cleanUpIndividuals(task_id):
     '''Cleans up all inactive individuals for the stipulated task.'''
-    
-    individuals = db.session.query(Individual).filter(Individual.task_id==task_id).filter(Individual.active==False).all()
+    task = db.session.query(Task).get(task_id)
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
+    individuals = db.session.query(Individual)\
+                        .join(Task,Individual.tasks)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.active==False)\
+                        .all()
 
     for individual in individuals:
         allSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).distinct().all()
@@ -735,24 +819,27 @@ def cleanUpIndividuals(task_id):
         individual.detections = []
         individual.children = []
         individual.parents = []
+        individual.tasks = []
         db.session.delete(individual)
     db.session.commit()
 
     return True
 
-def getProgress(individual_id):
+def getProgress(individual_id,task_id):
     '''Gets the progress of inter-cluster ID for the specified individual.'''
     individual = db.session.query(Individual).get(individual_id)
-    tL = re.split(',',individual.task.tagging_level)
+    task = db.session.query(Task).get(task_id)
+    tL = re.split(',',task.tagging_level)
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     
-    inactiveIndividuals = db.session.query(Individual)\
-                                .filter(Individual.task_id==individual.task_id)\
-                                .filter(Individual.label_id==individual.label_id)\
+    inactiveIndividuals = [r.id for r in db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==individual.species)\
                                 .filter(Individual.active==False)\
                                 .filter(Individual.name!='unidentifiable')\
-                                .all()
-
-    inactiveIndividuals = [r.id for r in inactiveIndividuals]
+                                .all()]
 
     # Skipped and accepted
     completed = db.session.query(IndSimilarity)\

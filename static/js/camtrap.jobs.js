@@ -235,3 +235,13 @@ $('#jobSearch').change( function() {
     url = generate_url()
     updatePage(url)
 });
+
+btnNextJobs.addEventListener('click', ()=>{
+    /** Loads the next set of paginated surveys. */
+    updatePage(next_url)
+});
+
+btnPrevJobs.addEventListener('click', ()=>{
+    /** Loads the previous set of paginated surveys. */
+    updatePage(prev_url)
+});

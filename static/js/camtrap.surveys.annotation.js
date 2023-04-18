@@ -26,7 +26,7 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
 
     allow = true
     if (document.getElementById('individualID').checked) {
-        taskTaggingLevel = document.getElementById('idStage').value+','+taskTaggingLevel
+        taskTaggingLevel = document.getElementById('idStage').value+','+document.getElementById('taskTaggingLevel').options[document.getElementById('taskTaggingLevel').selectedIndex].text
         if (document.getElementById('idStage').value=='-4') {
             // if (document.getElementById('wordName').checked) {
             //     taskTaggingLevel += ',w'
@@ -72,6 +72,13 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
 
     if ((taskSize != NaN)&&(isBounding != null)&&allow) {
         document.getElementById('launchMTurkTaskBtn').disabled=true
+
+        var formData = new FormData()
+        formData.append("selectedTasks", JSON.stringify([selectedTask]))
+        formData.append("taskSize", taskSize)
+        formData.append("taskTaggingLevel", taskTaggingLevel)
+        formData.append("isBounding", isBounding)
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -131,8 +138,8 @@ launchMTurkTaskBtn.addEventListener('click', ()=>{
                 }
             }
         }
-        xhttp.open("POST", '/launchTask/'+selectedTask+'/'+taskSize+'/'+taskTaggingLevel+'/'+isBounding);
-        xhttp.send();
+        xhttp.open("POST", '/launchTask');
+        xhttp.send(formData);
     }
 });
 

@@ -181,14 +181,16 @@ def launch_task(self,task_id):
         # Do some prep for individual ID tasks
         if ',' in taggingLevel:
             tL = re.split(',',taggingLevel)
-            label = db.session.query(Label).get(int(tL[1]))
+            species = tL[1]
 
             if tL[0] == '-4':
+                label = db.session.query(Label).filter(Label.task==task).filter(Label.description==species).first()
+
                 #Start calculating detection similarities in the background
                 if tL[4]=='h':
-                    calculate_detection_similarities.delay(task_id=task_id,label_id=label.id,algorithm='hotspotter')
+                    calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='hotspotter')
                 elif tL[4]=='n':
-                    calculate_detection_similarities.delay(task_id=task_id,label_id=label.id,algorithm='none')
+                    calculate_detection_similarities.delay(task_ids=[task_id],species=label.description,algorithm='none')
 
                 if tL[3] == 'a':
                     sq = db.session.query(Cluster.id.label('clusterID'),Detection.id.label('detID'),func.count(distinct(Detection.id)).label('detCount'),func.count(distinct(Image.id)).label('imCount'))\
@@ -212,8 +214,8 @@ def launch_task(self,task_id):
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
                                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .filter(Individual.label==label)\
-                                        .filter(Individual.task_id==task_id)\
+                                        .filter(Individual.species==species)\
+                                        .filter(Individual.tasks.contains(task))\
                                         .distinct().all()
 
                     detections = db.session.query(Detection)\
@@ -230,29 +232,31 @@ def launch_task(self,task_id):
 
                     admin = db.session.query(User).filter(User.username == 'Admin').first()
                     for detection in detections:
-                        newIndividual = Individual( name=generateUniqueName(task_id,label.id,tL[2]),
-                                                    task_id=task_id,
-                                                    label_id=label.id,
+                        newIndividual = Individual( name=generateUniqueName(task_id,label.description,tL[2]),
+                                                    species=species,
                                                     user_id=admin.id,
                                                     timestamp=datetime.utcnow())
 
                         db.session.add(newIndividual)
                         newIndividual.detections = [detection]
+                        newIndividual.tasks = [task]
 
                     db.session.commit()
 
-                unidentifiable = db.session.query(Individual).filter(Individual.task_id==task_id).filter(Individual.label_id==label.id).filter(Individual.name=='unidentifiable').first()
+                unidentifiable = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.species==species).filter(Individual.name=='unidentifiable').first()
                 if unidentifiable == None:
                     unidentifiable = Individual(
                         name = 'unidentifiable',
-                        label_id = label.id,
-                        task_id = task_id
+                        species = species
                     )
                     db.session.add(unidentifiable)
+                    unidentifiable.tasks = [task]
 
                 db.session.commit()
 
             elif tL[0] == '-5':
+                task_ids = [r.id for r in task.sub_tasks]
+                task_ids.append(task.id)
 
                 #extract threshold
                 threshold = tL[2]
@@ -263,8 +267,9 @@ def launch_task(self,task_id):
 
                 skips = db.session.query(IndSimilarity)\
                                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.label_id==label.id)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
                                 .filter(IndSimilarity.skipped==True)\
                                 .distinct().all()
                 
@@ -273,8 +278,9 @@ def launch_task(self,task_id):
 
                 allocateds = db.session.query(IndSimilarity)\
                                 .join(Individual, IndSimilarity.individual_1==Individual.id)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.label_id==label.id)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
                                 .filter(IndSimilarity.allocated!=None)\
                                 .distinct().all()
 
@@ -283,8 +289,9 @@ def launch_task(self,task_id):
                     allocated.allocation_timestamp = None
 
                 allocateds = db.session.query(Individual)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.label_id==label.id)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
                                 .filter(Individual.allocated!=None)\
                                 .distinct().all()
 
@@ -296,7 +303,7 @@ def launch_task(self,task_id):
         
         # Mark clusters that need to be examined
         if '-5' in taggingLevel:
-            cluster_count = checkForIdWork(task_id,label,tL[2])
+            cluster_count = checkForIdWork(task_ids,species,tL[2])
 
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
@@ -305,6 +312,9 @@ def launch_task(self,task_id):
                 updateIndividualIdStatus(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
+                for tsk in task.sub_tasks:
+                    tsk.status = 'SUCCESS'
+                    tsk.survey.status = 'Ready'
                 db.session.commit()
                 return True
 
@@ -332,6 +342,9 @@ def launch_task(self,task_id):
                 updateIndividualIdStatus(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
+                for tsk in task.sub_tasks:
+                    tsk.status = 'SUCCESS'
+                    tsk.survey.status = 'Ready'
                 db.session.commit()
                 return True
 
@@ -349,28 +362,30 @@ def launch_task(self,task_id):
                 OtherIndividual = alias(Individual)
 
                 sq1 = db.session.query(Individual.id.label('indID1'))\
+                                .join(Task,Individual.tasks)\
                                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
                                 .filter(IndSimilarity.score>=tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.label_id==label.id)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
                                 .filter(Individual.active==True)\
                                 .filter(Individual.name!='unidentifiable')\
                                 .group_by(Individual.id)\
                                 .subquery()
 
                 sq2 = db.session.query(Individual.id.label('indID2'))\
+                                .join(Task,Individual.tasks)\
                                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                                 .filter(OtherIndividual.c.active==True)\
                                 .filter(OtherIndividual.c.name!='unidentifiable')\
                                 .filter(IndSimilarity.score>=tL[2])\
                                 .filter(IndSimilarity.skipped==False)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.label_id==label.id)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
                                 .filter(Individual.active==True)\
                                 .filter(Individual.name!='unidentifiable')\
                                 .group_by(Individual.id)\
@@ -428,11 +443,14 @@ def freeUpWork(self,task_id):
         task = db.session.query(Task).get(task_id)
 
         if '-5' in task.tagging_level:
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
             tL = re.split(',',task.tagging_level)
-            label = db.session.query(Label).get(int(tL[1]))
+            species = tL[1]
             OtherIndividual = alias(Individual)
 
             sq1 = db.session.query(Individual.id.label('indID1'))\
+                            .join(Task,Individual.tasks)\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
@@ -440,14 +458,15 @@ def freeUpWork(self,task_id):
                             .filter(IndSimilarity.allocated==None)\
                             .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.active==True)\
                             .filter(Individual.name!='unidentifiable')\
                             .group_by(Individual.id)\
                             .subquery()
 
             sq2 = db.session.query(Individual.id.label('indID2'))\
+                            .join(Task,Individual.tasks)\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
@@ -455,8 +474,8 @@ def freeUpWork(self,task_id):
                             .filter(IndSimilarity.allocated==None)\
                             .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.active==True)\
                             .filter(Individual.name!='unidentifiable')\
                             .group_by(Individual.id)\
@@ -467,13 +486,14 @@ def freeUpWork(self,task_id):
                             .join(Image)\
                             .join(Detection)\
                             .join(Individual,Detection.individuals)\
+                            .join(Task,Individual.tasks)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
                             .filter(Individual.allocated==None)\
                             .filter(Trapgroup.active == False)\
                             .filter(Trapgroup.processing == False)\
                             .filter(Trapgroup.queueing == False)\
-                            .filter(Trapgroup.survey_id==task.survey_id)\
+                            .filter(Task.id.in_(task_ids))\
                             .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .distinct().all()
 
@@ -494,15 +514,14 @@ def freeUpWork(self,task_id):
         for trapgroup in trapgroups:
             if '-5' in task.tagging_level:
                 most_recent = db.session.query(Individual)\
+                                        .join(Task,Individual.tasks)\
                                         .join(Detection,Individual.detections)\
-                                        .join(Labelgroup)\
                                         .join(Image)\
                                         .join(Camera)\
                                         .filter(Camera.trapgroup_id == trapgroup.id)\
-                                        .filter(Individual.task_id == task_id) \
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(Individual.species==species)\
                                         .filter(Individual.timestamp!=None) \
-                                        .filter(Labelgroup.task_id==task_id)\
-                                        .filter(Labelgroup.labels.contains(label))\
                                         .order_by(Individual.timestamp.desc()) \
                                         .first()
             else:
@@ -589,10 +608,11 @@ def wrapUpTask(self,task_id):
         if '-4' in task.tagging_level:
             #Check if complete
             tL = re.split(',',task.tagging_level)
+            species = tL[1]
             incompleteIndividuals = db.session.query(Individual)\
                                             .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Individual.task_id==task_id)\
-                                            .filter(Individual.label_id==int(tL[1]))\
+                                            .filter(Individual.tasks.contains(task))\
+                                            .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
                                             .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
                                             .distinct().count() 
@@ -606,6 +626,12 @@ def wrapUpTask(self,task_id):
         #Accounts for individual ID background processing
         if 'processing' not in task.survey.status:
             task.survey.status = 'Ready'
+
+        # handle multi-tasks
+        for sub_task in task.sub_tasks:
+            sub_task.status = 'SUCCESS'
+            sub_task.survey.status = 'Ready'
+        task.sub_tasks = []
 
         if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(int(task_id), None)
         db.session.commit()
@@ -681,42 +707,47 @@ def manage_task(task_id):
 
         #Manage number of workers
         if '-5' in taggingLevel:
+            task_ids = [r.id for r in task.sub_tasks]
+            task_ids.append(task.id)
             tL = re.split(',',taggingLevel)
-            label = db.session.query(Label).get(int(tL[1]))
+            species = tL[1]
             OtherIndividual = alias(Individual)
 
             sq1 = db.session.query(Individual.id.label('indID1'))\
+                            .join(Task,Individual.tasks)\
                             .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
                             .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.active==True)\
                             .filter(Individual.name!='unidentifiable')\
                             .group_by(Individual.id)\
                             .subquery()
 
             sq2 = db.session.query(Individual.id.label('indID2'))\
+                            .join(Task,Individual.tasks)\
                             .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                             .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                             .filter(OtherIndividual.c.active==True)\
                             .filter(OtherIndividual.c.name!='unidentifiable')\
                             .filter(IndSimilarity.score>=tL[2])\
                             .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Individual.species==species)\
                             .filter(Individual.active==True)\
                             .filter(Individual.name!='unidentifiable')\
                             .group_by(Individual.id)\
                             .subquery()
 
             individuals_remaining = db.session.query(Individual)\
+                            .join(Task,Individual.tasks)\
                             .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                             .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .filter(Individual.task_id==task_id)\
+                            .filter(Task.id.in_(task_ids))\
                             .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                             .distinct().count()
             
@@ -864,189 +895,118 @@ def allocate_new_trapgroup(task_id,user_id):
     isBounding = task.is_bounding
     survey_id = task.survey_id
     #Allocate the trapgroup with the most remaining clusters to maximise efficiency
-    if '-5' in taggingLevel:
-        tL = re.split(',',taggingLevel)
-        label = db.session.query(Label).get(int(tL[1]))
-        # OtherIndividual = alias(Individual)
+    # if '-5' in taggingLevel:
+    #     task_ids = [r.id for r in task.sub_tasks]
+    #     task_ids.append(task.id)
+    #     tL = re.split(',',taggingLevel)
+    #     species = tL[1]
 
-        # sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
-        #                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-        #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-        #                 .filter(OtherIndividual.c.active==True)\
-        #                 .filter(OtherIndividual.c.name!='unidentifiable')\
-        #                 .filter(IndSimilarity.score>=tL[2])\
-        #                 .filter(IndSimilarity.skipped==False)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label.id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .group_by(Individual.id)\
-        #                 .subquery()
-
-        # sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
-        #                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-        #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-        #                 .filter(OtherIndividual.c.active==True)\
-        #                 .filter(OtherIndividual.c.name!='unidentifiable')\
-        #                 .filter(IndSimilarity.score>=tL[2])\
-        #                 .filter(IndSimilarity.skipped==False)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label.id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .group_by(Individual.id)\
-        #                 .subquery()
-
-        # sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
-        #                 .join(Detection,Individual.detections)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label.id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .group_by(Individual.id)\
-        #                 .subquery()
-
-        # sq4 = db.session.query(Trapgroup.id.label('trapID'),func.max(sq3.c.count3).label('count4'))\
-        #                 .join(Camera)\
-        #                 .join(Image)\
-        #                 .join(Detection)\
-        #                 .join(Individual,Detection.individuals)\
-        #                 .join(sq3,sq3.c.indID3==Individual.id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.label_id==label.id)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .filter(Trapgroup.survey_id==survey_id)\
-        #                 .group_by(Trapgroup.id)\
-        #                 .subquery()
-
-        # trapgroup = db.session.query(Trapgroup)\
-        #                 .join(Camera)\
-        #                 .join(Image)\
-        #                 .join(Detection)\
-        #                 .join(Individual,Detection.individuals)\
-        #                 .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-        #                 .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-        #                 .join(sq4,sq4.c.trapID==Trapgroup.id)\
-        #                 .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-        #                 .filter(Individual.allocated==None)\
-        #                 .filter(IndSimilarity.allocated==None)\
-        #                 .filter(Trapgroup.survey_id==survey_id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.label_id==label.id)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-        #                 .filter(Trapgroup.active == True) \
-        #                 .filter(Trapgroup.user_id == None)\
-        #                 .order_by(desc(sq4.c.count4))\
-        #                 .first()
-
-        sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
-                        .join(Detection,Individual.detections)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label.id)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Individual.id)\
-                        .subquery()
+    #     sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
+    #                     .join(Task,Individual.tasks)\
+    #                     .join(Detection,Individual.detections)\
+    #                     .filter(Task.id.in_(task_ids))\
+    #                     .filter(Individual.species==species)\
+    #                     .filter(Individual.active==True)\
+    #                     .filter(Individual.name!='unidentifiable')\
+    #                     .group_by(Individual.id)\
+    #                     .subquery()
         
-        sq4 = db.session.query(Trapgroup.id.label('trapID'),func.max(sq3.c.count3).label('count4'))\
-                        .join(Camera)\
-                        .join(Image)\
-                        .join(Detection)\
-                        .join(Individual,Detection.individuals)\
-                        .join(sq3,sq3.c.indID3==Individual.id)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.label_id==label.id)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Trapgroup.id)\
-                        .subquery()
+    #     sq4 = db.session.query(Trapgroup.id.label('trapID'),func.max(sq3.c.count3).label('count4'))\
+    #                     .join(Camera)\
+    #                     .join(Image)\
+    #                     .join(Detection)\
+    #                     .join(Individual,Detection.individuals)\
+    #                     .join(Task,Individual.tasks)\
+    #                     .join(sq3,sq3.c.indID3==Individual.id)\
+    #                     .filter(Individual.active==True)\
+    #                     .filter(Task.id.in_(task_ids))\
+    #                     .filter(Individual.species==species)\
+    #                     .filter(Individual.name!='unidentifiable')\
+    #                     .group_by(Trapgroup.id)\
+    #                     .subquery()
         
-        trapgroup = db.session.query(Trapgroup)\
-                        .join(sq4,sq4.c.trapID==Trapgroup.id)\
-                        .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Trapgroup.active == True) \
-                        .filter(Trapgroup.user_id == None)\
-                        .order_by(desc(sq4.c.count4))\
-                        .first()
+    #     trapgroup = db.session.query(Trapgroup)\
+    #                     .join(Survey)\
+    #                     .join(Task)\
+    #                     .join(sq4,sq4.c.trapID==Trapgroup.id)\
+    #                     .filter(Task.id.in_(task_ids))\
+    #                     .filter(Trapgroup.active == True) \
+    #                     .filter(Trapgroup.user_id == None)\
+    #                     .order_by(desc(sq4.c.count4))\
+    #                     .first()
 
-    else:
-        trapgroup = db.session.query(Trapgroup) \
-                        .join(Camera)\
-                        .join(Image)\
-                        .join(Cluster,Image.clusters)\
-                        .filter(Trapgroup.survey_id==survey_id) \
-                        .filter(Trapgroup.active == True) \
-                        .filter(Trapgroup.user_id == None) \
-                        .group_by(Trapgroup.id) \
-                        .order_by(func.count(distinct(Cluster.id)).desc()) \
-                        .first()
+    # else:
+    trapgroup = db.session.query(Trapgroup) \
+                    .join(Camera)\
+                    .join(Image)\
+                    .join(Cluster,Image.clusters)\
+                    .filter(Trapgroup.survey_id==survey_id) \
+                    .filter(Trapgroup.active == True) \
+                    .filter(Trapgroup.user_id == None) \
+                    .group_by(Trapgroup.id) \
+                    .order_by(func.count(distinct(Cluster.id)).desc()) \
+                    .first()
 
     if trapgroup == None:
         #Check that a non-empty trapgroup hasn't been deactivated
-        if '-5' in taggingLevel:
+        # if '-5' in taggingLevel:
+        #     OtherIndividual = alias(Individual)
 
-            sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
-                            .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                            .filter(OtherIndividual.c.active==True)\
-                            .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>=tL[2])\
-                            .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .group_by(Individual.id)\
-                            .subquery()
+        #     sq1 = db.session.query(Individual.id.label('indID1'))\
+        #                     .join(Task,Individual.tasks)\
+        #                     .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+        #                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+        #                     .filter(OtherIndividual.c.active==True)\
+        #                     .filter(OtherIndividual.c.name!='unidentifiable')\
+        #                     .filter(IndSimilarity.score>=tL[2])\
+        #                     .filter(IndSimilarity.skipped==False)\
+        #                     .filter(Task.id.in_(task_ids))\
+        #                     .filter(Individual.species==species)\
+        #                     .filter(Individual.active==True)\
+        #                     .filter(Individual.name!='unidentifiable')\
+        #                     .group_by(Individual.id)\
+        #                     .subquery()
 
-            sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
-                            .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                            .filter(OtherIndividual.c.active==True)\
-                            .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>=tL[2])\
-                            .filter(IndSimilarity.skipped==False)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.label_id==label.id)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .group_by(Individual.id)\
-                            .subquery()
+        #     sq2 = db.session.query(Individual.id.label('indID2'))\
+        #                     .join(Task,Individual.tasks)\
+        #                     .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+        #                     .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+        #                     .filter(OtherIndividual.c.active==True)\
+        #                     .filter(OtherIndividual.c.name!='unidentifiable')\
+        #                     .filter(IndSimilarity.score>=tL[2])\
+        #                     .filter(IndSimilarity.skipped==False)\
+        #                     .filter(Task.id.in_(task_ids))\
+        #                     .filter(Individual.species==species)\
+        #                     .filter(Individual.active==True)\
+        #                     .filter(Individual.name!='unidentifiable')\
+        #                     .group_by(Individual.id)\
+        #                     .subquery()
 
-            trapgroups = db.session.query(Trapgroup)\
-                            .join(Camera)\
-                            .join(Image)\
-                            .join(Detection)\
-                            .join(Individual,Detection.individuals)\
-                            .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                            .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                            .filter(Individual.allocated==None)\
-                            .filter(IndSimilarity.allocated==None)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.label_id==label.id)\
-                            .filter(Individual.task_id==task_id)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                            .filter(Trapgroup.active == False) \
-                            .filter(Trapgroup.processing == False) \
-                            .filter(Trapgroup.queueing == False) \
-                            .all()
-        else:
-            trapgroups = db.session.query(Trapgroup) \
-                            .join(Camera) \
-                            .join(Image) \
-                            .join(Cluster, Image.clusters) \
-                            .filter(Cluster.task_id == task_id) \
-                            .filter(Trapgroup.active == False) \
-                            .filter(Trapgroup.queueing == False) \
-                            .filter(Trapgroup.processing == False) \
-                            .filter(Cluster.examined==False)\
-                            .distinct().all()
+        #     trapgroups = db.session.query(Trapgroup)\
+        #                     .join(Camera)\
+        #                     .join(Image)\
+        #                     .join(Detection)\
+        #                     .join(Individual,Detection.individuals)\
+        #                     .join(Task,Individual.tasks)\
+        #                     .outerjoin(sq1,sq1.c.indID1==Individual.id)\
+        #                     .outerjoin(sq2,sq2.c.indID2==Individual.id)\
+        #                     .filter(Task.id.in_(task_ids))\
+        #                     .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
+        #                     .filter(Trapgroup.active == False) \
+        #                     .filter(Trapgroup.processing == False) \
+        #                     .filter(Trapgroup.queueing == False) \
+        #                     .all()
+        # else:
+        trapgroups = db.session.query(Trapgroup) \
+                        .join(Camera) \
+                        .join(Image) \
+                        .join(Cluster, Image.clusters) \
+                        .filter(Cluster.task_id == task_id) \
+                        .filter(Trapgroup.active == False) \
+                        .filter(Trapgroup.queueing == False) \
+                        .filter(Trapgroup.processing == False) \
+                        .filter(Cluster.examined==False)\
+                        .distinct().all()
 
         #looking at most recent cluster by trapgroup
         for trapgroup in trapgroups:
@@ -1055,119 +1015,53 @@ def allocate_new_trapgroup(task_id,user_id):
         if len(trapgroups) != 0:
             db.session.commit()
             #Try again
-            if '-5' in taggingLevel:
+            # if '-5' in taggingLevel:
 
-                # sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
-                #                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                #                 .filter(OtherIndividual.c.active==True)\
-                #                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                #                 .filter(IndSimilarity.score>=tL[2])\
-                #                 .filter(IndSimilarity.skipped==False)\
-                #                 .filter(Individual.task_id==task_id)\
-                #                 .filter(Individual.label_id==label.id)\
-                #                 .filter(Individual.active==True)\
-                #                 .filter(Individual.name!='unidentifiable')\
-                #                 .group_by(Individual.id)\
-                #                 .subquery()
-
-                # sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
-                #                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                #                 .filter(OtherIndividual.c.active==True)\
-                #                 .filter(OtherIndividual.c.name!='unidentifiable')\
-                #                 .filter(IndSimilarity.score>=tL[2])\
-                #                 .filter(IndSimilarity.skipped==False)\
-                #                 .filter(Individual.task_id==task_id)\
-                #                 .filter(Individual.label_id==label.id)\
-                #                 .filter(Individual.active==True)\
-                #                 .filter(Individual.name!='unidentifiable')\
-                #                 .group_by(Individual.id)\
-                #                 .subquery()
-
-                # sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
-                #                 .join(Detection,Individual.detections)\
-                #                 .filter(Individual.task_id==task_id)\
-                #                 .filter(Individual.label_id==label.id)\
-                #                 .filter(Individual.active==True)\
-                #                 .filter(Individual.name!='unidentifiable')\
-                #                 .group_by(Individual.id)\
-                #                 .subquery()
-
-                # sq4 = db.session.query(Trapgroup.id.label('trapID'),func.max(sq3.c.count3).label('count4'))\
-                #                 .join(Camera)\
-                #                 .join(Image)\
-                #                 .join(Detection)\
-                #                 .join(Individual,Detection.individuals)\
-                #                 .join(sq3,sq3.c.indID3==Individual.id)\
-                #                 .filter(Individual.active==True)\
-                #                 .filter(Individual.label_id==label.id)\
-                #                 .filter(Individual.task_id==task_id)\
-                #                 .filter(Individual.name!='unidentifiable')\
-                #                 .filter(Trapgroup.survey_id==survey_id)\
-                #                 .group_by(Trapgroup.id)\
-                #                 .subquery()
-
-                # trapgroup = db.session.query(Trapgroup)\
-                #                 .join(Camera)\
-                #                 .join(Image)\
-                #                 .join(Detection)\
-                #                 .join(Individual,Detection.individuals)\
-                #                 .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                #                 .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                #                 .join(sq4,sq4.c.trapID==Trapgroup.id)\
-                #                 .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                #                 .filter(Individual.allocated==None)\
-                #                 .filter(IndSimilarity.allocated==None)\
-                #                 .filter(Trapgroup.survey_id==survey_id)\
-                #                 .filter(Individual.active==True)\
-                #                 .filter(Individual.label_id==label.id)\
-                #                 .filter(Individual.task_id==task_id)\
-                #                 .filter(Individual.name!='unidentifiable')\
-                #                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-                #                 .filter(Trapgroup.active == True) \
-                #                 .filter(Trapgroup.user_id == None)\
-                #                 .order_by(desc(sq4.c.count4))\
-                #                 .first()
-
-                sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
-                                .join(Detection,Individual.detections)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.label_id==label.id)\
-                                .filter(Individual.active==True)\
-                                .filter(Individual.name!='unidentifiable')\
-                                .group_by(Individual.id)\
-                                .subquery()
-                sq4 = db.session.query(Trapgroup.id.label('trapID'),func.max(sq3.c.count3).label('count4'))\
-                                .join(Camera)\
-                                .join(Image)\
-                                .join(Detection)\
-                                .join(Individual,Detection.individuals)\
-                                .join(sq3,sq3.c.indID3==Individual.id)\
-                                .filter(Individual.active==True)\
-                                .filter(Individual.label_id==label.id)\
-                                .filter(Individual.task_id==task_id)\
-                                .filter(Individual.name!='unidentifiable')\
-                                .group_by(Trapgroup.id)\
-                                .subquery()
-                trapgroup = db.session.query(Trapgroup)\
-                                .join(sq4,sq4.c.trapID==Trapgroup.id)\
-                                .filter(Trapgroup.survey_id==survey_id)\
-                                .filter(Trapgroup.active == True) \
-                                .filter(Trapgroup.user_id == None)\
-                                .order_by(desc(sq4.c.count4))\
-                                .first()
-            else:
-                trapgroup = db.session.query(Trapgroup) \
-                        .join(Camera)\
-                        .join(Image)\
-                        .join(Cluster,Image.clusters)\
-                        .filter(Trapgroup.survey_id==survey_id) \
-                        .filter(Trapgroup.active == True) \
-                        .filter(Trapgroup.user_id == None) \
-                        .group_by(Trapgroup.id) \
-                        .order_by(func.count(distinct(Cluster.id)).desc()) \
-                        .first()
+            #     sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
+            #                     .join(Task,Individual.tasks)\
+            #                     .join(Detection,Individual.detections)\
+            #                     .filter(Task.id.in_(task_ids))\
+            #                     .filter(Individual.species==species)\
+            #                     .filter(Individual.active==True)\
+            #                     .filter(Individual.name!='unidentifiable')\
+            #                     .group_by(Individual.id)\
+            #                     .subquery()
+                
+            #     sq4 = db.session.query(Trapgroup.id.label('trapID'),func.max(sq3.c.count3).label('count4'))\
+            #                     .join(Camera)\
+            #                     .join(Image)\
+            #                     .join(Detection)\
+            #                     .join(Individual,Detection.individuals)\
+            #                     .join(Task,Individual.tasks)\
+            #                     .join(sq3,sq3.c.indID3==Individual.id)\
+            #                     .filter(Individual.active==True)\
+            #                     .filter(Task.id.in_(task_ids))\
+            #                     .filter(Individual.species==species)\
+            #                     .filter(Individual.name!='unidentifiable')\
+            #                     .group_by(Trapgroup.id)\
+            #                     .subquery()
+                
+            #     trapgroup = db.session.query(Trapgroup)\
+            #                     .join(Survey)\
+            #                     .join(Task)\
+            #                     .join(sq4,sq4.c.trapID==Trapgroup.id)\
+            #                     .filter(Task.id.in_(task_ids))\
+            #                     .filter(Trapgroup.active == True) \
+            #                     .filter(Trapgroup.user_id == None)\
+            #                     .order_by(desc(sq4.c.count4))\
+            #                     .first()
+                
+            # else:
+            trapgroup = db.session.query(Trapgroup) \
+                    .join(Camera)\
+                    .join(Image)\
+                    .join(Cluster,Image.clusters)\
+                    .filter(Trapgroup.survey_id==survey_id) \
+                    .filter(Trapgroup.active == True) \
+                    .filter(Trapgroup.user_id == None) \
+                    .group_by(Trapgroup.id) \
+                    .order_by(func.count(distinct(Cluster.id)).desc()) \
+                    .first()
 
     if trapgroup != None:
         trapgroup.user_id = user_id
@@ -1190,66 +1084,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
     if limit < 0: return []
 
     if '-5' in taggingLevel:
+        task = db.session.query(Task).get(task_id)
+        task_ids = [r.id for r in task.sub_tasks]
+        task_ids.append(task.id)
         tL = re.split(',',taggingLevel)
-        label_id = int(tL[1])
+        species = tL[1]
         OtherIndividual = alias(Individual)
 
-        # sq1 = db.session.query(Individual.id.label('indID1'),func.count(distinct(IndSimilarity.id)).label('count1'))\
-        #                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-        #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-        #                 .filter(OtherIndividual.c.active==True)\
-        #                 .filter(OtherIndividual.c.name!='unidentifiable')\
-        #                 .filter(IndSimilarity.score>=tL[2])\
-        #                 .filter(IndSimilarity.skipped==False)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label_id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .group_by(Individual.id)\
-        #                 .subquery()
-
-        # sq2 = db.session.query(Individual.id.label('indID2'),func.count(distinct(IndSimilarity.id)).label('count2'))\
-        #                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-        #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-        #                 .filter(OtherIndividual.c.active==True)\
-        #                 .filter(OtherIndividual.c.name!='unidentifiable')\
-        #                 .filter(IndSimilarity.score>=tL[2])\
-        #                 .filter(IndSimilarity.skipped==False)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label_id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .group_by(Individual.id)\
-        #                 .subquery()
-
-        # sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
-        #                 .join(Detection,Individual.detections)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label_id)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .group_by(Individual.id)\
-        #                 .subquery()
-
-        # cluster = db.session.query(Individual)\
-        #                 .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-        #                 .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-        #                 .join(sq3,sq3.c.indID3==Individual.id)\
-        #                 .join(Detection,Individual.detections)\
-        #                 .join(Image)\
-        #                 .join(Camera)\
-        #                 .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-        #                 .filter(Individual.allocated==None)\
-        #                 .filter(IndSimilarity.allocated==None)\
-        #                 .filter(Individual.active==True)\
-        #                 .filter(Individual.task_id==task_id)\
-        #                 .filter(Individual.label_id==label_id)\
-        #                 .filter(Individual.name!='unidentifiable')\
-        #                 .filter(Camera.trapgroup_id==trapgroup_id)\
-        #                 .filter(or_(sq1.c.count1>0, sq2.c.count2>0))\
-        #                 .distinct(Individual.id).order_by(desc(sq3.c.count3)).first()
-
         sq1 = db.session.query(Individual.id.label('indID1'))\
+                        .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
@@ -1257,14 +1100,15 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(IndSimilarity.allocated==None)\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label_id)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
                         .group_by(Individual.id)\
                         .subquery()
         
         sq2 = db.session.query(Individual.id.label('indID2'))\
+                        .join(Task,Individual.tasks)\
                         .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
@@ -1272,35 +1116,38 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
                         .filter(IndSimilarity.allocated==None)\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label_id)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
                         .group_by(Individual.id)\
                         .subquery()
         
         sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
+                        .join(Task,Individual.tasks)\
                         .join(Detection,Individual.detections)\
-                        .filter(Individual.task_id==task_id)\
-                        .filter(Individual.label_id==label_id)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.species==species)\
                         .filter(Individual.active==True)\
                         .filter(Individual.name!='unidentifiable')\
                         .group_by(Individual.id)\
                         .subquery()
         
         cluster = db.session.query(Individual)\
+                        .join(Task,Individual.tasks)\
                         .outerjoin(sq1,sq1.c.indID1==Individual.id)\
                         .outerjoin(sq2,sq2.c.indID2==Individual.id)\
                         .join(sq3,sq3.c.indID3==Individual.id)\
-                        .join(Detection,Individual.detections)\
-                        .join(Image)\
-                        .join(Camera)\
+                        .filter(Task.id.in_(task_ids))\
                         .filter(Individual.allocated==None)\
-                        .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .order_by(desc(sq3.c.count3)).first()
 
-        clusters = [cluster]
+        if cluster:
+            clusters = [cluster]
+        else:
+            clusters = []
+
     else:
         clusters = db.session.query(Cluster) \
                         .join(Image, Cluster.images) \
@@ -1411,18 +1258,18 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
     startTime = time.time()
 
     if '-5' in taggingLevel:
-        bufferCount = db.session.query(Individual).filter(Individual.allocated==user.id).count()
-        if bufferCount >= 5:
-            remInds = db.session.query(Individual)\
-                            .filter(Individual.allocated==user.id)\
-                            .order_by(Individual.allocation_timestamp).limit(bufferCount-4).all()
-            for remInd in remInds:
-                remInd.allocated = None
-                remInd.allocation_timestamp = None
+        # bufferCount = db.session.query(Individual).filter(Individual.allocated==user.id).count()
+        # if bufferCount >= 5:
+        #     remInds = db.session.query(Individual)\
+        #                     .filter(Individual.allocated==user.id)\
+        #                     .order_by(Individual.allocation_timestamp).limit(bufferCount-4).all()
+        #     for remInd in remInds:
+        #         remInd.allocated = None
+        #         remInd.allocation_timestamp = None
 
-        cluster.allocated = user.id
-        cluster.allocation_timestamp = datetime.utcnow()
-        db.session.commit()
+        # cluster.allocated = user.id
+        # cluster.allocation_timestamp = datetime.utcnow()
+        # db.session.commit()
 
         sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(cluster)).order_by(Image.corrected_timestamp).all()
 
@@ -1484,7 +1331,9 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
 
         if '-4' in taggingLevel:
             tL = re.split(',',taggingLevel)
-            label = db.session.query(Label).get(int(tL[1]))
+            species = tL[1]
+            label = db.session.query(Label).filter(Label.task_id==cluster.task_id).filter(Label.description==species).first()
+
             images = []
             for image in sortedImages:
                 exclude  = db.session.query(Detection)\
@@ -1496,8 +1345,8 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
                                     .filter(Detection.static==False)\
                                     .filter(Labelgroup.task_id==cluster.task_id)\
                                     .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.task_id==cluster.task_id)\
-                                    .filter(Individual.label==label)\
+                                    .filter(Individual.tasks.contains(cluster.task))\
+                                    .filter(Individual.species==species)\
                                     .distinct().all()
 
                 detections = db.session.query(Detection)\
@@ -1510,7 +1359,9 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
                                     .filter(Labelgroup.labels.contains(label))\
                                     .filter(~Detection.id.in_([r.id for r in exclude]))\
                                     .distinct().all()
+                
                 images.append(image_digest(image,detections))
+
         else:
             images = [image_digest(
                         image,

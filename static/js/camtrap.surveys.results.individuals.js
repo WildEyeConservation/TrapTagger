@@ -59,7 +59,7 @@ function updateSlider() {
             if (bucketName!=null) {
                 finishedDisplaying = false
                 image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = image.trapgroup
+                document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = image.timestamp
                 addedDetections = false
                 activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
@@ -254,25 +254,27 @@ function removeImage() {
     /** Removes the currently displayed individual from the selected individual. */
     modalAlertIndividuals.modal('hide')
     modalIndividual.modal({keyboard: true});
-    image = individualImages[individualSplide.index]
-    detection = image.detections[0]
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            if (reply.status=='success') {
-                index = individualImages.indexOf(image);
-                if (index > -1) {
-                    individualImages.splice(index, 1);
+    if(individualImages.length >1){
+        image = individualImages[individualSplide.index]
+        detection = image.detections[0]
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                if (reply.status=='success') {
+                    index = individualImages.indexOf(image);
+                    if (index > -1) {
+                        individualImages.splice(index, 1);
+                    }
+                    updateSlider()
+                    individualSplide.go(0)
                 }
-                updateSlider()
-                individualSplide.go(0)
             }
         }
+        xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
+        xhttp.send();
     }
-    xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
-    xhttp.send();
 }
 function next_individuals() {
     /** Gets the next page of individuals in the individuals modal. */
@@ -287,7 +289,8 @@ function prev_individuals() {
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
 
-    selectedSpecies = document.getElementById('individualSpeciesSelector').value
+    individualSpeciesSelector = document.getElementById('individualSpeciesSelector')
+    selectedSpecies = individualSpeciesSelector.options[individualSpeciesSelector.selectedIndex].text
     request = '/getIndividuals/'+selectedTask+'/'+selectedSpecies
     if (page != null) {
         request += '?page='+page.toString()
@@ -339,6 +342,13 @@ function getIndividuals(page = null) {
                 image.addEventListener('click', function(individualID,individualName){
                     return function() {
                         selectedIndividual = individualID
+
+                        var formData = new FormData()
+                        formData.append("order", JSON.stringify('d3'))
+                        formData.append("site", JSON.stringify('0'))
+                        formData.append('start_date', JSON.stringify(''))
+                        formData.append('end_date', JSON.stringify(''))
+
                         var xhttp = new XMLHttpRequest();
                         xhttp.onreadystatechange =
                         function(){
@@ -355,7 +365,7 @@ function getIndividuals(page = null) {
                                 info = document.createElement('h5')
                                 info.setAttribute('id','tgInfo')
                                 info.setAttribute('align','center')
-                                info.innerHTML = 'Trap: ' + individualImages[0].trapgroup
+                                info.innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
                                 individualDiv.appendChild(info)
 
                                 info2 = document.createElement('h6')
@@ -410,12 +420,14 @@ function getIndividuals(page = null) {
                                 col3.appendChild(btn2)
 
                                 btn2.addEventListener('click', ()=>{
-                                    document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                    document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                                    document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
-                                    modalAlertIndividualsReturn = true
-                                    modalIndividual.modal('hide')
-                                    modalAlertIndividuals.modal({keyboard: true});
+                                    if(individualImages.length > 1){
+                                        document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                                        modalAlertIndividualsReturn = true
+                                        modalIndividual.modal('hide')
+                                        modalAlertIndividuals.modal({keyboard: true});
+                                    }
                                 });
 
                                 center = document.createElement('center')
@@ -470,8 +482,8 @@ function getIndividuals(page = null) {
                                 modalIndividual.modal({keyboard: true});
                             }
                         }
-                        xhttp.open("GET", '/getIndividual/'+individualID);
-                        xhttp.send();
+                        xhttp.open("POST", '/getIndividual/'+individualID);
+                        xhttp.send(formData);
                     }
                 }(newIndividual.id,newIndividual.name));
 

@@ -23,7 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
-    VERSION = 12
+    VERSION = 13
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -76,19 +76,19 @@ class Config(object):
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
-    CPU_INSTANCE_TYPES = ['t2.medium', 't3a.medium']
+    CPU_INSTANCE_TYPES = ['t2.large','t3a.large'] #['t2.medium', 't3a.medium']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
-        'parallel':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
-        'default':         {'t2.medium': 1000, 't3a.medium': 1000}  #estimated
+        'parallel':         {'t2.large': 1000, 't3a.large': 1000},  #estimated
+        'default':         {'t2.large': 1000, 't3a.large': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
     PRIVATE_SUBNET_ID = os.environ.get('PRIVATE_SUBNET_ID')
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
-    MAX_PARALLEL = 50
+    MAX_PARALLEL = 25
     MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
 
@@ -99,7 +99,7 @@ class Config(object):
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
     # Individual ID Config
-    SIMILARITY_SCORE = 0.05
+    SIMILARITY_SCORE = 0.1
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
@@ -144,7 +144,7 @@ class Config(object):
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_PARALLEL,
             'launch_delay': 180,
-            'rate': 2695,
+            'rate': 5390, #2695
             'queue_type': 'time',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -186,9 +186,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_DEFAULT,
-            'launch_delay': 180,
-            'rate': 3,
-            'queue_type': 'local',
+            'launch_delay': 120,
+            'rate': 4,
+            'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data':
