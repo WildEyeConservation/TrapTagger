@@ -228,6 +228,12 @@ function createIndivMap() {
             endDateInput.setAttribute('id', 'endDateSpatial');
             dateRange.appendChild(endDateInput)
 
+            dateError = document.createElement('div')
+            dateError.setAttribute('id', 'dateErrorSpat')
+            dateError.setAttribute('style', 'color: #DF691A; font-size: 80%')
+            dateError.innerHTML = ''
+            dateRange.appendChild(dateError)
+
             if(minDate && maxDate) {
                 startDateInput.setAttribute('min', minDate)
                 startDateInput.setAttribute('max', maxDate)
@@ -237,8 +243,9 @@ function createIndivMap() {
             
             $("#startDateSpatial").change( function() {
                 /** Listener for the date selector on the individual mapStats modal. */
-                // updateMap()
                 valid = false 
+                document.getElementById('dateErrorSpat').innerHTML = ''
+                errorMessage = ''
                 startDateSpat = document.getElementById('startDateSpatial').value
                 endDateSpat = document.getElementById('endDateSpatial').value
                 
@@ -246,11 +253,12 @@ function createIndivMap() {
                 {
                     valid = true
                 } else if (startDateSpat == '' || endDateSpat == '') {
-                    valid = false
+                    valid = true
                 } else{
             
                     if (startDateSpat > endDateSpat) {
                         valid = false
+                        errorMessage = 'Start date must be before end date.'
                     }
                     else{
                         valid = true
@@ -258,15 +266,18 @@ function createIndivMap() {
                 } 
                 if(valid){
                     updateHeatMap()
-                }  
+                } 
+                else{
+                    document.getElementById('dateErrorSpat').innerHTML = errorMessage
+                } 
                 
             })
 
             $("#endDateSpatial").change( function() {
                 /** Listener for the date selector on the individual mapStats modal. */
-                // updateMap()
-                
                 valid = false 
+                document.getElementById('dateErrorSpat').innerHTML = ''
+                errorMessage = ''
                 startDateSpat = document.getElementById('startDateSpatial').value
                 endDateSpat = document.getElementById('endDateSpatial').value
                 
@@ -274,11 +285,12 @@ function createIndivMap() {
                 {
                     valid = true
                 } else if (startDateSpat == '' || endDateSpat == '') {
-                    valid = false
+                    valid = true
                 } else{
             
                     if (startDateSpat > endDateSpat) {
                         valid = false
+                        errorMessage = 'The start date must be before end date.'
                     }
                     else{
                         valid = true
@@ -286,7 +298,11 @@ function createIndivMap() {
                 } 
                 if(valid){
                     updateHeatMap()
-                }  
+                } 
+                else{
+                    document.getElementById('dateErrorSpat').innerHTML = errorMessage
+                } 
+                
             })
 
             selectorDiv.appendChild(document.createElement('br'))
@@ -769,6 +785,12 @@ function createIndivPolarChart() {
     endDateInput.setAttribute('id', 'endDateTemp');
     dateRange.appendChild(endDateInput)
 
+    dateError = document.createElement('div')
+    dateError.setAttribute('id', 'dateErrorTemp')
+    dateError.setAttribute('style', 'color: #DF691A; font-size: 80%')
+    dateError.innerHTML = ''
+    dateRange.appendChild(dateError)
+
     startDateInput.setAttribute('min', minDate)
     startDateInput.setAttribute('max', maxDate)
     endDateInput.setAttribute('min', minDate)
@@ -1115,6 +1137,9 @@ function updateDatePolar() {
     /** Updates the date range of the active polar chart */
 
     valid = false
+    document.getElementById('dateErrorTemp').innerHTML = ''
+    errorMessage = ''
+
     startDateTemp = document.getElementById('startDateTemp').value
     endDateTemp = document.getElementById('endDateTemp').value
 
@@ -1122,11 +1147,12 @@ function updateDatePolar() {
     {
         valid = true
     } else if (startDateTemp == '' || endDateTemp == '') {
-        valid = false
+        valid = true
     } else{
 
         if (startDateTemp > endDateTemp) {
             valid = false
+            errorMessage = 'The start date must be before the end date.'
         }
         else{
             valid = true
@@ -1137,6 +1163,9 @@ function updateDatePolar() {
         for (let IDNum in polarData) {
             updatePolarData(IDNum)
         }
+    }
+    else {
+        document.getElementById('dateErrorTemp').innerHTML = errorMessage
     }
 }
 
@@ -1271,6 +1300,12 @@ function createIndivBar() {
     endDateInput.setAttribute('id', 'endDateNum');
     dateRange.appendChild(endDateInput)
 
+    dateError = document.createElement('div')
+    dateError.setAttribute('id', 'dateErrorNum')
+    dateError.setAttribute('style', 'color: #DF691A; font-size: 80%')
+    dateError.innerHTML = ''
+    dateRange.appendChild(dateError)
+
     startDateInput.setAttribute('min', minDate)
     startDateInput.setAttribute('max', maxDate)
     endDateInput.setAttribute('min', minDate)
@@ -1279,18 +1314,19 @@ function createIndivBar() {
     $("#startDateNum").change( function() {
         /** Listener for the date selector */
         valid = false
+        document.getElementById('dateErrorNum').innerHTML = ''
+        errorMessage = ''
+
         if(startDateInput.value == '' && endDateInput.value == ''){
             valid = true
         }
-        else if(startDateInput.value == ''){
-            valid = false
-        }
-        else if(endDateInput.value == ''){
-            valid = false
+        else if(startDateInput.value == '' || endDateInput.value == ''){
+            valid = true
         }
         else{
             if(startDateInput.value > endDateInput.value){
                 valid = false
+                errorMessage = 'The start date must be before the end date.'
             }
             else{
                 valid = true
@@ -1300,23 +1336,28 @@ function createIndivBar() {
         if (valid) {
             updateBarData()
         }
+        else{
+            document.getElementById('dateErrorNum').innerHTML = errorMessage
+        }
+
     })
 
     $("#endDateNum").change( function() {
         /** Listener for the date selector*/
         valid = false
+        document.getElementById('dateErrorNum').innerHTML = ''
+        errorMessage = ''
+
         if(startDateInput.value == '' && endDateInput.value == ''){
             valid = true
         }
-        else if(startDateInput.value == ''){
-            valid = false
-        }
-        else if(endDateInput.value == ''){
-            valid = false
+        else if(startDateInput.value == '' || endDateInput.value == ''){
+            valid = true
         }
         else{
             if(startDateInput.value > endDateInput.value){
                 valid = false
+                errorMessage = 'The start date must be before the end date.'
             }
             else{
                 valid = true
@@ -1325,6 +1366,9 @@ function createIndivBar() {
 
         if (valid) {
             updateBarData()
+        }
+        else{
+            document.getElementById('dateErrorNum').innerHTML = errorMessage
         }
     })
 
