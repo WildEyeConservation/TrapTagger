@@ -5296,6 +5296,8 @@ def assignLabel(clusterID):
         newClusters = []
         classifications = None
 
+        if Config.DEBUGGING: app.logger.info('Submitted labels: {}'.format(labels))
+
         # Deal with remove false detections label
         remove_false_detections = False
         if str(GLOBALS.remove_false_detections_id) in labels:

@@ -207,37 +207,47 @@ def getImagesProcessing():
 def getInstanceCount(client,queue,ami,host_ip,instance_types):
     '''Returns the count of running instances for the given queue'''
     instance_count = 0
-
-    response = client.describe_instances(
-        Filters=[
-            {
-                'Name': 'instance-type',
-                'Values': instance_types
-            },
-            {
-                'Name': 'image-id',
-                'Values': [ami]
-            },          
-            {
-                'Name': 'tag:queue',
-                'Values': [queue]
-            },
-            {
-                'Name': 'tag:host',
-                'Values': [str(host_ip)]
-            }      
-        ],
+    filters = [
+        {
+            'Name': 'instance-type',
+            'Values': instance_types
+        },
+        {
+            'Name': 'image-id',
+            'Values': [ami]
+        },          
+        {
+            'Name': 'tag:queue',
+            'Values': [queue]
+        },
+        {
+            'Name': 'tag:host',
+            'Values': [str(host_ip)]
+        },
+        {
+            'Name': 'instance-state-name',
+            'Values': ['running','pending']
+        }
+    ]
+    
+    resp = client.describe_instances(
+        Filters=filters,
         MaxResults=100
-    )    
+    )
 
-    for reservation in response['Reservations']:
-        for instance in reservation['Instances']:
-            if (instance['State']['Name'] == 'running') or (instance['State']['Name'] == 'pending'):
+    while True:
+        for reservation in resp["Reservations"]:
+            for instance in reservation["Instances"]:
                 instance_count += 1
-
-    print('EC2 instances active for {}: {}'.format(queue,instance_count))
-
-    return instance_count
+        if 'NextToken' in resp.keys() and resp['NextToken']:
+            resp = client.describe_instances(
+                Filters=filters,
+                MaxResults=100,
+                NextToken=resp['NextToken']
+            )
+        else:
+            print('EC2 instances active for {}: {}'.format(queue,instance_count))
+            return instance_count
 
 def getInstancesRequired(current_instances,queue_type,queue_length,total_images_processing,last_launch,rate,launch_delay,max_instances):
     '''Returns the number of instances required for a particular queue'''
