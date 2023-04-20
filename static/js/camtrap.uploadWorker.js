@@ -195,7 +195,8 @@ async function checkFinishedUpload() {
 
         if (filesActuallyUploaded==0) {
             // don't bother importing
-            newStatus = 'Ready'
+            // newStatus = 'Ready'
+            newStatus = 'Complete'
         } else {
             newStatus = 'Complete'
         }
