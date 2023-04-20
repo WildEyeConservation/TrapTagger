@@ -1326,7 +1326,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
     try:
         #Prep bacthes
         GLOBALS.results_queue = []
-        pool = Pool(processes=4)
+        pool = Pool(processes=1)
         isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
         print('Received importImages task with {} batches.'.format(len(batch)))
         for item in batch:
