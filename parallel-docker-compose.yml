@@ -92,7 +92,7 @@ services:
             - PARALLEL_AMI=${PARALLEL_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
-            - WORKER_NAME=${WORKER_NAME}
+            - WORKER_NAME=${WORKER_NAME}2
             - MAIN_GIT_REPO=${MAIN_GIT_REPO}
             - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
             - BUCKET=${BUCKET}

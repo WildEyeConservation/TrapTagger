@@ -105,6 +105,7 @@ while $flag; do
     # Spot instance has been re-allocated
     echo "Spot instance re-allocated! Shutting down..."
     docker exec parallel_worker python3 cleanup_worker.py || STATUS=$?
+    docker exec parallel_worker2 python3 cleanup_worker.py || STATUS=$?
     echo "Cleanup status: "$STATUS
     flag=false
   fi
@@ -126,6 +127,7 @@ while $flag; do
     if [ $IDLE_COUNT == 2 ]; then
       echo "Worker idle. Shutting down..."
       docker exec parallel_worker python3 cleanup_worker.py || STATUS=$?
+      docker exec parallel_worker2 python3 cleanup_worker.py || STATUS=$?
       echo "Cleanup status: "$STATUS
       flag=false
     fi
