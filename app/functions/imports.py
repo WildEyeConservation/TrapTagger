@@ -47,6 +47,7 @@ import boto3
 import time
 import requests
 import random
+import multiprocessing
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -1198,7 +1199,7 @@ def setupDatabase():
 
     db.session.commit()
 
-def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external):
+def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock):
     ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector. '''
 
     try:
@@ -1253,6 +1254,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         if not pipeline:
                             # don't compress and upload the image if its a training-data pipeline
                             print('Compressing {}'.format(filename))
+                            lock.acquire()
                             with wandImage(filename=temp_file.name).convert('jpeg') as img:
                                 # This is required, because if we don't have it ImageMagick gets too clever for it's own good
                                 # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
@@ -1264,6 +1266,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                     GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
                                 # bio=BytesIO(img.make_blob())
                                 # b64blob=base64.b64encode(bio.getvalue()).decode()
+                            lock.release()
 
                         ########Blob Approach
                         #The wandImage approach seems lossy, and the double resize seems dangerous
@@ -1326,7 +1329,8 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
     try:
         #Prep bacthes
         GLOBALS.results_queue = []
-        pool = Pool(processes=1)
+        pool = Pool(processes=4)
+        lock = multiprocessing.Lock()
         isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
         print('Received importImages task with {} batches.'.format(len(batch)))
         for item in batch:
@@ -1355,7 +1359,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
                 
             for filenames in chunker(jpegs,200):
-                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external))
+                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock))
 
         pool.close()
         pool.join()
