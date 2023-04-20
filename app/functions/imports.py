@@ -1254,6 +1254,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         if not pipeline:
                             # don't compress and upload the image if its a training-data pipeline
                             print('Compressing {}'.format(filename))
+                            # Wand does not appear to be thread safe
                             lock.acquire()
                             with wandImage(filename=temp_file.name).convert('jpeg') as img:
                                 # This is required, because if we don't have it ImageMagick gets too clever for it's own good
@@ -1778,7 +1779,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/2)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/16)
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -1811,7 +1812,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                     else:
                         batch_count += len(jpegs) - (n*chunk_size)
 
-                    if (batch_count / ((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5)) ) >= 1:
+                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/8) ) >= 1:
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
@@ -1893,7 +1894,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/2)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/16)
     for dirpath in df['dirpath'].unique():
         tags = tgcode.findall(dirpath.replace(survey.name+'/',''))
 
@@ -1941,7 +1942,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 else:
                     batch_count += number_of_images - (n*chunk_size)
 
-                if (batch_count / ((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5)) ) >= 1:
+                if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/8) ) >= 1:
                     results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
@@ -2157,7 +2158,7 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .distinct().count()
 
-    chunk_size = round(Config.QUEUES['parallel']['rate']/2)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/16)
     number_of_chunks = math.ceil(images/chunk_size)
 
     # for chunk in chunker(images,round(Config.QUEUES['parallel']['rate']/2)):
