@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
