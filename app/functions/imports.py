@@ -47,7 +47,6 @@ import boto3
 import time
 import requests
 import random
-import multiprocessing
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -1331,7 +1330,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
         #Prep bacthes
         GLOBALS.results_queue = []
         pool = Pool(processes=4)
-        lock = multiprocessing.Lock()
         isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
         print('Received importImages task with {} batches.'.format(len(batch)))
         for item in batch:
@@ -1360,7 +1358,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
                 
             for filenames in chunker(jpegs,200):
-                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock))
+                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock))
 
         pool.close()
         pool.join()
