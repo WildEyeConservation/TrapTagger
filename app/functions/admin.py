@@ -834,6 +834,21 @@ def reclusterAfterTimestampChange(survey_id):
                 cluster.tags = db.session.query(Tag).join(Labelgroup,Tag.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
             db.session.commit()
 
+            # copy notes
+            oldClusters = db.session.query(Cluster).filter(Cluster.notes!=None).filter(Cluster.notes!='').filter(Cluster.task==task).distinct().all()
+            for oldCluster in oldClusters:
+                newClusters = db.session.query(Cluster)\
+                                        .filter(Cluster.task==newTask)\
+                                        .join(Image,Cluster.images)\
+                                        .filter(Image.id.in_([r.id for r in oldCluster.images]))\
+                                        .distinct().all()
+                for newCluster in newClusters:
+                    if newCluster.notes:
+                        newCluster.notes += oldCluster.notes
+                    else:
+                        newCluster.notes = oldCluster.notes
+            db.session.commit()
+
             # migrate individuals to new task
             individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
             for individual in individuals:
