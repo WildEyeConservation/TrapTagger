@@ -1254,7 +1254,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         print('Compressing {}'.format(filename))
                         
                         # Wand does not appear to be thread safe
-                        lock.acquire()
+                        # lock.acquire()
                         try:
                             with wandImage(filename=temp_file.name).convert('jpeg') as img:
                                 # This is required, because if we don't have it ImageMagick gets too clever for it's own good
@@ -1270,8 +1270,8 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         except:
                             app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
                             continue
-                        finally:
-                            lock.release()
+                        # finally:
+                        #     lock.release()
 
                     ########Blob Approach
                     #The wandImage approach seems lossy, and the double resize seems dangerous
