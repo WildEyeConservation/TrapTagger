@@ -1249,12 +1249,13 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         # don't need to download the image or even extract a timestamp if pipelining
                         timestamp = None
                     
-                    try:
-                        if not pipeline:
-                            # don't compress and upload the image if its a training-data pipeline
-                            print('Compressing {}'.format(filename))
-                            # Wand does not appear to be thread safe
-                            lock.acquire()
+                    if not pipeline:
+                        # don't compress and upload the image if its a training-data pipeline
+                        print('Compressing {}'.format(filename))
+                        
+                        # Wand does not appear to be thread safe
+                        lock.acquire()
+                        try:
                             with wandImage(filename=temp_file.name).convert('jpeg') as img:
                                 # This is required, because if we don't have it ImageMagick gets too clever for it's own good
                                 # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
@@ -1266,24 +1267,28 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                     GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
                                 # bio=BytesIO(img.make_blob())
                                 # b64blob=base64.b64encode(bio.getvalue()).decode()
+                        except:
+                            app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+                            continue
+                        finally:
                             lock.release()
 
-                        ########Blob Approach
-                        #The wandImage approach seems lossy, and the double resize seems dangerous
-                        # with open(temp_file.name, "rb") as f:
-                        #     bio = BytesIO(f.read())
-                        # b64blob=base64.b64encode(bio.getvalue()).decode()
-                        # batch.append(b64blob)
+                    ########Blob Approach
+                    #The wandImage approach seems lossy, and the double resize seems dangerous
+                    # try:
+                    #     with open(temp_file.name, "rb") as f:
+                    #         bio = BytesIO(f.read())
+                    #     b64blob=base64.b64encode(bio.getvalue()).decode()
+                    #     batch.append(b64blob)
+                    # except:
+                    #     app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+                    #     continue
 
-                        #########Local Download
-                        batch.append(dirpath + '/' + filename)
+                    #########Local Download
+                    batch.append(dirpath + '/' + filename)
 
-                        image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
-                        images.append(image)
-                        
-                    except:
-                        app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
-                        continue
+                    image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
+                    images.append(image)
         
         if batch:
             print('Acquiring lock')
