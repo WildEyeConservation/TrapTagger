@@ -423,6 +423,7 @@ def getAllIndividuals():
                         .join(Image)\
                         .join(Task,Individual.tasks)\
                         .filter(Task.id.in_(task_ids))\
+                        .filter(Task.status.in_(['SUCCESS', 'Stopped', 'Ready']))\
                         .filter(Individual.name!='unidentifiable')\
                         .filter(Individual.active==True)
 
@@ -7199,7 +7200,6 @@ def getIndividualIDSurveysTasks():
 
     return json.dumps(reply)
 
-
 @app.route('/writeInfoToImages/<type_id>/<id>')
 @login_required
 def writeInfoToImages(type_id,id):
@@ -7381,5 +7381,98 @@ def writeInfoToImages(type_id,id):
     else:
         return json.dumps('error')
     
+@app.route('/getIndividualAssociations/<individual_id>/<order>') 
+@login_required
+def getIndividualAssociations(individual_id, order):
+    ''' Returns the associated individuals for a specific individual '''
+
+    page = request.args.get('page', 1, type=int)
+    next_page = None
+    prev_page = None 
+
+    individual = db.session.query(Individual).get(individual_id)
+
+    reply = []
+
+    if individual and (individual.tasks[0].survey.user==current_user):
+
+        clusterSQ = db.session.query(Cluster)\
+            .join(Task)\
+            .join(Image,Cluster.images)\
+            .join(Detection)\
+            .filter(Detection.individuals.contains(individual))\
+            .filter(Task.id.in_([r.id for r in individual.tasks]))\
+            .subquery()
+
+        imageSQ = db.session.query(Image)\
+            .join(Detection)\
+            .filter(Detection.individuals.contains(individual))\
+            .subquery()
+
+        associations = db.session.query(Individual.id,Individual.name,func.count(distinct(Cluster.id)).label('cluster_count'),func.count(distinct(imageSQ.c.id)).label('image_count'))\
+            .join(Task,Individual.tasks)\
+            .join(Detection,Individual.detections)\
+            .join(Image)\
+            .join(Cluster,Image.clusters)\
+            .join(clusterSQ,clusterSQ.c.id==Cluster.id)\
+            .outerjoin(imageSQ,imageSQ.c.id==Image.id)\
+            .filter(Task.id.in_([r.id for r in individual.tasks]))\
+            .filter(Individual.name!='unidentifiable')\
+            .filter(Individual.id!=individual.id)\
+            .group_by(Individual.id)
+
+        # Order the associations
+        if order == 'a1':
+            # Asc Name
+            associations = associations.order_by(Individual.name)     
+        elif order == 'a2':
+            # Asc Cluster Count
+            associations = associations.order_by(func.count(distinct(Cluster.id)).asc())        
+        elif order == 'a3':
+            # Asc Images count
+            associations = associations.order_by(func.count(distinct(Image.id)).asc())            
+        elif order == 'd1':
+            # Desc Name
+            associations = associations.order_by(desc(Individual.name))
+        elif order == 'd2':
+            # Desc Cluster count
+            associations = associations.order_by(func.count(distinct(Cluster.id)).desc())  
+        elif order == 'd3':
+            # Desc Sightings count
+            associations = associations.order_by(func.count(distinct(Image.id)).desc())
+        else:
+            # Default order
+            associations = associations.order_by(func.count(distinct(Cluster.id)).desc())
+
+        # Paginate
+        associations = associations.paginate(page, 3, False)
+
+        for association in associations.items:
+
+            associated_individual = db.session.query(Individual).get(association[0])
+
+            image = db.session.query(Image)\
+                .join(Detection)\
+                .filter(Detection.individuals.contains(associated_individual))\
+                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                .filter(Detection.static==False)\
+                .filter(~Detection.status.in_(['deleted','hidden']))\
+                .order_by(desc(Image.detection_rating)).first()
+
+            reply.append(
+                {
+                    'id': association[0],
+                    'name': association[1],
+                    'cluster_count': association[2],
+                    'image_count': association[3],	
+                    'url': image.camera.path + '/' + image.filename
+                }
+            )
+
+        next_page = associations.next_num if associations.has_next else None
+        prev_page = associations.prev_num if associations.has_prev else None
+
+    return json.dumps({'associations': reply, 'next': next_page, 'prev': prev_page})
+
 
 
