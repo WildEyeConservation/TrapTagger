@@ -1535,7 +1535,7 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                         .distinct().order_by(Tag.description).all()
 
     imagePaths = []
-    baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
+    baseName = image.camera.trapgroup.tag + '_' + stringify_timestamp(image.corrected_timestamp)
     for label in imageLabels:
         
         if (label.id==GLOBALS.nothing_id) and not include_empties:
@@ -2083,7 +2083,7 @@ def generate_coco(self,task_id):
                 images.append({
                     "id" : str(image.id),
                     "file_name" : '/'.join(image.camera.path.split('/')[1:])+'/'+image.filename,
-                    "datetime": str(image.corrected_timestamp),
+                    "datetime": stringify_timestamp(image.corrected_timestamp),
                     "seq_id": str(cluster.id),
                     "seq_num_frames": len(cluster.images[:]),
                     "location": image.camera.trapgroup.tag,

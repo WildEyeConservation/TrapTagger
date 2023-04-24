@@ -1238,7 +1238,7 @@ def image_digest(image,detections):
     '''Returns an image and detection dictionary for the given image and detections'''
     return {'id': image.id,
             'url': image.camera.path + '/' + image.filename,
-            'timestamp': (image.corrected_timestamp-datetime(1970,1,1)).total_seconds(),
+            'timestamp': numify_timestamp(image.corrected_timestamp),
             'camera': image.camera_id,
             'rating': image.detection_rating,
             'detections': [{'id': detection.id,
@@ -1252,7 +1252,7 @@ def image_digest(image,detections):
                             for detection in detections]
     }
 
-def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
+def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVideo):
     '''Outputs a cluster dictionary for consumption by the client's browser.'''
 
     startTime = time.time()
@@ -1277,7 +1277,7 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
         for image in sortedImages:
             output = {'id': image.id,
                     'url': image.camera.path + '/' + image.filename,
-                    'timestamp': (image.corrected_timestamp-datetime(1970,1,1)).total_seconds(),
+                    'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
                     'latitude': image.camera.trapgroup.latitude,
@@ -1307,79 +1307,92 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user):
     
     else:
 
-        if (id is not None) or isBounding:
-            sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
-            required = []
-        elif '-4' in taggingLevel:
-            # If its for individual ID, send entire cluster, and order the images chronologically
-            sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp,Image.filename).all()
-            required = []
-        else:
-            sortedImages = db.session.query(Image).filter(Image.required_for.contains(cluster)).all()
-            required = [n for n in range(len(sortedImages))]
-            if len(sortedImages) < 5:
-                images = db.session.query(Image)\
-                            .filter(Image.clusters.contains(cluster))\
-                            .filter(~Image.id.in_([r.id for r in sortedImages]))\
-                            .order_by(desc(Image.detection_rating))\
-                            .limit(5-len(sortedImages))\
-                            .all()
-                sortedImages.extend(images)
-            
-        endTime = time.time()
-        print("getImages query completed in {}".format(endTime - startTime))
+        if sendVideo:
+            videos = db.session.query(Video).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).all()
 
-        if '-4' in taggingLevel:
-            tL = re.split(',',taggingLevel)
-            species = tL[1]
-            label = db.session.query(Label).filter(Label.task_id==cluster.task_id).filter(Label.description==species).first()
+            if videos:
+                images = [{'id': video.id,
+                    'url': video.camera.path.split('_video_images_')[0] + '/' + video.filename,
+                    'timestamp': numify_timestamp(video.camera.images[0].corrected_timestamp),
+                    'camera': video.camera_id,
+                    'rating': 1,
+                    'detections': []
+                } for video in videos]
 
-            images = []
-            for image in sortedImages:
-                exclude  = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Individual,Detection.individuals)\
-                                    .filter(Detection.image_id==image.id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                                    .filter(Detection.static==False)\
-                                    .filter(Labelgroup.task_id==cluster.task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.tasks.contains(cluster.task))\
-                                    .filter(Individual.species==species)\
-                                    .distinct().all()
-
-                detections = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .filter(Detection.image_id==image.id)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                                    .filter(Detection.static==False)\
-                                    .filter(Labelgroup.task_id==cluster.task_id)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(~Detection.id.in_([r.id for r in exclude]))\
-                                    .distinct().all()
+        if (sendVideo==False) or (len(videos)==0):
+            if (id is not None) or isBounding:
+                sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
+                required = []
+            elif '-4' in taggingLevel:
+                # If its for individual ID, send entire cluster, and order the images chronologically
+                sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp,Image.filename).all()
+                required = []
+            else:
+                sortedImages = db.session.query(Image).filter(Image.required_for.contains(cluster)).all()
+                required = [n for n in range(len(sortedImages))]
+                if len(sortedImages) < 5:
+                    images = db.session.query(Image)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(~Image.id.in_([r.id for r in sortedImages]))\
+                                .order_by(desc(Image.detection_rating))\
+                                .limit(5-len(sortedImages))\
+                                .all()
+                    sortedImages.extend(images)
                 
-                images.append(image_digest(image,detections))
+            endTime = time.time()
+            print("getImages query completed in {}".format(endTime - startTime))
 
-        else:
-            images = [image_digest(
-                        image,
-                        [detection for detection in image.detections if (
-                            (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
-                            (detection.status not in ['deleted','hidden']) and 
-                            (detection.static == False)
-                        )]
-                    ) for image in sortedImages]
+            if '-4' in taggingLevel:
+                tL = re.split(',',taggingLevel)
+                species = tL[1]
+                label = db.session.query(Label).filter(Label.task_id==cluster.task_id).filter(Label.description==species).first()
 
-        if isBounding:
-            for image in images:
-                for detection in image['detections']:
-                    labelgroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==cluster.task_id).filter(Labelgroup.detection_id==detection['id']).first()
-                    if labelgroup.labels != []:
-                        detection['label'] = labelgroup.labels[0].description
-                    else:
-                        detection['label'] = ''
+                images = []
+                for image in sortedImages:
+                    exclude  = db.session.query(Detection)\
+                                        .join(Labelgroup)\
+                                        .join(Individual,Detection.individuals)\
+                                        .filter(Detection.image_id==image.id)\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                                        .filter(Detection.static==False)\
+                                        .filter(Labelgroup.task_id==cluster.task_id)\
+                                        .filter(Labelgroup.labels.contains(label))\
+                                        .filter(Individual.tasks.contains(cluster.task))\
+                                        .filter(Individual.species==species)\
+                                        .distinct().all()
+
+                    detections = db.session.query(Detection)\
+                                        .join(Labelgroup)\
+                                        .filter(Detection.image_id==image.id)\
+                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                                        .filter(Detection.static==False)\
+                                        .filter(Labelgroup.task_id==cluster.task_id)\
+                                        .filter(Labelgroup.labels.contains(label))\
+                                        .filter(~Detection.id.in_([r.id for r in exclude]))\
+                                        .distinct().all()
+                    
+                    images.append(image_digest(image,detections))
+
+            else:
+                images = [image_digest(
+                            image,
+                            [detection for detection in image.detections if (
+                                (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
+                                (detection.status not in ['deleted','hidden']) and 
+                                (detection.static == False)
+                            )]
+                        ) for image in sortedImages]
+
+            if isBounding:
+                for image in images:
+                    for detection in image['detections']:
+                        labelgroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==cluster.task_id).filter(Labelgroup.detection_id==detection['id']).first()
+                        if labelgroup.labels != []:
+                            detection['label'] = labelgroup.labels[0].description
+                        else:
+                            detection['label'] = ''
 
         cluster_labels = []
         cluster_label_ids = []

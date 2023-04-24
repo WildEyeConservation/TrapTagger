@@ -381,8 +381,46 @@ def cluster_trapgroup(self,trapgroup_id):
         survey = trapgroup.survey
 
         #Check if trapgroup has already been clustered
-        if (db.session.query(Cluster).join(Image, Cluster.images).join(Camera).filter(Camera.trapgroup==trapgroup).first()):
+        previouslyClustered = db.session.query(Cluster).join(Image, Cluster.images).join(Camera).filter(Camera.trapgroup==trapgroup).first()
 
+        # Timestampless images from videos should still be grouped together
+        for task in survey.tasks:
+            sq = db.session.query(Image.id).join(Cluster, Image.clusters).filter(Cluster.task==task).subquery()
+            videos = db.session.query(Video)\
+                        .join(Camera)\
+                        .join(Image)\
+                        .outerjoin(sq, sq.c.id==Image.id)\
+                        .filter(Camera.trapgroup==trapgroup)\
+                        .filter(Image.corrected_timestamp==None)\
+                        .filter(sq.c.id==None)\
+                        .distinct().all()
+            
+            for chunk in chunker(videos,100):
+                for video in chunk:
+                    cluster = Cluster(task_id=task.id)
+                    db.session.add(cluster)
+                    cluster.images = video.camera.images
+                db.session.commit()
+
+        # Handle the rest of the images without timestamps
+        for task in survey.tasks:
+            sq = db.session.query(Image.id).join(Cluster, Image.clusters).filter(Cluster.task==task).subquery()
+            images = db.session.query(Image)\
+                        .outerjoin(sq, sq.c.id==Image.id)\
+                        .join(Camera)\
+                        .filter(Camera.trapgroup==trapgroup)\
+                        .filter(Image.corrected_timestamp==None)\
+                        .filter(sq.c.id==None)\
+                        .all()
+
+            for chunk in chunker(images,1000):
+                for image in chunk:
+                    cluster = Cluster(task_id=task.id)
+                    db.session.add(cluster)
+                    cluster.images.append(image)
+                db.session.commit()
+
+        if previouslyClustered:
             #Clustering an already-clustered survey, trying to preserve labels etc.
             downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
             for task in survey.tasks:
@@ -496,7 +534,7 @@ def cluster_trapgroup(self,trapgroup_id):
 
         else:
             #Clustering with a clean slate
-            images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).order_by(Image.corrected_timestamp).all()
+            images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).all()
             prev = None
             if images != []:
                 for image in images:
@@ -1244,7 +1282,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                 if field in t.keys():
                                     timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
                                     break
-                            assert timestamp
+                            # assert timestamp
                         except:
                             app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                             continue
@@ -1772,7 +1810,10 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
             label_source (str): Exif field where labels should be extracted from
     '''
     
+    isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
+    tag = re.compile(tag)
+    
     localsession=db.session()
     survey = Survey.get_or_create(localsession,name=name,user_id=user_id,trapgroup_code=tag)
     survey.status = 'Importing'
@@ -1780,8 +1821,37 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     survey.processing_initialised = True
     localsession.commit()
     sid=survey.id
-    tag = re.compile(tag)
 
+    # Handle videos first so that their frames can be imported like normal images
+    results = []
+    for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+        videos = list(filter(isVideo.search, filenames))
+        if len(videos) and not any(exclusion in dirpath for exclusion in exclusions):
+            tags = tag.findall(dirpath.replace(survey.name+'/',''))
+            if len(tags) > 0:
+                trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                localsession.commit()
+                for batch in chunker(videos,50):
+                    results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
+
+    localsession.close()
+
+    GLOBALS.lock.acquire()
+    with allow_join_result():
+        for result in results:
+            try:
+                result.get()
+            except Exception:
+                app.logger.info(' ')
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(traceback.format_exc())
+                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                app.logger.info(' ')
+            result.forget()
+    GLOBALS.lock.release()
+
+    # Now handle images
+    localsession=db.session()
     results = []
     batch_count = 0
     batch = []
@@ -2300,7 +2370,7 @@ def adjustTimestamps(trapgroup_id,data):
     for camera in trapgroup.cameras:
         if camera.id in data.keys():
             adjustment = data[camera.id]
-            images = db.session.query(Image).filter(Image.camera_id==camera.id).all()
+            images = db.session.query(Image).filter(Image.camera_id==camera.id).filter(Image.timestamp!=None).all()
             for chunk in chunker(images,500):
                 for image in chunk:
                     image.corrected_timestamp += adjustment
@@ -2319,7 +2389,7 @@ def resetTimestamps(trapgroup_id,data):
     for camera in trapgroup.cameras:
         if camera.id in data.keys():
             adjustment = data[camera.id]
-            images = db.session.query(Image).filter(Image.camera_id==camera.id).all()
+            images = db.session.query(Image).filter(Image.camera_id==camera.id).filter(Image.timestamp!=None).all()
             for image in images:
                 image.corrected_timestamp -= adjustment
     db.session.commit()
@@ -3147,59 +3217,93 @@ def validate_csv(stream,survey_id):
 
     return False
 
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
+    '''Celery wrapper for extract_images_from_video'''
+    try:
+        localsession=db.session()
+        for filename in batch:
+            extract_images_from_video(localsession, dirpath+'/'+filename, bucket, trapgroup_id)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        localsession.remove()
+
+    return True
 
 # Function needs updating and testing
-def extract_images_from_video(sourceKey, bucketName):
+def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id):
     ''' Downloads video from bucket and extracts images from it. The images are then uploaded to the bucket. '''
 
-    splits = sourceKey.rsplit('/', 1)
-    video_path = splits[0]
-    video_name = splits[-1].split('.')[0]
+    try:
+        splits = sourceKey.rsplit('/', 1)
+        video_path = splits[0]
+        filename = sourceKey.split('/')[-1]
+        video_name = splits[-1].split('.')[0]
 
-    # Download video
-    with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file:
-        GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
+        # If camera & video already exist - it has already been processed
+        camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_')
+        video = localsession.query(Video).filter(Video.camera==camera).filter(Video.filename==filename).first()
 
-        video_timestamp = ffmpeg.probe(temp_file.name)["streams"][0]['tags']['creation_time']
-        if video_timestamp:
-            video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+        if video==None:
+            # Download video
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file:
+                GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
 
-        # Extract images
-        video = cv2.VideoCapture(temp_file.name)
-        video_fps = video.get(cv2.CAP_PROP_FPS)
-        video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+                video_timestamp = ffmpeg.probe(temp_file.name)["streams"][0]['tags']['creation_time']
+                if video_timestamp:
+                    video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
 
-        max_frames = 50     # Maximum number of frames to extract
-        fps_default = 1     # Default fps to extract frames at (frame per second)
-        frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
+                # Extract images
+                video = cv2.VideoCapture(temp_file.name)
+                video_fps = video.get(cv2.CAP_PROP_FPS)
+                video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
 
-        fps = min(max_frames / frames_default_fps, fps_default)  
+                max_frames = 50     # Maximum number of frames to extract
+                fps_default = 1     # Default fps to extract frames at (frame per second)
+                frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
+
+                fps = min(max_frames / frames_default_fps, fps_default)  
+                    
+                ret, frame = video.read()
+                count = 0
+                count_frame = 0
+                while ret:
+                    if count % (video_fps // fps) == 0:
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
+                            cv2.imwrite(temp_file_img.name, frame)
+                            # Timestamp
+                            if video_timestamp:
+                                image_timestamp = video_timestamp + timedelta(seconds=count_frame/fps)
+                                exif_time = image_timestamp.strftime('%Y:%m:%d %H:%M:%S')
+                                exif_dict = {"Exif":{piexif.ExifIFD.DateTimeOriginal: exif_time}}
+                                exif_bytes = piexif.dump(exif_dict)
+                                # Write exif data to image
+                                piexif.insert(exif_bytes, temp_file_img.name)
+
+                            # Upload image to bucket
+                            image_key = video_path + '/_video_images_/' +  video_name + '_frame%d.jpg' % count_frame
+                            GLOBALS.s3client.put_object(Bucket=bucketName+'-comp',Key=image_key,Body=temp_file_img)
+                            count_frame += 1
+                    ret, frame = video.read()
+                    count += 1
+
+                video.release()
+                cv2.destroyAllWindows()
             
-        ret, frame = video.read()
-        count = 0
-        count_frame = 0
-        while ret:
-            if count % (video_fps // fps) == 0:
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
-                    cv2.imwrite(temp_file_img.name, frame)
-                    # Timestamp
-                    if video_timestamp:
-                        image_timestamp = video_timestamp + timedelta(seconds=count_frame/fps)
-                        exif_time = image_timestamp.strftime('%Y:%m:%d %H:%M:%S')
-                        exif_dict = {"Exif":{piexif.ExifIFD.DateTimeOriginal: exif_time}}
-                        exif_bytes = piexif.dump(exif_dict)
-                        # Write exif data to image
-                        piexif.insert(exif_bytes, temp_file_img.name)
+            video = Video(camera=camera, filename=filename)
+            localsession.add(video)
+            localsession.commit()
 
-                    # Upload image to bucket
-                    image_key = video_path + '/video_images/' +  video_name + '_frame%d.jpg' % count_frame
-                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
-                    count_frame += 1
-            ret, frame = video.read()
-            count += 1
-
-        video.release()
-        cv2.destroyAllWindows()
+    except:
+        app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
 
     return True
 

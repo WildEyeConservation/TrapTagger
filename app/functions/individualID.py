@@ -479,7 +479,10 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                                         distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
                                         if distanceScore < 1: distanceScore=1
 
-                                    time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
+                                    if detection1.image.corrected_timestamp and detection2.image.corrected_timestamp:
+                                        time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
+                                    else:
+                                        time = 0
                                     timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
                                     if timeScore < 1: timeScore=1
 

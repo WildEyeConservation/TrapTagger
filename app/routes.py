@@ -682,7 +682,7 @@ def getIndividual(individual_id):
             reply.append({
                             'id': image.id,
                             'url': image.camera.path + '/' + image.filename,
-                            'timestamp': image.corrected_timestamp.strftime("%Y/%m/%d %H:%M:%S"), 
+                            'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
                             {   
                                 'id': image.camera.trapgroup.id,
@@ -739,8 +739,8 @@ def getCameraStamps():
                 temp_results[row[0]] = []
             temp_results[row[0]].append({    'id': row[1],
                                             'folder': row[2],
-                                            'timestamp': row[3].strftime("%Y/%m/%d %H:%M:%S"),
-                                            'corrected_timestamp': row[4].strftime("%Y/%m/%d %H:%M:%S")})
+                                            'timestamp': stringify_timestamp(row[3]),
+                                            'corrected_timestamp': stringify_timestamp(row[4])})
 
         for key in temp_results.keys():
             reply.append({'tag': key, 'cameras': temp_results[key]})
@@ -3666,7 +3666,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
             for image in sortedImages:
                 output = {'id': image.id,
                         'url': image.camera.path + '/' + image.filename,
-                        'timestamp': (image.corrected_timestamp-datetime(1970,1,1)).total_seconds(),
+                        'timestamp': numify_timestamp(image.corrected_timestamp),
                         'camera': image.camera_id,
                         'rating': image.detection_rating,
                         'latitude': image.camera.trapgroup.latitude,
@@ -4172,7 +4172,7 @@ def getSuggestion(individual_id):
 
             images = [{'id': image.id,
                     'url': image.camera.path + '/' + image.filename,
-                    'timestamp': (image.corrected_timestamp-datetime(1970,1,1)).total_seconds(),
+                    'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
                     'latitude': image.camera.trapgroup.latitude,
@@ -4294,7 +4294,11 @@ def getSuggestion(individual_id):
                                                 iou_factor = iouWeight*((1-iou)**2)
 
                                         distance = coordinateDistance(detection1.image.camera.trapgroup.latitude, detection1.image.camera.trapgroup.longitude, detection2.image.camera.trapgroup.latitude, detection2.image.camera.trapgroup.longitude)
-                                        time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
+                                        
+                                        if detection1.image.corrected_timestamp and detection2.image.corrected_timestamp:
+                                            time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
+                                        else:
+                                            time = 0
                                         
                                         distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
                                         if distanceScore < 1: distanceScore=1
@@ -4346,8 +4350,17 @@ def getIndividualInfo(individual_id):
         family.extend(siblings)
         family = list(set(family))
 
-        firstSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()[0].strftime("%Y/%m/%d %H:%M:%S")
-        lastSeen = db.session.query(Image.corrected_timestamp).join(Detection).filter(Detection.individuals.contains(individual)).order_by(desc(Image.corrected_timestamp)).first()[0].strftime("%Y/%m/%d %H:%M:%S")
+        firstSeen = db.session.query(Image).join(Detection).filter(Image.corrected_timestamp!=None).filter(Detection.individuals.contains(individual)).order_by(Image.corrected_timestamp).first()
+        if firstSeen:
+            firstSeen = stringify_timestamp(firstSeen.corrected_timestamp)
+        else:
+            firstSeen = None
+
+        lastSeen = db.session.query(Image).join(Detection).filter(Image.corrected_timestamp!=None).filter(Detection.individuals.contains(individual)).order_by(desc(Image.corrected_timestamp)).first()
+        if lastSeen:
+            lastSeen = stringify_timestamp(lastSeen.corrected_timestamp)
+        else:
+            lastSeen = None
 
         return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen]})
     else:
@@ -4539,8 +4552,10 @@ def get_clusters():
     taggingLevel = task.tagging_level
 
     if id:
+        sendVideo = True
         clusters = [cluster]
     else:
+        sendVideo = False
 
         if '-5' in taggingLevel:
             # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
@@ -4598,7 +4613,7 @@ def get_clusters():
             current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
             db.session.commit()
             break
-        reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user))
+        reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,sendVideo))
 
     if (id is None) and (current_user.clusters_allocated >= task.size):
         reply['info'].append(Config.FINISHED_CLUSTER)
@@ -4694,7 +4709,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
             if int(clusterID) != 0: #if it is not zero, then it isn't the first of a new cluster
                 cluster = db.session.query(Cluster).get(int(clusterID))
-                images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+                images = db.session.query(Image).filter(Image.corrected_timestamp!=None).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
                 if (int(index) == (len(images)-1)) and (knockedstatus == '1'):
                     #beginning and end were knocked - don't need to do anything
                     app.logger.info('Beginning and end were knocked - doing nothing.')
@@ -5469,7 +5484,7 @@ def assignLabel(clusterID):
                                                         current_user.clusters_allocated -= (len(clusters) - len(newClusters))
                                                         db.session.commit()
                                                         break
-                                                    newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user))
+                                                    newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,False))
 
                                                 if current_user.clusters_allocated >= task.size:
                                                     newClusters.append(Config.FINISHED_CLUSTER)
@@ -6524,7 +6539,7 @@ def undoknockdown(imageId, clusterId, label):
 
     image = db.session.query(Image).get(int(imageId))
     task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
-    if image and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user==task.survey.user)) and (task.survey_id == image.camera.trapgroup.survey_id):
+    if image and (image.corrected_timestamp) and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user==task.survey.user)) and (task.survey_id == image.camera.trapgroup.survey_id):
         app.logger.info(str(clusterId) + ' undo knock down.')
 
         db.session.commit()
@@ -6595,7 +6610,7 @@ def knockdown(imageId, clusterId):
                         .order_by(desc(Image.corrected_timestamp)) \
                         .first()
 
-        if (rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1):
+        if (rootImage.corrected_timestamp==None) or (first_im.corrected_timestamp==None) or ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1)):
             #Still setting up
             print('Still setting up.')
             if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):

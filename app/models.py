@@ -119,6 +119,7 @@ class Camera(db.Model):
     flagged = db.Column(db.Boolean, default=False, index=True)
     images = db.relationship('Image', backref='camera', lazy='dynamic')
     trapgroup_id = db.Column(db.Integer, db.ForeignKey('trapgroup.id'))
+    videos = db.relationship('Video', backref='camera', lazy='dynamic')
 
     def __repr__(self):
         return '<Camera {}>'.format(self.path)
@@ -461,3 +462,20 @@ class Classifier(db.Model):
 
     def __repr__(self):
         return '<Classifier {}>'.format(self.name)
+
+
+class Video(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(64), index=False)
+    camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Video {}>'.format(self.filename)
+    
+    # @staticmethod
+    # def get_or_create(session, path, filename):
+    #     video = db.session.query(Video).join(Camera).filter(Camera.path==path).filter(Video.filename==filename).first()
+    #     if not (video):
+    #         video = Video(filename=filename)
+    #         session.add(video)
+    #     return video

@@ -960,11 +960,13 @@ def changeTimestamps(self,survey_id,timestamps):
 
                 images = db.session.query(Image)\
                                 .filter(Image.camera_id==int(camera_id))\
+                                .filter(Image.timestamp!=None)\
                                 .order_by(Image.corrected_timestamp).all()
-                                
-                delta = timestamp-images[0].timestamp
-                for image in images:
-                    image.corrected_timestamp = image.timestamp + delta
+
+                if images:            
+                    delta = timestamp-images[0].timestamp
+                    for image in images:
+                        image.corrected_timestamp = image.timestamp + delta
             except:
                 # timestamp probably incorrectly formatted
                 pass

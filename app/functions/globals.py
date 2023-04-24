@@ -1381,7 +1381,7 @@ def splitClusterAndUnknock(self,oldClusterID, SplitPoint):
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
         newCluster = Cluster(task_id=task_id, timestamp = datetime.utcnow(), labels=[downLabel])
         db.session.add(newCluster)
-        images = db.session.query(Image).filter(Image.clusters.contains(oldCluster)).order_by(Image.corrected_timestamp).all()
+        images = db.session.query(Image).filter(Image.corrected_timestamp!=None).filter(Image.clusters.contains(oldCluster)).order_by(Image.corrected_timestamp).all()
 
         newCluster.images = images[SplitPoint:]
         oldCluster.images = images[:SplitPoint]
