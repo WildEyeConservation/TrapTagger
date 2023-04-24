@@ -47,6 +47,9 @@ import boto3
 import time
 import requests
 import random
+import cv2
+import piexif
+import ffmpeg
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -3143,3 +3146,61 @@ def validate_csv(stream,survey_id):
         if image: return True
 
     return False
+
+
+# Function needs updating and testing
+def extract_images_from_video(sourceKey, bucketName):
+    ''' Downloads video from bucket and extracts images from it. The images are then uploaded to the bucket. '''
+
+    splits = sourceKey.rsplit('/', 1)
+    video_path = splits[0]
+    video_name = splits[-1].split('.')[0]
+
+    # Download video
+    with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file:
+        GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
+
+        video_timestamp = ffmpeg.probe(temp_file.name)["streams"][0]['tags']['creation_time']
+        if video_timestamp:
+            video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+
+        # Extract images
+        video = cv2.VideoCapture(temp_file.name)
+        video_fps = video.get(cv2.CAP_PROP_FPS)
+        video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+
+        max_frames = 50     # Maximum number of frames to extract
+        fps_default = 1     # Default fps to extract frames at (frame per second)
+        frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
+
+        fps = min(max_frames / frames_default_fps, fps_default)  
+            
+        ret, frame = video.read()
+        count = 0
+        count_frame = 0
+        while ret:
+            if count % (video_fps // fps) == 0:
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
+                    cv2.imwrite(temp_file_img.name, frame)
+                    # Timestamp
+                    if video_timestamp:
+                        image_timestamp = video_timestamp + timedelta(seconds=count_frame/fps)
+                        exif_time = image_timestamp.strftime('%Y:%m:%d %H:%M:%S')
+                        exif_dict = {"Exif":{piexif.ExifIFD.DateTimeOriginal: exif_time}}
+                        exif_bytes = piexif.dump(exif_dict)
+                        # Write exif data to image
+                        piexif.insert(exif_bytes, temp_file_img.name)
+
+                    # Upload image to bucket
+                    image_key = video_path + '/video_images/' +  video_name + '_frame%d.jpg' % count_frame
+                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
+                    count_frame += 1
+            ret, frame = video.read()
+            count += 1
+
+        video.release()
+        cv2.destroyAllWindows()
+
+    return True
+
+        

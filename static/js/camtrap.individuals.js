@@ -358,6 +358,8 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
 
                 prepMap(individualImages[0])
                 updateSlider()
+
+                buildAssociationTable(individualID)
              
             }
             else{
@@ -820,6 +822,16 @@ function cleanModalIndividual() {
     surveysDiv = document.getElementById('surveysDiv')
     while(surveysDiv.firstChild){
         surveysDiv.removeChild(surveysDiv.firstChild);
+    }
+
+    associationsDiv = document.getElementById('associationsDiv')
+    while(associationsDiv.firstChild){
+        associationsDiv.removeChild(associationsDiv.firstChild);
+    }
+
+    orderAssociationsDiv = document.getElementById('orderAssociationsDiv')	
+    while(orderAssociationsDiv.firstChild){
+        orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
     }
     
     individualSplide = null
@@ -1960,6 +1972,281 @@ function clear_filters(){
     document.getElementById('endDate').value = ''
 
     getIndividuals()
+}
+
+function buildAssociationTable(individual_id){
+    /** Builds the table of associations for the individual. */
+
+    var associationsDiv = document.getElementById('associationsDiv');
+
+    var table = document.createElement('table');
+    table.classList.add('table');
+    table.classList.add('table-striped');
+    table.setAttribute('id','associationsTable');
+    table.setAttribute('style','width:100%');
+    // Set border of table
+    table.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;');
+
+    var tableHead = document.createElement('thead');
+    var tableHeadRow = document.createElement('tr');
+    tableHeadRow.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    // tableHeadRow.setAttribute('style','background-color: #4E5D6C');
+    var tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Individual Image';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Individual Name';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Nr. Cluster Associations';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Nr. Image Associations';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHead.appendChild(tableHeadRow);
+    table.appendChild(tableHead);
+
+    var tableBody = document.createElement('tbody');
+    tableBody.setAttribute('id','associationsTableBody');
+    table.appendChild(tableBody);
+
+    associationsDiv.appendChild(table)
+
+    
+    var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Order'
+    h5.setAttribute('style','margin-bottom: 2px')
+    orderAssociationsDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select the order you would like to view your individual\'s associations.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    orderAssociationsDiv.appendChild(h5)
+
+    var select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','associationOrderSelector')
+    orderAssociationsDiv.appendChild(select)
+
+    fillSelect(select, ['Name', 'Clusters' ,'Images'], ['1','2','3'])
+    select.value = '2'
+
+    $("#associationOrderSelector").change( function() {
+        getIndividualAssociations(individual_id)
+    });
+
+    var divRadio = document.createElement('div')
+    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+    var radio = document.createElement('input')
+    radio.setAttribute('type', 'radio')
+    radio.setAttribute('id', 'ascOrderAssoc')
+    radio.setAttribute('name', 'orderAssoc')
+    radio.setAttribute('class', 'custom-control-input')
+    radio.setAttribute('value', 'asc')
+    divRadio.appendChild(radio)
+
+    var label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'ascOrderAssoc')
+    label.innerHTML = 'Ascending'
+    divRadio.appendChild(label)
+
+    orderAssociationsDiv.appendChild(divRadio)
+
+    divRadio = document.createElement('div')
+    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+    radio = document.createElement('input')
+    radio.setAttribute('type', 'radio')
+    radio.setAttribute('id', 'descOrderAssoc')
+    radio.setAttribute('name', 'orderAssoc')
+    radio.setAttribute('class', 'custom-control-input')
+    radio.setAttribute('value', 'desc')
+    radio.checked = true
+    divRadio.appendChild(radio)
+
+    label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'descOrderAssoc')
+    label.innerHTML = 'Descending'
+    divRadio.appendChild(label)
+
+    orderAssociationsDiv.appendChild(divRadio)
+
+    $('#ascOrderAssoc').change( function() {
+        getIndividualAssociations(individual_id)
+    });
+
+    $('#descOrderAssoc').change( function() {
+        getIndividualAssociations(individual_id)
+    });
+
+    var row = document.createElement('div')
+    row.setAttribute('class', 'row')
+
+    var col1 = document.createElement('div')
+    col1.setAttribute('class', 'col-lg-2')
+
+    var col2 = document.createElement('div')	
+    col2.setAttribute('class', 'col-lg-8')
+
+    var col3 = document.createElement('div')
+    col3.setAttribute('class', 'col-lg-2')
+
+    row.appendChild(col1)
+    row.appendChild(col2)
+    row.appendChild(col3)
+
+    associationsDiv.appendChild(row)
+
+    var button = document.createElement('button')
+    button.setAttribute('class', 'btn btn-primary float-left')
+    button.setAttribute('type', 'button')
+    button.setAttribute('id', 'btnPrevAssoc')
+    button.innerHTML = 'Prev'
+    button.style.visibility = 'hidden'
+    col1.appendChild(button)
+
+    $('#btnPrevAssoc').click( function() {
+        getIndividualAssociations(individual_id, associations_prev)
+    });
+
+    button = document.createElement('button')
+    button.setAttribute('class', 'btn btn-primary float-right')
+    button.setAttribute('type', 'button')
+    button.setAttribute('id', 'btnNextAssoc')
+    button.innerHTML = 'Next'
+    button.style.visibility = 'hidden'
+    col3.appendChild(button)
+
+    $('#btnNextAssoc').click( function() {
+        getIndividualAssociations(individual_id, associations_next)
+    });
+
+    getIndividualAssociations(individual_id)
+    
+}
+
+function getIndividualAssociations(individual_id, page=null){
+    /** Gets the associations for the current individual. */
+
+    var orderSelect = document.getElementById('associationOrderSelector').value
+    var radioAsc = document.getElementById('ascOrderAssoc')
+    var order = ''
+
+    if (radioAsc.checked) {
+        order = 'a' + orderSelect.toString()
+    } else {
+        order = 'd' + orderSelect.toString()
+    }
+
+    var request = '/getIndividualAssociations/' + individual_id.toString() + '/' + order.toString() 
+
+    if (page != null) {
+        request += '?page=' + page.toString()
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+
+            var tableBody = document.getElementById('associationsTableBody');
+            tableBody.innerHTML = ''
+
+            if (reply.associations.length == 0) {
+                var row = document.createElement('tr');
+                row.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+
+                var cell = document.createElement('td');
+                cell.setAttribute('colspan', '4')
+                cell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
+                cell.innerHTML = 'No associations found.'
+                row.appendChild(cell);
+                tableBody.appendChild(row);
+
+                var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+                while (orderAssociationsDiv.firstChild) {
+                    orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
+                }
+            }
+            else{
+                for (let i=0;i<reply.associations.length;i++) {
+                    buildAssociation(reply.associations[i])
+                }
+            }
+
+            if (reply.next==null) {
+                document.getElementById('btnNextAssoc').style.visibility = 'hidden'
+                associations_next = null
+            } else {
+                document.getElementById('btnNextAssoc').style.visibility = 'visible'
+                associations_next = reply.next
+            }
+
+            if (reply.prev==null) {
+                document.getElementById('btnPrevAssoc').style.visibility = 'hidden'
+                associations_prev = null
+            } else {
+                document.getElementById('btnPrevAssoc').style.visibility = 'visible'
+                associations_prev = reply.prev
+            }
+            
+        }
+    }
+    xhttp.open("GET", request);
+    xhttp.send();
+}
+
+function buildAssociation(association){
+    /** Builds the association row in table. */
+
+    var table = document.getElementById('associationsTableBody');
+    var row = document.createElement('tr');
+    row.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+
+    var imageCell = document.createElement('td');
+    imageCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
+    var image = document.createElement('img');
+    image.setAttribute('width','100%')
+    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(association.url)
+    imageCell.appendChild(image);
+    row.appendChild(imageCell);
+
+    image.addEventListener('click', function(individualID,individualName){
+        return function() {
+            cleanModalIndividual()        
+            individualTags(individualID)
+            getIndividual(individualID,individualName)
+            modalIndividual.scrollTop(0)
+        }
+    }(association.id,association.name));
+                                      
+  
+    var nameCell = document.createElement('td');
+    nameCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
+    nameCell.textContent = association.name;
+    row.appendChild(nameCell);
+  
+    var clusterCountCell = document.createElement('td');
+    clusterCountCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
+    clusterCountCell.textContent = association.cluster_count;
+    row.appendChild(clusterCountCell);
+  
+    var imageCountCell = document.createElement('td');
+    imageCountCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
+    imageCountCell.textContent = association.image_count;
+    row.appendChild(imageCountCell);
+
+    table.appendChild(row);
 }
 
 function onload(){
