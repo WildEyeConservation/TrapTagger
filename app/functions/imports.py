@@ -3246,8 +3246,14 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
     try:
         splits = sourceKey.rsplit('/', 1)
         video_path = splits[0]
-        filename = sourceKey.split('/')[-1]
         video_name = splits[-1].split('.')[0]
+        video_type = '.' + splits[-1].split('.')[-1]
+
+        filename = sourceKey.split('/')[-1]
+
+        split_path = splits[0].split('/')
+        split_path[0] = split_path[0] + '-comp'
+        comp_video_path = '/'.join(split_path)
 
         # If camera & video already exist - it has already been processed
         camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_/'+video_name)
@@ -3255,10 +3261,22 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
         if video==None:
             # Download video
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file:
+            with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
                 GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
 
-                video_timestamp = ffmpeg.probe(temp_file.name)["streams"][0]['tags']['creation_time']
+                # Get video timestamp 
+                try:
+                    video_timestamp = ffmpeg.probe(temp_file.name)['streams'][0]['tags']['creation_time']
+                except:                             
+                    video_timestamp = None
+
+                if not video_timestamp:
+                    try:
+                        video_timestamp = ffmpeg.probe(temp_file.name)['format']['tags']['creation_time']
+                    except:
+                        video_timestamp = None
+
+
                 if video_timestamp:
                     video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
 
@@ -3290,14 +3308,34 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                                 piexif.insert(exif_bytes, temp_file_img.name)
 
                             # Upload image to bucket
+<<<<<<< HEAD
                             image_key = video_path + '/_video_images_/' +  video_name + '/frame%d.jpg' % count_frame
                             GLOBALS.s3client.put_object(Bucket=bucketName+'-comp',Key=image_key,Body=temp_file_img)
+=======
+                            image_key = video_path + '/_video_images_/' +  video_name + '_frame%d.jpg' % count_frame
+                            GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
+>>>>>>> origin/development2
                             count_frame += 1
                     ret, frame = video.read()
                     count += 1
 
                 video.release()
                 cv2.destroyAllWindows()
+
+
+                # Convert and compress video
+                input_video = ffmpeg.input(temp_file.name)
+                # output_width = 480
+                # input_video = input_video.filter('scale', width=output_width, height=-2).filter('setsar', ratio='1:1')
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
+
+                    # Change crf and preset to change quality and size of video
+                    output_video = ffmpeg.output(input_video, temp_file_out.name, crf=25, preset='medium')
+                    output_video.run(overwrite_output=True)
+
+                    # Upload video to compressed bucket
+                    video_key = comp_video_path + '/' +  video_name + '.mp4'
+                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
             
             video = Video(camera_id=camera.id, filename=filename)
             localsession.add(video)
@@ -3308,4 +3346,33 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
     return True
 
+# # Function needs testing and updating       
+# def convert_and_compress_video(sourceKey, bucketName):
+#     ''' Downloads video from bucket, converts it to mp4 and compresses it. The compressed video is then uploaded to the comp bucket. '''
+#     splits = sourceKey.rsplit('/', 1)
+#     video_name = splits[-1].split('.')[0]
+#     video_type = '.' + splits[-1].split('.')[-1]
+
+#     split_path = splits[0].split('/')
+#     split_path[0] = split_path[0] + '-comp'
+#     video_path = '/'.join(split_path)
+
+#     # Download video
+#     with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
+#         GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
+
+#         input_video = ffmpeg.input(temp_file.name)
+#         # output_width = 480
+#         # input_video = input_video.filter('scale', width=output_width, height=-2).filter('setsar', ratio='1:1')
+#         with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
+
+#             # Change crf and preset to change quality and size of video
+#             output_video = ffmpeg.output(input_video, temp_file_out.name, crf=25, preset='medium')
+#             output_video.run(overwrite_output=True)
+
+#             # Upload video to compressed bucket
+#             video_key = video_path + '/' +  video_name + '.mp4'
+#             GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
         
+
+#     return True

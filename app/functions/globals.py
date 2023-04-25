@@ -2504,10 +2504,14 @@ def stringify_timestamp(timestamp):
         return timestamp.strftime("%Y/%m/%d %H:%M:%S")
     except:
         return 'None'
+    try:
+        return timestamp.strftime("%Y/%m/%d %H:%M:%S")
+    except:
+        return 'None'
 
 def numify_timestamp(timestamp):
     '''Cleanly returns a numeric value for a timestamp'''
     try:
-        return (image.corrected_timestamp-datetime(1970,1,1)).total_seconds()
+        return (timestamp-datetime(1970,1,1)).total_seconds()
     except:
         return 0
