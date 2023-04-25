@@ -3250,7 +3250,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         video_name = splits[-1].split('.')[0]
 
         # If camera & video already exist - it has already been processed
-        camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_')
+        camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_/'+video_name)
         video = localsession.query(Video).filter(Video.camera==camera).filter(Video.filename==filename).first()
 
         if video==None:
@@ -3290,7 +3290,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                                 piexif.insert(exif_bytes, temp_file_img.name)
 
                             # Upload image to bucket
-                            image_key = video_path + '/_video_images_/' +  video_name + '_frame%d.jpg' % count_frame
+                            image_key = video_path + '/_video_images_/' +  video_name + '/frame%d.jpg' % count_frame
                             GLOBALS.s3client.put_object(Bucket=bucketName+'-comp',Key=image_key,Body=temp_file_img)
                             count_frame += 1
                     ret, frame = video.read()
@@ -3299,7 +3299,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                 video.release()
                 cv2.destroyAllWindows()
             
-            video = Video(camera=camera, filename=filename)
+            video = Video(camera_id=camera.id, filename=filename)
             localsession.add(video)
             localsession.commit()
 
