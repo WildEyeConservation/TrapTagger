@@ -3248,9 +3248,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         video_path = splits[0]
         video_name = splits[-1].split('.')[0]
         video_type = '.' + splits[-1].split('.')[-1]
-
         filename = sourceKey.split('/')[-1]
-
         split_path = splits[0].split('/')
         split_path[0] = split_path[0] + '-comp'
         comp_video_path = '/'.join(split_path)
@@ -3263,7 +3261,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             # Download video
             with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
                 GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
-
+                
                 # Get video timestamp 
                 try:
                     video_timestamp = ffmpeg.probe(temp_file.name)['streams'][0]['tags']['creation_time']
@@ -3276,10 +3274,9 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                     except:
                         video_timestamp = None
 
-
                 if video_timestamp:
                     video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
-
+                
                 # Extract images
                 video = cv2.VideoCapture(temp_file.name)
                 video_fps = video.get(cv2.CAP_PROP_FPS)
@@ -3288,9 +3285,9 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                 max_frames = 50     # Maximum number of frames to extract
                 fps_default = 1     # Default fps to extract frames at (frame per second)
                 frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
-
+                
                 fps = min(max_frames / frames_default_fps, fps_default)  
-                    
+                
                 ret, frame = video.read()
                 count = 0
                 count_frame = 0
@@ -3308,20 +3305,14 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                                 piexif.insert(exif_bytes, temp_file_img.name)
 
                             # Upload image to bucket
-<<<<<<< HEAD
                             image_key = video_path + '/_video_images_/' +  video_name + '/frame%d.jpg' % count_frame
                             GLOBALS.s3client.put_object(Bucket=bucketName+'-comp',Key=image_key,Body=temp_file_img)
-=======
-                            image_key = video_path + '/_video_images_/' +  video_name + '_frame%d.jpg' % count_frame
-                            GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
->>>>>>> origin/development2
                             count_frame += 1
                     ret, frame = video.read()
                     count += 1
 
                 video.release()
                 cv2.destroyAllWindows()
-
 
                 # Convert and compress video
                 input_video = ffmpeg.input(temp_file.name)
@@ -3336,7 +3327,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                     # Upload video to compressed bucket
                     video_key = comp_video_path + '/' +  video_name + '.mp4'
                     GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
-            
+
             video = Video(camera_id=camera.id, filename=filename)
             localsession.add(video)
             localsession.commit()
