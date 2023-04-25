@@ -1852,6 +1852,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
 
     # Now handle images
     localsession=db.session()
+    survey = db.session.query(Survey).get(sid)
     results = []
     batch_count = 0
     batch = []
