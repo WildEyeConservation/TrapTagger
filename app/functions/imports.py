@@ -1812,7 +1812,6 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     
     isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
-    tag = re.compile(tag)
     
     localsession=db.session()
     survey = Survey.get_or_create(localsession,name=name,user_id=user_id,trapgroup_code=tag)
@@ -1821,6 +1820,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     survey.processing_initialised = True
     localsession.commit()
     sid=survey.id
+    tag = re.compile(tag)
 
     # Handle videos first so that their frames can be imported like normal images
     results = []
