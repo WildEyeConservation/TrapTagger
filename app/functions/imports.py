@@ -3235,7 +3235,7 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        localsession.remove()
+        localsession.close()
 
     return True
 
@@ -3306,7 +3306,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
                             # Upload image to bucket
                             image_key = video_path + '/_video_images_/' +  video_name + '/frame%d.jpg' % count_frame
-                            GLOBALS.s3client.put_object(Bucket=bucketName+'-comp',Key=image_key,Body=temp_file_img)
+                            GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
                             count_frame += 1
                     ret, frame = video.read()
                     count += 1
