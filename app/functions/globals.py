@@ -2504,10 +2504,6 @@ def stringify_timestamp(timestamp):
         return timestamp.strftime("%Y/%m/%d %H:%M:%S")
     except:
         return 'None'
-    try:
-        return timestamp.strftime("%Y/%m/%d %H:%M:%S")
-    except:
-        return 'None'
 
 def numify_timestamp(timestamp):
     '''Cleanly returns a numeric value for a timestamp'''
