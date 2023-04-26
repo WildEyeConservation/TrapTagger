@@ -910,10 +910,15 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         outputDF = None
         for task_id in selectedTasks:
             task = db.session.query(Task).get(task_id)
+
+            if task.survey.image_count<250000:
+                trapgroups = [None]
+            else:
+                trapgroups = [tg.id for tg in task.survey.trapgroups]
             
-            for trapgroup in task.survey.trapgroups:
+            for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
-                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup.id)
+                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id)
 
                 # Generate custom columns
                 for custom_name in custom_columns[str(task_id)]:
