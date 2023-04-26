@@ -1888,7 +1888,13 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
         if ',' in taggingLevel:
             tL = re.split(',',taggingLevel)
             species = tL[1]
-            label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==species).first()
+            if species.isdigit():
+                label = db.session.query(Label).get(species)
+            else:
+                if species=='Vehicles/Humans/Livestock':
+                    label=db.session.query(Label).get(GLOBALS.vhl_id)
+                else:
+                    label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==species).first()
             task = db.session.query(Task).get(task_id)
             
             if tL[0] == '-4':

@@ -1833,9 +1833,11 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 localsession.commit()
                 for batch in chunker(videos,50):
                     results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
+                    app.logger.info('Processing video batch: '.format(len(batch)))
 
     localsession.close()
 
+    app.logger.info('Waiting for video processing to complete')
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -1849,6 +1851,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
+    app.logger.info('Video processing complete')
 
     # Now handle images
     localsession=db.session()
@@ -1924,6 +1927,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
     # See https://github.com/celery/celery/issues/4480
+    app.logger.info('Waiting for image processing to complete')
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -1937,6 +1941,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
+    app.logger.info('Image processing complete')
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     if not pipeline: remove_duplicate_images(sid)
@@ -3218,7 +3223,7 @@ def validate_csv(stream,survey_id):
 
     return False
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=29)
 def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
     '''Celery wrapper for extract_images_from_video'''
     try:
