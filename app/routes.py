@@ -4613,7 +4613,7 @@ def get_clusters():
 
     reply = {'id': reqId, 'info': []}
     for cluster in clusters:
-        if time.time() - OverallStartTime > 30:
+        if time.time() - OverallStartTime > 20:
             # If this is taking too long, cut the request short
             current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
             db.session.commit()
