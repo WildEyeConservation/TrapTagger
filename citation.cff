@@ -8,9 +8,16 @@ authors:
   - given-names: Nicholas
     family-names: Osner
     email: nicholas@wildeyeconservation.org
+    affiliation: WildEye Conservation
+    orcid: 'https://orcid.org/0000-0003-0112-522X'
 repository-code: 'https://github.com/WildEyeConservation/TrapTagger'
+url: 'https://wildeyeconservation.org/traptagger/'
+abstract: >-
+  An open-source web application for processing camera-trap
+  imagery using artificial intelligence.
 keywords:
-  - Camera traps
+  - Artificial Intelligence
+  - Computer Vision
   - Conservation
-  - Computer vision
-license: MIT
+  - Camera Traps
+license: Apache-2.0
