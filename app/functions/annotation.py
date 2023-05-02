@@ -1257,6 +1257,9 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVid
 
     startTime = time.time()
 
+    sortedImages = []
+    required = []
+
     if '-5' in taggingLevel:
         # bufferCount = db.session.query(Individual).filter(Individual.allocated==user.id).count()
         # if bufferCount >= 5:
@@ -1309,16 +1312,29 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVid
 
         if sendVideo:
             videos = db.session.query(Video).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).all()
-
             if videos:
                 images = [{'id': video.id,
-                    'url': video.camera.path.split('_video_images_')[0] + '/' + video.filename,
+                    'url': video.camera.path.split('_video_images_')[0]  + video.filename,
                     'timestamp': numify_timestamp(video.camera.images[0].corrected_timestamp),
                     'camera': video.camera_id,
                     'rating': 1,
                     'detections': []
                 } for video in videos]
 
+                sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.filename).all()
+                required = []
+
+                images_video = [image_digest(
+                            image,
+                            [detection for detection in image.detections if (
+                                (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
+                                (detection.status not in ['deleted','hidden']) and 
+                                (detection.static == False)
+                            )]
+                        ) for image in sortedImages]
+
+                images.extend(images_video)
+        
         if (sendVideo==False) or (len(videos)==0):
             if (id is not None) or isBounding:
                 sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
