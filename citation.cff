@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Nicholas
+    family-names: Osner
+    email: nicholas@wildeyeconservation.org
+repository-code: 'https://github.com/WildEyeConservation/TrapTagger'
+keywords:
+  - Camera traps
+  - Conservation
+  - Computer vision
+license: MIT
