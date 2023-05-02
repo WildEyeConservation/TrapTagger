@@ -385,27 +385,29 @@ function updateTaskProgressBar() {
         tskds.push(taskProgressBarDivs[i].id.split('taskProgressBarDiv')[1])
     }
 
-    for (let i=0;i<tskds.length;i++) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(wrapTaskID) {
-            return function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
+    var formData = new FormData()
+    formData.append("task_ids", JSON.stringify(tskds))
 
-                    progBar = document.getElementById('progBar'+wrapTaskID)
-        
-                    progBar.setAttribute('aria-valuenow',reply.completed)
-                    progBar.setAttribute('aria-valuemax',reply.total)
-                    perc=(reply.completed/reply.total)*100
-                    progBar.setAttribute('style',"width:"+perc+"%")
-                    progBar.innerHTML = reply.remaining
-                }
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function() {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            for (let i = 0; i < reply.length; i++) {
+                progBar = document.getElementById('progBar'+reply[i].id.toString())
+                progBar.setAttribute('aria-valuenow',reply[i].completed)
+                progBar.setAttribute('aria-valuemax',reply[i].total)
+                perc=(reply[i].completed/reply[i].total)*100
+                progBar.setAttribute('style',"width:"+perc+"%")
+                progBar.innerHTML = reply[i].remaining
             }
-        }(tskds[i]);
-        xhttp.open("GET", '/updateTaskProgressBar/'+tskds[i]);
-        xhttp.send();
+
+            setTimeout(function() { updateTaskProgressBar(); }, 10000);
+        }
     }
+    xhttp.open("POST", '/updateTaskProgressBar');
+    xhttp.send(formData);
 }
 
 function updateTaskStatus() {

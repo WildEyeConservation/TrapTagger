@@ -345,16 +345,21 @@ def MturkStatus(task_id):
     else:
         return redirect(url_for('jobs'))
 
-@app.route('/updateTaskProgressBar/<tskd>')
+@app.route('/updateTaskProgressBar', methods=['POST'])
 @login_required
-def updateTaskProgressBar(tskd):
+def updateTaskProgressBar():
     '''Returns a dictionary of data required to update a given task's progress bar.'''
     
-    if current_user.admin or (current_user.parent_id == None):
-        task_id = int(tskd)
-        completed, total, remaining, jobsAvailable, jobsCompleted= getTaskProgress(task_id)
+    reply = []
+    task_ids = ast.literal_eval(request.form['task_ids'])
 
-        return json.dumps({'completed':completed, 'total':total, 'remaining':remaining, 'id':task_id, 'jobsCompleted':jobsCompleted, 'jobsAvailable':jobsAvailable})
+    if current_user.admin or (current_user.parent_id == None):
+
+        for task_id in task_ids:
+            completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task_id)
+            reply.append({'completed':completed, 'total':total, 'remaining':remaining, 'id':task_id, 'jobsCompleted':jobsCompleted, 'jobsAvailable':jobsAvailable})
+        
+        return json.dumps(reply)
 
     return redirect(url_for('jobs'))
 
