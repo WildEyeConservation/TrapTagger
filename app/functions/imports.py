@@ -1826,15 +1826,19 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     results = []
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         videos = list(filter(isVideo.search, filenames))
-        if len(videos) and not any(exclusion in dirpath for exclusion in exclusions):
+        jpegs = list(filter(isjpeg.search, filenames))
+        if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
             tags = tag.findall(dirpath.replace(survey.name+'/',''))
             if len(tags) > 0:
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
+                survey.images_processing += len(jpegs)
                 localsession.commit()
                 for batch in chunker(videos,50):
                     results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
                     app.logger.info('Processing video batch: '.format(len(batch)))
 
+    # survey.processing_initialised = False
+    # localsession.commit()
     localsession.close()
 
     app.logger.info('Waiting for video processing to complete')
@@ -1868,8 +1872,8 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
             
             if len(tags) > 0:
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
-                survey.images_processing += len(jpegs)
-                localsession.commit()
+                # survey.images_processing += len(jpegs)
+                # localsession.commit()
                 camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
                 localsession.commit()
                 tid=trapgroup.id
