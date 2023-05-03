@@ -3261,6 +3261,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         split_path = splits[0].split('/')
         split_path[0] = split_path[0] + '-comp'
         comp_video_path = '/'.join(split_path)
+        video_hash = None
 
         # If camera & video already exist - it has already been processed
         camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_/'+video_name)
