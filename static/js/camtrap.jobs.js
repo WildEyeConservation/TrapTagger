@@ -18,7 +18,6 @@ var next_url = null
 var current_page = '/getJobs'
 var processingTimer
 var timerJobStatus
-var timerJobBar
 const btnNextJobs = document.querySelector('#btnNextJobs');
 const btnPrevJobs = document.querySelector('#btnPrevJobs');
 
@@ -117,7 +116,7 @@ function onload(){
     /** Initialises the jobs page on load. */
     updatePage(current_page)
     processingTimer = setInterval(updatePage, 30000)
-    timerJobBar = setInterval(updateJobProgressBar, 5000);
+    updateJobProgressBar()
 }
 
 window.addEventListener('load', onload, false);
@@ -170,7 +169,6 @@ function updatePage(url){
                 btnPrevJobs.style.visibility = 'visible'
                 prev_url = reply.prev_url
             }
-            updateJobProgressBar()
         }
     }
     xhttp.open("GET", url);
@@ -186,35 +184,38 @@ function updateJobProgressBar() {
         tskds.push(jobProgressBarDivs[i].id.split('jobProgressBarDiv')[1])
     }
 
-    for (let i=0;i<tskds.length;i++) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(wrapTaskID) {
-            return function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
+    var formData = new FormData()
+    formData.append("task_ids", JSON.stringify(tskds))
 
-                    document.getElementById('jobsCompleted'+reply.id).innerHTML = 'Jobs Completed: ' + reply.jobsCompleted
-                    document.getElementById('jobsAvailable'+reply.id).innerHTML = 'Jobs Available: ' + reply.jobsAvailable
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function() {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
 
-                    if (reply.jobsAvailable==0) {
-                        document.getElementById("takeJobBtn"+reply.id).disabled = true
-                    } else {
-                        document.getElementById("takeJobBtn"+reply.id).disabled = false
-                    }
-
-                    progBar = document.getElementById('progBar'+wrapTaskID)
-                    perc=(reply.completed/reply.total)*100
-                    progBar.setAttribute('style',"width:"+perc+"%")
-                    progBar.setAttribute('aria-valuenow',reply.completed)
-                    progBar.setAttribute('aria-valuemax',reply.total)
-                    progBar.innerHTML = reply.remaining
+            for (let i = 0; i < reply.length; i++) {
+                document.getElementById('jobsCompleted'+reply[i].id).innerHTML = 'Jobs Completed: ' + reply[i].jobsCompleted
+                document.getElementById('jobsAvailable'+reply[i].id).innerHTML = 'Jobs Available: ' + reply[i].jobsAvailable
+    
+                if (reply[i].jobsAvailable==0) {
+                    document.getElementById("takeJobBtn"+reply[i].id).disabled = true
+                } else {
+                    document.getElementById("takeJobBtn"+reply[i].id).disabled = false
                 }
+    
+                progBar = document.getElementById('progBar'+reply[i].id)
+                perc=(reply[i].completed/reply[i].total)*100
+                progBar.setAttribute('style',"width:"+perc+"%")
+                progBar.setAttribute('aria-valuenow',reply[i].completed)
+                progBar.setAttribute('aria-valuemax',reply[i].total)
+                progBar.innerHTML = reply[i].remaining
             }
-        }(tskds[i]);
-        xhttp.open("GET", '/updateTaskProgressBar/'+tskds[i]);
-        xhttp.send();
+
+            setTimeout(function() { updateJobProgressBar(); }, 10000);
+        }
     }
+    xhttp.open("POST", '/updateTaskProgressBar');
+    xhttp.send(formData);
 }
 
 function generate_url() {

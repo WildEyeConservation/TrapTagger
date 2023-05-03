@@ -39,70 +39,72 @@ function loadNewCluster(mapID = 'map1') {
      * thus forcing the user to look at every image in the cluster. 
      */
 
-    waitingForClusters[mapID] = true
-    var newID = Math.floor(Math.random() * 100000) + 1;
-    clusterRequests[mapID].push(newID)
+    if (!waitingForClusters[mapID]) {
+        waitingForClusters[mapID] = true
+        var newID = Math.floor(Math.random() * 100000) + 1;
+        clusterRequests[mapID].push(newID)
 
-    if (!batchComplete) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-            function () {
-                if (this.readyState == 4 && this.status == 200) {
-                    waitingForClusters[mapID] = false
-                    info = JSON.parse(this.responseText);
-    
-                    if (clusterRequests[mapID].includes(parseInt(info.id))) {
-                        for (let i=0;i<info.info.length;i++) {
-                            newcluster = info.info[i];
+        if (!batchComplete) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        waitingForClusters[mapID] = false
+                        info = JSON.parse(this.responseText);
+        
+                        if (clusterRequests[mapID].includes(parseInt(info.id))) {
+                            for (let i=0;i<info.info.length;i++) {
+                                newcluster = info.info[i];
 
-                            if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
-                                knockedTG=null
-                            }
-                            
-                            if (knockedTG==null) {
-                                if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                    clisterIdList.push(newcluster.id)
-                                    for (let n=0;n<newcluster.images.length;n++) {
-                                        var newsubcluster = {
-                                            id: newcluster.id, 
-                                            images: [newcluster.images[n]],
-                                            label: newcluster.label,
-                                            tags: newcluster.tags,
-                                            groundTruth: newcluster.groundTruth,
-                                            trapGroup: newcluster.trapGroup,
-                                            clusterLength: newcluster.images.length,
-                                            imageIndex: n,
-                                            ready: true,
-                                            required: []
-                                        }
-
-                                        if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
-                                            clusters[mapID].splice(clusters[mapID].length-1, 0, newsubcluster)
-                                        } else {
-                                            clusters[mapID].push(newsubcluster)
-                                        }
-
-                                        if (clusters[mapID].length-1 == clusterIndex[mapID]){
-                                            updateCanvas()
-                                            updateButtons()
-                                        } else if (knockWait == true) {
-                                            if (modalWait2.is(':visible')) {
-                                                modalWait2.modal('hide');
+                                if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
+                                    knockedTG=null
+                                }
+                                
+                                if (knockedTG==null) {
+                                    if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                                        clisterIdList.push(newcluster.id)
+                                        for (let n=0;n<newcluster.images.length;n++) {
+                                            var newsubcluster = {
+                                                id: newcluster.id, 
+                                                images: [newcluster.images[n]],
+                                                label: newcluster.label,
+                                                tags: newcluster.tags,
+                                                groundTruth: newcluster.groundTruth,
+                                                trapGroup: newcluster.trapGroup,
+                                                clusterLength: newcluster.images.length,
+                                                imageIndex: n,
+                                                ready: true,
+                                                required: []
                                             }
-                                            nextCluster()
-                                        }
-                                        preload()
-                                        knockWait = false
 
+                                            if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
+                                                clusters[mapID].splice(clusters[mapID].length-1, 0, newsubcluster)
+                                            } else {
+                                                clusters[mapID].push(newsubcluster)
+                                            }
+
+                                            if (clusters[mapID].length-1 == clusterIndex[mapID]){
+                                                updateCanvas()
+                                                updateButtons()
+                                            } else if (knockWait == true) {
+                                                if (modalWait2.is(':visible')) {
+                                                    modalWait2.modal('hide');
+                                                }
+                                                nextCluster()
+                                            }
+                                            preload()
+                                            knockWait = false
+
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }                
-                }
-            };
-        xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
-        xhttp.send();
+                        }                
+                    }
+                };
+            xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
+            xhttp.send();
+        }
     }
 }
 

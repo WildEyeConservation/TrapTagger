@@ -23,68 +23,70 @@ var clisterIdList = []
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
-    waitingForClusters[mapID] = true
-    var newID = Math.floor(Math.random() * 100000) + 1;
-    clusterRequests[mapID].push(newID)
+    if (!waitingForClusters[mapID]) {
+        waitingForClusters[mapID] = true
+        var newID = Math.floor(Math.random() * 100000) + 1;
+        clusterRequests[mapID].push(newID)
 
-    if (!batchComplete) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-            function () {
-                if (this.readyState == 4 && this.status == 278) {
-                    window.location.replace(JSON.parse(this.responseText)['redirect'])
-                } else if (this.readyState == 4 && this.status == 200) {
-                    waitingForClusters[mapID] = false
-                    info = JSON.parse(this.responseText);
-    
-                    if (clusterRequests[mapID].includes(parseInt(info.id))) {
-                        for (let i=0;i<info.info.length;i++) {
-                            newcluster = info.info[i];
+        if (!batchComplete) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 278) {
+                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    } else if (this.readyState == 4 && this.status == 200) {
+                        waitingForClusters[mapID] = false
+                        info = JSON.parse(this.responseText);
+        
+                        if (clusterRequests[mapID].includes(parseInt(info.id))) {
+                            for (let i=0;i<info.info.length;i++) {
+                                newcluster = info.info[i];
 
-                            if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
-                                knockedTG=null
-                            }
-                            
-                            if (knockedTG==null) {
-                                if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                    clisterIdList.push(newcluster.id)
+                                if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
+                                    knockedTG=null
+                                }
+                                
+                                if (knockedTG==null) {
+                                    if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                                        clisterIdList.push(newcluster.id)
 
-                                    if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
-                                        clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)
-                                    } else {
-                                        clusters[mapID].push(newcluster)
-                                        if (isClassCheck) {
-                                            tempClassifications[mapID].push(newcluster.classification.slice())
+                                        if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
+                                            clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)
+                                        } else {
+                                            clusters[mapID].push(newcluster)
+                                            if (isClassCheck) {
+                                                tempClassifications[mapID].push(newcluster.classification.slice())
+                                            }
                                         }
+
+                                        // if (taggingLevel.includes('-2') && (multipleStatus==false)) {
+                                        //     activateMultiple()
+                                        // }
+                                        
+                                        if (clusters[mapID].length-1 == clusterIndex[mapID]){
+                                            // updateCanvas()
+                                            // updateButtons()
+                                            if (isClassCheck) {
+                                                baseClassifications = clusters[mapID][clusterIndex[mapID]].classification.slice()
+                                            }
+                                            update(mapID)
+                                        } else if (knockWait == true) {
+                                            if (modalWait2.is(':visible')) {
+                                                modalWait2.modal('hide');
+                                            }
+                                            nextCluster()
+                                        }
+                                        preload()
+                                        knockWait = false
                                     }
-
-                                    // if (taggingLevel.includes('-2') && (multipleStatus==false)) {
-                                    //     activateMultiple()
-                                    // }
-                                    
-                                    if (clusters[mapID].length-1 == clusterIndex[mapID]){
-                                        // updateCanvas()
-                                        // updateButtons()
-                                        if (isClassCheck) {
-                                            baseClassifications = clusters[mapID][clusterIndex[mapID]].classification.slice()
-                                        }
-                                        update(mapID)
-                                    } else if (knockWait == true) {
-                                        if (modalWait2.is(':visible')) {
-                                            modalWait2.modal('hide');
-                                        }
-                                        nextCluster()
-                                    }
-                                    preload()
-                                    knockWait = false
                                 }
                             }
-                        }
-                    }                
-                }
-            };
-        xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
-        xhttp.send();
+                        }                
+                    }
+                };
+            xhttp.open("GET", '/getCluster?task='+selectedTask+'&reqId='+newID);
+            xhttp.send();
+        }
     }
 }
 

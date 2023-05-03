@@ -1388,7 +1388,7 @@ function nextCluster(mapID = 'map1') {
                 preLoadCount = 1
                 updateProgress()
             } else {
-                preLoadCount = 5
+                preLoadCount = 20
             }
         
             if ((clusterIndex[mapID]>clusters[mapID].length-preLoadCount)&&(clusters[mapID][clusters[mapID].length-1].id != '-101')) {
@@ -3200,7 +3200,7 @@ function checkWaitModal(mapID = 'map1') {
     PlsWaitCountDown -= 1
     if (PlsWaitCountDown<=0) {
         if (isComparison) {
-            PlsWaitCountDown = 30
+            PlsWaitCountDown = 40
         } else {
             window.location.replace("done")
             document.getElementById('PlsWaitCountDownDiv').innerHTML = "0"
@@ -3283,7 +3283,7 @@ modalWait2.on('shown.bs.modal', function(){
         modalWait2.modal('hide');
     }
     modalActive2 = true;
-    PlsWaitCountDown = 30
+    PlsWaitCountDown = 40
     document.getElementById('PlsWaitCountDownDiv').innerHTML = PlsWaitCountDown
     timerWaitModal = setInterval(checkWaitModal, 1000);
 });

@@ -222,7 +222,6 @@ var next_url = null
 var current_page = '/getHomeSurveys'
 
 var timerTaskStatus = null
-var timerTaskBar = null
 
 var pathDisplay = null
 
@@ -458,6 +457,7 @@ function onload(){
     /**Function for initialising the page on load.*/
     checkNotifications()
     updatePage(current_page)
+    updateTaskProgressBar()
 }
 
 window.addEventListener('load', onload, false);
@@ -547,18 +547,12 @@ function updatePage(url){
             }
 
             updateTaskStatus()
-            updateTaskProgressBar()
 
             if (timerTaskStatus != null) {
                 clearInterval(timerTaskStatus)
             }
 
-            if (timerTaskBar != null) {
-                clearInterval(timerTaskBar)
-            }
-
             timerTaskStatus = setInterval(updateTaskStatus, 5000); //5 seconds
-            timerTaskBar = setInterval(updateTaskProgressBar, 5000); //5 seconds
 
             if (uploading&&!uploadStart) {
                 uploadFiles()
