@@ -181,7 +181,7 @@ limitations under the License. -->
                     <br> -->
 
                     <h5 style="margin-bottom: 2px">Upload Type</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>The image-upload method you would like to use.</i></div>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>The file-upload method you would like to use.</i></div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="BrowserUpload" name="newSurveySelection" value="customEx">
                         <label class="custom-control-label" for="BrowserUpload">Browser Upload (Recommended)</label>
@@ -260,7 +260,7 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>What would you like to edit?</i></div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesAddImages" name="editSelection" value="customEx">
-                        <label class="custom-control-label" for="addImagesAddImages">Images</label>
+                        <label class="custom-control-label" for="addImagesAddImages">Files</label>
                     </div>
                     <div class="custom-control custom-radio custom-control-inline">
                         <input type="radio" class="custom-control-input" id="addImagesAddCoordinates" name="editSelection" value="customEx">
@@ -670,8 +670,8 @@ limitations under the License. -->
                 </div>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Image Download</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Request and download a metadata-annotated and sorted image set.</i></div>
+                <h5 style="margin-bottom: 2px">File Download</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Request and download a metadata-annotated and sorted file set.</i></div>
                 <div class="row">
                     <div class='col-lg-2'>
                         <button id="btnOpenDownload" type='button' class='btn btn-primary btn-block' onclick=openDownloadModal()>Generate</button>
@@ -1097,7 +1097,7 @@ limitations under the License. -->
         <div class="modal-content">
             <div class="modal-header">
                 <div class='col-lg-10' style="padding: 0px">
-                    <h4 class="modal-title">Image Download</h4>
+                    <h4 class="modal-title">File Download</h4>
                 </div>
                 <div class='col-lg-1' style="padding: 0px">
                     <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('data_download')">Help</button>
@@ -1109,7 +1109,7 @@ limitations under the License. -->
             <div class="modal-body">
 
                 <h5 style="margin-bottom: 2px">Species</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Filter your images by species.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Filter your files by species.</i></div>
                 <div id=downloadSpeciesDiv></div>
                 <div class="row">
                     <div class='col-lg-9'></div>
@@ -1120,7 +1120,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Folder Structure</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to maintain your original folder structure, or use a flat one with all information contained in the image names.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to maintain your original folder structure, or use a flat one with all information contained in the file names.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="originalStructure" name="folderStructureSelection" value="customEx">
                     <label class="custom-control-label" for="originalStructure">Original</label>
@@ -1133,7 +1133,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Species Sorting</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your images sorted by species or not.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your files sorted by species or not.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="originalSorted" name="speciesSortingSelection" value="customEx">
                     <label class="custom-control-label" for="originalSorted">Unsorted</label>
@@ -1146,7 +1146,7 @@ limitations under the License. -->
                 <br>
 
                 <h5 style="margin-bottom: 2px">Individual Sorting</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your images sorted by identified individuals or not.</i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your files sorted by identified individuals or not.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="individualUnSorted" name="individualSortingSelection" value="customEx">
                     <label class="custom-control-label" for="individualUnSorted">Unsorted</label>
@@ -1158,8 +1158,8 @@ limitations under the License. -->
                 <br>
                 <br>
 
-                <h5 style="margin-bottom: 2px">Empty Images</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your empty images to be included or not.</i></div>
+                <h5 style="margin-bottom: 2px">Empty Files</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like your empty files to be included or not.</i></div>
                 <div class="custom-control custom-radio custom-control-inline">
                     <input type="radio" class="custom-control-input" id="emptyExclude" name="emptiesSelection" value="customEx">
                     <label class="custom-control-label" for="emptyExclude">Exclude</label>

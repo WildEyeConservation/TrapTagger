@@ -295,7 +295,7 @@ function buildSurveys(survey,disableSurvey) {
         infoElementNumImages = document.createElement('div')
         infoElementNumImages.classList.add('col-lg-2');
         infoElementNumImages.setAttribute("style","font-size: 80%")
-        infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
+        infoElementNumImages.innerHTML = 'Files: ' + survey.numImages
         infoElementRow.appendChild(infoElementNumImages)
 
         infoElementDescription = document.createElement('div')
@@ -721,12 +721,12 @@ function buildBrowserUpload(divID) {
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
-    h5.innerHTML = 'Images to Upload'
+    h5.innerHTML = 'Files to Upload'
     formGroup.appendChild(h5)
 
     div2 = document.createElement('div')
     div2.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div2.innerHTML = '<i>Upload the survey images by selecting the entire folder you wish to upload.</i>'
+    div2.innerHTML = '<i>Upload the survey files by selecting the entire folder you wish to upload.</i>'
     formGroup.appendChild(div2)
 
     row = document.createElement('div')
@@ -756,7 +756,7 @@ function buildBrowserUpload(divID) {
     btn = document.createElement('button')
     btn.setAttribute('onclick','selectFiles()')
     btn.setAttribute("class","btn btn-primary btn-block")
-    btn.innerHTML = 'Select Images'
+    btn.innerHTML = 'Select Files'
     col2.appendChild(btn)
 
     // label = document.createElement('label')
@@ -1358,7 +1358,7 @@ function buildAddIms() {
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    div.innerHTML = '<i>The image-upload method you would like to use.</i>'
+    div.innerHTML = '<i>The file-upload method you would like to use.</i>'
     addImagesAddImsDiv.appendChild(div)
 
     div = document.createElement('div')
@@ -3010,14 +3010,14 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         } else if (document.getElementById('BrowserAdd').checked == true) {
             pathDisplay = document.getElementById('pathDisplay')
             if (pathDisplay.options.length == 0) {
-                document.getElementById('addImagesErrors').innerHTML = 'You must select images to upload.'
+                document.getElementById('addImagesErrors').innerHTML = 'You must select files to upload.'
             } else {
                 legalInput = true
                 addImagesS3Folder = 'none'
                 // files = inputFile.files
             }
         } else {
-            document.getElementById('addImagesErrors').innerHTML = 'You must select an image upload method.'
+            document.getElementById('addImagesErrors').innerHTML = 'You must select a file upload method.'
         }
     } else {
         legalInput = true
