@@ -2507,10 +2507,13 @@ def calculateTrapgroupHashes(self,trapgroup_id):
 
     return True
 
-def stringify_timestamp(timestamp):
+def stringify_timestamp(timestamp, download=False):
     '''Cleanly returns a string value for a timestamp'''
     try:
-        return timestamp.strftime("%Y/%m/%d %H:%M:%S")
+        if download:
+            return timestamp.strftime("%Y%m%d_%H%M%S")
+        else:
+            return timestamp.strftime("%Y/%m/%d %H:%M:%S")
     except:
         return 'None'
 

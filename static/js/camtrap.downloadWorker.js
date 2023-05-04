@@ -48,6 +48,9 @@ var initCount = 0
 var delete_items
 var count_initialised = false
 var downloading_count = 0
+var include_video 
+var include_video_init
+var include_frames
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -61,6 +64,9 @@ onmessage = function (evt) {
         flat_structure = evt.data.args[7]
         include_empties = evt.data.args[8]
         delete_items = evt.data.args[9]
+        include_video = evt.data.args[10]
+        include_video_init = evt.data.args[10]
+        include_frames = evt.data.args[11]
         startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
@@ -105,7 +111,9 @@ async function startDownload(selectedTask,taskName,count=0) {
         body: JSON.stringify({
             species: species,
             selectedTask: downloadingTask,
-            include_empties: include_empties
+            include_empties: include_empties,
+            include_video: include_video_init,
+            include_frames: include_frames
         }),
     })).then((response) => {
         if (!response.ok) {
@@ -241,8 +249,29 @@ async function handleLocalFile(entry,dirHandle) {
             }
         }(reader,dirHandle,entry.name));
         reader.readAsBinaryString(file)
-    } else {
-        //delete non-jpgs
+    } 
+    else if (['mp4', 'avi'].some(element => entry.name.toLowerCase().includes(element))) {
+        var file = await entry.getFile()
+        var reader = new FileReader();
+        reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
+            return async function() {
+                var jpegData = wrapReader.result
+                try {
+                    var hash = getHash(jpegData, true)
+                    getLocalImageInfo(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
+                } catch {
+                    // delete malformed/corrupted files
+                    local_files_processing -= 1
+                    if (delete_items) {
+                        wrapDirHandle.removeEntry(wrapFileName)
+                    }
+                }    
+            }
+        }(reader,dirHandle,entry.name));
+        reader.readAsBinaryString(file)
+    }
+    else {
+        //delete non-jpgs or non-mp4s/avis
         if (delete_items) {
             dirHandle.removeEntry(entry.name)
         }
@@ -266,7 +295,9 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
                 species_sorted: species_sorted,
                 individual_sorted: individual_sorted,
                 flat_structure: flat_structure,
-                include_empties: include_empties
+                include_empties: include_empties,
+                include_video: include_video,
+                include_frames: include_frames
             }),
         }).then((response) => {
             if (!response.ok) {
@@ -315,18 +346,24 @@ async function writeFile(jpegData,path,labels,fileName) {
         }
     }
 
-    // EXIF
-    try {
-        var exifObj = exports.piexif.load(jpegData)
-        exifObj['Exif'][37510] = labels.toString()
-        var exifStr = exports.piexif.dump(exifObj)
-        jpegData = exports.piexif.insert(exifStr, jpegData)
-    } catch {
-        // If there is something odd in the EXIF info, just overwrite everything
-        var exifObj = {'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}
-        exifObj['Exif'][37510] = labels.toString()
-        var exifStr = exports.piexif.dump(exifObj)
-        jpegData = exports.piexif.insert(exifStr, jpegData)
+    if (fileName.toLowerCase().includes('.mp4') || fileName.toLowerCase().includes('.avi')) {
+        // If it's a video, just save it
+        jpegData = jpegData
+
+    } else {
+        // If it's an image, save the labels in the EXIF
+        try {
+            var exifObj = exports.piexif.load(jpegData)
+            exifObj['Exif'][37510] = labels.toString()
+            var exifStr = exports.piexif.dump(exifObj)
+            jpegData = exports.piexif.insert(exifStr, jpegData)
+        } catch {
+            // If there is something odd in the EXIF info, just overwrite everything
+            var exifObj = {'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}
+            exifObj['Exif'][37510] = labels.toString()
+            var exifStr = exports.piexif.dump(exifObj)
+            jpegData = exports.piexif.insert(exifStr, jpegData)
+        }
     }
 
     // Save
@@ -352,7 +389,7 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 async function fetchRemainingImages() {
     /** Fetches a batch of images that must be downloaded */
-    var data = await limitTT(()=> fetch('/get_required_images', {
+    var data = await limitTT(()=> fetch('/get_required_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -364,7 +401,9 @@ async function fetchRemainingImages() {
             species_sorted: species_sorted,
             individual_sorted: individual_sorted,
             flat_structure: flat_structure,
-            include_empties: include_empties
+            include_empties: include_empties,
+            include_video: include_video,
+            include_frames: include_frames
         }),
     }).then((response) => {
         if (!response.ok) {
@@ -374,12 +413,18 @@ async function fetchRemainingImages() {
     }).catch( (error) => {
         // do nothing - will automatically continue
     }))
-
+    console.log('fetching data')
+    console.log(data)
     if (data) {
         if (data.ids.length>0) {
             await confirmReceipt(data.ids)
-            getRequiredImages(data.requiredImages)
-        } else { // if (download_initialised_check)
+            getRequiredImages(data.requiredFiles)
+        } 
+        else if(data.ids.length==0 && include_video == true){
+            // If done with videos move onto images
+            include_video = false
+        }
+        else { // if (download_initialised_check)
             finishedIterating = true
         }
     }
@@ -407,7 +452,9 @@ async function confirmReceipt(image_ids,count=0) {
                 'content-type': 'application/json',
             },
             body: JSON.stringify({
-                image_ids: image_ids
+                image_ids: image_ids,
+                include_video: include_video,
+                include_frames: include_frames
             }),
         }).then((response) => {
             if (!response.ok) {
@@ -479,9 +526,14 @@ async function getBlob(url) {
     return blob;
 }
 
-function getHash(jpegData) {
+function getHash(jpegData, isVideo=false) {
     /** Returns the hash of the EXIF-less image */
-    return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+    if (isVideo){
+        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
+    }
+    else{
+        return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(exports.piexif.insert(exports.piexif.dump({'0th':{},'1st':{},'Exif':{},'GPS':{},'Interop':{},'thumbnail':null}), jpegData))).toString()
+    }
 }
 
 async function checkDownloadStatus() {
@@ -498,6 +550,9 @@ async function checkDownloadStatus() {
         } else {
             // check download
             postMessage({'func': 'checkingDownload', 'args': [true]})
+            if(include_video_init){
+                include_video = true
+            }
             startDownload(downloadingTask,downloadingTaskName)
         }
     }

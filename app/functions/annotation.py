@@ -21,6 +21,7 @@ from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels,
                                     getClusterClassifications, checkForIdWork, numify_timestamp
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
 from app.functions.results import resetImageDownloadStatus
+from app.functions.results import resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -1471,7 +1472,21 @@ def manageDownloads():
         for survey in surveys:
             check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
             if check==None:
-                resetImageDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None)
+                resetImageDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None, include_frames=True)
+
+        surveys = db.session.query(Survey)\
+                            .join(User)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Video)\
+                            .filter(Video.downloaded==True)\
+                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+                            .distinct().all()
+        
+        for survey in surveys:
+            check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
+            if check==None:
+                resetVideoDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None, include_frames=True)
 
     except Exception as exc:
         app.logger.info(' ')

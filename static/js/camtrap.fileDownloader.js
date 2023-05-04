@@ -55,6 +55,22 @@ async function initiateDownload() {
         flat_structure = document.getElementById('flatStructure').checked
         include_empties = document.getElementById('emptyInclude').checked
         delete_items = document.getElementById('deleteTrue').checked
+        if(document.getElementById('videoTrue').checked ) {
+            include_video = true
+            include_frames = false	
+        }
+        else if(document.getElementById('videoFramesTrue').checked) {
+            include_video = false
+            include_frames = true
+        }
+        else if (document.getElementById('videoAndFramesTrue').checked) {
+            include_video = true
+            include_frames = true
+        }
+        else {
+            include_video = false
+            include_frames = false
+        }
 
         species = []
         downloadSpecies = document.querySelectorAll('[id^=downloadSpecies-]');
@@ -79,7 +95,7 @@ async function initiateDownload() {
             globalToDownload = 0
             global_count_initialised = false
         
-            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items]})
+            downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames]})
         
         } catch {
             document.getElementById('btnDownloadStart').disabled = false
