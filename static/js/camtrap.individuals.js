@@ -41,6 +41,11 @@ var allSites = null
 var allIndividualImages = null
 var minDate = null
 var maxDate = null
+var pauseControl = null
+var playControl = null
+var stopControl = null
+var playControlImage = null
+var drawnItems = null
 
 
 function next_individuals() {
@@ -238,11 +243,15 @@ function getIndividualInfo(individualID){
                 lastSeen = info.seen_range[1]
                 individualLastSeen = lastSeen
 
-                document.getElementById('firstSeenDiv').innerHTML =  firstSeen
-                document.getElementById('lastSeenDiv').innerHTML = lastSeen
+                if(firstSeen){
+                    document.getElementById('firstSeenDiv').innerHTML =  firstSeen
+                    minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
+                }
 
-                minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
-                maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+                if(lastSeen){
+                    document.getElementById('lastSeenDiv').innerHTML = lastSeen
+                    maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+                }
 
                 document.getElementById('startDateIndiv').setAttribute('min', minDate)
                 document.getElementById('endDateIndiv').setAttribute('min', minDate)
@@ -731,9 +740,18 @@ function validateDateRange() {
 
 function modifyToCompURL(url) {
     /** Modifies the source URL to the compressed folder of the user */
-    splits=url.split('/')
-    splits[0]=splits[0]+'-comp'
-    return splits.join('/')
+    var isImage = checkIfImage(url)
+    if (isImage) {
+        splits=url.split('/')
+        splits[0]=splits[0]+'-comp'
+        return splits.join('/')
+    }
+    else {
+        splits=url.split('/')
+        splits[0]=splits[0]+'-comp'
+        splits[splits.length-1]=splits[splits.length-1].split('.')[0]+'.mp4'
+        return splits.join('/')
+    }
 }
 
 function updateSlider() {
@@ -779,6 +797,12 @@ function updateSlider() {
                 document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
                 document.getElementById('timeInfo').innerHTML = image.timestamp
                 addedDetections = false
+                var isImage = checkIfImage(image.url)
+                var isActiveImage = checkIfImage(activeImage._url)
+                if (isImage != isActiveImage) {
+                    updateMap(image.url)
+                }
+                updatePlayControlImage()
                 activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
             }
         });
@@ -982,11 +1006,11 @@ function prepMap(image) {
     if (bucketName != null) {
         mapReady = false
         imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        videoUrl = image.video_url
         var img = new Image();
         img.onload = function(){
             w = this.width
             h = this.height
-
 
             if (w>h) {
                 document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
@@ -1046,8 +1070,10 @@ function prepMap(image) {
                 map.fitBounds(bounds)
                 map.setMinZoom(map.getZoom())
                 activeImage.setBounds(bounds)
-                addedDetections = false
-                addDetections(individualImages[individualSplide.index])    
+                if(checkIfImage(activeImage._url)){
+                    addedDetections = false
+                    addDetections(individualImages[individualSplide.index])  
+                }  
             });
 
 
@@ -1060,10 +1086,12 @@ function prepMap(image) {
     
             map.on('zoomstart', function() {
                 if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
-                    fullRes = true
+                    if(checkIfImage(activeImage._url)){
+                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
+                        fullRes = true
+                    }
                 }
-            });
+            });    
     
             rectOptions = {
                 color: "rgba(223,105,26,1)",
@@ -1074,11 +1102,203 @@ function prepMap(image) {
                 contextmenu: false,
             }            
 
+            if (videoUrl != null) {
+
+                var MyPlayControlImage = L.Control.extend({
+                    onAdd: function() {
+                        var button = L.DomUtil.create('button');
+                        button.innerHTML = '⏵';
+                        L.DomEvent.on(button, 'click', function () {
+                            updateMap(individualImages[individualSplide.index].video_url)
+                        });
+                        return button;
+                    }
+                });
+                
+                playControlImage = (new MyPlayControlImage()).addTo(map);
+
+            }
+
             mapReady = true
         };
-        img.src = imageUrl
+        img.src = imageUrl  
+    }
+}
+
+function updateMap( url){
+    /** Updates the map displayed depending if the source is a video or image. */
+    mapReady = false
+    var isImage = checkIfImage(url)
+    map.removeLayer(activeImage)
+    if (drawnItems != null) {
+        map.removeLayer(drawnItems)
+    }
+    if (pauseControl != null && playControl != null && stopControl != null) {
+        pauseControl.remove()
+        playControl.remove()
+        stopControl.remove()
+    }
+    if (playControlImage != null){
+        playControlImage.remove()
+        playControlImage = null
     }
 
+    if (isImage){
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height              
+
+            document.getElementById('mapDiv').style.height = 'calc(38vw *'+(h/w)+')'
+            document.getElementById('mapDiv').style.width = '38vw'  
+
+            var h1 = document.getElementById('mapDiv').clientHeight
+            var w1 = document.getElementById('mapDiv').clientWidth
+
+            var southWest = map.unproject([0, h1], 2);
+            var northEast = map.unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+    
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+    
+            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
+            activeImage.on('load', function() {
+                addedDetections = false
+                addDetections(individualImages[individualSplide.index])
+            });
+
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+            
+            rectOptions = {
+                color: "rgba(223,105,26,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }    
+
+            updatePlayControlImage()
+            
+            mapReady = true     
+            
+        };
+        img.src = imageUrl
+
+    } else {
+        videoURL = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(url)
+        vid = document.createElement('video')
+        vid.setAttribute('controls',true)
+        vid.setAttribute('width', 500);
+
+        sourceMP4 = document.createElement('source')
+        sourceMP4.setAttribute('src',videoURL)
+        sourceMP4.setAttribute('type','video/mp4')  
+
+        vid.appendChild(sourceMP4) 
+
+        vid.addEventListener('loadedmetadata', function() {
+            var w = vid.videoWidth
+            var h = vid.videoHeight
+
+            document.getElementById('mapDiv').style.height = 'calc(38vw *'+(h/w)+')'
+            document.getElementById('mapDiv').style.width = '38vw'  
+
+            var h1 = document.getElementById('mapDiv').clientHeight
+            var w1 = document.getElementById('mapDiv').clientWidth
+            var southWest = map.unproject([0, h1], 2);
+            var northEast = map.unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+
+            activeImage = L.videoOverlay(videoURL, bounds, {
+                opacity: 1,
+                autoplay: false,
+                loop: false
+            }).addTo(map);
+            
+
+            activeImage.on('load', function () {
+                while(map._controlCorners['topright'].firstChild){
+                    map._controlCorners['topright'].removeChild(map._controlCorners['topright'].firstChild);
+                }
+
+                var MyPauseControl = L.Control.extend({
+                    onAdd: function() {
+                        var button = L.DomUtil.create('button');
+                        button.innerHTML = '⏸';
+                        L.DomEvent.on(button, 'click', function () {
+                            activeImage.getElement().pause();
+                        });
+                        return button;
+                    }
+                });
+                var MyPlayControl = L.Control.extend({
+                    onAdd: function() {
+                        var button = L.DomUtil.create('button');
+                        button.innerHTML = '⏵';
+                        L.DomEvent.on(button, 'click', function () {
+                            activeImage.getElement().play();
+                        });
+                        return button;
+                    }
+                });
+
+                var MyStopControl = L.Control.extend({
+                    onAdd: function() {
+                        var button = L.DomUtil.create('button');
+                        button.innerHTML = '⏹';
+                        L.DomEvent.on(button, 'click', function () {
+                            updateMap(individualImages[individualSplide.index].url)
+                        });
+                        return button;
+                    }
+                });
+                
+                
+                playControl = (new MyPlayControl()).addTo(map);
+                pauseControl = (new MyPauseControl()).addTo(map);
+                stopControl = (new MyStopControl()).addTo(map);
+
+                finishedDisplaying = true
+            });          
+
+            mapReady = true
+            activeImage.setUrl(videoURL)
+
+        });                   
+    }
+    
+}
+
+function updatePlayControlImage(){
+    /** Removes or add a play control to image depending on if it has a video associated with it */
+    if (individualImages[individualSplide.index].video_url == null){
+        if (playControlImage != null){
+            playControlImage.remove()
+            playControlImage = null
+        }
+    }
+    else{
+        if (playControlImage == null){
+            var MyPlayControlImage = L.Control.extend({
+                onAdd: function() {
+                    var button = L.DomUtil.create('button');
+                    button.innerHTML = '⏵';
+                    L.DomEvent.on(button, 'click', function () {
+                        updateMap(individualImages[individualSplide.index].video_url)
+                    });
+                    return button;
+                }
+            });
+            playControlImage = (new MyPlayControlImage()).addTo(map);
+        }
+    }
 }
 
 function deleteIndividual() {
@@ -2157,7 +2377,6 @@ function getIndividualAssociations(individual_id, page=null){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
 
             var tableBody = document.getElementById('associationsTableBody');
             tableBody.innerHTML = ''
@@ -2247,6 +2466,16 @@ function buildAssociation(association){
     row.appendChild(imageCountCell);
 
     table.appendChild(row);
+}
+
+function checkIfImage(url){
+    /** Checks if the url is an image or not */
+    if (url.includes('jpg') || url.includes('JPG') || url.includes('jpeg') || url.includes('JPEG') || url.includes('png') || url.includes('PNG')) {
+        return true
+    }
+    else {
+        return false
+    }
 }
 
 function onload(){

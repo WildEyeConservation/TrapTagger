@@ -1984,10 +1984,9 @@ function prepMap(mapID = 'map1') {
                             }
                         });
                         
-                        
-                        pauseControl[mapID] = (new MyPauseControl()).addTo(map[mapID]);
                         playControl[mapID] = (new MyPlayControl()).addTo(map[mapID]);
-
+                        pauseControl[mapID] = (new MyPauseControl()).addTo(map[mapID]);
+                        
                         finishedDisplaying[mapID] = true
                     });
                     
@@ -2294,9 +2293,9 @@ function updateMap(mapID = 'map1', url){
                         }
                     });
                     
-                    pauseControl[mapID] = (new MyPauseControl()).addTo(map[mapID]);
                     playControl[mapID] = (new MyPlayControl()).addTo(map[mapID]);
-
+                    pauseControl[mapID] = (new MyPauseControl()).addTo(map[mapID]);
+                    
                     finishedDisplaying[mapID] = true
                 });          
 

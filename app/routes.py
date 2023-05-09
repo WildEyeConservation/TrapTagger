@@ -658,22 +658,26 @@ def getIndividual(individual_id):
         if site != '0':
             images = images.filter(Trapgroup.tag==site)
  
-        if start_date: images = images.filter(Image.corrected_timestamp >= start_date)
+        if start_date: 
+            images = images.filter(Image.corrected_timestamp >= start_date)
 
-        if end_date: images = images.filter(Image.corrected_timestamp <= end_date)
+        if end_date: 
+            images = images.filter(Image.corrected_timestamp <= end_date)
 
         if order == 'a1':
-            images = images.order_by(Image.corrected_timestamp).all()
+            images = images.order_by(Image.corrected_timestamp)
         elif order == 'd1':
-            images = images.order_by(desc(Image.corrected_timestamp)).all()
+            images = images.order_by(desc(Image.corrected_timestamp))
         elif order == 'a2':
-            images = images.order_by(Trapgroup.tag).all()
+            images = images.order_by(Trapgroup.tag)
         elif order == 'd2':
-            images = images.order_by(desc(Trapgroup.tag)).all()
+            images = images.order_by(desc(Trapgroup.tag))
         elif order == 'a3':
-            images = images.order_by(Image.detection_rating).all()
+            images = images.order_by(Image.detection_rating)
         elif order == 'd3':
-            images = images.order_by(desc(Image.detection_rating)).all()
+            images = images.order_by(desc(Image.detection_rating))
+
+        images = images.all()
 
         for image in images:
             detection = db.session.query(Detection)\
@@ -684,9 +688,14 @@ def getIndividual(individual_id):
                             .filter(~Detection.status.in_(['deleted','hidden']))\
                             .first()
 
+            video_url = None
+            if image.camera.videos.all():
+                video_url = image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename
+
             reply.append({
                             'id': image.id,
                             'url': image.camera.path + '/' + image.filename,
+                            'video_url': video_url,
                             'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
                             {   
@@ -6998,7 +7007,7 @@ def get_image_info():
         labels = request.json['species']
         include_video = request.json['include_video']
         include_frames = request.json['include_frames']
-        app.logger.info('Include video: {}'.format(include_video))
+
         if include_video:
             video = db.session.query(Video)\
                             .join(Camera)\
