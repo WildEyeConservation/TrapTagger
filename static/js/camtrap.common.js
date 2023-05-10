@@ -1308,8 +1308,9 @@ function updateSlider(mapID = 'map1') {
 
             var track = clusterPositionSplide[mapID].Components.Elements.track
             clusterPositionSplide[mapID].on( 'click', function(wrapMapID,wrapTrack) {
-                return function() {
-                    imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
+                return function(event) {
+                    // imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
+                    imageIndex[wrapMapID] = event.index
                     clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
                     update(wrapMapID)
                 }
