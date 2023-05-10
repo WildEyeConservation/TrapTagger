@@ -348,10 +348,10 @@ def launch_task(self,task_id):
                 db.session.commit()
                 return True
 
-            for chunk in chunker(clusters,2500):
-                for cluster in chunk:
-                    cluster.examined = False
-                db.session.commit()
+            # for chunk in chunker(clusters,2500):
+            for cluster in clusters:
+                cluster.examined = False
+            db.session.commit()
 
         if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
             prep_required_images(task_id)
@@ -614,7 +614,7 @@ def wrapUpTask(self,task_id):
                                             .filter(Individual.tasks.contains(task))\
                                             .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
-                                            .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
+                                            .filter(IndSimilarity.score==None)\
                                             .distinct().count() 
 
             if incompleteIndividuals == 0:
@@ -849,7 +849,7 @@ def manageTasks():
 
         Owner = alias(User)
         Worker = alias(User)
-        tasks = [r.id for r in db.session.query(Task)\
+        tasks = [r[0] for r in db.session.query(Task.id)\
                         .join(Survey)\
                         .join(Owner,Owner.c.id==Survey.user_id)\
                         .outerjoin(workersTable,Owner.c.id==workersTable.c.user_id)\

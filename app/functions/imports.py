@@ -395,12 +395,12 @@ def cluster_trapgroup(self,trapgroup_id):
                         .filter(sq.c.id==None)\
                         .distinct().all()
             
-            for chunk in chunker(videos,100):
-                for video in chunk:
-                    cluster = Cluster(task_id=task.id)
-                    db.session.add(cluster)
-                    cluster.images = video.camera.images
-                db.session.commit()
+            # for chunk in chunker(videos,100):
+            for video in videos:
+                cluster = Cluster(task_id=task.id)
+                db.session.add(cluster)
+                cluster.images = video.camera.images
+            db.session.commit()
 
         # Handle the rest of the images without timestamps
         for task in survey.tasks:
@@ -413,12 +413,12 @@ def cluster_trapgroup(self,trapgroup_id):
                         .filter(sq.c.id==None)\
                         .all()
 
-            for chunk in chunker(images,1000):
-                for image in chunk:
-                    cluster = Cluster(task_id=task.id)
-                    db.session.add(cluster)
-                    cluster.images.append(image)
-                db.session.commit()
+            # for chunk in chunker(images,1000):
+            for image in images:
+                cluster = Cluster(task_id=task.id)
+                db.session.add(cluster)
+                cluster.images.append(image)
+            db.session.commit()
 
         if previouslyClustered:
             #Clustering an already-clustered survey, trying to preserve labels etc.
@@ -432,105 +432,105 @@ def cluster_trapgroup(self,trapgroup_id):
                                 .filter(sq.c.id==None)\
                                 .order_by(Image.corrected_timestamp)\
                                 .distinct().all()
-                for chunk in chunker(images,1000):
-                    for image in chunk:
-                        potentialClusters = db.session.query(Cluster) \
-                                                    .join(Image, Cluster.images) \
-                                                    .join(Camera) \
-                                                    .filter(Cluster.task==task) \
-                                                    .filter(Camera.trapgroup==trapgroup) \
-                                                    .filter(Image.corrected_timestamp>=image.corrected_timestamp-timedelta(seconds=60)) \
-                                                    .filter(Image.corrected_timestamp<=image.corrected_timestamp+timedelta(seconds=60)) \
-                                                    .distinct(Cluster.id) \
-                                                    .all()
+                # for chunk in chunker(images,1000):
+                for image in images:
+                    potentialClusters = db.session.query(Cluster) \
+                                                .join(Image, Cluster.images) \
+                                                .join(Camera) \
+                                                .filter(Cluster.task==task) \
+                                                .filter(Camera.trapgroup==trapgroup) \
+                                                .filter(Image.corrected_timestamp>=image.corrected_timestamp-timedelta(seconds=60)) \
+                                                .filter(Image.corrected_timestamp<=image.corrected_timestamp+timedelta(seconds=60)) \
+                                                .distinct(Cluster.id) \
+                                                .all()
 
-                        if len(potentialClusters) == 0:
-                            cluster = Cluster(task_id=task.id)
-                            db.session.add(cluster)
-                            image.clusters.append(cluster)
+                    if len(potentialClusters) == 0:
+                        cluster = Cluster(task_id=task.id)
+                        db.session.add(cluster)
+                        image.clusters.append(cluster)
 
-                            detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                            for detection in detections:
-                                labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                                db.session.add(labelgroup)
+                        detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                        for detection in detections:
+                            labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                            db.session.add(labelgroup)
 
-                        elif len(potentialClusters) == 1:
-                            potentialClusters[0].images.append(image)
+                    elif len(potentialClusters) == 1:
+                        potentialClusters[0].images.append(image)
 
-                            detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                            for detection in detections:
-                                labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                                db.session.add(labelgroup)
-                                labelgroup.labels = potentialClusters[0].labels
-                                labelgroup.tags = potentialClusters[0].tags
+                        detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                        for detection in detections:
+                            labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                            db.session.add(labelgroup)
+                            labelgroup.labels = potentialClusters[0].labels
+                            labelgroup.tags = potentialClusters[0].tags
 
-                        else:
-                            sq = db.session.query(Image) \
-                                        .join(Cluster,Image.clusters) \
-                                        .filter(Cluster.task == task) \
-                                        .filter(Cluster.labels.contains(downLabel)) \
-                                        .filter(Image.camera==image.camera)
+                    else:
+                        sq = db.session.query(Image) \
+                                    .join(Cluster,Image.clusters) \
+                                    .filter(Cluster.task == task) \
+                                    .filter(Cluster.labels.contains(downLabel)) \
+                                    .filter(Image.camera==image.camera)
+                        
+                        knockTest = sq.order_by(Image.corrected_timestamp).first()
+                        allocated = False
+                        if knockTest:
+                            if (knockTest.corrected_timestamp <= image.corrected_timestamp) and (sq.order_by(desc(Image.corrected_timestamp)).first().corrected_timestamp >= image.corrected_timestamp):
+                                image.clusters.append(db.session.query(Cluster).filter(Cluster.task==task).filter(Cluster.images.contains(knockTest)).first())
+                                allocated = True
+
+                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                                for detection in detections:
+                                    labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                                    db.session.add(labelgroup)
+                                    labelgroup.labels = [downLabel]
+
+                        if allocated == False:
+                            potentialClusters = db.session.query(Cluster) \
+                                                .join(Image, Cluster.images) \
+                                                .join(Camera) \
+                                                .filter(Cluster.task==task) \
+                                                .filter(Camera.trapgroup==trapgroup) \
+                                                .filter(~Cluster.labels.contains(downLabel)) \
+                                                .filter(Image.corrected_timestamp>=image.corrected_timestamp-timedelta(seconds=60)) \
+                                                .filter(Image.corrected_timestamp<=image.corrected_timestamp+timedelta(seconds=60)) \
+                                                .all()
                             
-                            knockTest = sq.order_by(Image.corrected_timestamp).first()
-                            allocated = False
-                            if knockTest:
-                                if (knockTest.corrected_timestamp <= image.corrected_timestamp) and (sq.order_by(desc(Image.corrected_timestamp)).first().corrected_timestamp >= image.corrected_timestamp):
-                                    image.clusters.append(db.session.query(Cluster).filter(Cluster.task==task).filter(Cluster.images.contains(knockTest)).first())
-                                    allocated = True
+                            if all_equal([cluster.labels[:] for cluster in potentialClusters]):
+                                # Only combine clusters if they have the same labels - prevents issues caused by timelapses
+                                potentialClusters[0].images.append(image)
+                                for cluster in potentialClusters[1:]:
+                                    potentialClusters[0].images.extend(cluster.images)
+                                    for label in cluster.labels:
+                                        if label not in potentialClusters[0].labels[:]:
+                                            potentialClusters[0].labels.append(label)
+                                    for tag in cluster.tags:
+                                        if tag not in potentialClusters[0].tags[:]:
+                                            potentialClusters[0].tags.append(tag)
+                                    db.session.delete(cluster)
+                                potentialClusters[0].timestamp = datetime.utcnow()
 
-                                    detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                    for detection in detections:
-                                        labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                                        db.session.add(labelgroup)
-                                        labelgroup.labels = [downLabel]
+                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                                for detection in detections:
+                                    labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                                    db.session.add(labelgroup)
 
-                            if allocated == False:
-                                potentialClusters = db.session.query(Cluster) \
-                                                    .join(Image, Cluster.images) \
-                                                    .join(Camera) \
-                                                    .filter(Cluster.task==task) \
-                                                    .filter(Camera.trapgroup==trapgroup) \
-                                                    .filter(~Cluster.labels.contains(downLabel)) \
-                                                    .filter(Image.corrected_timestamp>=image.corrected_timestamp-timedelta(seconds=60)) \
-                                                    .filter(Image.corrected_timestamp<=image.corrected_timestamp+timedelta(seconds=60)) \
-                                                    .all()
-                                
-                                if all_equal([cluster.labels[:] for cluster in potentialClusters]):
-                                    # Only combine clusters if they have the same labels - prevents issues caused by timelapses
-                                    potentialClusters[0].images.append(image)
-                                    for cluster in potentialClusters[1:]:
-                                        potentialClusters[0].images.extend(cluster.images)
-                                        for label in cluster.labels:
-                                            if label not in potentialClusters[0].labels[:]:
-                                                potentialClusters[0].labels.append(label)
-                                        for tag in cluster.tags:
-                                            if tag not in potentialClusters[0].tags[:]:
-                                                potentialClusters[0].tags.append(tag)
-                                        db.session.delete(cluster)
-                                    potentialClusters[0].timestamp = datetime.utcnow()
+                                for im in potentialClusters[0].images:
+                                    labelgroups = db.session.query(Labelgroup).join(Detection).filter(Detection.image_id==im.id).filter(Labelgroup.task_id==task.id).all()
+                                    for labelgroup in labelgroups:
+                                        labelgroup.labels = potentialClusters[0].labels
+                                        labelgroup.tags = potentialClusters[0].tags
 
-                                    detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                    for detection in detections:
-                                        labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                                        db.session.add(labelgroup)
+                            else:
+                                cluster = Cluster(task_id=task.id)
+                                db.session.add(cluster)
+                                image.clusters.append(cluster)
 
-                                    for im in potentialClusters[0].images:
-                                        labelgroups = db.session.query(Labelgroup).join(Detection).filter(Detection.image_id==im.id).filter(Labelgroup.task_id==task.id).all()
-                                        for labelgroup in labelgroups:
-                                            labelgroup.labels = potentialClusters[0].labels
-                                            labelgroup.tags = potentialClusters[0].tags
+                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
+                                for detection in detections:
+                                    labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                                    db.session.add(labelgroup)
 
-                                else:
-                                    cluster = Cluster(task_id=task.id)
-                                    db.session.add(cluster)
-                                    image.clusters.append(cluster)
-
-                                    detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                    for detection in detections:
-                                        labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                                        db.session.add(labelgroup)
-
-                    db.session.commit()
+                db.session.commit()
 
         else:
             #Clustering with a clean slate
@@ -706,7 +706,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
                     AND sq1.intersection / (sq1.area1 + sq1.area2 - sq1.intersection) > 0.7 GROUP BY id1
         """
 
-        detections = [r.id for r in db.session.query(Detection)\
+        detections = [r[0] for r in db.session.query(Detection.id)\
                                             .join(Image)\
                                             .filter(Image.camera_id==camera_id)\
                                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -807,7 +807,7 @@ def removeHumans(task_id):
                                   .group_by(Cluster)
 
     clusters_to_label=[cluster_id for total_dets,non_animal_dets,cluster_id in results if (non_animal_dets/total_dets>0.5)]
-    for chunk in chunker(clusters_to_label,500):
+    for chunk in chunker(clusters_to_label,5000):
         clusters = [db.session.query(Cluster).get(id) for id in chunk]
         for cluster in clusters:
             cluster.labels = [human_label]
@@ -1610,7 +1610,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
     '''
     
     try:
-        images = [r.id for r in db.session.query(Image)\
+        images = [r[0] for r in db.session.query(Image.id)\
                         .join(Detection)\
                         .join(Camera)\
                         .join(Trapgroup)\
@@ -2112,10 +2112,10 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
 
     try:
         clusters = db.session.query(Cluster).join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).filter(Cluster.task_id==task_id).distinct().all()
-        for chunk in chunker(clusters,500):
-            for cluster in chunk:
-                cluster.classification = classifyCluster(cluster)
-            db.session.commit()
+        # for chunk in chunker(clusters,500):
+        for cluster in clusters:
+            cluster.classification = classifyCluster(cluster)
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2155,7 +2155,7 @@ def updateDetectionRatings(images):
 def updateTrapgroupDetectionRatings(self,trapgroup_id):
     '''Updates detection ratings for all images in a trapgroup.'''
     try:
-        images = [r.id for r in db.session.query(Image)\
+        images = [r[0] for r in db.session.query(Image.id)\
                         .join(Camera)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .all()]
@@ -2283,10 +2283,10 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
                             .filter(or_(Detection.left==Detection.right,Detection.top==Detection.bottom))\
                             .all()
 
-    for chunk in chunker(detections,1000):
-        for detection in chunk:
-            detection.classification = 'nothing'
-        db.session.commit()
+    # for chunk in chunker(detections,1000):
+    for detection in detections:
+        detection.classification = 'nothing'
+    db.session.commit()
 
     #Update cluster classifications
     results = []
@@ -2381,10 +2381,10 @@ def adjustTimestamps(trapgroup_id,data):
         if camera.id in data.keys():
             adjustment = data[camera.id]
             images = db.session.query(Image).filter(Image.camera_id==camera.id).filter(Image.timestamp!=None).all()
-            for chunk in chunker(images,500):
-                for image in chunk:
-                    image.corrected_timestamp += adjustment
-                db.session.commit()
+            # for chunk in chunker(images,500):
+            for image in images:
+                image.corrected_timestamp += adjustment
+            db.session.commit()
 
 def resetTimestamps(trapgroup_id,data):
     '''
@@ -2701,10 +2701,10 @@ def correct_timestamps(survey_id,setup_time=31):
                         delta = relativedelta(years=yearDelta,months=monthDelta,days=dayDelta)
 
                 print('Cameras {} need to be adjusted by {}'.format(groups[group],delta))
-                for chunk in chunker(images,500):
-                    for image in chunk:
-                        image.corrected_timestamp += delta
-                    db.session.commit()
+                # for chunk in chunker(images,500):
+                for image in images:
+                    image.corrected_timestamp += delta
+                db.session.commit()
 
     task_id = create_reference_task(survey_id)
 

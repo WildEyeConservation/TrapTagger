@@ -682,13 +682,14 @@ def clusterIdComplete(task_id,label_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
+                            .subquery()
 
         count = db.session.query(Detection)\
+                            .outerjoin(identified,identified.c.id==Detection.id)\
                             .join(Labelgroup)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Labelgroup.labels.contains(label))\
-                            .filter(~Detection.id.in_([r.id for r in identified]))\
+                            .filter(identified.c.id==None)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -718,16 +719,17 @@ def updateIndividualIdStatus(task_id):
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
+                            .subquery()
 
         label.unidentified_count = db.session.query(Cluster)\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
+                            .outerjoin(identified,identified.c.id==Detection.id)\
                             .join(Labelgroup)\
                             .filter(Cluster.task_id==task_id)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Labelgroup.labels.contains(label))\
-                            .filter(~Detection.id.in_([r.id for r in identified]))\
+                            .filter(identified.c.id==None)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1317,16 +1319,16 @@ def classifyTask(task_id,reClusters = None):
 
             clusters = clusters.distinct().all()
 
-            for chunk in chunker(clusters,1000):
-                for cluster in chunk:
-                    if species not in cluster.labels: cluster.labels.append(species)
-                    cluster.user_id = admin.id
-                    cluster.timestamp = datetime.utcnow()
+            # for chunk in chunker(clusters,1000):
+            for cluster in clusters:
+                if species not in cluster.labels: cluster.labels.append(species)
+                cluster.user_id = admin.id
+                cluster.timestamp = datetime.utcnow()
 
-                    labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
-                    for labelgroup in labelgroups:
-                        labelgroup.labels = cluster.labels
-                db.session.commit()
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.labels = cluster.labels
+            db.session.commit()
         app.logger.info('Finished classifying task '+str(task_id))
 
     except Exception:
@@ -1910,12 +1912,13 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
+                                    .subquery()
 
                 sq = sq.join(Labelgroup)\
+                        .outerjoin(identified,identified.c.id==Detection.id)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(label))\
-                        .filter(~Detection.id.in_([r.id for r in identified]))
+                        .filter(identified.c.id==None)
 
             elif tL[0] == '-2':
                 # Species-level informational tagging
@@ -2359,10 +2362,10 @@ def re_evaluate_trapgroup_examined(trapgroup_id,task_id):
                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                     .distinct().all()
 
-    for chunk in chunker(clusters,2500):
-        for cluster in chunk:
-            cluster.examined = False
-        db.session.commit()
+    # for chunk in chunker(clusters,2500):
+    for cluster in clusters:
+        cluster.examined = False
+    db.session.commit()
 
     return True
 
@@ -2400,7 +2403,7 @@ def getClusterClassifications(cluster_id):
                             .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                             .distinct().count()
 
-    possibilities = [r.id for r in db.session.query(Label)\
+    possibilities = [r[0] for r in db.session.query(Label.id)\
                             .join(classSQ,classSQ.c.label_id==Label.id)\
                             .filter(classSQ.c.count/clusterDetCount>=Config.MIN_CLASSIFICATION_RATIO)\
                             .filter(classSQ.c.count>1)\
@@ -2485,9 +2488,9 @@ def calculateTrapgroupHashes(self,trapgroup_id):
     
     try:
         pool = Pool(processes=4)
-        images = db.session.query(Image).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()
+        images = [r[0] for r in db.session.query(Image.id).join(Camera).filter(Camera.trapgroup_id==trapgroup_id).distinct().all()]
         for chunk in chunker(images,200):
-            pool.apply_async(calculateChunkHashes,([r.id for r in chunk],))
+            pool.apply_async(calculateChunkHashes,(chunk,))
         pool.close()
         pool.join()
 

@@ -48,25 +48,23 @@ def delete_task(self,task_id):
     message = None
 
     try:
-        task = db.session.query(Task).get(task_id)
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).all()
-
-        app.logger.info('Deleting task {} from survey {}'.format(task.name,task.survey.name))
+        app.logger.info('Deleting task {}'.format(task_id))
+        clusters = db.session.query(Cluster).filter(Cluster.task_id==task_id).all()
 
         try:
-            for chunk in chunker(clusters,1000):
-                for cluster in chunk:
-                    #Delete cluster labels
-                    cluster.labels = []
-                    #Delete cluster tags
-                    cluster.tags = []
-                    #Delete cluster - image associations
-                    cluster.images = []
-                    #Delete required images
-                    cluster.required_images = []
-                    #Delete cluster
-                    db.session.delete(cluster)
-                db.session.commit()
+            # for chunk in chunker(clusters,1000):
+            for cluster in clusters:
+                #Delete cluster labels
+                cluster.labels = []
+                #Delete cluster tags
+                cluster.tags = []
+                #Delete cluster - image associations
+                cluster.images = []
+                #Delete required images
+                cluster.required_images = []
+                #Delete cluster
+                db.session.delete(cluster)
+            db.session.commit()
             app.logger.info('Clusters deleted successfully.')
         except:
             status = 'error'
@@ -77,12 +75,12 @@ def delete_task(self,task_id):
         if status != 'error':
             try:
                 labelgroups = db.session.query(Labelgroup).filter(Labelgroup.task_id==task_id).all()
-                for chunk in chunker(labelgroups,1000):
-                    for labelgroup in chunk:
-                        labelgroup.labels = []
-                        labelgroup.tags = []
-                        db.session.delete(labelgroup)
-                    db.session.commit()
+                # for chunk in chunker(labelgroups,1000):
+                for labelgroup in labelgroups:
+                    labelgroup.labels = []
+                    labelgroup.tags = []
+                    db.session.delete(labelgroup)
+                db.session.commit()
                 app.logger.info('Labelgroups deleted successfully.')
             except:
                 status = 'error'
@@ -93,6 +91,7 @@ def delete_task(self,task_id):
         if status != 'error':
             try:
                 individuals_to_delete = []
+                task = db.session.query(Task).get(task_id)
                 individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
                 for individual in individuals:
                     detections = db.session.query(Detection)\
@@ -115,22 +114,25 @@ def delete_task(self,task_id):
                     if individual not in individuals_to_delete:
                         individual.children = [child for child in individual.children if child not in individuals_to_delete]
 
+                individuals_to_delete = [r.id for r in individuals_to_delete]
                 db.session.commit()
 
-                for chunk in chunker(individuals_to_delete,1000):
-                    for individual in chunk:
-                        individual.detections = []
-                        individual.children = []
-                        individual.tags = []
-                        individual.tasks = []
-                    db.session.commit()
+                individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
+                # for chunk in chunker(individuals_to_delete,1000):
+                for individual in individuals:
+                    individual.detections = []
+                    individual.children = []
+                    individual.tags = []
+                    individual.tasks = []
+                db.session.commit()
 
-                    for individual in chunk:
-                        indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                        for indSimilarity in indSimilarities:
-                            db.session.delete(indSimilarity)
-                        db.session.delete(individual)
-                    db.session.commit()
+                individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
+                for individual in individuals:
+                    indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                    for indSimilarity in indSimilarities:
+                        db.session.delete(indSimilarity)
+                    db.session.delete(individual)
+                db.session.commit()
 
                 app.logger.info('Individuals deleted successfully.')
 
@@ -142,11 +144,11 @@ def delete_task(self,task_id):
         #Delete translations
         if status != 'error':
             try:
-                translations = db.session.query(Translation).filter(Translation.task_id==task_id).all()
-                for chunk in chunker(translations,1000):
-                    for translation in chunk:
-                        db.session.delete(translation)
-                    db.session.commit()
+                db.session.query(Translation).filter(Translation.task_id==task_id).delete(synchronize_session=False)
+                # for chunk in chunker(translations,1000):
+                # for translation in translations:
+                #     db.session.delete(translation)
+                db.session.commit()
                 app.logger.info('Translations deleted successfully.')
             except:
                 status = 'error'
@@ -156,11 +158,11 @@ def delete_task(self,task_id):
         #Delete tags
         if status != 'error':
             try:
-                tags = db.session.query(Tag).filter(Tag.task_id==task_id).all()
-                for chunk in chunker(tags,1000):
-                    for tag in chunk:
-                        db.session.delete(tag)
-                    db.session.commit()
+                db.session.query(Tag).filter(Tag.task_id==task_id).delete(synchronize_session=False)
+                # for chunk in chunker(tags,1000):
+                # for tag in tags:
+                #     db.session.delete(tag)
+                # db.session.commit()
                 app.logger.info('Tags deleted successfully.')
             except:
                 status = 'error'
@@ -188,12 +190,12 @@ def delete_task(self,task_id):
                                     .filter(Turkcode.task_id==task_id) \
                                     .filter(User.email==None) \
                                     .all()
-                for chunk in chunker(turkcodes,1000):
-                    for turkcode in chunk:
-                        worker = db.session.query(User).filter(User.username==turkcode.user_id).first()
-                        db.session.delete(worker)
-                        db.session.delete(turkcode)
-                    db.session.commit()
+                # for chunk in chunker(turkcodes,1000):
+                for turkcode in turkcodes:
+                    worker = db.session.query(User).filter(User.username==turkcode.user_id).first()
+                    db.session.delete(worker)
+                    db.session.delete(turkcode)
+                db.session.commit()
                 app.logger.info('Turkcodes and workers deleted successfully.')
             except:
                 status = 'error'
@@ -333,7 +335,7 @@ def delete_survey(self,survey_id):
         status = 'success'
         message = ''
 
-        tasks = [r.id for r in db.session.query(Task).filter(Task.survey_id==survey_id).all()]
+        tasks = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
 
         app.logger.info('Deleting survey {}'.format(survey_id))
 
@@ -347,17 +349,34 @@ def delete_survey(self,survey_id):
         #Delete detections
         if status != 'error':
             try:
+                detSimilarities = db.session.query(DetSimilarity)\
+                                        .join(Detection,or_(Detection.id==DetSimilarity.detection_1,Detection.id==DetSimilarity.detection_2))\
+                                        .join(Image)\
+                                        .join(Camera)\
+                                        .join(Trapgroup)\
+                                        .filter(Trapgroup.survey_id==survey_id)\
+                                        .all()
+                
+                for detSimilarity in detSimilarities:
+                    db.session.delete(detSimilarity)
+                db.session.commit()
+
                 detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for chunk in chunker(detections,1000):
-                    for detection in chunk:
-                        detection.individuals = []
-                        detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-                        for detSimilarity in detSimilarities:
-                            db.session.delete(detSimilarity)
-                    db.session.commit()
-                    for detection in chunk:
-                        db.session.delete(detection)
-                    db.session.commit()
+                for detection in detections:
+                    db.session.delete(detection)
+                db.session.commit()
+
+                # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                # for chunk in chunker(detections,1000):
+                #     for detection in chunk:
+                #         detection.individuals = []
+                #         detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+                #         for detSimilarity in detSimilarities:
+                #             db.session.delete(detSimilarity)
+                #     db.session.commit()
+                #     for detection in chunk:
+                #         db.session.delete(detection)
+                #     db.session.commit()
                 app.logger.info('Detections deleted successfully.')
             except:
                 status = 'error'
@@ -367,11 +386,11 @@ def delete_survey(self,survey_id):
         #Delete images
         if status != 'error':
             try:
-                images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for chunk in chunker(images,1000):
-                    for image in chunk:
-                        db.session.delete(image)
-                    db.session.commit()
+                db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                # for chunk in chunker(images,1000):
+                #     for image in chunk:
+                #         db.session.delete(image)
+                db.session.commit()
                 app.logger.info('Images deleted successfully.')
             except:
                 status = 'error'
@@ -381,11 +400,11 @@ def delete_survey(self,survey_id):
         #Delete cameras
         if status != 'error':
             try:
-                cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for chunk in chunker(cameras,1000):
-                    for camera in chunk:
-                        db.session.delete(camera)
-                    db.session.commit()
+                db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                # for chunk in chunker(cameras,1000):
+                #     for camera in chunk:
+                #         db.session.delete(camera)
+                db.session.commit()
                 app.logger.info('Cameras deleted successfully.')
             except:
                 status = 'error'
@@ -395,11 +414,11 @@ def delete_survey(self,survey_id):
         #Delete trapgroups
         if status != 'error':
             try:
-                trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
-                for chunk in chunker(trapgroups,1000):
-                    for trapgroup in chunk:
-                        db.session.delete(trapgroup)
-                    db.session.commit()
+                db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                # for chunk in chunker(trapgroups,1000):
+                #     for trapgroup in chunk:
+                #         db.session.delete(trapgroup)
+                db.session.commit()
                 app.logger.info('Trapgroups deleted successfully.')
             except:
                 status = 'error'
@@ -415,8 +434,8 @@ def delete_survey(self,survey_id):
                 bucketObject.objects.filter(Prefix=survey.user.folder+'/'+survey.name+'/').delete()
                 app.logger.info('images deleted from S3 successfully.')
             except:
-                status = 'error'
-                message = 'Could not delete images from S3.'
+                # status = 'error'
+                # message = 'Could not delete images from S3.'
                 app.logger.info('Could not delete images from S3')
 
         #Delete survey
@@ -869,12 +888,12 @@ def reclusterAfterTimestampChange(survey_id):
             if species:
                 pool = Pool(processes=4)
                 for specie in species:
-                    user_ids = [r.id for r in db.session.query(User)\
+                    user_ids = [r[0] for r in db.session.query(User.id)\
                                                         .join(Individual, Individual.user_id==User.id)\
                                                         .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
                                                         .filter(Individual.tasks.contains(newTask))\
                                                         .filter(Individual.species==specie)\
-                                                        .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
+                                                        .filter(IndSimilarity.score==None)\
                                                         .filter(User.passed=='cTrue')\
                                                         .distinct().all()]
 
@@ -1230,14 +1249,16 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
             detections = detections.filter(Detection.bottom>=Config.SKY_CONST)
         
         detections = detections.distinct().all()
+
+        if ignore_small_detections=='true':
+            status = 'hidden'
+        else:
+            status = 'active'
                                 
-        for chunk in chunker(detections,1000):
-            for detection in chunk:
-                if ignore_small_detections=='true':
-                    detection.status = 'hidden'
-                else:
-                    detection.status = 'active'
-            db.session.commit()
+        # for chunk in chunker(detections,1000):
+        for detection in detections:
+            detection.status = status
+        db.session.commit()
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
@@ -1285,14 +1306,16 @@ def maskSky(self,survey_id,sky_masked,edge):
             detections.filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)
                                 
         detections = detections.distinct().all()
+
+        if sky_masked=='true':
+            status = 'hidden'
+        else:
+            status = 'active'
                                 
-        for chunk in chunker(detections,1000):
-            for detection in chunk:
-                if sky_masked=='true':
-                    detection.status = 'hidden'
-                else:
-                    detection.status = 'active'
-            db.session.commit()
+        # for chunk in chunker(detections,1000):
+        for detection in detections:
+            detection.status = status
+        db.session.commit()
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
@@ -1515,7 +1538,6 @@ def getTaskProgress(task_id):
 
             total = db.session.query(Individual)\
                             .join(Task,Individual.tasks)\
-                            .join(Detection,Individual.detections)\
                             .filter(Individual.active==True)\
                             .filter(Task.id.in_(task_ids))\
                             .filter(Individual.species==species)\

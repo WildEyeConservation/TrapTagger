@@ -694,10 +694,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 individual_levels.append(re.split('_individuals',column)[0])
 
         # Generate include an exclude lists
-        include = [r.id for r in db.session.query(Label).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(includes)).distinct().all()]
-        include.extend([r.id for r in db.session.query(Label).filter(Label.task_id==None).filter(Label.description.in_(includes)).distinct().all()])
-        exclude = [r.id for r in db.session.query(Label).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(excludes)).distinct().all()]
-        exclude.extend([r.id for r in db.session.query(Label).filter(Label.task_id==None).filter(Label.description.in_(excludes)).distinct().all()])
+        include = [r[0] for r in db.session.query(Label.id).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(includes)).distinct().all()]
+        include.extend([r[0] for r in db.session.query(Label.id).filter(Label.task_id==None).filter(Label.description.in_(includes)).distinct().all()])
+        exclude = [r[0] for r in db.session.query(Label.id).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(excludes)).distinct().all()]
+        exclude.extend([r[0] for r in db.session.query(Label.id).filter(Label.task_id==None).filter(Label.description.in_(excludes)).distinct().all()])
 
         # Handle bounding boxes
         if 'boxes' in requestedColumns:
@@ -2226,10 +2226,10 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
 
         unwantedImages = list(set(allImages) - set(wantedImages))
 
-        for chunk in chunker(unwantedImages,10000):
-            for image in chunk:
-                image.downloaded = True
-            db.session.commit()
+        # for chunk in chunker(unwantedImages,10000):
+        for image in unwantedImages:
+            image.downloaded = True
+        db.session.commit()
 
         task.status = 'Ready'
         db.session.commit()
@@ -2267,10 +2267,10 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
                         .filter(Image.downloaded!=False)\
                         .all()
 
-        for chunk in chunker(images,10000):
-            for image in chunk:
-                image.downloaded = False
-            db.session.commit()
+        # for chunk in chunker(images,10000):
+        for image in images:
+            image.downloaded = False
+        db.session.commit()
 
         if then_set:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)

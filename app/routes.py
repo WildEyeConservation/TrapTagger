@@ -602,7 +602,7 @@ def deleteIndividual(individual_id):
                                         .distinct().all()
             db.session.commit()
 
-            individuals = [r.id for r in db.session.query(Individual)\
+            individuals = [r[0] for r in db.session.query(Individual.id)\
                                                 .join(Task,Individual.tasks)\
                                                 .filter(Task.id.in_([r.id for r in individual.tasks]))\
                                                 .filter(Individual.species==individual.species)\
@@ -3766,7 +3766,7 @@ def dissociateDetection(detection_id):
             similarity.old_score = similarity.score
         db.session.commit()
 
-        individuals1 = [r.id for r in db.session.query(Individual)\
+        individuals1 = [r[0] for r in db.session.query(Individual.id)\
                                                     .join(Task,Individual.tasks)\
                                                     .join(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
                                                     .filter(Task.id.in_(task_ids))\
@@ -3778,7 +3778,7 @@ def dissociateDetection(detection_id):
                                                     .filter(or_(IndSimilarity.detection_1==int(detection_id),IndSimilarity.detection_2==int(detection_id)))\
                                                     .all()]
 
-        individuals2 = [r.id for r in db.session.query(Individual)\
+        individuals2 = [r[0] for r in db.session.query(Individual.id)\
                                                     .join(Task,Individual.tasks)\
                                                     .filter(Task.id.in_(task_ids))\
                                                     .filter(Individual.species==individual.species)\
@@ -4104,16 +4104,16 @@ def getSuggestion(individual_id):
             if individual1 and individual1.active:
                 tL = re.split(',',task.tagging_level)
 
-                inactiveIndividuals = db.session.query(Individual)\
+                inactiveIndividuals = db.session.query(Individual.id)\
                                                 .join(Task,Individual.tasks)\
                                                 .filter(Task.id.in_(task_ids))\
                                                 .filter(Individual.species==individual1.species)\
                                                 .filter(Individual.active==False)\
                                                 .filter(Individual.name!='unidentifiable')\
                                                 .all()
-                inactiveIndividuals = [r.id for r in inactiveIndividuals]
+                inactiveIndividuals = [r[0] for r in inactiveIndividuals]
 
-                activeIndividuals = db.session.query(Individual)\
+                activeIndividuals = db.session.query(Individual.id)\
                                                 .join(Task,Individual.tasks)\
                                                 .filter(Task.id.in_(task_ids))\
                                                 .filter(Individual.species==individual1.species)\
@@ -4122,15 +4122,15 @@ def getSuggestion(individual_id):
                                                 .filter(Individual.name!='unidentifiable')\
                                                 .all()
 
-                activeIndividuals = [r.id for r in activeIndividuals]
+                activeIndividuals = [r[0] for r in activeIndividuals]
 
-                taskIndividuals = db.session.query(Individual)\
+                taskIndividuals = db.session.query(Individual.id)\
                                                 .join(Task,Individual.tasks)\
                                                 .filter(Task.id.in_(task_ids))\
                                                 .filter(Individual.species==individual1.species)\
-                                                .all()\
+                                                .all()
 
-                taskIndividuals = [r.id for r in taskIndividuals]
+                taskIndividuals = [r[0] for r in taskIndividuals]
 
                 suggestion = db.session.query(IndSimilarity)\
                                     .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\

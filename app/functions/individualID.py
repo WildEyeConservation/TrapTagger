@@ -288,13 +288,13 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         endTime = time.time()
         app.logger.info("Hotspotter run completed in {}s".format(endTime - OverallStartTime))
 
-        user_ids = [r.id for r in db.session.query(User)\
+        user_ids = [r[0] for r in db.session.query(User.id)\
                                             .join(Individual, Individual.user_id==User.id)\
                                             .join(Task,Individual.tasks)\
                                             .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
-                                            .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
+                                            .filter(IndSimilarity.score==None)\
                                             .filter(or_(User.passed=='cTrue',User.username=='Admin'))\
                                             .distinct().all()]
 
@@ -506,13 +506,13 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
         # app.logger.info('Finished Calculating Individual Similarity in {}s'.format((endTime - startTime).total_seconds()))
 
         #Ensure there are no duplicate indsims due to race condition
-        sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.id).label('count'))\
+        sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
                             .join(IndSimilarity, Individual.id==IndSimilarity.individual_1)\
                             .filter(IndSimilarity.individual_2==individual1.id)\
                             .group_by(Individual.id)\
                             .subquery()
 		
-        sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.id).label('count'))\
+        sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
                 .join(IndSimilarity, Individual.id==IndSimilarity.individual_2)\
                 .filter(IndSimilarity.individual_1==individual1.id)\
                 .group_by(Individual.id)\
@@ -571,7 +571,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         task_ids = [r.id for r in task.sub_tasks]
         task_ids.append(task.id)
 
-        individuals1 = db.session.query(Individual)\
+        individuals1 = db.session.query(Individual.id)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
@@ -581,9 +581,9 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         # calculate similarities between all of them
         if len(task_ids)==1: individuals1 = individuals1.filter(Individual.user_id.in_(user_ids))\
 
-        individuals1 = [r.id for r in individuals1.all()]
+        individuals1 = [r[0] for r in individuals1.all()]
 
-        individuals2 = [r.id for r in db.session.query(Individual)\
+        individuals2 = [r[0] for r in db.session.query(Individual.id)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
@@ -618,7 +618,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
-                                            .filter(or_(IndSimilarity.id==None,IndSimilarity.score==None))\
+                                            .filter(IndSimilarity.score==None)\
                                             .distinct().count()
 
             app.logger.info("incompleteIndividuals: {}".format(incompleteIndividuals))    
@@ -836,7 +836,7 @@ def getProgress(individual_id,task_id):
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
     
-    inactiveIndividuals = [r.id for r in db.session.query(Individual)\
+    inactiveIndividuals = [r[0] for r in db.session.query(Individual.id)\
                                 .join(Task,Individual.tasks)\
                                 .filter(Task.id.in_(task_ids))\
                                 .filter(Individual.species==individual.species)\

@@ -20,81 +20,81 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login
 
 tags = db.Table('tags',
-    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), index=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
     db.Column('cluster_id', db.Integer, db.ForeignKey('cluster.id')),
-    db.UniqueConstraint('tag_id', 'cluster_id')
+    db.UniqueConstraint('cluster_id','tag_id') #order here matters - creates a composite index on cluster_id, tag_id
 )
 
 labelstable = db.Table('labelstable',
-    db.Column('label_id', db.Integer, db.ForeignKey('label.id'), index=True),
+    db.Column('label_id', db.Integer, db.ForeignKey('label.id')),
     db.Column('cluster_id', db.Integer, db.ForeignKey('cluster.id')),
-    db.UniqueConstraint('label_id', 'cluster_id')
+    db.UniqueConstraint('cluster_id','label_id')
 )
 
 images = db.Table('images',
-    db.Column('image_id', db.Integer, db.ForeignKey('image.id'), index=True),
+    db.Column('image_id', db.Integer, db.ForeignKey('image.id')),
     db.Column('cluster_id', db.Integer, db.ForeignKey('cluster.id')),
-    db.UniqueConstraint('image_id', 'cluster_id')
+    db.UniqueConstraint('image_id', 'cluster_id'),
+    db.UniqueConstraint('cluster_id', 'image_id')
 )
 
 requiredimagestable = db.Table('requiredimagestable',
-    db.Column('image_id', db.Integer, db.ForeignKey('image.id'), index=True),
+    db.Column('image_id', db.Integer, db.ForeignKey('image.id')),
     db.Column('cluster_id', db.Integer, db.ForeignKey('cluster.id')),
     db.UniqueConstraint('image_id', 'cluster_id')
 )
 
 detectionTags = db.Table('detectionTags',
-    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), index=True),
-    db.Column('labelgroup_id', db.Integer, db.ForeignKey('labelgroup.id'), index=True),
-    db.UniqueConstraint('tag_id', 'labelgroup_id')
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
+    db.Column('labelgroup_id', db.Integer, db.ForeignKey('labelgroup.id')),
+    db.UniqueConstraint('labelgroup_id', 'tag_id')
 )
 
 detectionLabels = db.Table('detectionLabels',
-    db.Column('label_id', db.Integer, db.ForeignKey('label.id'), index=True),
-    db.Column('labelgroup_id', db.Integer, db.ForeignKey('labelgroup.id'), index=True),
-    db.UniqueConstraint('label_id', 'labelgroup_id')
+    db.Column('label_id', db.Integer, db.ForeignKey('label.id')),
+    db.Column('labelgroup_id', db.Integer, db.ForeignKey('labelgroup.id')),
+    db.UniqueConstraint('labelgroup_id', 'label_id')
 )
 
 workersTable = db.Table('workersTable',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), index=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
     db.Column('worker_id', db.Integer, db.ForeignKey('user.id')),
     db.UniqueConstraint('user_id', 'worker_id')
 )
 
 individualDetections = db.Table('individualDetections',
-    db.Column('detection_id', db.Integer, db.ForeignKey('detection.id'), index=True),
+    db.Column('detection_id', db.Integer, db.ForeignKey('detection.id')),
     db.Column('individual_id', db.Integer, db.ForeignKey('individual.id')),
-    db.UniqueConstraint('detection_id', 'individual_id')
+    db.UniqueConstraint('detection_id', 'individual_id'),
+    db.UniqueConstraint('individual_id', 'detection_id')
 )
 
 individualTags = db.Table('individualTags',
-    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), index=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
     db.Column('individual_id', db.Integer, db.ForeignKey('individual.id')),
-    db.UniqueConstraint('tag_id', 'individual_id')
+    db.UniqueConstraint('individual_id', 'tag_id')
 )
 
-individual_parent_child = db.Table("individual_parent_child", #db.Base.metadata,
+individual_parent_child = db.Table("individual_parent_child",
     db.Column("parent_id", db.Integer, db.ForeignKey("individual.id"), primary_key=True),
     db.Column("child_id", db.Integer, db.ForeignKey("individual.id"), primary_key=True),
-    db.UniqueConstraint('parent_id', 'child_id')
 )
 
 userNotifications = db.Table('userNotifications',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), index=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
     db.Column('notification_id', db.Integer, db.ForeignKey('notification.id')),
-    db.UniqueConstraint('user_id', 'notification_id')
+    db.UniqueConstraint('notification_id', 'user_id')
 )
 
 individualTasks = db.Table('individualTasks',
-    db.Column('task_id', db.Integer, db.ForeignKey('task.id'), index=True),
+    db.Column('task_id', db.Integer, db.ForeignKey('task.id')),
     db.Column('individual_id', db.Integer, db.ForeignKey('individual.id')),
-    db.UniqueConstraint('task_id', 'individual_id')
+    db.UniqueConstraint('individual_id', 'task_id')
 )
 
 taskGroupings = db.Table("taskGroupings",
     db.Column("master_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
     db.Column("sub_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
-    db.UniqueConstraint('master_id', 'sub_id')
 )
 
 class Image(db.Model):
@@ -103,10 +103,10 @@ class Image(db.Model):
     timestamp = db.Column(db.DateTime, index=False)
     corrected_timestamp = db.Column(db.DateTime, index=True)
     detection_rating = db.Column(db.Float, default=0, index=True)
-    etag = db.Column(db.String(64), index=True)
+    etag = db.Column(db.String(64), index=False)
     hash = db.Column(db.String(64), index=True)
     downloaded = db.Column(db.Boolean, default=False, index=True)
-    detections = db.relationship('Detection', backref='image', lazy='dynamic')
+    detections = db.relationship('Detection', backref='image', lazy=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'), index=True, unique=False)
 
     def __repr__(self):
@@ -116,10 +116,9 @@ class Image(db.Model):
 class Camera(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     path = db.Column(db.String(256), index=True, unique=False)
-    flagged = db.Column(db.Boolean, default=False, index=True)
-    images = db.relationship('Image', backref='camera', lazy='dynamic')
+    images = db.relationship('Image', backref='camera', lazy=True)
     trapgroup_id = db.Column(db.Integer, db.ForeignKey('trapgroup.id'))
-    videos = db.relationship('Video', backref='camera', lazy='dynamic')
+    videos = db.relationship('Video', backref='camera', lazy=True)
 
     def __repr__(self):
         return '<Camera {}>'.format(self.path)
@@ -138,16 +137,18 @@ class Survey(db.Model):
     name = db.Column(db.String(256), index=True, unique=False)
     description = db.Column(db.String(256), index=False)
     trapgroup_code = db.Column(db.String(256), index=False)
-    status = db.Column(db.String(64), index=False)
-    images_processing = db.Column(db.Integer, default=0, index=False)
+    status = db.Column(db.String(64), index=True)
+    images_processing = db.Column(db.Integer, default=0, index=True)
     processing_initialised = db.Column(db.Boolean, default=False, index=False)
     image_count = db.Column(db.Integer, default=0, index=False)
+    frame_count = db.Column(db.Integer, default=0, index=False)
+    video_count = db.Column(db.Integer, default=0, index=False)
     ignore_small_detections = db.Column(db.Boolean, default=False, index=False)
     sky_masked = db.Column(db.Boolean, default=False, index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     correct_timestamps = db.Column(db.Boolean, default=False, index=False)
-    trapgroups = db.relationship('Trapgroup', backref='survey', lazy='dynamic')
-    tasks = db.relationship('Task', backref='survey', lazy='dynamic')
+    trapgroups = db.relationship('Trapgroup', backref='survey', lazy=True)
+    tasks = db.relationship('Task', backref='survey', lazy=True)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)
 
     def __repr__(self):
@@ -172,7 +173,7 @@ class Trapgroup(db.Model):
     longitude = db.Column(db.Float(precision=9), index=False)
     latitude = db.Column(db.Float(precision=9), index=False)
     altitude = db.Column(db.Float(precision=9), index=False)
-    cameras = db.relationship('Camera', backref='trapgroup', lazy='dynamic')
+    cameras = db.relationship('Camera', backref='trapgroup', lazy=True)
 
     def __repr__(self):
         return '<Trapgroup {}>'.format(self.tag)
@@ -190,8 +191,8 @@ class Labelgroup(db.Model):
     checked = db.Column(db.Boolean, default=False, index=True)
     detection_id = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
-    labels = db.relationship('Label', secondary=detectionLabels, lazy='subquery', backref=db.backref('labelgroups', lazy=True))
-    tags = db.relationship('Tag', secondary=detectionTags, lazy='subquery', backref=db.backref('labelgroups', lazy=True))
+    labels = db.relationship('Label', secondary=detectionLabels, lazy=True, backref=db.backref('labelgroups', lazy=True))
+    tags = db.relationship('Tag', secondary=detectionTags, lazy=True, backref=db.backref('labelgroups', lazy=True))
 
     def __repr__(self):
         return '<Label group for detection {}>'.format(self.detection_id)
@@ -205,12 +206,12 @@ class Detection(db.Model):
     top = db.Column(db.Float, index=False)
     left = db.Column(db.Float, index=False)
     right = db.Column(db.Float, index=False)
-    bottom = db.Column(db.Float, index=False)
+    bottom = db.Column(db.Float, index=True)
     score = db.Column(db.Float, index=True)
     static = db.Column(db.Boolean, default=False, index=True)
     classification = db.Column(db.String(64), index=True)
     class_score = db.Column(db.Float, index=True)
-    labelgroups = db.relationship('Labelgroup', backref='detection', lazy='dynamic')
+    labelgroups = db.relationship('Labelgroup', backref='detection', lazy=True)
 
     def __repr__(self):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
@@ -234,15 +235,15 @@ class User(db.Model, UserMixin):
     folder = db.Column(db.String(64), index=True, unique=True)
     email = db.Column(db.String(64), index=False, unique=True)
     passwordHash = db.Column(db.String(128), index=False, unique=False)
-    passed = db.Column(db.String(64), index=False)
+    passed = db.Column(db.String(64), index=True)
     admin = db.Column(db.Boolean, default=False, index=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     last_ping = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     clusters_allocated = db.Column(db.Integer, default=0, index=False)
-    clusters = db.relationship('Cluster', backref='user', lazy='dynamic')
-    trapgroup = db.relationship('Trapgroup', backref='user', lazy='dynamic')
-    surveys = db.relationship('Survey', backref='user', lazy='dynamic')
-    children = db.relationship('User', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
+    clusters = db.relationship('Cluster', backref='user', lazy=True)
+    trapgroup = db.relationship('Trapgroup', backref='user', lazy=True)
+    surveys = db.relationship('Survey', backref='user', lazy=True)
+    children = db.relationship('User', backref=db.backref('parent', remote_side=[id]), lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -279,9 +280,9 @@ class Label(db.Model):
     sighting_count = db.Column(db.Integer, index=False)
     unidentified_count = db.Column(db.Integer, index=False)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
-    children = db.relationship('Label', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
-    translations = db.relationship('Translation', backref='label', lazy='dynamic')
-    individuals = db.relationship('Individual', backref='label', lazy='dynamic')
+    children = db.relationship('Label', backref=db.backref('parent', remote_side=[id]), lazy=True)
+    translations = db.relationship('Translation', backref='label', lazy=True)
+    individuals = db.relationship('Individual', backref='label', lazy=True)
 
     def __repr__(self):
         return '<Label {}>'.format(self.description)
@@ -309,9 +310,9 @@ class Individual(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
     allocated = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     allocation_timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    detections = db.relationship('Detection', secondary=individualDetections, lazy='subquery', backref=db.backref('individuals', lazy=True))
-    tags = db.relationship('Tag', secondary=individualTags, lazy='subquery', backref=db.backref('individuals', lazy=True))
-    tasks = db.relationship('Task', secondary=individualTasks, lazy='subquery', backref=db.backref('individuals', lazy=True))
+    detections = db.relationship('Detection', secondary=individualDetections, lazy=True, backref=db.backref('individuals', lazy=True))
+    tags = db.relationship('Tag', secondary=individualTags, lazy=True, backref=db.backref('individuals', lazy=True))
+    tasks = db.relationship('Task', secondary=individualTasks, lazy=True, backref=db.backref('individuals', lazy=True))
     children = db.relationship("Individual",
                         secondary=individual_parent_child,
                         primaryjoin=id==individual_parent_child.c.parent_id,
@@ -325,19 +326,18 @@ class Individual(db.Model):
 
 class Cluster(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    lastAssigned = db.Column(db.DateTime, unique=False, index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), index=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=False)
-    notes = db.Column(db.String(512), index=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    notes = db.Column(db.String(512), index=True)
     checked = db.Column(db.Boolean, default=False, index=True)
     classification = db.Column(db.String(64), index=True)
     examined = db.Column(db.Boolean, default=False, index=True)
     skipped = db.Column(db.Boolean, default=False, index=True)
-    images = db.relationship('Image', secondary=images, lazy='subquery', backref=db.backref('clusters', lazy=True))
-    required_images = db.relationship('Image', secondary=requiredimagestable, lazy='subquery', backref=db.backref('required_for', lazy=True))
-    tags = db.relationship('Tag', secondary=tags, lazy='subquery', backref=db.backref('clusters', lazy=True))
-    labels = db.relationship('Label', secondary=labelstable, lazy='subquery', backref=db.backref('clusters', lazy=True))
+    images = db.relationship('Image', secondary=images, lazy=True, backref=db.backref('clusters', lazy=True))
+    required_images = db.relationship('Image', secondary=requiredimagestable, lazy=True, backref=db.backref('required_for', lazy=True))
+    tags = db.relationship('Tag', secondary=tags, lazy=True, backref=db.backref('clusters', lazy=True))
+    labels = db.relationship('Label', secondary=labelstable, lazy=True, backref=db.backref('clusters', lazy=True))
 
     def __repr__(self):
         return '<Cluster {}>'.format(self.id)
@@ -345,16 +345,16 @@ class Cluster(db.Model):
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(256), index=False, unique=False)
+    name = db.Column(db.String(256), index=True, unique=False)
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True)
     tagging_level = db.Column(db.String(32), index=False)
     test_size = db.Column(db.Integer, index=False)
     size = db.Column(db.Integer, index=False)
-    status = db.Column(db.String(32), index=False)
+    status = db.Column(db.String(32), index=True)
     tagging_time = db.Column(db.Integer, index=False)
     complete = db.Column(db.Boolean, default=False, index=False)
     init_complete = db.Column(db.Boolean, default=False, index=True)
-    is_bounding = db.Column(db.Boolean, default=False, index=True)
+    is_bounding = db.Column(db.Boolean, default=False, index=False)
     parent_classification = db.Column(db.Boolean, default=False, index=False)
     ai_check_complete = db.Column(db.Boolean, default=False, index=False)
     jobs_finished = db.Column(db.Integer, default=0, index=False)
@@ -369,13 +369,13 @@ class Task(db.Model):
     potential_vhl_clusters = db.Column(db.Integer, index=False)
     vhl_image_count = db.Column(db.Integer, index=False)
     vhl_sighting_count = db.Column(db.Integer, index=False)
-    clusters = db.relationship('Cluster', backref='task', lazy='dynamic')
-    turkcodes = db.relationship('Turkcode', backref='task', lazy='dynamic')
-    labels = db.relationship('Label', backref='task', lazy='dynamic')
-    tags = db.relationship('Tag', backref='task', lazy='dynamic')
-    labelgroups = db.relationship('Labelgroup', backref='task', lazy='dynamic')
-    translations = db.relationship('Translation', backref='task', lazy='dynamic')
-    # individuals = db.relationship('Individual', backref='task', lazy='dynamic')
+    clusters = db.relationship('Cluster', backref='task', lazy=True)
+    turkcodes = db.relationship('Turkcode', backref='task', lazy=True)
+    labels = db.relationship('Label', backref='task', lazy=True)
+    tags = db.relationship('Tag', backref='task', lazy=True)
+    labelgroups = db.relationship('Labelgroup', backref='task', lazy=True)
+    translations = db.relationship('Translation', backref='task', lazy=True)
+    # individuals = db.relationship('Individual', backref='task', lazy=True)
     sub_tasks = db.relationship("Task",
                         secondary=taskGroupings,
                         primaryjoin=id==taskGroupings.c.master_id,
@@ -399,9 +399,8 @@ class Translation(db.Model):
 
 
 class DetSimilarity(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    detection_1 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
-    detection_2 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
+    detection_1 = db.Column(db.Integer, db.ForeignKey('detection.id'), primary_key=True)
+    detection_2 = db.Column(db.Integer, db.ForeignKey('detection.id'), primary_key=True)
     score = db.Column(db.Float, index=True)
 
     def __repr__(self):
@@ -409,9 +408,8 @@ class DetSimilarity(db.Model):
 
 
 class IndSimilarity(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    individual_1 = db.Column(db.Integer, db.ForeignKey('individual.id'), index=True)
-    individual_2 = db.Column(db.Integer, db.ForeignKey('individual.id'), index=True)
+    individual_1 = db.Column(db.Integer, db.ForeignKey('individual.id'), primary_key=True)
+    individual_2 = db.Column(db.Integer, db.ForeignKey('individual.id'), primary_key=True)
     detection_1 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     detection_2 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     score = db.Column(db.Float, index=True)
@@ -428,7 +426,7 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     contents = db.Column(db.String(2048), index=False)
     expires = db.Column(db.DateTime, default=None, index=True)
-    users = db.relationship('User', secondary=userNotifications, lazy='subquery', backref=db.backref('notifications', lazy=True))
+    users = db.relationship('User', secondary=userNotifications, lazy=True, backref=db.backref('notifications', lazy=True))
 
     def __repr__(self):
         return '<Notification: {}>'.format(self.contents)
@@ -458,7 +456,7 @@ class Classifier(db.Model):
     region = db.Column(db.String(64), index=True)
     active = db.Column(db.Boolean, default=True, index=True)
     threshold = db.Column(db.Float, index=False)
-    surveys = db.relationship('Survey', backref='classifier', lazy='dynamic')
+    surveys = db.relationship('Survey', backref='classifier', lazy=True)
 
     def __repr__(self):
         return '<Classifier {}>'.format(self.name)
@@ -474,10 +472,7 @@ class Video(db.Model):
     def __repr__(self):
         return '<Video {}>'.format(self.filename)
     
-    # @staticmethod
-    # def get_or_create(session, path, filename):
-    #     video = db.session.query(Video).join(Camera).filter(Camera.path==path).filter(Video.filename==filename).first()
-    #     if not (video):
-    #         video = Video(filename=filename)
-    #         session.add(video)
-    #     return video
+db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
+db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
+db.Index('ix_det_similarity_2_1', DetSimilarity.detection_2, DetSimilarity.detection_1, unique=True)
+db.Index('ix_ind_similarity_2_1', IndSimilarity.individual_2, IndSimilarity.individual_1, unique=True)
