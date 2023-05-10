@@ -689,7 +689,7 @@ def getIndividual(individual_id):
                             .first()
 
             video_url = None
-            if image.camera.videos.all():
+            if image.camera.videos:
                 video_url = image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename
 
             reply.append({
