@@ -41,17 +41,12 @@ var allSites = null
 var allIndividualImages = null
 var minDate = null
 var maxDate = null
+var pauseControl = null
+var playControl = null
+var stopControl = null
+var playControlImage = null
+var drawnItems = null
 
-
-function next_individuals() {
-    /** Gets the next page of individuals in the individuals modal. */
-    getIndividuals(individual_next)
-}
-
-function prev_individuals() {
-    /** Gets the previous page of individuals from the individuals modal. */
-    getIndividuals(individual_prev)
-}
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -238,11 +233,15 @@ function getIndividualInfo(individualID){
                 lastSeen = info.seen_range[1]
                 individualLastSeen = lastSeen
 
-                document.getElementById('firstSeenDiv').innerHTML =  firstSeen
-                document.getElementById('lastSeenDiv').innerHTML = lastSeen
+                if(firstSeen){
+                    document.getElementById('firstSeenDiv').innerHTML =  firstSeen
+                    minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
+                }
 
-                minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
-                maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+                if(lastSeen){
+                    document.getElementById('lastSeenDiv').innerHTML = lastSeen
+                    maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+                }
 
                 document.getElementById('startDateIndiv').setAttribute('min', minDate)
                 document.getElementById('endDateIndiv').setAttribute('min', minDate)
@@ -356,7 +355,7 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                     
                 });
 
-                prepMap(individualImages[0])
+                prepMapIndividual(individualImages[0])
                 updateSlider()
 
                 buildAssociationTable(individualID)
@@ -397,7 +396,7 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
                 document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
                 initialiseMapAndSlider()
-                prepMap(individualImages[0])
+                prepMapIndividual(individualImages[0])
                 updateSlider()        
                 
             }
@@ -729,73 +728,6 @@ function validateDateRange() {
     }
 }
 
-function modifyToCompURL(url) {
-    /** Modifies the source URL to the compressed folder of the user */
-    splits=url.split('/')
-    splits[0]=splits[0]+'-comp'
-    return splits.join('/')
-}
-
-function updateSlider() {
-    /** Updates the image slider for the individual modal. */
-    
-    imageSplide = document.getElementById('imageSplide')
-    while(imageSplide.firstChild){
-        imageSplide.removeChild(imageSplide.firstChild);
-    }
-
-    for (let i=0;i<individualImages.length;i++) {
-        img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
-        imgli = document.createElement('li')
-        imgli.classList.add('splide__slide')
-        imgli.appendChild(img)
-        imageSplide.appendChild(imgli)
-    }
-
-    if (individualSplide==null) {
-        // Initialise Splide
-        individualSplide = new Splide( document.getElementById('splide'), {
-            rewind      : false,
-            fixedWidth  : 200,
-            fixedHeight : 128,
-            isNavigation: true,
-            keyboard    : true,
-            gap         : 5,
-            pagination  : false,
-            cover       : true,
-            breakpoints : {
-                '600': {
-                    fixedWidth  : 66,
-                    fixedHeight : 40
-                }
-            }
-        } ).mount();
-
-        individualSplide.on( 'moved', function() {
-            if (bucketName!=null) {
-                finishedDisplaying = false
-                image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
-                document.getElementById('timeInfo').innerHTML = image.timestamp
-                addedDetections = false
-                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
-            }
-        });
-
-        var track = individualSplide.Components.Elements.track
-        individualSplide.on( 'click', function(wrapTrack) {
-            return function() {
-                imageIndex = parseInt(event.toElement.id.split("slide")[1])-1
-                individualSplide.go(imageIndex)
-            }
-        }(track));
-
-    } else {
-        individualSplide.refresh()
-    }
-}
-
 function cleanModalIndividual() {
     /** Clears the individual modal */
     
@@ -882,17 +814,6 @@ modalIndividual.on('hidden.bs.modal', function(){
     }
 });
 
-// modalIndividual.on('shown.bs.modal', function(){
-//     /** Initialises the individual modal when opened. */
-
-//     if (map==null) {
-//         prepMap(individualImages[0])
-//         updateSlider()
-//     }
-
-// });
-
-
 $('#orderIndivImages').on('change', function() {
     updateIndividualFilter()
 });
@@ -955,178 +876,6 @@ function updateIndividualFilter() {
 
     updateIndividual(selectedIndividual, selectedIndividualName, order_value, site, startDate, endDate)
 }
-
-
-function addDetections(image) {
-    //** Adds detections to the main image displayed in the individual modal. */
-    if (!addedDetections) {
-        map.setZoom(map.getMinZoom())
-        fullRes = false
-        drawnItems.clearLayers()
-        for (let i=0;i<image.detections.length;i++) {
-            detection = image.detections[i]
-            if (detection.static == false) {
-                rectOptions.color = "rgba(223,105,26,1)"
-                rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
-                drawnItems.addLayer(rect)
-            }
-        }
-        finishedDisplaying = true
-        addedDetections = true
-    }
-}
-
-function prepMap(image) {
-    /** Initialises the Leaflet image map for the individual ID modal. */
-
-    if (bucketName != null) {
-        mapReady = false
-        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
-        var img = new Image();
-        img.onload = function(){
-            w = this.width
-            h = this.height
-
-
-            if (w>h) {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
-            } else {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
-            }
-
-            L.Browser.touch = true
-    
-            map = new L.map('mapDiv', {
-                crs: L.CRS.Simple,
-                maxZoom: 10,
-                center: [0, 0],
-                zoomSnap: 0
-            })
-
-            var h1 = document.getElementById('mapDiv').clientHeight
-            var w1 = document.getElementById('mapDiv').clientWidth
-    
-            var southWest = map.unproject([0, h1], 2);
-            var northEast = map.unproject([w1, 0], 2);
-            var bounds = new L.LatLngBounds(southWest, northEast);
-    
-            mapWidth = northEast.lng
-            mapHeight = southWest.lat
-    
-            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
-            activeImage.on('load', function() {
-                addedDetections = false
-                addDetections(individualImages[individualSplide.index])
-            });
-            map.setMaxBounds(bounds);
-            map.fitBounds(bounds)
-            map.setMinZoom(map.getZoom())
-
-            hc = document.getElementById('mapDiv').clientHeight
-            wc = document.getElementById('mapDiv').clientWidth
-            map.on('resize', function(){
-                if(document.getElementById('mapDiv').clientHeight){
-                    h1 = document.getElementById('mapDiv').clientHeight
-                    w1 = document.getElementById('mapDiv').clientWidth
-                }
-                else{
-                    h1 = hc
-                    w1 = wc
-                }
-                
-                southWest = map.unproject([0, h1], 2);
-                northEast = map.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
-        
-                mapWidth = northEast.lng
-                mapHeight = southWest.lat
-
-                map.invalidateSize()
-                map.setMaxBounds(bounds)
-                map.fitBounds(bounds)
-                map.setMinZoom(map.getZoom())
-                activeImage.setBounds(bounds)
-                addedDetections = false
-                addDetections(individualImages[individualSplide.index])    
-            });
-
-
-            map.on('drag', function() {
-                map.panInsideBounds(bounds, { animate: false });
-            });
-    
-            drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
-    
-            map.on('zoomstart', function() {
-                if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
-                    fullRes = true
-                }
-            });
-    
-            rectOptions = {
-                color: "rgba(223,105,26,1)",
-                fill: true,
-                fillOpacity: 0.0,
-                opacity: 0.8,
-                weight:3,
-                contextmenu: false,
-            }            
-
-            mapReady = true
-        };
-        img.src = imageUrl
-    }
-
-}
-
-function deleteIndividual() {
-    /** Deletes the selected individual. */
-    modalAlertIndividuals.modal('hide')
-    cleanModalIndividual()
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            if (reply=='success') {
-                getIndividuals(current_page)
-            }
-        }
-    }
-    xhttp.open("GET", '/deleteIndividual/'+selectedIndividual.toString());
-    xhttp.send();
-}
-
-function removeImage() {
-    /** Removes the currently displayed individual from the selected individual. */
-    modalAlertIndividuals.modal('hide')
-    modalIndividual.modal({keyboard: true});
-    if (individualImages.length > 1){
-        image = individualImages[individualSplide.index]
-        detection = image.detections[0]
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                if (reply.status=='success') {
-                    index = individualImages.indexOf(image);
-                    if (index > -1) {
-                        individualImages.splice(index, 1);
-                    }
-                    updateSlider()
-                    individualSplide.go(0)
-                }
-            }
-        }
-        xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
-        xhttp.send();
-    }
-    
-}
-
 
 function buildSurveySelect(){
     /** Builds the selectors for the surveys and annotation sets */
@@ -1456,7 +1205,6 @@ function addSurvey(){
     col.appendChild(btnAdd);
 
 }
-
 
 function launchID(){
     /** Launch Individual ID accross surveys modal */
@@ -2157,7 +1905,6 @@ function getIndividualAssociations(individual_id, page=null){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
 
             var tableBody = document.getElementById('associationsTableBody');
             tableBody.innerHTML = ''

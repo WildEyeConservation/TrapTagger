@@ -2442,13 +2442,16 @@ def rDets(sq):
                 .filter(~Detection.status.in_(['deleted','hidden']))
 
 def generate_raw_image_hash(filename):
-    '''Generates a hash of an image with no EXIF data in a format compatable with the front end.'''
+    '''Generates a hash of an image with no EXIF data in a format compatable with the front end or generates a hash of a video.'''
     
-    output=io.BytesIO()
-    with open(filename, "rb") as f:
-        piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),f.read(),output)
-        hash = hashlib.md5(output.getbuffer()).hexdigest()
-    
+    if filename.endswith('.AVI') or filename.endswith('.MP4') or filename.endswith('.avi') or filename.endswith('.mp4'):
+        hash = hashlib.md5(open(filename, "rb").read()).hexdigest()
+    else:
+        output=io.BytesIO()
+        with open(filename, "rb") as f:
+            piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),f.read(),output)
+            hash = hashlib.md5(output.getbuffer()).hexdigest()
+        
     return hash
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
@@ -2507,10 +2510,13 @@ def calculateTrapgroupHashes(self,trapgroup_id):
 
     return True
 
-def stringify_timestamp(timestamp):
+def stringify_timestamp(timestamp, download=False):
     '''Cleanly returns a string value for a timestamp'''
     try:
-        return timestamp.strftime("%Y/%m/%d %H:%M:%S")
+        if download:
+            return timestamp.strftime("%Y%m%d_%H%M%S")
+        else:
+            return timestamp.strftime("%Y/%m/%d %H:%M:%S")
     except:
         return 'None'
 

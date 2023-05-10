@@ -1540,7 +1540,7 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                         .distinct().order_by(Tag.description).all()
 
     imagePaths = []
-    baseName = image.camera.trapgroup.tag + '_' + stringify_timestamp(image.corrected_timestamp)
+    baseName = image.camera.trapgroup.tag + '_' + stringify_timestamp(image.corrected_timestamp, True)	
     for label in imageLabels:
         
         if (label.id==GLOBALS.nothing_id) and not include_empties:
@@ -1576,6 +1576,86 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                 imagePaths.append(imagePath)
 
     return list(set(imagePaths)), [label.description for label in imageLabels], [tag.description for tag in imageTags]
+
+def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_structure,requested_labels,include_empties):
+    '''Returns the paths, labels and tags for a particular video and task for video sorting and metadata labelling.'''
+
+    if '0' in requested_labels:
+        requested_labels = [r.id for r in task.labels]
+        requested_labels.append(GLOBALS.vhl_id)
+        requested_labels.append(GLOBALS.knocked_id)
+        requested_labels.append(GLOBALS.unknown_id)
+    if include_empties: requested_labels.append(GLOBALS.nothing_id)
+    requested_labels = [int(r) for r in requested_labels]
+
+    splitPath = re.split('/', video.camera.path.split('_video_images_')[0])
+
+    videoImages = db.session.query(Image).filter(Image.camera_id == video.camera_id).all()
+    video_images_ids = [image.id for image in videoImages]
+
+    videoLabels = db.session.query(Label)\
+                        .join(Labelgroup,Label.labelgroups)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .filter(Image.id.in_(video_images_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Labelgroup.task==task)\
+                        .distinct().order_by(Label.description).all()
+    
+    if videoLabels == []:
+        videoLabels = [db.session.query(Label).get(GLOBALS.nothing_id)]
+
+    videoTags = db.session.query(Tag)\
+                        .join(Labelgroup,Tag.labelgroups)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .filter(Image.id.in_(video_images_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Labelgroup.task==task)\
+                        .distinct().order_by(Tag.description).all()
+    
+    videoPaths = []
+    baseName = video.camera.trapgroup.tag + '_' + stringify_timestamp(videoImages[0].corrected_timestamp, True)
+    for label in videoLabels:
+            
+            if (label.id==GLOBALS.nothing_id) and not include_empties:
+                continue
+            
+            individuals = [None]
+            
+            if individual_sorted:
+                individuals = db.session.query(Individual)\
+                                    .join(Detection,Individual.detections)\
+                                    .join(Image)\
+                                    .filter(Image.id.in_(video_images_ids))\
+                                    .filter(Individual.tasks.contains(task))\
+                                    .filter(Individual.species==label.description)\
+                                    .filter(Individual.active==True)\
+                                    .distinct().all()
+                if len(individuals)==0: individuals = [None]
+            
+            for individual in individuals:
+                if label.id in requested_labels:
+                    videoPath = ''
+                    if species_sorted:  videoPath += '/' + label.description.replace('/','_').replace('\\','_')
+                    if individual and individual_sorted: videoPath += '/' + individual.name
+                    if flat_structure:
+                        filename = baseName
+                        for videoLabel in videoLabels: filename += '_' + videoLabel.description.replace(' ','_').replace('/','_').replace('\\','_')
+                        filename += '_' + str(video.id) + '.avi'
+                        videoPath += '/' + filename
+                    else:
+                        startPoint = 1
+                        if splitPath[1]==task.survey.name: startPoint=2
+                        for split in splitPath[startPoint:]: videoPath += '/' + split
+                        videoPath += '/' +video.filename
+                    videoPaths.append(videoPath)
+
+    return list(set(videoPaths)), [label.description for label in videoLabels], [tag.description for tag in videoTags]
 
 # def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
 #     '''
@@ -2171,8 +2251,7 @@ def generate_coco(self,task_id):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def setImageDownloadStatus(self,task_id,labels,include_empties):
-    
+def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
     try:
         task = db.session.query(Task).get(task_id)
         task.status='Preparing Download'
@@ -2185,11 +2264,31 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
             labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
-        wantedImages = db.session.query(Image)\
+        if include_frames:
+            wantedImages = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id==task_id)       
+                            .filter(Labelgroup.task_id==task_id)    
+        else:
+            wantedImages = db.session.query(Image)\
+                            .join(Camera)\
+                            .outerjoin(Video)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Video.id==None)
+                            
+
+        if include_video:
+            wantedVideos = db.session.query(Video)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)               
         
         if include_empties:
             if GLOBALS.nothing_id not in labels: labels.append(GLOBALS.nothing_id)
@@ -2208,8 +2307,18 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                                 ~Labelgroup.labels.any(),\
                                 rDetImages.c.image_id==None
                             ))
+
+            if include_video:
+                wantedVideos = wantedVideos.outerjoin(rDetImages,rDetImages.c.image_id==Image.id)\
+                            .filter(or_(\
+                                Label.id.in_(labels),\
+                                ~Labelgroup.labels.any(),\
+                                rDetImages.c.image_id==None
+                            ))
         else:
             wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
+            if include_video:
+                wantedVideos = rDets(wantedVideos.filter(Label.id.in_(labels)))
 
         wantedImages = wantedImages.distinct().all()
 
@@ -2219,8 +2328,23 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                             .filter(Trapgroup.survey==task.survey)\
                             .distinct().all()
 
+        if include_video:
+            wantedVideos = wantedVideos.distinct().all()
+
+            allVideos = db.session.query(Video)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey)\
+                            .distinct().all()
+        else:
+            wantedVideos = []
+            allVideos = []
+
         # Get total count
-        filesToDownload = len(wantedImages)
+        filesToDownload = len(wantedImages) + len(wantedVideos)	
+        if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
+
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
@@ -2231,12 +2355,23 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
             image.downloaded = True
         db.session.commit()
 
+        unwantedVideos = list(set(allVideos) - set(wantedVideos))
+
+        for chunk in chunker(unwantedVideos,10000):
+            for video in chunk:
+                video.downloaded = True
+            db.session.commit()
+
         task.status = 'Ready'
         db.session.commit()
 
         test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
+        testVideo=db.session.query(Video).join(Camera).join(Image).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Video.downloaded==False).distinct().count()
         if test==0:
-            resetImageDownloadStatus(task_id,False,None,None)
+            resetImageDownloadStatus(task_id,False,None,None,True)
+
+        if testVideo==0:
+            resetVideoDownloadStatus(task_id,False,None,None,True)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2252,7 +2387,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
+def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
     
     try:
         task = db.session.query(Task).get(task_id)
@@ -2273,7 +2408,50 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
         db.session.commit()
 
         if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
+        else:
+            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+            redisClient.delete(str(task.id)+'_filesToDownload')
+            task.status = 'Ready'
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
+
+        videos = db.session.query(Video)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Video.downloaded!=False)\
+                        .all()
+        
+        for chunk in chunker(videos,10000):
+            for video in chunk:
+                video.downloaded = False
+            db.session.commit()
+
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
         else:
             redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
             redisClient.delete(str(task.id)+'_filesToDownload')

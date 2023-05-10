@@ -2893,7 +2893,9 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey_id = survey.id
         survey.correct_timestamps = correctTimestamps
-        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
+        # survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+        # survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id!=None).distinct().count()
         db.session.commit()
         skip = False
         if correctTimestamps:
@@ -3261,6 +3263,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         split_path = splits[0].split('/')
         split_path[0] = split_path[0] + '-comp'
         comp_video_path = '/'.join(split_path)
+        video_hash = None
 
         # If camera & video already exist - it has already been processed
         camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_/'+video_name)
@@ -3337,7 +3340,10 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                     video_key = comp_video_path + '/' +  video_name + '.mp4'
                     GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
 
-            video = Video(camera_id=camera.id, filename=filename)
+                # Calculate hash 
+                video_hash = generate_raw_image_hash(temp_file.name)
+
+            video = Video(camera_id=camera.id, filename=filename, hash=video_hash)
             localsession.add(video)
             localsession.commit()
 
@@ -3345,34 +3351,3 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
 
     return True
-
-# # Function needs testing and updating       
-# def convert_and_compress_video(sourceKey, bucketName):
-#     ''' Downloads video from bucket, converts it to mp4 and compresses it. The compressed video is then uploaded to the comp bucket. '''
-#     splits = sourceKey.rsplit('/', 1)
-#     video_name = splits[-1].split('.')[0]
-#     video_type = '.' + splits[-1].split('.')[-1]
-
-#     split_path = splits[0].split('/')
-#     split_path[0] = split_path[0] + '-comp'
-#     video_path = '/'.join(split_path)
-
-#     # Download video
-#     with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
-#         GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
-
-#         input_video = ffmpeg.input(temp_file.name)
-#         # output_width = 480
-#         # input_video = input_video.filter('scale', width=output_width, height=-2).filter('setsar', ratio='1:1')
-#         with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
-
-#             # Change crf and preset to change quality and size of video
-#             output_video = ffmpeg.output(input_video, temp_file_out.name, crf=25, preset='medium')
-#             output_video.run(overwrite_output=True)
-
-#             # Upload video to compressed bucket
-#             video_key = video_path + '/' +  video_name + '.mp4'
-#             GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
-        
-
-#     return True

@@ -21,6 +21,7 @@ from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels,
                                     getClusterClassifications, checkForIdWork, numify_timestamp
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
 from app.functions.results import resetImageDownloadStatus
+from app.functions.results import resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -1257,6 +1258,9 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVid
 
     startTime = time.time()
 
+    sortedImages = []
+    required = []
+
     if '-5' in taggingLevel:
         # bufferCount = db.session.query(Individual).filter(Individual.allocated==user.id).count()
         # if bufferCount >= 5:
@@ -1309,16 +1313,29 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVid
 
         if sendVideo:
             videos = db.session.query(Video).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).all()
-
             if videos:
                 images = [{'id': video.id,
-                    'url': video.camera.path.split('_video_images_')[0] + '/' + video.filename,
+                    'url': video.camera.path.split('_video_images_')[0]  + video.filename,
                     'timestamp': numify_timestamp(video.camera.images[0].corrected_timestamp),
                     'camera': video.camera_id,
                     'rating': 1,
                     'detections': []
                 } for video in videos]
 
+                sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.filename).all()
+                required = []
+
+                images_video = [image_digest(
+                            image,
+                            [detection for detection in image.detections if (
+                                (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
+                                (detection.status not in ['deleted','hidden']) and 
+                                (detection.static == False)
+                            )]
+                        ) for image in sortedImages]
+
+                images.extend(images_video)
+        
         if (sendVideo==False) or (len(videos)==0):
             if (id is not None) or isBounding:
                 sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
@@ -1455,7 +1472,21 @@ def manageDownloads():
         for survey in surveys:
             check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
             if check==None:
-                resetImageDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None)
+                resetImageDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None, include_frames=True)
+
+        surveys = db.session.query(Survey)\
+                            .join(User)\
+                            .join(Trapgroup)\
+                            .join(Camera)\
+                            .join(Video)\
+                            .filter(Video.downloaded==True)\
+                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+                            .distinct().all()
+        
+        for survey in surveys:
+            check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
+            if check==None:
+                resetVideoDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None, include_frames=True)
 
     except Exception as exc:
         app.logger.info(' ')
