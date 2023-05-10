@@ -2893,7 +2893,9 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey_id = survey.id
         survey.correct_timestamps = correctTimestamps
-        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
+        # survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
+        # survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id!=None).distinct().count()
         db.session.commit()
         skip = False
         if correctTimestamps:

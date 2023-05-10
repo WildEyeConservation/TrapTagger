@@ -108,7 +108,7 @@ function buildUploadProgress(filesUploaded,filecount) {
     newProgInner.setAttribute("aria-valuemin", "0");
     newProgInner.setAttribute("aria-valuemax", filecount);
     newProgInner.setAttribute("style","width:"+perc+"%");
-    newProgInner.innerHTML = filesUploaded.toString() + '/' + filecount.toString() + " images uploaded."
+    newProgInner.innerHTML = filesUploaded.toString() + '/' + filecount.toString() + " files uploaded."
 
     newProg.appendChild(newProgInner);
     col21.appendChild(newProg);
@@ -256,7 +256,7 @@ function updateUploadProgress(value,total) {
         perc=(value/total)*100
         progBar.setAttribute('aria-valuenow',value)
         progBar.setAttribute('style',"width:"+perc+"%")
-        progBar.innerHTML = value.toString() + '/' + total.toString() + " images uploaded."
+        progBar.innerHTML = value.toString() + '/' + total.toString() + " files uploaded."
         document.getElementById('uploadStatus').innerHTML = 'Uploading...'
         document.getElementById('uploadTimeRemDiv').innerHTML = 'Time Remaining: ' + getTimeRemaining(value,total)
     } else if (uploading) {

@@ -1417,10 +1417,15 @@ def getSurveyInfo(survey):
     survey_dict['description'] = survey.description
     survey_dict['numTrapgroups'] = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey.id).count()
     if survey.image_count == None:
-        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
+        survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey_id==survey.id).filter(Video.id==None).distinct().count()
     survey_dict['numImages'] = survey.image_count
+    # if survey.video_count == None:
+    #     survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey.id).distinct().count()
+    # survey_dict['numVideos'] = survey.video_count
+    # if survey.frame_count == None:
+    #     survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey_id==survey.id).filter(Video.id!=None).distinct().count()
+    # survey_dict['numFrames'] = survey.frame_count
 
-    
     if survey.status in ['indprocessing','Preparing Download']:
         survey_dict['status'] = 'processing'
     else:

@@ -284,24 +284,48 @@ function buildSurveys(survey,disableSurvey) {
     infoElementRow2.classList.add('center');
     infoElementRow2.setAttribute('style',"margin-left: 10px")
 
+    infoElementRow3 = document.createElement('div')
+    infoElementRow3.classList.add('row');
+    infoElementRow2.classList.add('center');
+    infoElementRow3.setAttribute('style',"margin-left: 10px")
+
     if (survey.status.toLowerCase()!='uploading') {
+        
+        infoElementDescription = document.createElement('div')
+        infoElementDescription.classList.add('col-lg-3');
+        infoElementDescription.setAttribute("style","font-size: 80%")
+        infoElementDescription.innerHTML = 'Status: ' + survey.status
+        infoElementRow.appendChild(infoElementDescription)
+
         infoElementNumTrapgroups = document.createElement('div')
-        infoElementNumTrapgroups.classList.add('col-lg-3');
+        infoElementNumTrapgroups.classList.add('col-lg-2');
         infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
         infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
         infoElementRow.appendChild(infoElementNumTrapgroups)
 
         infoElementNumImages = document.createElement('div')
-        infoElementNumImages.classList.add('col-lg-2');
+        infoElementNumImages.classList.add('col-lg-3');
         infoElementNumImages.setAttribute("style","font-size: 80%")
-        infoElementNumImages.innerHTML = 'Files: ' + survey.numImages
-        infoElementRow.appendChild(infoElementNumImages)
+        infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
+        infoElementRow2.appendChild(infoElementNumImages)
 
-        infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-3');
-        infoElementDescription.setAttribute("style","font-size: 80%")
-        infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow2.appendChild(infoElementDescription)
+        infoElementNumVideos = document.createElement('div')
+        infoElementNumVideos.classList.add('col-lg-4');
+        infoElementNumVideos.setAttribute("style","font-size: 80%")
+        infoElementNumVideos.innerHTML = 'Videos: ' + survey.numVideos
+        infoElementRow2.appendChild(infoElementNumVideos)
+
+        infoElementNumFrames = document.createElement('div')
+        infoElementNumFrames.classList.add('col-lg-3');
+        infoElementNumFrames.setAttribute("style","font-size: 80%")
+        infoElementNumFrames.innerHTML = 'Frames: ' + survey.numFrames
+        infoElementRow3.appendChild(infoElementNumFrames)
+
+        infoFiller = document.createElement('div')
+        infoFiller.classList.add('col-lg-5');
+        infoElementRow2.appendChild(infoFiller)	
+
+
     } else {
         infoElementDescription = document.createElement('div')
         infoElementDescription.classList.add('col-lg-5');
@@ -316,7 +340,7 @@ function buildSurveys(survey,disableSurvey) {
         infoElementFiller.setAttribute("style","font-size: 80%")
         infoElementFiller.innerHTML = 'Description: ' + survey.description
     }
-    infoElementRow2.appendChild(infoElementFiller)
+    infoElementRow3.appendChild(infoElementFiller)
 
     addImagesCol = document.createElement('div')
     addImagesCol.classList.add('col-lg-2');
@@ -347,6 +371,7 @@ function buildSurveys(survey,disableSurvey) {
 
     surveyDiv.appendChild(infoElementRow)
     surveyDiv.appendChild(infoElementRow2)
+    surveyDiv.appendChild(infoElementRow3)
 
     newSurveyDiv.appendChild(document.createElement('br'))
     surveyListDiv.appendChild(newSurveyDiv) 
