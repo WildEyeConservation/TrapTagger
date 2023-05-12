@@ -386,10 +386,10 @@ def delete_survey(self,survey_id):
         #Delete images
         if status != 'error':
             try:
-                db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 # for chunk in chunker(images,1000):
-                #     for image in chunk:
-                #         db.session.delete(image)
+                for image in images:
+                    db.session.delete(image)
                 db.session.commit()
                 app.logger.info('Images deleted successfully.')
             except:
@@ -400,7 +400,9 @@ def delete_survey(self,survey_id):
         #Delete Videos
         if status != 'error':
             try:
-                db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                videos = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for video in videos:
+                    db.session.delete(video)
                 db.session.commit()
                 app.logger.info('Videos deleted successfully.')
             except:
@@ -411,10 +413,10 @@ def delete_survey(self,survey_id):
         #Delete cameras
         if status != 'error':
             try:
-                db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
                 # for chunk in chunker(cameras,1000):
-                #     for camera in chunk:
-                #         db.session.delete(camera)
+                for camera in cameras:
+                    db.session.delete(camera)
                 db.session.commit()
                 app.logger.info('Cameras deleted successfully.')
             except:
