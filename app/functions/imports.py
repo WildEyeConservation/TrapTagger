@@ -293,9 +293,9 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
 
             cluster.images = []
             db.session.delete(cluster)
-            db.session.commit()
+            # db.session.commit()
         
-        db.session.commit()
+        # db.session.commit()
                 
     clusters = db.session.query(Cluster)\
                 .join(subq,subq.c.clusterID==Cluster.id)\
@@ -314,8 +314,8 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
     for cluster in clusters:
         currCluster = None
         images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-        cameras = db.session.query(Camera).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()
-        cameras = [str(camera.id) for camera in cameras]
+        cameras = [str(r[0]) for r in db.session.query(Camera.id).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
+
         prevLabels = {}
         for cam in cameras:
             prevLabels[cam] = []
@@ -400,7 +400,7 @@ def cluster_trapgroup(self,trapgroup_id):
                 cluster = Cluster(task_id=task.id)
                 db.session.add(cluster)
                 cluster.images = video.camera.images
-            db.session.commit()
+            # db.session.commit()
 
         # Handle the rest of the images without timestamps
         for task in survey.tasks:
@@ -418,7 +418,7 @@ def cluster_trapgroup(self,trapgroup_id):
                 cluster = Cluster(task_id=task.id)
                 db.session.add(cluster)
                 cluster.images.append(image)
-            db.session.commit()
+            # db.session.commit()
 
         if previouslyClustered:
             #Clustering an already-clustered survey, trying to preserve labels etc.
@@ -449,16 +449,14 @@ def cluster_trapgroup(self,trapgroup_id):
                         db.session.add(cluster)
                         image.clusters.append(cluster)
 
-                        detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                        for detection in detections:
+                        for detection in image.detections:
                             labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                             db.session.add(labelgroup)
 
                     elif len(potentialClusters) == 1:
                         potentialClusters[0].images.append(image)
 
-                        detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                        for detection in detections:
+                        for detection in image.detections:
                             labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                             db.session.add(labelgroup)
                             labelgroup.labels = potentialClusters[0].labels
@@ -478,8 +476,7 @@ def cluster_trapgroup(self,trapgroup_id):
                                 image.clusters.append(db.session.query(Cluster).filter(Cluster.task==task).filter(Cluster.images.contains(knockTest)).first())
                                 allocated = True
 
-                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                for detection in detections:
+                                for detection in image.detections:
                                     labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                                     db.session.add(labelgroup)
                                     labelgroup.labels = [downLabel]
@@ -509,8 +506,7 @@ def cluster_trapgroup(self,trapgroup_id):
                                     db.session.delete(cluster)
                                 potentialClusters[0].timestamp = datetime.utcnow()
 
-                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                for detection in detections:
+                                for detection in image.detections:
                                     labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                                     db.session.add(labelgroup)
 
@@ -525,12 +521,11 @@ def cluster_trapgroup(self,trapgroup_id):
                                 db.session.add(cluster)
                                 image.clusters.append(cluster)
 
-                                detections = db.session.query(Detection).filter(Detection.image_id==image.id).all()
-                                for detection in detections:
+                                for detection in image.detections:
                                     labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
                                     db.session.add(labelgroup)
 
-                db.session.commit()
+                # db.session.commit()
 
         else:
             #Clustering with a clean slate
@@ -553,16 +548,26 @@ def cluster_trapgroup(self,trapgroup_id):
                     imList.append(image)
                 for cluster in clusters:
                     cluster.images=imList
-            db.session.commit()
+            # db.session.commit()
 
-            # add task detection labels
-            for task in survey.tasks:
-                for camera in trapgroup.cameras:
-                    detections = db.session.query(Detection).join(Image).filter(Image.camera_id==camera.id).all()
-                    for detection in detections:
-                        labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
-                        db.session.add(labelgroup)
-                    db.session.commit()
+            # # add task detection labels
+            # for task in survey.tasks:
+            #     for camera in trapgroup.cameras:
+            #         detections = db.session.query(Detection).join(Image).filter(Image.camera_id==camera.id).all()
+            #         for detection in detections:
+            #             labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+            #             db.session.add(labelgroup)
+            #         # db.session.commit()
+
+        # handle labelgroups
+        for task in survey.tasks:
+            sq = db.session.query(Detection.id).join(Labelgroup).filter(Labelgroup.task_id==task.id).subquery()
+            detections = db.session.query(Detection).join(Image).join(Camera).outerjoin(sq,sq.c.id==Detection.id).filter(Camera.trapgroup==trapgroup).filter(sq.c.id==None).all()
+            for detection in detections:
+                labelgroup = Labelgroup(detection_id=detection.id,task_id=task.id,checked=False)
+                db.session.add(labelgroup)
+
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -582,23 +587,24 @@ def cluster_survey(survey_id,queue='parallel'):
     
     survey = db.session.query(Survey).get(survey_id)
     survey.status = 'Clustering'
-    db.session.commit()
+
     task = db.session.query(Task).filter(Task.survey==survey).filter(Task.name=='default').first()
     if task != None:
         for surveyTask in survey.tasks:
             surveyTask.complete = False
-        db.session.commit()
     else:
         task = Task(name='default', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
         db.session.add(task)
-        db.session.commit()
+
+    db.session.commit()
 
     results = []
-    for trapgroup in survey.trapgroups:
-        results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup.id},queue=queue))
+    for trapgroup_id in [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]:
+        results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue=queue))
 
     task_id = task.id
-    
+    db.session.remove()
+
     #Wait for processing to complete
     db.session.remove()
     GLOBALS.lock.acquire()
@@ -713,6 +719,7 @@ def processCameraStaticDetections(self,camera_id,imcount):
                                             .order_by(Image.corrected_timestamp)\
                                             .distinct().all()]
 
+        static_detections = []
         max_grouping = 7000
         for chunk in chunker(detections,max_grouping):
             if (len(chunk)<max_grouping) and (len(detections)>max_grouping):
@@ -721,9 +728,26 @@ def processCameraStaticDetections(self,camera_id,imcount):
             im_ids = ','.join([str(r.id) for r in images])
             for det_id,matchcount in db.session.execute(queryTemplate1.format('OR'.join([ ' (det1.source = "{}" AND det1.score > {}) '.format(model,Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS]),camera_id,im_ids,im_ids)):
                 if matchcount>3 and matchcount/imcount>0.3:
-                    detection = db.session.query(Detection).get(det_id)
-                    detection.static = True
-            db.session.commit()
+                    static_detections.append(det_id)
+                    # detection = db.session.query(Detection).get(det_id)
+                    # detection.static = True
+            # db.session.commit()
+
+        detections = db.session.query(Detection).filter(Detection.id.in_(static_detections)).all()
+        for detection in detections:
+            detection.static = True
+
+        sq = db.session.query(Detection).filter(Detection.id.in_(static_detections)).subquery()
+        other_detections = db.session.query(Detection)\
+                                    .outerjoin(sq,sq.c.id==Detection.id)\
+                                    .join(Image)\
+                                    .filter(Image.camera_id==camera_id)\
+                                    .filter(sq.c.id==None)\
+                                    .all()
+        for detection in other_detections:
+            detection.static = False
+
+        db.session.commit()
 
         ###### individual detection approach
         # sq = db.session.query(Detection.id.label('detID'),((Detection.right - Detection.left) * (Detection.bottom - Detection.top)).label('area')).join(Image).filter(Image.camera_id==camera_id).subquery()
@@ -740,12 +764,12 @@ def processCameraStaticDetections(self,camera_id,imcount):
         # pool.close()
         # pool.join()
 
-        detections = db.session.query(Detection).join(Image).filter(Image.camera_id == camera_id) \
-                                                            .filter(Detection.static == None)\
-                                                            .distinct().all()
-        for detection in detections:
-            detection.static = False
-        db.session.commit()
+        # detections = db.session.query(Detection).join(Image).filter(Image.camera_id == camera_id) \
+        #                                                     .filter(Detection.static == None)\
+        #                                                     .distinct().all()
+        # for detection in detections:
+        #     detection.static = False
+        # db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -763,13 +787,13 @@ def processCameraStaticDetections(self,camera_id,imcount):
 def processStaticDetections(survey_id):
     '''Identify static detections for a survey based on IOU and percentage of images of a camera containing a detection.'''
 
-    detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
-    for detection in detections:
-        detection.static = False
-    db.session.commit()
+    # detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+    # for detection in detections:
+    #     detection.static = False
+    # db.session.commit()
 
     results = []
-    for camera_id, imcount in db.session.query(Image.camera_id, func.count(distinct(Image.id))).join('camera', 'trapgroup').filter(Trapgroup.survey_id == survey_id).group_by(Image.camera_id):
+    for camera_id, imcount in db.session.query(Image.camera_id, func.count(distinct(Image.id))).join('camera', 'trapgroup').outerjoin(Video).filter(Video.id==None).filter(Trapgroup.survey_id == survey_id).group_by(Image.camera_id):
         results.append(processCameraStaticDetections.apply_async(kwargs={'camera_id':camera_id,'imcount':imcount},queue='parallel'))
     
     #Wait for processing to complete
@@ -793,31 +817,45 @@ def processStaticDetections(survey_id):
 def removeHumans(task_id):
     '''Marks clusters from specified as containing humans if the majority of their detections are classified as non-animal by MegaDetector.'''
 
-    admin = db.session.query(User).filter(User.username == 'Admin').first()
+    admin = db.session.query(User.id).filter(User.username == 'Admin').first()
     human_label = db.session.query(Label).get(GLOBALS.vhl_id)
 
-    results = db.session.query(func.count(Detection.category),
-                                  func.count(func.nullif(Detection.category, 1)),Cluster.id)\
-                                  .join('image', 'clusters')\
-                                  .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                  .filter(Detection.static==False)\
-                                  .filter(~Detection.status.in_(['deleted','hidden']))\
-                                  .filter(~Cluster.labels.any())\
-                                  .filter(Cluster.task_id==task_id)\
-                                  .group_by(Cluster)
+    sq = db.session.query(func.count(Detection.category).label('total_dets'),
+                                func.count(func.nullif(Detection.category, 1)).label('non_animal_dets'),Cluster.id.label('cluster_id'))\
+                                .join('image', 'clusters')\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.static==False)\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(~Cluster.labels.any())\
+                                .filter(Cluster.task_id==task_id)\
+                                .group_by(Cluster)\
+                                .subquery()
+    
+    clusters = db.session.query(Cluster)\
+                                .join(sq,sq.c.cluster_id==Cluster.id)\
+                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
+                                .all()
 
-    clusters_to_label=[cluster_id for total_dets,non_animal_dets,cluster_id in results if (non_animal_dets/total_dets>0.5)]
-    for chunk in chunker(clusters_to_label,5000):
-        clusters = [db.session.query(Cluster).get(id) for id in chunk]
-        for cluster in clusters:
-            cluster.labels = [human_label]
-            cluster.user_id = admin.id
-            cluster.timestamp = datetime.utcnow()
+    labelgroups = db.session.query(Labelgroup)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .join(sq,sq.c.cluster_id==Cluster.id)\
+                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
+                                .filter(Labelgroup.task_id==task_id)\
+                                .distinct().all()
 
-            labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
-            for labelgroup in labelgroups:
-                labelgroup.labels = [human_label]
-        db.session.commit()
+    for cluster in clusters:
+        cluster.labels = [human_label]
+        cluster.user_id = admin
+        cluster.timestamp = datetime.utcnow()
+
+    for labelgroup in labelgroups:
+        labelgroup.labels = [human_label]
+
+    db.session.commit()
+
+    return True
 
 def setupDatabase():
     '''Adds compulsory labels and admin user to the databse on first start up.'''
@@ -1266,70 +1304,69 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
             hash = None
             etag = None
             if not pipeline: etag = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
-            if pipeline or ((db.session.query(Image).filter(Image.camera_id==camera_id).filter(Image.filename==filename).first()==None) and (db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Image.etag==etag).first()==None)):
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                    if not pipeline:
-                        print('Downloading {}'.format(filename))
-                        GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                if not pipeline:
+                    print('Downloading {}'.format(filename))
+                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
 
-                        hash = generate_raw_image_hash(temp_file.name)
-                        
-                        try:
-                            print('Extracting time stamp from {}'.format(filename))
-                            t = pyexifinfo.get_json(temp_file.name)[0]
-                            timestamp = None
-                            for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
-                                if field in t.keys():
-                                    timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
-                                    break
-                            # assert timestamp
-                        except:
-                            app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
-                            continue
-                    else:
-                        # don't need to download the image or even extract a timestamp if pipelining
-                        timestamp = None
+                    hash = generate_raw_image_hash(temp_file.name)
                     
-                    if not pipeline:
-                        # don't compress and upload the image if its a training-data pipeline
-                        print('Compressing {}'.format(filename))
-                        
-                        # Wand does not appear to be thread safe
-                        lock.acquire()
-                        try:
-                            with wandImage(filename=temp_file.name).convert('jpeg') as img:
-                                # This is required, because if we don't have it ImageMagick gets too clever for it's own good
-                                # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
-                                # problems for MegaDetector which expects a 3 channel image as input.
-                                img.metadata['colorspace:auto-grayscale'] = 'false'
-                                img.transform(resize='800')
-                                if not pipeline:
-                                    print('Uploading {}'.format(filename))
-                                    GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
-                                # bio=BytesIO(img.make_blob())
-                                # b64blob=base64.b64encode(bio.getvalue()).decode()
-                        except:
-                            app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
-                            continue
-                        finally:
-                            lock.release()
+                    try:
+                        print('Extracting time stamp from {}'.format(filename))
+                        t = pyexifinfo.get_json(temp_file.name)[0]
+                        timestamp = None
+                        for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                            if field in t.keys():
+                                timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                                break
+                        # assert timestamp
+                    except:
+                        app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
+                        continue
+                else:
+                    # don't need to download the image or even extract a timestamp if pipelining
+                    timestamp = None
+                
+                if not pipeline:
+                    # don't compress and upload the image if its a training-data pipeline
+                    print('Compressing {}'.format(filename))
+                    
+                    # Wand does not appear to be thread safe
+                    lock.acquire()
+                    try:
+                        with wandImage(filename=temp_file.name).convert('jpeg') as img:
+                            # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                            # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                            # problems for MegaDetector which expects a 3 channel image as input.
+                            img.metadata['colorspace:auto-grayscale'] = 'false'
+                            img.transform(resize='800')
+                            if not pipeline:
+                                print('Uploading {}'.format(filename))
+                                GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
+                            # bio=BytesIO(img.make_blob())
+                            # b64blob=base64.b64encode(bio.getvalue()).decode()
+                    except:
+                        app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+                        continue
+                    finally:
+                        lock.release()
 
-                    ########Blob Approach
-                    #The wandImage approach seems lossy, and the double resize seems dangerous
-                    # try:
-                    #     with open(temp_file.name, "rb") as f:
-                    #         bio = BytesIO(f.read())
-                    #     b64blob=base64.b64encode(bio.getvalue()).decode()
-                    #     batch.append(b64blob)
-                    # except:
-                    #     app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
-                    #     continue
+                ########Blob Approach
+                #The wandImage approach seems lossy, and the double resize seems dangerous
+                # try:
+                #     with open(temp_file.name, "rb") as f:
+                #         bio = BytesIO(f.read())
+                #     b64blob=base64.b64encode(bio.getvalue()).decode()
+                #     batch.append(b64blob)
+                # except:
+                #     app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+                #     continue
 
-                    #########Local Download
-                    batch.append(dirpath + '/' + filename)
+                #########Local Download
+                batch.append(dirpath + '/' + filename)
 
-                    image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
-                    images.append(image)
+                image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
+                images.append(image)
         
         if batch:
             print('Acquiring lock')
@@ -1345,9 +1382,6 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-
-    finally:
-        db.session.remove()
 
     return True
 
@@ -1367,8 +1401,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                 trapgroup_id (int): The trapgroup to which the camera belongs
                 survey_id (int): The survey for which the images are being imported
                 destBucket (str): The destination for the compressed images
-                lower_index (int): The lower index of images from the folder to be imported
-                upper_index (int): The upper index of images from the folder to be imported
+                filenames (list): List of filenames to be processed
             label_source (str): The exif field where labels are to be extracted from
     '''
     
@@ -1395,15 +1428,11 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                 jpegs = list(df['filename'].unique())
 
             else:
-                lower_index = item['lower_index']
-                upper_index = item['upper_index']
-                folders,filenames = list_all(sourceBucket,dirpath+'/')
-                jpegs = list(filter(isjpeg.search, filenames))
-                jpegs = jpegs[int(lower_index):int(upper_index)]
+                jpegs = item['filenames']
             
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
                 
-            for filenames in chunker(jpegs,200):
+            for filenames in chunker(jpegs,100):
                 pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock))
 
         pool.close()
@@ -1428,7 +1457,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                             db.session.add(image)
                             image.detections = [Detection(**detection) for detection in detections]
                             for detection in image.detections:
-                                detection.status='active'
                                 db.session.add(detection)
                         
                         except Exception:
@@ -1437,12 +1465,12 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                             app.logger.info(traceback.format_exc())
                             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                             app.logger.info(' ')
-                            db.session.rollback()
+                            # db.session.rollback()
                     
-                    # Commit every 400 images (2 batches) to speed up result fetching
-                    if counter%2==0:
-                        db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
-                        db.session.commit()
+                    # # Commit every 400 images (2 batches) to speed up result fetching
+                    # if counter%2==0:
+                    #     db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
+                    #     db.session.commit()
                 
                 except Exception:
                     app.logger.info(' ')
@@ -1450,12 +1478,12 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                     app.logger.info(traceback.format_exc())
                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                     app.logger.info(' ')
-                    db.session.rollback()
+                    # db.session.rollback()
                 
                 result.forget()
         GLOBALS.lock.release()
 
-        #Commit the last batch
+        #Commit the last batch & increase count
         db.session.query(Survey).get(survey_id).image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().count()
         db.session.commit()
             
@@ -1480,11 +1508,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                     jpegs = list(df['filename'].unique())
 
                 else:
-                    lower_index = item['lower_index']
-                    upper_index = item['upper_index']
-                    folders,filenames = list_all(sourceBucket,dirpath+'/')
-                    jpegs = list(filter(isjpeg.search, filenames))
-                    jpegs = jpegs[int(lower_index):int(upper_index)]
+                    jpegs = item['filenames']
 
                 images = db.session.query(Image).join(Camera).filter(Camera.path==dirpath).filter(Image.filename.in_(jpegs)).distinct().all()
                 for image in images:
@@ -1509,94 +1533,121 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 
     return True
 
-def classifier_batching(chunk,sourceBucket,classifier):
-    ''' Helper function for runClassifier that batches images and queues them for the classifier. '''
+# def classifier_batching(chunk,sourceBucket,classifier):
+#     ''' Helper function for runClassifier that batches images and queues them for the classifier. '''
 
-    try:
+#     try:
 
-        if classifier=='MegaDetector':
-            detections = db.session.query(Detection)\
-                                    .join(Image)\
-                                    .filter(Image.id.in_(chunk))\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                                    .filter(Detection.left!=Detection.right)\
-                                    .filter(Detection.top!=Detection.bottom)\
-                                    .distinct().all()
+#         if classifier=='MegaDetector':
+#             detections = db.session.query(Detection)\
+#                                     .join(Image)\
+#                                     .filter(Image.id.in_(chunk))\
+#                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#                                     .filter(Detection.static==False)\
+#                                     .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                     .filter(Detection.left!=Detection.right)\
+#                                     .filter(Detection.top!=Detection.bottom)\
+#                                     .distinct().all()
 
-            for detection in detections:
-                if detection.category==1:
-                    detection.classification = 'animal'
-                elif detection.category==2:
-                    detection.classification = 'human'
-                elif detection.category==3:
-                    detection.classification = 'vehicle'
-                detection.class_score = detection.score
-            db.session.commit()
+#             for detection in detections:
+#                 if detection.category==1:
+#                     detection.classification = 'animal'
+#                 elif detection.category==2:
+#                     detection.classification = 'human'
+#                 elif detection.category==3:
+#                     detection.classification = 'vehicle'
+#                 detection.class_score = detection.score
+#             db.session.commit()
+#             db.session.remove()
 
-        else:
-            batch = {'bucket': sourceBucket, 'detection_ids': [], 'detections': {}, 'images': {}}
-            for image_id in chunk:
+#         else:
+#             batch = {'bucket': sourceBucket, 'detection_ids': [], 'detections': {}, 'images': {}}
+            
+#             # for image_id in chunk:
+#             #     try:
+#             #         detections = db.session.query(Detection)\
+#             #                             .filter(Detection.image_id==int(image_id))\
+#             #                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#             #                             .filter(Detection.static==False)\
+#             #                             .filter(~Detection.status.in_(['deleted','hidden']))\
+#             #                             .filter(Detection.left!=Detection.right)\
+#             #                             .filter(Detection.top!=Detection.bottom)\
+#             #                             .all()
 
-                try:
-                    detections = db.session.query(Detection)\
-                                        .filter(Detection.image_id==int(image_id))\
-                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                        .filter(Detection.static==False)\
-                                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                                        .filter(Detection.left!=Detection.right)\
-                                        .filter(Detection.top!=Detection.bottom)\
-                                        .all()
+#             #         ######################Blob approach
+#             #         # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+#             #         #     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(detections[0].image.camera.path, detections[0].image.filename), Filename=temp_file.name)
 
-                    ######################Blob approach
-                    # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                    #     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(detections[0].image.camera.path, detections[0].image.filename), Filename=temp_file.name)
+#             #         #     try:
+#             #         #         with open(temp_file.name, "rb") as f:
+#             #         #             bio = BytesIO(f.read())
+#             #         #         b64blob=base64.b64encode(bio.getvalue()).decode()
+#             #         #     except:
+#             #         #         continue
 
-                    #     try:
-                    #         with open(temp_file.name, "rb") as f:
-                    #             bio = BytesIO(f.read())
-                    #         b64blob=base64.b64encode(bio.getvalue()).decode()
-                    #     except:
-                    #         continue
+#             #         # batch['images'][str(image_id)] = b64blob
 
-                    # batch['images'][str(image_id)] = b64blob
+#             #         ######################Download on worker approach
+#             #         if len(detections) > 0:
+#             #             splits = detections[0].image.camera.path.split('/')
+#             #             splits[0] = splits[0]+'-comp'
+#             #             newpath = '/'.join(splits)
+#             #             batch['images'][str(image_id)] = os.path.join(newpath, detections[0].image.filename)
 
-                    ######################Download on worker approach
-                    if len(detections) > 0:
-                        splits = detections[0].image.camera.path.split('/')
-                        splits[0] = splits[0]+'-comp'
-                        newpath = '/'.join(splits)
-                        batch['images'][str(image_id)] = os.path.join(newpath, detections[0].image.filename)
+#             #     except:
+#             #         app.logger.info(' ')
+#             #         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#             #         app.logger.info(traceback.format_exc())
+#             #         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#             #         app.logger.info(' ')
 
-                    for detection in detections:
-                        detection_id = str(detection.id)
-                        batch['detection_ids'].append(detection_id)
-                        batch['detections'][detection_id] = {'image_id': str(image_id), 'left': detection.left, 'right': detection.right, 'top': detection.top, 'bottom': detection.bottom}
+#             detections = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+#                                 .join(Image,Image.id==Detection.image_id)\
+#                                 .join(Camera)\
+#                                 .filter(Image.id.in_(chunk))\
+#                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+#                                 .filter(Detection.static==False)\
+#                                 .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                 .filter(Detection.left!=Detection.right)\
+#                                 .filter(Detection.top!=Detection.bottom)\
+#                                 .all()
 
-                except:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
+#             db.session.remove()
 
-            if len(batch['images'].keys()) >= 0:
-                GLOBALS.lock.acquire()
-                GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
-                GLOBALS.lock.release()
+#             for detection in detections:
+#                 try:
+#                     image_id = str(detection[5])
+#                     if image_id not in batch['images'].keys():
+#                         splits = detection[7].split('/')
+#                         splits[0] = splits[0]+'-comp'
+#                         newpath = '/'.join(splits)
+#                         batch['images'][image_id] = os.path.join(newpath, detection[6])
+#                     detection_id = str(detection[0])
+#                     batch['detection_ids'].append(detection_id)
+#                     batch['detections'][detection_id] = {'image_id': image_id, 'left': detection[1], 'right': detection[2], 'top': detection[3], 'bottom': detection[4]}
+#                 except:
+#                     app.logger.info(' ')
+#                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                     app.logger.info(traceback.format_exc())
+#                     app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                     app.logger.info(' ')
 
-    except Exception:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
+#             if len(batch['images'].keys()) >= 0:
+#                 GLOBALS.lock.acquire()
+#                 GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
+#                 GLOBALS.lock.release()
 
-    finally:
-        db.session.remove()
+#     except Exception:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
 
-    return True
+#     # finally:
+#     #     db.session.remove()
+
+#     return True
 
 @celery.task(bind=True,max_retries=29)
 def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier):
@@ -1622,53 +1673,102 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
 
         batch = images[lower_index:upper_index]
 
-        GLOBALS.results_queue = []
-        pool = Pool(processes=4)
-        for chunk in chunker(batch,batch_size):
-            pool.apply_async(classifier_batching,(chunk,sourceBucket,classifier))
-        pool.close()
-        pool.join()
-        print('{} results to fetch'.format(len(GLOBALS.results_queue)))
+        if classifier=='MegaDetector':
+            detections = db.session.query(Detection)\
+                                    .join(Image)\
+                                    .filter(Image.id.in_(batch))\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                    .filter(Detection.static==False)\
+                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(Detection.left!=Detection.right)\
+                                    .filter(Detection.top!=Detection.bottom)\
+                                    .distinct().all()
 
-        counter = 0
-        db.session.remove()
-        GLOBALS.lock.acquire()
-        with allow_join_result():
-            for result in GLOBALS.results_queue:
-                try:
-                    counter += 1
-                    print('Fetching result {}'.format(counter))
-                    starttime = datetime.utcnow()
-                    response = result.get()
-                    print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+            for detection in detections:
+                if detection.category==1:
+                    detection.classification = 'animal'
+                elif detection.category==2:
+                    detection.classification = 'human'
+                elif detection.category==3:
+                    detection.classification = 'vehicle'
+                detection.class_score = detection.score
+            db.session.commit()
+            db.session.remove()
 
-                    for detection_id in response.keys():
-                        try:
-                            detection = db.session.query(Detection).get(int(detection_id))
-                            detection.class_score = float(response[detection_id]['score'])
-                            detection.classification = response[detection_id]['classification']
-                        
-                        except Exception:
-                            app.logger.info(' ')
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(traceback.format_exc())
-                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                            app.logger.info(' ')
+        else:
+            GLOBALS.results_queue = []
 
-                    # Commit every 1000 images to prevent long locks on the database
-                    # if counter%5==0: db.session.commit()
-                    db.session.commit()
-                
-                except Exception:
-                    app.logger.info(' ')
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(traceback.format_exc())
-                    app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    app.logger.info(' ')
+            detections = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+                                .join(Image,Image.id==Detection.image_id)\
+                                .join(Camera)\
+                                .filter(Image.id.in_(batch))\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.static==False)\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(Detection.left!=Detection.right)\
+                                .filter(Detection.top!=Detection.bottom)\
+                                .all()
 
-                result.forget()
-        GLOBALS.lock.release()
-        # db.session.commit()
+            for chunk in chunker(detections, batch_size):
+                batch = {'bucket': sourceBucket, 'detection_ids': [], 'detections': {}, 'images': {}}
+                for detection in chunk:
+                    try:
+                        image_id = str(detection[5])
+                        if image_id not in batch['images'].keys():
+                            splits = detection[7].split('/')
+                            splits[0] = splits[0]+'-comp'
+                            newpath = '/'.join(splits)
+                            batch['images'][image_id] = os.path.join(newpath, detection[6])
+                        detection_id = str(detection[0])
+                        batch['detection_ids'].append(detection_id)
+                        batch['detections'][detection_id] = {'image_id': image_id, 'left': detection[1], 'right': detection[2], 'top': detection[3], 'bottom': detection[4]}
+                    except:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+
+                if len(batch['images'].keys()) >= 0:
+                    # GLOBALS.lock.acquire()
+                    GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
+                    # GLOBALS.lock.release()
+
+            print('{} results to fetch'.format(len(GLOBALS.results_queue)))
+
+            counter = 0
+            GLOBALS.lock.acquire()
+            with allow_join_result():
+                for result in GLOBALS.results_queue:
+                    try:
+                        counter += 1
+                        print('Fetching result {}'.format(counter))
+                        starttime = datetime.utcnow()
+                        response = result.get()
+                        print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+
+                        detections = db.session.query(Detection).filter(Detection.id.in_(list(response.keys()))).all()
+                        for detection in detections:
+                            try:
+                                detection.class_score = float(response[str(detection.id)]['score'])
+                                detection.classification = response[str(detection.id)]['classification']
+                            except Exception:
+                                app.logger.info(' ')
+                                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                                app.logger.info(traceback.format_exc())
+                                app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                                app.logger.info(' ')
+                    
+                    except Exception:
+                        app.logger.info(' ')
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(traceback.format_exc())
+                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                        app.logger.info(' ')
+
+                    result.forget()
+            GLOBALS.lock.release()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1701,6 +1801,38 @@ def s3traverse(bucket,prefix):
         for prefix,prefixes,contents in s3traverse(bucket,prefix):
             yield prefix, prefixes, contents
 
+def delete_duplicate_videos(videos,skip):
+    '''Helper function for remove_duplicate_videos that deletes the specified video objects and their detections from the database.'''
+
+    # If adding images - delete the new imports rather than the old ones
+    if skip:
+        candidateVideos = videos
+    else:
+        candidateVideos = db.session.query(Video).join(Camera).join(Image).filter(~Image.clusters.any()).filter(Video.id.in_(videos)).distinct().all()
+        if len(candidateVideos) == len(videos): candidateVideos = candidateVideos[1:]
+
+    for video in candidateVideos:
+        if not skip:
+            # delete frames
+            s3 = boto3.resource('s3')
+            bucketObject = s3.Bucket(Config.BUCKET)
+            bucketObject.objects.filter(Prefix=camera.path).delete()
+
+            # Delete comp video
+            splits = camera.path.split('/_video_images_/')
+            video_name = splits[-1].split('.')[0]
+            path_splits = splits[0].split('/')
+            path_splits[0] = path_splits[0]+'-comp'
+            video_key = '/'.join(path_splits) + '/' +  video_name + '.mp4'
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=video_key)
+
+        # delete from db
+        db.session.delete(video.camera)
+        db.session.delete(video)
+    
+    return True
+
+
 def delete_duplicate_images(images):
     '''Helper function for remove_duplicate_images that deletes the specified image objects and their detections from the database.'''
 
@@ -1711,22 +1843,73 @@ def delete_duplicate_images(images):
     for image in candidateImages:
         for detection in image.detections:
 
-            for labelgroup in detection.labelgroups:
-                labelgroup.labels = []
-                labelgroup.tags = []
-                db.session.delete(labelgroup)
+            # for labelgroup in detection.labelgroups:
+            #     labelgroup.labels = []
+            #     labelgroup.tags = []
+            #     db.session.delete(labelgroup)
             
-            detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-            for detSimilarity in detSimilarities:
-                db.session.delete(detSimilarity)
+            # detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+            # for detSimilarity in detSimilarities:
+            #     db.session.delete(detSimilarity)
             
-            detection.individuals = []
+            # detection.individuals = []
             db.session.delete(detection)
         
-        image.clusters = []
+        # image.clusters = []
         db.session.delete(image)
     
+    # db.session.commit()
+    return True
+
+def remove_duplicate_videos(survey_id):
+    '''Removes all duplicate videos by hash in the database. Required after import was parallelised.'''
+
+    # Remove according to hashes
+    sq = db.session.query(Video.hash.label('hash'),func.count(distinct(Video.id)).label('count'))\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .group_by(Video.hash)\
+                    .subquery()
+
+    duplicates = db.session.query(Video.hash).join(sq,sq.c.hash==Video.hash).filter(sq.c.count>1).filter(Video.hash!=None).distinct().all()
+
+    for hash in duplicates:
+        videos = [r[0] for r in db.session.query(Video.id)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .filter(Video.hash==hash[0])\
+                    .all()]
+        delete_duplicate_videos(videos,False)
+
+    # Double check that there are no duplicate objects for the same paths
+    sq = db.session.query(Camera.path.label('path'),func.count(distinct(Camera.id)).label('count'))\
+                        .join(Video)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .group_by(Camera.path)\
+                        .subquery()
+                        
+    duplicates = db.session.query(Camera.path)\
+                        .join(Video)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .join(sq,sq.c.path==Camera.path)\
+                        .filter(sq.c.count>1)\
+                        .all()
+
+    for path in duplicates:
+        videos = [r[0] for r in db.session.query(Video.id)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .filter(Camera.path==path[0])\
+                    .all()]
+        delete_duplicate_videos(videos,True)
+
     db.session.commit()
+    db.session.remove()
     return True
 
 def remove_duplicate_images(survey_id):
@@ -1757,36 +1940,14 @@ def remove_duplicate_images(survey_id):
     cameras = db.session.query(Camera).join(Trapgroup).filter(~Camera.images.any()).filter(Trapgroup.survey_id==survey_id).all()
     for camera in cameras:
         db.session.delete(camera)
-    db.session.commit()
+    # db.session.commit()
 
     #delete any empty trapgroups
     trapgroups = db.session.query(Trapgroup).filter(~Trapgroup.cameras.any()).filter(Trapgroup.survey_id==survey_id).all()
     for trapgroup in trapgroups:
         db.session.delete(trapgroup)
-    db.session.commit()
+    # db.session.commit()
 
-    #Delete any empty clusters
-    clusters = db.session.query(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
-    for cluster in clusters:
-        cluster.labels = []
-        cluster.tags = []
-        cluster.required_images = []
-        db.session.delete(cluster)
-    db.session.commit()
-
-    #Delete any empty individuals
-    individuals = db.session.query(Individual).join(Task).filter(Task.survey_id==survey_id).filter(~Individual.detections.any()).all()
-    for individual in individuals:
-        individual.children = []
-        individual.tags = []
-        individual.tasks = []
-    db.session.commit()
-
-    for individual in individuals:
-        indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-        for indSimilarity in indSimilarities:
-            db.session.delete(indSimilarity)
-        db.session.delete(individual)
     db.session.commit()
     db.session.remove()
     
@@ -1833,7 +1994,17 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 trapgroup = Trapgroup.get_or_create(localsession, tags[0], sid)
                 survey.images_processing += len(jpegs)
                 localsession.commit()
-                for batch in chunker(videos,50):
+
+                already_processed = [r[0] for r in localsession.query(Video.filename)\
+                                            .join(Camera)\
+                                            .filter(Camera.trapgroup_id==trapgroup.id)\
+                                            .filter(Video.filename.in_(videos))\
+                                            .filter(Camera.path.contains(dirpath+'/_video_images_/'))\
+                                            .all()]
+
+                to_process = [video for video in videos if video not in already_processed]
+
+                for batch in chunker(to_process,500):
                     results.append(process_video_batch.apply_async(kwargs={'dirpath':dirpath,'batch':batch,'bucket':sourceBucket, 'trapgroup_id': trapgroup.id},queue='parallel'))
                     app.logger.info('Processing video batch: '.format(len(batch)))
 
@@ -1857,13 +2028,16 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     GLOBALS.lock.release()
     app.logger.info('Video processing complete')
 
+    #check for any duplicates
+    if not pipeline: remove_duplicate_videos(sid)
+
     # Now handle images
     localsession=db.session()
     survey = db.session.query(Survey).get(sid)
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/16)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/8)
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -1878,46 +2052,30 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 localsession.commit()
                 tid=trapgroup.id
 
+                already_processed = [r[0] for r in localsession.query(Image.filename)\
+                                            .filter(Camera==camera)\
+                                            .all()]
+
+                to_process = [filename for filename in jpegs if filename not in already_processed]
+
                 #Break folders down into chunks to prevent overly-large folders causing issues
-                # for chunk in chunker(jpegs,round(Config.QUEUES['parallel']['rate']/8)):
-                number_of_chunks = math.ceil(len(jpegs)/chunk_size)
-                for n in range(number_of_chunks):
+                for chunk in chunker(to_process,chunk_size):
                     batch.append({'sourceBucket':sourceBucket,
                                     'dirpath':dirpath,
-                                    'lower_index': n*chunk_size,
-                                    'upper_index': (n+1)*chunk_size,
+                                    'filenames': chunk,
                                     'trapgroup_id':tid,
                                     'camera_id': camera.id,
                                     'survey_id':sid,
                                     'destBucket':destinationBucket})
 
-                    if n < number_of_chunks-1:
-                        batch_count += chunk_size
-                    else:
-                        batch_count += len(jpegs) - (n*chunk_size)
+                    batch_count += len(chunk)
 
-                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/8) ) >= 1:
+                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/4) ) >= 1:
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
 
-                    # # Once a large survey has saturated the queue, simply add batches at previous batches are finished to reduce memory saturation
-                    # if (len(results)) >= (2*Config.MAX_PARALLEL):
-                    #     survey.processing_initialised = False
-                    #     localsession.commit()
-                    #     result = results.pop(0)
-                    #     db.session.remove()
-                    #     with allow_join_result():
-                    #         try:
-                    #             result.get()
-                    #         except Exception:
-                    #             app.logger.info(' ')
-                    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    #             app.logger.info(traceback.format_exc())
-                    #             app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                    #             app.logger.info(' ')
-                    #         result.forget()
             else:
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
@@ -1980,7 +2138,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/16)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/8)
     for dirpath in df['dirpath'].unique():
         tags = tgcode.findall(dirpath.replace(survey.name+'/',''))
 
@@ -2028,7 +2186,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 else:
                     batch_count += number_of_images - (n*chunk_size)
 
-                if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/8) ) >= 1:
+                if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/4) ) >= 1:
                     results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
                     app.logger.info('Queued batch with {} images'.format(batch_count))
                     batch_count = 0
@@ -2130,40 +2288,41 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
 
     return True
 
-def updateDetectionRatings(images):
-    '''Helper function for updateTrapgroupDetectionRatings that allows that function to update the detection ratings of images in parallel.'''
+# def updateDetectionRatings(images):
+#     '''Helper function for updateTrapgroupDetectionRatings that allows that function to update the detection ratings of images in parallel.'''
 
-    try:
-        images = db.session.query(Image).filter(Image.id.in_(images)).distinct().all()
-        for image in images:
-            image.detection_rating = detection_rating(image)
-        db.session.commit()
+#     try:
+#         images = db.session.query(Image).filter(Image.id.in_(images)).distinct().all()
+#         for image in images:
+#             image.detection_rating = detection_rating(image)
+#         db.session.commit()
     
-    except Exception:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
+#     except Exception:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
 
-    finally:
-        db.session.remove()
+#     finally:
+#         db.session.remove()
     
-    return True
+#     return True
 
 @celery.task(bind=True,max_retries=29)
 def updateTrapgroupDetectionRatings(self,trapgroup_id):
     '''Updates detection ratings for all images in a trapgroup.'''
     try:
-        images = [r[0] for r in db.session.query(Image.id)\
+
+        images = db.session.query(Image.id)\
                         .join(Camera)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
-                        .all()]
-        pool = Pool(processes=4)
-        for chunk in chunker(images,500):
-            pool.apply_async(updateDetectionRatings,(chunk,))
-        pool.close()
-        pool.join()
+                        .all()
+
+        for image in images:
+            image.detection_rating = detection_rating(image)
+            
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2188,8 +2347,8 @@ def updateSurveyDetectionRatings(survey_id):
     '''
     
     results = []
-    for trapgroup in db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
-        results.append(updateTrapgroupDetectionRatings.apply_async(kwargs={'trapgroup_id':trapgroup.id},queue='parallel'))
+    for trapgroup_id in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).distinct().all():
+        results.append(updateTrapgroupDetectionRatings.apply_async(kwargs={'trapgroup_id':trapgroup_id[0]},queue='parallel'))
     
     #Wait for processing to complete
     db.session.remove()
@@ -2244,7 +2403,7 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .distinct().count()
 
-    chunk_size = round(Config.QUEUES['parallel']['rate']/16)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/4)
     number_of_chunks = math.ceil(images/chunk_size)
 
     # for chunk in chunker(images,round(Config.QUEUES['parallel']['rate']/2)):
@@ -2253,11 +2412,11 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
 
     survey.processing_initialised = False
     db.session.commit()
+    db.session.remove()
 
     # Wait for processing to finish
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
     # See https://github.com/celery/celery/issues/4480
-    db.session.remove()
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -2890,13 +3049,15 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
 
         user = db.session.query(User).get(user_id)
         import_folder(user.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
+        
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey_id = survey.id
         survey.correct_timestamps = correctTimestamps
         survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
         survey.video_count = db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().count()
-        survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id!=None).distinct().count()
+        survey.frame_count = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey==survey).distinct().count()
         db.session.commit()
+        
         skip = False
         if correctTimestamps:
             survey.status='Correcting Timestamps'
@@ -2909,29 +3070,35 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         if not skip:
             task_id=cluster_survey(survey_id)
             survey = db.session.query(Survey).get(survey_id)
+        
         survey.status='Removing Static Detections'
         db.session.commit()
         processStaticDetections(survey_id)
         survey = db.session.query(Survey).get(survey_id)
+        
         survey.status='Removing Humans'
         db.session.commit()
         removeHumans(task_id)
+        
         survey.status='Importing Coordinates'
         db.session.commit()
         importKML(survey.id)
+
         survey.status='Classifying'
         db.session.commit()
         classifySurvey(survey_id=survey_id,sourceBucket=Config.BUCKET,classifier=classifier)
+
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Re-Clustering'
         db.session.commit()
         for task in survey.tasks:
             recluster_large_clusters(task.id,True)
+        
         survey.status='Calculating Scores'
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
+        
         survey = db.session.query(Survey).get(survey_id)
-
         for task in survey.tasks:
             if task.name != 'default':
                 classifyTask(task.id)
@@ -3236,6 +3403,7 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
         localsession=db.session()
         for filename in batch:
             extract_images_from_video(localsession, dirpath+'/'+filename, bucket, trapgroup_id)
+        localsession.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3265,87 +3433,85 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         comp_video_path = '/'.join(split_path)
         video_hash = None
 
-        # If camera & video already exist - it has already been processed
-        camera = Camera.get_or_create(localsession, trapgroup_id, video_path+'/_video_images_/'+video_name)
-        video = localsession.query(Video).filter(Video.camera==camera).filter(Video.filename==filename).first()
+        # we have already checked if the cameras and videos exist
+        camera = Camera(trapgroup_id=trapgroup_id, path=video_path+'/_video_images_/'+video_name)
+        localsession.add(camera)
 
-        if video==None:
-            # Download video
-            with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
-                GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
-                
-                # Get video timestamp 
+        # Download video
+        with tempfile.NamedTemporaryFile(delete=True, suffix=video_type) as temp_file:
+            GLOBALS.s3client.download_file(Bucket=bucketName, Key=sourceKey, Filename=temp_file.name)
+            
+            # Get video timestamp 
+            try:
+                video_timestamp = ffmpeg.probe(temp_file.name)['streams'][0]['tags']['creation_time']
+            except:                             
+                video_timestamp = None
+
+            if not video_timestamp:
                 try:
-                    video_timestamp = ffmpeg.probe(temp_file.name)['streams'][0]['tags']['creation_time']
-                except:                             
+                    video_timestamp = ffmpeg.probe(temp_file.name)['format']['tags']['creation_time']
+                except:
                     video_timestamp = None
 
-                if not video_timestamp:
-                    try:
-                        video_timestamp = ffmpeg.probe(temp_file.name)['format']['tags']['creation_time']
-                    except:
-                        video_timestamp = None
+            if video_timestamp:
+                video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+            
+            # Extract images
+            video = cv2.VideoCapture(temp_file.name)
+            video_fps = video.get(cv2.CAP_PROP_FPS)
+            video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
 
-                if video_timestamp:
-                    video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
-                
-                # Extract images
-                video = cv2.VideoCapture(temp_file.name)
-                video_fps = video.get(cv2.CAP_PROP_FPS)
-                video_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+            max_frames = 50     # Maximum number of frames to extract
+            fps_default = 1     # Default fps to extract frames at (frame per second)
+            frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
+            
+            fps = min(max_frames / frames_default_fps, fps_default)  
+            
+            ret, frame = video.read()
+            count = 0
+            count_frame = 0
+            while ret:
+                if count % (video_fps // fps) == 0:
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
+                        cv2.imwrite(temp_file_img.name, frame)
+                        # Timestamp
+                        if video_timestamp:
+                            image_timestamp = video_timestamp + timedelta(seconds=count_frame/fps)
+                            exif_time = image_timestamp.strftime('%Y:%m:%d %H:%M:%S')
+                            exif_dict = {"Exif":{piexif.ExifIFD.DateTimeOriginal: exif_time}}
+                            exif_bytes = piexif.dump(exif_dict)
+                            # Write exif data to image
+                            piexif.insert(exif_bytes, temp_file_img.name)
 
-                max_frames = 50     # Maximum number of frames to extract
-                fps_default = 1     # Default fps to extract frames at (frame per second)
-                frames_default_fps = math.ceil(video_frames / video_fps) * fps_default
-                
-                fps = min(max_frames / frames_default_fps, fps_default)  
-                
+                        # Upload image to bucket
+                        image_key = video_path + '/_video_images_/' +  video_name + '/frame%d.jpg' % count_frame
+                        GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
+                        count_frame += 1
                 ret, frame = video.read()
-                count = 0
-                count_frame = 0
-                while ret:
-                    if count % (video_fps // fps) == 0:
-                        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file_img:
-                            cv2.imwrite(temp_file_img.name, frame)
-                            # Timestamp
-                            if video_timestamp:
-                                image_timestamp = video_timestamp + timedelta(seconds=count_frame/fps)
-                                exif_time = image_timestamp.strftime('%Y:%m:%d %H:%M:%S')
-                                exif_dict = {"Exif":{piexif.ExifIFD.DateTimeOriginal: exif_time}}
-                                exif_bytes = piexif.dump(exif_dict)
-                                # Write exif data to image
-                                piexif.insert(exif_bytes, temp_file_img.name)
+                count += 1
 
-                            # Upload image to bucket
-                            image_key = video_path + '/_video_images_/' +  video_name + '/frame%d.jpg' % count_frame
-                            GLOBALS.s3client.put_object(Bucket=bucketName,Key=image_key,Body=temp_file_img)
-                            count_frame += 1
-                    ret, frame = video.read()
-                    count += 1
+            video.release()
+            cv2.destroyAllWindows()
 
-                video.release()
-                cv2.destroyAllWindows()
+            # Convert and compress video
+            input_video = ffmpeg.input(temp_file.name)
+            # output_width = 480
+            # input_video = input_video.filter('scale', width=output_width, height=-2).filter('setsar', ratio='1:1')
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
 
-                # Convert and compress video
-                input_video = ffmpeg.input(temp_file.name)
-                # output_width = 480
-                # input_video = input_video.filter('scale', width=output_width, height=-2).filter('setsar', ratio='1:1')
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
+                # Change crf and preset to change quality and size of video
+                output_video = ffmpeg.output(input_video, temp_file_out.name, crf=25, preset='medium')
+                output_video.run(overwrite_output=True)
 
-                    # Change crf and preset to change quality and size of video
-                    output_video = ffmpeg.output(input_video, temp_file_out.name, crf=25, preset='medium')
-                    output_video.run(overwrite_output=True)
+                # Upload video to compressed bucket
+                video_key = comp_video_path + '/' +  video_name + '.mp4'
+                GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
 
-                    # Upload video to compressed bucket
-                    video_key = comp_video_path + '/' +  video_name + '.mp4'
-                    GLOBALS.s3client.put_object(Bucket=bucketName,Key=video_key,Body=temp_file_out)
+            # Calculate hash 
+            video_hash = generate_raw_image_hash(temp_file.name)
 
-                # Calculate hash 
-                video_hash = generate_raw_image_hash(temp_file.name)
-
-            video = Video(camera_id=camera.id, filename=filename, hash=video_hash)
-            localsession.add(video)
-            localsession.commit()
+        video = Video(camera=camera, filename=filename, hash=video_hash)
+        localsession.add(video)
 
     except:
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))

@@ -102,7 +102,7 @@ async function startDownload(selectedTask,taskName,count=0) {
     postMessage({'func': 'initDisplayForDownload', 'args': [downloadingTask]})
     updateDownloadProgress()
 
-    var reply = await limitTT(()=> fetch('/set_download_status', {
+    var reply = await limitTT(()=> fetch('/fileHandler/set_download_status', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -139,7 +139,7 @@ async function waitUntilDownloadReady(count=0) {
     /** Checks to see if the download is ready to commence */
     if (downloadingTask) {
         initCount += 1
-        var response = await limitTT(()=> fetch('/check_download_initialised', {
+        var response = await limitTT(()=> fetch('/fileHandler/check_download_initialised', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -230,14 +230,14 @@ async function consumeQueue() {
 async function handleLocalFile(entry,dirHandle) {
     /** Opens a local file and calculates its EXIF-less hash */
     local_files_processing += 1
-    if (['jpeg', 'jpg'].some(element => entry.name.toLowerCase().includes(element))) {
+    if (['jpeg', 'jpg', 'mp4', 'avi'].some(element => entry.name.toLowerCase().includes(element))) {
         var file = await entry.getFile()
         var reader = new FileReader();
         reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
             return async function() {
                 var jpegData = wrapReader.result
                 try {
-                    var hash = getHash(jpegData)
+                    var hash = getHash(jpegData,wrapFileName)
                     getLocalImageInfo(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
                 } catch {
                     // delete malformed/corrupted files
@@ -249,28 +249,7 @@ async function handleLocalFile(entry,dirHandle) {
             }
         }(reader,dirHandle,entry.name));
         reader.readAsBinaryString(file)
-    } 
-    else if (['mp4', 'avi'].some(element => entry.name.toLowerCase().includes(element))) {
-        var file = await entry.getFile()
-        var reader = new FileReader();
-        reader.addEventListener("load", function(wrapReader,wrapDirHandle,wrapFileName) {
-            return async function() {
-                var jpegData = wrapReader.result
-                try {
-                    var hash = getHash(jpegData, true)
-                    getLocalImageInfo(hash,downloadingTask,jpegData,wrapDirHandle,wrapFileName)
-                } catch {
-                    // delete malformed/corrupted files
-                    local_files_processing -= 1
-                    if (delete_items) {
-                        wrapDirHandle.removeEntry(wrapFileName)
-                    }
-                }    
-            }
-        }(reader,dirHandle,entry.name));
-        reader.readAsBinaryString(file)
-    }
-    else {
+    } else {
         //delete non-jpgs or non-mp4s/avis
         if (delete_items) {
             dirHandle.removeEntry(entry.name)
@@ -282,7 +261,7 @@ async function handleLocalFile(entry,dirHandle) {
 async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileName,count=0) {
     /** Fetches a local image's info based on its hash and initates the writing process for the required paths */
     if (!wrappingUp) {
-        var data = await limitTT(()=> fetch('/get_image_info', {
+        var data = await limitTT(()=> fetch('/fileHandler/get_image_info', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -297,7 +276,8 @@ async function getLocalImageInfo(hash,downloadingTask,jpegData,dirHandle,fileNam
                 flat_structure: flat_structure,
                 include_empties: include_empties,
                 include_video: include_video,
-                include_frames: include_frames
+                include_frames: include_frames,
+                fileName: fileName
             }),
         }).then((response) => {
             if (!response.ok) {
@@ -389,7 +369,7 @@ async function writeBlob(dirHandle,blob,fileName) {
 
 async function fetchRemainingImages() {
     /** Fetches a batch of images that must be downloaded */
-    var data = await limitTT(()=> fetch('/get_required_files', {
+    var data = await limitTT(()=> fetch('/fileHandler/get_required_files', {
         method: 'post',
         headers: {
             accept: 'application/json',
@@ -445,7 +425,7 @@ async function fetchRemainingImages() {
 async function confirmReceipt(image_ids,count=0) {
     /** Tells the server to mark the specified set of images as received */
     if (!wrappingUp) {
-        await limitTT(()=> fetch('/mark_images_downloaded', {
+        await limitTT(()=> fetch('/fileHandler/mark_images_downloaded', {
             method: 'post',
             headers: {
                 accept: 'application/json',
@@ -526,9 +506,9 @@ async function getBlob(url) {
     return blob;
 }
 
-function getHash(jpegData, isVideo=false) {
+function getHash(jpegData, filename) {
     /** Returns the hash of the EXIF-less image */
-    if (isVideo){
+    if (['mp4', 'avi'].some(element => filename.toLowerCase().includes(element))){
         return CryptoJS.MD5(CryptoJS.enc.Latin1.parse(jpegData)).toString()
     }
     else{
@@ -561,7 +541,7 @@ async function checkDownloadStatus() {
 async function wrapUpDownload(reload,count=0) {
     /** Wraps up the download by cleaning up any remaining empty folders and updating the UI */
     if (downloadingTask) {
-        var response = await limitTT(()=> fetch('/download_complete', {
+        var response = await limitTT(()=> fetch('/fileHandler/download_complete', {
             method: 'post',
             headers: {
                 accept: 'application/json',

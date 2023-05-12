@@ -176,7 +176,7 @@ var uppy = new Uppy.Uppy({
 uppy.use(Uppy.AwsS3, {
     /** Uppy is set up to directly upload to S3 using a presigned URL from the application server */
     getUploadParameters (file) {
-        return limitTT(()=> fetch('/get_presigned_url', {
+        return limitTT(()=> fetch('/fileHandler/get_presigned_url', {
             method: 'post',
             headers: {
                 accept: 'application/json',

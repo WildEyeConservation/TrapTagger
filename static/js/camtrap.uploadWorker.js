@@ -60,7 +60,7 @@ async function checkFileBatch() {
             fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
         }
 
-        limitTT(()=> fetch('/check_upload_files', {
+        limitTT(()=> fetch('/fileHandler/check_upload_files', {
             method: 'post',
             headers: {
                 accept: 'application/json',

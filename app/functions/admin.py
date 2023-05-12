@@ -397,6 +397,17 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete images.'
                 app.logger.info('Failed to delete images.')
 
+        #Delete Videos
+        if status != 'error':
+            try:
+                db.session.query(Video).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).delete(synchronize_session=False)
+                db.session.commit()
+                app.logger.info('Videos deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete videos.'
+                app.logger.info('Failed to delete videos.')
+
         #Delete cameras
         if status != 'error':
             try:

@@ -6959,10 +6959,11 @@ def getClassifierInfo():
 
     return json.dumps({'data': data, 'next_url':next_url, 'prev_url':prev_url})
 
-@app.route('/get_presigned_url', methods=['POST'])
+@app.route('/fileHandler/get_presigned_url', methods=['POST'])
 @login_required
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
+    print('Getting presigned')
     if current_user.admin:
         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
                                                                 Params={'Bucket': Config.BUCKET,
@@ -6972,7 +6973,7 @@ def get_presigned_url():
     else:
         return 'error'
 
-@app.route('/check_upload_files', methods=['POST'])
+@app.route('/fileHandler/check_upload_files', methods=['POST'])
 @login_required
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
@@ -6990,7 +6991,7 @@ def check_upload_files():
 
     return json.dumps(already_uploaded)
 
-@app.route('/get_image_info', methods=['POST'])
+@app.route('/fileHandler/get_image_info', methods=['POST'])
 @login_required
 def get_image_info():
     """Returns the labels for the specified image or video and task."""
@@ -7007,8 +7008,9 @@ def get_image_info():
         labels = request.json['species']
         include_video = request.json['include_video']
         include_frames = request.json['include_frames']
+        fileName = request.json['fileName']
 
-        if include_video:
+        if include_video and any(ext in fileName.lower() for ext in ['mp4','avi']):
             video = db.session.query(Video)\
                             .join(Camera)\
                             .join(Trapgroup)\
@@ -7025,38 +7027,32 @@ def get_image_info():
                     reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':videoLabels,'fileName':path.split('/')[-1]})
 
                 db.session.commit()
-        
-        
-        if include_frames:
-            image = db.session.query(Image)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Trapgroup.survey==task.survey)\
-                            .filter(Image.hash==hash)\
-                            .first()
         else:
+        
             image = db.session.query(Image)\
                             .join(Camera)\
-                            .outerjoin(Video)\
                             .join(Trapgroup)\
                             .filter(Trapgroup.survey==task.survey)\
-                            .filter(Image.hash==hash)\
-                            .filter(Video.id==None)\
-                            .first()
+                            .filter(Image.hash==hash)
 
-        if image:
-            image.downloaded = True
-            imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
-            imageLabels.extend(imageTags)
+            if not include_frames:
+                image = image.outerjoin(Video).filter(Video.id==None)
+            
+            image = image.first()
 
-            for path in imagePaths:
-                reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':imageLabels,'fileName':path.split('/')[-1]})
+            if image:
+                image.downloaded = True
+                imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
+                imageLabels.extend(imageTags)
 
-            db.session.commit()
+                for path in imagePaths:
+                    reply.append({'path':'/'.join(path.split('/')[:-1]),'labels':imageLabels,'fileName':path.split('/')[-1]})
+
+                db.session.commit()
 
     return json.dumps(reply)
 
-@app.route('/get_required_files', methods=['POST'])
+@app.route('/fileHandler/get_required_files', methods=['POST'])
 @login_required
 def get_required_files():
     """Return the required files and their labels and paths"""
@@ -7252,7 +7248,7 @@ def get_required_files():
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
 
-@app.route('/set_download_status', methods=['POST'])
+@app.route('/fileHandler/set_download_status', methods=['POST'])
 @login_required
 def set_download_status():
     """Set the download status"""
@@ -7296,7 +7292,7 @@ def set_download_status():
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=include_video, include_frames=include_frames)
             return json.dumps('success')
 
-@app.route('/check_download_initialised', methods=['POST'])
+@app.route('/fileHandler/check_download_initialised', methods=['POST'])
 @login_required
 def check_download_initialised():
     """Checks if the download has been initialised."""
@@ -7317,7 +7313,7 @@ def check_download_initialised():
 
     return json.dumps(reply)
 
-@app.route('/mark_images_downloaded', methods=['POST'])
+@app.route('/fileHandler/mark_images_downloaded', methods=['POST'])
 @login_required
 def mark_images_downloaded():
     """Marks the specified images or videos as downloaded."""
@@ -7342,7 +7338,7 @@ def mark_images_downloaded():
 
     return json.dumps('success')
 
-@app.route('/download_complete', methods=['POST'])
+@app.route('/fileHandler/download_complete', methods=['POST'])
 @login_required
 def download_complete():
     """Resets the downloaded state of all images of a task."""
