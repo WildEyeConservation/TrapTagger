@@ -778,6 +778,8 @@ function cleanModalIndividual() {
     mapHeight = null
     map = null
     mapStats = null
+    minDate = null
+    maxDate = null
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
