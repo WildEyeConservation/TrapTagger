@@ -242,12 +242,7 @@ function submitExportRequest() {
                     document.getElementById('modalPWB').innerHTML = 'Your export file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalPW.modal({keyboard: true});
                     export_task_ids.push(selectedTask)
-                    if (waitForDownloadTimer != null) {
-                        clearInterval(waitForDownloadTimer)
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    } else {
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    }
+                    waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'

@@ -19,7 +19,7 @@ function waitForDownload() {
      * */
     
     if ((csv_task_ids.length==0)&&(excel_task_ids.length==0)&&(export_task_ids.length==0)&&(coco_task_ids.length==0)) {
-        clearInterval(waitForDownloadTimer)
+        clearTimeout(waitForDownloadTimer)
     } else {
         for (let i = 0; i < csv_ids_to_remove.length; i++){
             var index = csv_task_ids.indexOf(csv_ids_to_remove[i]);
@@ -140,6 +140,15 @@ function waitForDownload() {
             }(export_task_ids[i]);
             xhttp.send();
         }
+
+        if (waitForDownloadTimer != null) {
+            clearTimeout(waitForDownloadTimer)
+            waitForDownloadTimer = setTimeout(function(){waitForDownload()}, 10000)
+        }
+        else{
+            waitForDownloadTimer = setTimeout(function(){waitForDownload()}, 10000)
+        }
+
     }
 }
 
@@ -157,12 +166,7 @@ btnExcelDownload.addEventListener('click', ()=>{
                 modalResults.modal('hide')
                 modalPW.modal({keyboard: true});
                 excel_task_ids.push(selectedTask)
-                if (waitForDownloadTimer != null) {
-                    clearInterval(waitForDownloadTimer)
-                    waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                } else {
-                    waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                }
+                waitForDownload()
             } else {
                 document.getElementById('modalPWH').innerHTML = 'Error'
                 document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'

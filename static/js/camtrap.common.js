@@ -2317,6 +2317,9 @@ function pingServer() {
             if (this.readyState == 4 && this.status == 278) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
             }
+            else if (this.readyState == 4 && this.status == 200) {
+                setTimeout(function() { pingServer(); }, 30000);
+            }
         }
         xhttp.open("POST", '/ping');
         xhttp.send();
@@ -2356,7 +2359,7 @@ function updateProgress() {
 function onload (){
     /** Initialises the page on load. */
     if (!isReviewing && !isViewing) {
-        pingTimer = setInterval(pingServer, 30000);
+        pingServer()
     }
 
     if (document.location.href.includes('task')) {

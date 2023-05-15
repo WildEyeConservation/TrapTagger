@@ -1684,6 +1684,8 @@ function getTasks(url=null){
                 prev_url = reply.prev_url + '&individual_id=' + true
             }
 
+            setTimeout(function(){getTasks(url)}, 30000);
+
         }
     }
     xhttp.open("GET", request);
@@ -2004,7 +2006,6 @@ function onload(){
     checkSurvey()
     populateSelectors()
     getTasks()
-    processingTimer = setInterval(getTasks, 30000)
 
 }
 
