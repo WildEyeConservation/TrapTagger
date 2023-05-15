@@ -53,7 +53,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         db.session.commit()
         # label = db.session.query(Label).filter(Label.description==species).filter(Label.task==task).first()
 
-        rootQuery = db.session.query(Detection)\
+        rootQuery = db.session.query(Detection.id)\
                             .join(Labelgroup)\
                             .join(Task)\
                             .join(Label,Labelgroup.labels)\
@@ -65,13 +65,13 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                     
         sq = rootQuery.subquery()
         sq2 = rootQuery.subquery()
-        queryDetections = rootQuery.distinct().all()
+        queryDetections = [r[0] for r in rootQuery.distinct().all()]
 
         # Ensure that we only do this when we need to
         calculation_needed = False
         for detection in queryDetections:
             count = db.session.query(DetSimilarity)\
-                        .filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id))\
+                        .filter(or_(DetSimilarity.detection_1==detection,DetSimilarity.detection_2==detection))\
                         .join(sq,DetSimilarity.detection_1==sq.c.id)\
                         .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
                         .distinct().count()
@@ -80,17 +80,6 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 break
 
         if calculation_needed:
-            images = db.session.query(Image)\
-                            .join(Detection)\
-                            .join(Labelgroup)\
-                            .join(Task)\
-                            .join(Label,Labelgroup.labels)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Label.description==species)\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
 
             if algorithm == 'hotspotter':
                 # Wbia is only imported here to prevent its version of mysql interfering with flask migrate
@@ -125,52 +114,59 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 species_ids = ibs.add_species(species_nice_list, species_text_list, species_code_list)
                 hs_label = species_ids[0]
 
-                # Import images
-                aid_list = []
-                aid_Translation = {}
-                det_Translation = {}
-                for image in images:
-                    # parallel?
-
-                    #Download & import image
-                    key = image.camera.path+'/'+image.filename
-                    filename = imFolder + '/' + str(image.id) + '.jpg'
-                    GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=filename)
-                    gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
-
-                    imDetections = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Task)\
+                # get the data from the db efficiently
+                data = db.session.query(Detection.id,Detection.left,Detection.right,Detection.top,Detection.bottom,Image.id,Image.filename,Camera.path)\
+                                    .join(Image,Detection.image_id==Image.id)\
+                                    .join(Camera,Image.camera_id==Camera.id)\
+                                    .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
+                                    .join(Task,Labelgroup.task_id==Task.id)\
                                     .join(Label,Labelgroup.labels)\
                                     .filter(Task.id.in_(task_ids))\
                                     .filter(Label.description==species)\
-                                    .filter(Detection.image_id==image.id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .distinct().all()
 
+                # Import images
+                aid_list = []
+                aid_Translation = {}
+                det_Translation = {}
+                gid_Translation = {}
+                for item in data:
+                    image_id = item[5]
+
+                    if image_id not in gid_Translation.keys():
+                        #Download & import image
+                        path = item[-1]
+                        filename = item[-2]
+                        key = path+'/'+filename
+                        filename = imFolder + '/' + str(image_id) + '.jpg'
+                        GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=filename)
+                        gid = ibs.add_images([ut.unixpath(ut.grab_test_imgpath(filename))], auto_localize=False)[0]
+                        gid_Translation[image_id] = gid
+
                     # Annotations
-                    bbox_list = []
-                    species_list = []
+                    gid = gid_Translation[image_id]
+                    detection_id = item[0]
+                    left = item[1]
+                    right = item[2]
+                    top = item[3]
+                    bottom = item[4]
+
                     imWidth = ibs.get_image_widths(gid)
                     imHeight = ibs.get_image_heights(gid)
-                    for detection in imDetections:
-                        w = math.floor(imWidth*(detection.right-detection.left))
-                        h = math.floor(imHeight*(detection.bottom-detection.top))
-                        x = math.floor(imWidth*detection.left)
-                        y = math.floor(imHeight*detection.top)
-                        bbox_list.append([x, y, w, h])
-                        species_list.append(hs_label)
+                    w = math.floor(imWidth*(right-left))
+                    h = math.floor(imHeight*(bottom-top))
+                    x = math.floor(imWidth*left)
+                    y = math.floor(imHeight*top)
 
-                    aids = ibs.add_annots([gid for n in range(len(imDetections))],bbox_list=bbox_list,species_rowid_list=species_list)
+                    aids = ibs.add_annots([gid],bbox_list=[[x, y, w, h]],species_rowid_list=[hs_label])
                     aid_list.extend(aids)
 
-                    for n in range(len(imDetections)):
-                        detection = imDetections[n]
-                        aid = aids[n]
-                        aid_Translation[detection.id] = aid
-                        det_Translation[aid] = detection.id
+                    aid = aids[0]
+                    aid_Translation[detection_id] = aid
+                    det_Translation[aid] = detection_id
 
                 endTime = time.time()
                 app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
@@ -180,7 +176,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 # daid_list = database ids
                 qaid_list = []
                 for detection in queryDetections:
-                    aid = aid_Translation[detection.id]
+                    aid = aid_Translation[detection]
                     qaid_list.append(aid)
 
                 daid_list = aid_list.copy()
@@ -254,7 +250,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 shutil.rmtree(imFolder, ignore_errors=True)
 
             elif algorithm == 'none':
-                allDetections = db.session.query(Detection)\
+                allDetections = [r[0] for r in db.session.query(Detection.id)\
                                     .join(Labelgroup)\
                                     .join(Task)\
                                     .join(Label,Labelgroup.labels)\
@@ -263,7 +259,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()
+                                    .distinct().all()]
 
                 for queryDetection in queryDetections:
                     allDetections.remove(queryDetection)
@@ -271,15 +267,15 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                         detSimilarity = db.session.query(DetSimilarity).filter(\
                                                         or_(\
                                                             and_(\
-                                                                DetSimilarity.detection_1==queryDetection.id,\
-                                                                DetSimilarity.detection_2==detection.id),\
+                                                                DetSimilarity.detection_1==queryDetection,\
+                                                                DetSimilarity.detection_2==detection),\
                                                             and_(\
-                                                                DetSimilarity.detection_1==detection.id,\
-                                                                DetSimilarity.detection_2==queryDetection.id)\
+                                                                DetSimilarity.detection_1==detection,\
+                                                                DetSimilarity.detection_2==queryDetection)\
                                                         )).first()
 
                         if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=queryDetection.id, detection_2=detection.id)
+                            detSimilarity = DetSimilarity(detection_1=queryDetection, detection_2=detection)
                             db.session.add(detSimilarity)
 
                         detSimilarity.score = 1
