@@ -2314,7 +2314,7 @@ def updateTrapgroupDetectionRatings(self,trapgroup_id):
     '''Updates detection ratings for all images in a trapgroup.'''
     try:
 
-        images = db.session.query(Image.id)\
+        images = db.session.query(Image)\
                         .join(Camera)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .all()
