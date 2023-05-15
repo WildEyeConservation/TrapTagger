@@ -847,7 +847,7 @@ def removeHumans(task_id):
 
     for cluster in clusters:
         cluster.labels = [human_label]
-        cluster.user_id = admin
+        cluster.user_id = admin.id
         cluster.timestamp = datetime.utcnow()
 
     for labelgroup in labelgroups:
@@ -2037,7 +2037,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/8)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/4)
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -2070,7 +2070,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
 
                     batch_count += len(chunk)
 
-                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/4) ) >= 1:
+                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0

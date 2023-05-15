@@ -161,7 +161,7 @@ def prep_required_images(task_id):
 
             for cluster in clusters:
                 cluster.required_images = required_images(cluster,relevent_classifications,transDict)
-        db.session.commit()
+        # db.session.commit()
     
     return len(clusters)
 
@@ -217,17 +217,18 @@ def launch_task(self,task_id):
                                         .filter(~Detection.status.in_(['deleted','hidden'])) \
                                         .filter(Individual.species==species)\
                                         .filter(Individual.tasks.contains(task))\
-                                        .distinct().all()
+                                        .subquery()
 
                     detections = db.session.query(Detection)\
                                         .join(sq,sq.c.detID==Detection.id)\
+                                        .outerjoin(exclude,exclude.c.id==Detection.id)\
                                         .join(Labelgroup)\
                                         .filter(Labelgroup.labels.contains(label))\
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
                                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .filter(~Detection.id.in_([r.id for r in exclude]))\
+                                        .filter(exclude.id==None)\
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
 
@@ -242,7 +243,7 @@ def launch_task(self,task_id):
                         newIndividual.detections = [detection]
                         newIndividual.tasks = [task]
 
-                    db.session.commit()
+                    # db.session.commit()
 
                 unidentifiable = db.session.query(Individual).filter(Individual.tasks.contains(task)).filter(Individual.species==species).filter(Individual.name=='unidentifiable').first()
                 if unidentifiable == None:
@@ -253,7 +254,7 @@ def launch_task(self,task_id):
                     db.session.add(unidentifiable)
                     unidentifiable.tasks = [task]
 
-                db.session.commit()
+                # db.session.commit()
 
             elif tL[0] == '-5':
                 task_ids = [r.id for r in task.sub_tasks]
@@ -300,7 +301,7 @@ def launch_task(self,task_id):
                     allocated.allocated = None
                     allocated.allocation_timestamp = None
 
-                db.session.commit()
+                # db.session.commit()
         
         # Mark clusters that need to be examined
         if '-5' in taggingLevel:
@@ -352,56 +353,58 @@ def launch_task(self,task_id):
             # for chunk in chunker(clusters,2500):
             for cluster in clusters:
                 cluster.examined = False
-            db.session.commit()
+            # db.session.commit()
 
         if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
             prep_required_images(task_id)
 
         for trapgroup in task.survey.trapgroups:
 
-            if '-5' in taggingLevel:
-                OtherIndividual = alias(Individual)
+            # if '-5' in taggingLevel:
+                # OtherIndividual = alias(Individual)
 
-                sq1 = db.session.query(Individual.id.label('indID1'))\
-                                .join(Task,Individual.tasks)\
-                                .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                                .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                                .filter(OtherIndividual.c.active==True)\
-                                .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>=tL[2])\
-                                .filter(IndSimilarity.skipped==False)\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==species)\
-                                .filter(Individual.active==True)\
-                                .filter(Individual.name!='unidentifiable')\
-                                .group_by(Individual.id)\
-                                .subquery()
+                # sq1 = db.session.query(Individual.id.label('indID1'))\
+                #                 .join(Task,Individual.tasks)\
+                #                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+                #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                #                 .filter(OtherIndividual.c.active==True)\
+                #                 .filter(OtherIndividual.c.name!='unidentifiable')\
+                #                 .filter(IndSimilarity.score>=tL[2])\
+                #                 .filter(IndSimilarity.skipped==False)\
+                #                 .filter(Task.id.in_(task_ids))\
+                #                 .filter(Individual.species==species)\
+                #                 .filter(Individual.active==True)\
+                #                 .filter(Individual.name!='unidentifiable')\
+                #                 .group_by(Individual.id)\
+                #                 .subquery()
 
-                sq2 = db.session.query(Individual.id.label('indID2'))\
-                                .join(Task,Individual.tasks)\
-                                .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                                .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                                .filter(OtherIndividual.c.active==True)\
-                                .filter(OtherIndividual.c.name!='unidentifiable')\
-                                .filter(IndSimilarity.score>=tL[2])\
-                                .filter(IndSimilarity.skipped==False)\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==species)\
-                                .filter(Individual.active==True)\
-                                .filter(Individual.name!='unidentifiable')\
-                                .group_by(Individual.id)\
-                                .subquery()
+                # sq2 = db.session.query(Individual.id.label('indID2'))\
+                #                 .join(Task,Individual.tasks)\
+                #                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+                #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                #                 .filter(OtherIndividual.c.active==True)\
+                #                 .filter(OtherIndividual.c.name!='unidentifiable')\
+                #                 .filter(IndSimilarity.score>=tL[2])\
+                #                 .filter(IndSimilarity.skipped==False)\
+                #                 .filter(Task.id.in_(task_ids))\
+                #                 .filter(Individual.species==species)\
+                #                 .filter(Individual.active==True)\
+                #                 .filter(Individual.name!='unidentifiable')\
+                #                 .group_by(Individual.id)\
+                #                 .subquery()
 
-                clusterCount = db.session.query(Individual)\
-                                .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                                .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                                .join(Detection,Individual.detections)\
-                                .join(Image)\
-                                .join(Camera)\
-                                .filter(Camera.trapgroup_id==trapgroup.id)\
-                                .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
-                                .count()
-            else:
+                # clusterCount = db.session.query(Individual)\
+                #                 .outerjoin(sq1,sq1.c.indID1==Individual.id)\
+                #                 .outerjoin(sq2,sq2.c.indID2==Individual.id)\
+                #                 .join(Detection,Individual.detections)\
+                #                 .join(Image)\
+                #                 .join(Camera)\
+                #                 .filter(Camera.trapgroup_id==trapgroup.id)\
+                #                 .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
+                #                 .count()
+            # else:
+
+            if '-5' not in taggingLevel:
                 clusterCount = db.session.query(Cluster)\
                             .join(Image,Cluster.images)\
                             .join(Camera)\
@@ -410,10 +413,11 @@ def launch_task(self,task_id):
                             .filter(Cluster.examined==False)\
                             .count()
 
-            if clusterCount != 0:
-                trapgroup.active = True
-            else:
-                trapgroup.active = False
+                if clusterCount != 0:
+                    trapgroup.active = True
+                else:
+                    trapgroup.active = False
+
             trapgroup.processing = False
             trapgroup.queueing = False
             trapgroup.user_id = None
@@ -443,62 +447,7 @@ def freeUpWork(self,task_id):
     try:
         task = db.session.query(Task).get(task_id)
 
-        if '-5' in task.tagging_level:
-            task_ids = [r.id for r in task.sub_tasks]
-            task_ids.append(task.id)
-            tL = re.split(',',task.tagging_level)
-            species = tL[1]
-            OtherIndividual = alias(Individual)
-
-            sq1 = db.session.query(Individual.id.label('indID1'))\
-                            .join(Task,Individual.tasks)\
-                            .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                            .filter(OtherIndividual.c.active==True)\
-                            .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.allocated==None)\
-                            .filter(IndSimilarity.score>=tL[2])\
-                            .filter(IndSimilarity.skipped==False)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .group_by(Individual.id)\
-                            .subquery()
-
-            sq2 = db.session.query(Individual.id.label('indID2'))\
-                            .join(Task,Individual.tasks)\
-                            .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                            .filter(OtherIndividual.c.active==True)\
-                            .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.allocated==None)\
-                            .filter(IndSimilarity.score>=tL[2])\
-                            .filter(IndSimilarity.skipped==False)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .group_by(Individual.id)\
-                            .subquery()
-
-            trapgroups = db.session.query(Trapgroup)\
-                            .join(Camera)\
-                            .join(Image)\
-                            .join(Detection)\
-                            .join(Individual,Detection.individuals)\
-                            .join(Task,Individual.tasks)\
-                            .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                            .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .filter(Individual.allocated==None)\
-                            .filter(Trapgroup.active == False)\
-                            .filter(Trapgroup.processing == False)\
-                            .filter(Trapgroup.queueing == False)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
-                            .distinct().all()
-
-        else:
+        if '-5' not in task.tagging_level:
             trapgroups = db.session.query(Trapgroup) \
                             .join(Camera) \
                             .join(Image) \
@@ -510,22 +459,9 @@ def freeUpWork(self,task_id):
                             .filter(Cluster.examined==False)\
                             .all()
 
-        app.logger.info('{} inactive trapgroups identified for surevy {}'.format(len(trapgroups),task.survey.name))
+            app.logger.info('{} inactive trapgroups identified for surevy {}'.format(len(trapgroups),task.survey.name))
 
-        for trapgroup in trapgroups:
-            if '-5' in task.tagging_level:
-                most_recent = db.session.query(Individual)\
-                                        .join(Task,Individual.tasks)\
-                                        .join(Detection,Individual.detections)\
-                                        .join(Image)\
-                                        .join(Camera)\
-                                        .filter(Camera.trapgroup_id == trapgroup.id)\
-                                        .filter(Task.id.in_(task_ids))\
-                                        .filter(Individual.species==species)\
-                                        .filter(Individual.timestamp!=None) \
-                                        .order_by(Individual.timestamp.desc()) \
-                                        .first()
-            else:
+            for trapgroup in trapgroups:
                 most_recent = db.session.query(Cluster) \
                                         .join(Image, Cluster.images) \
                                         .join(Camera) \
@@ -535,14 +471,15 @@ def freeUpWork(self,task_id):
                                         .order_by(Cluster.timestamp.desc()) \
                                         .first()
 
-            if most_recent:
-                most_recent_time = most_recent.timestamp
-                if (datetime.utcnow() - most_recent_time) > timedelta(minutes=2):
+                if most_recent:
+                    most_recent_time = most_recent.timestamp
+                    if (datetime.utcnow() - most_recent_time) > timedelta(minutes=2):
+                        trapgroup.active = True
+                        db.session.commit()
+                else:
                     trapgroup.active = True
-                    db.session.commit()
-            else:
-                trapgroup.active = True
-                db.session.commit()
+
+        # db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -658,7 +595,9 @@ def manage_task(task_id):
         taggingLevel = task.tagging_level
         survey_id = task.survey_id
 
-        if not populateMutex(int(task_id)): return True
+        if not populateMutex(int(task_id)):
+            db.session.remove()
+            return True
 
         #Look for abandoned jobs
         abandoned_jobs = db.session.query(Turkcode)\
@@ -670,8 +609,7 @@ def manage_task(task_id):
                                 .filter(Turkcode.active==False)\
                                 .all()
 
-        if abandoned_jobs:
-            resolve_abandoned_jobs(abandoned_jobs)
+        if abandoned_jobs: resolve_abandoned_jobs(abandoned_jobs)
 
         # Ensure there are no locked-out individuals
         if '-5' in taggingLevel:
@@ -693,7 +631,7 @@ def manage_task(task_id):
                 allocated.allocated = None
                 allocated.allocation_timestamp = None
 
-            db.session.commit()
+            # db.session.commit()
 
         #Catch trapgroups that are still allocated to users that are finished
         trapgroups = db.session.query(Trapgroup)\
@@ -704,7 +642,7 @@ def manage_task(task_id):
 
         for trapgroup in trapgroups:
             trapgroup.user_id = None
-            db.session.commit()
+            # db.session.commit()
 
         #Manage number of workers
         if '-5' in taggingLevel:
@@ -816,7 +754,9 @@ def manage_task(task_id):
 
         else:
             if len(task_jobs) == 0:
-                freeUpWork.delay(task_id=task_id)
+                freeUpWork(task_id=task_id)
+
+        db.session.commit()
 
     except Exception:
         app.logger.info(' ')

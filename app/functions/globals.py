@@ -1437,7 +1437,7 @@ def createTurkcodes(number_of_workers, task_id):
             turkcode = Turkcode(user_id=user_id, task_id=task_id, active=True)
             db.session.add(turkcode)
             turkcodes.append({'user_id':user_id})
-    db.session.commit()
+    # db.session.commit()
     return turkcodes
 
 def deleteTurkcodes(number_of_jobs, jobs, task_id):
@@ -1590,7 +1590,7 @@ def resolve_abandoned_jobs(abandoned_jobs):
             if int(task_id) in GLOBALS.mutex.keys():
                 GLOBALS.mutex[int(task_id)]['user'].pop(user.id, None)
             
-            db.session.commit()
+    # db.session.commit()
 
     return True
 
