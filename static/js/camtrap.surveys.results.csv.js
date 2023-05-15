@@ -550,12 +550,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                             modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             csv_task_ids.push(selectedtask)
-                            if (waitForDownloadTimer != null) {
-                                clearInterval(waitForDownloadTimer)
-                                waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                            } else {
-                                waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                            }
+                            waitForDownload()
                         } else {
                             document.getElementById('modalPWH').innerHTML = 'Error'
                             document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
@@ -594,12 +589,7 @@ function downloadPreFormattedCSV() {
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)
-                    if (waitForDownloadTimer != null) {
-                        clearInterval(waitForDownloadTimer)
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    } else {
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    }
+                    waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
@@ -629,12 +619,7 @@ function downloadCOCO() {
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     coco_task_ids.push(selectedtask)
-                    if (waitForDownloadTimer != null) {
-                        clearInterval(waitForDownloadTimer)
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    } else {
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    }
+                    waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'

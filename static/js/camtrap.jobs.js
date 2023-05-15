@@ -115,7 +115,6 @@ function buildJob(job) {
 function onload(){
     /** Initialises the jobs page on load. */
     updatePage(current_page)
-    processingTimer = setInterval(updatePage, 30000)
     updateJobProgressBar()
 }
 
@@ -169,6 +168,9 @@ function updatePage(url){
                 btnPrevJobs.style.visibility = 'visible'
                 prev_url = reply.prev_url
             }
+
+            setTimeout(function() { updatePage(url); }, 30000);
+
         }
     }
     xhttp.open("GET", url);

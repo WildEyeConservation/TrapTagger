@@ -419,51 +419,66 @@ function updateTaskStatus() {
         tskds.push(taskProgressBarDivs[i].id.split('taskProgressBarDiv')[1])
     }
 
-    for (let i = 0; i < tskds.length; i++) {
+    if (tskds.length>0) {
+        var formData = new FormData()
+        formData.append("task_ids", JSON.stringify(tskds))
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-
-                if ((document.getElementById('taskStatusElement'+reply.id).innerHTML!='SUCCESS')&&(document.getElementById('taskStatusElement'+reply.id).innerHTML!='Error')) {
-                    if (reply.state==null) {
-                        document.getElementById('taskStatusElement'+reply.id).innerHTML = 'Unlaunched'
-                    } else {
-                        if (reply.state == 'PROGRESS') {
-                            status = 'In Progress'
-                        } else if (reply.state == 'FAILURE') {
-                            status = 'Error'
-                        } else if ((reply.state == 'REVOKED')||(reply.state == 'Stopped')) {
-                            status = 'Stopped'
-                        } else if ((reply.state == 'PENDING')||(reply.state == 'Started')) {
-                            status = 'Started'
+                for (let i = 0; i < reply.length; i++) {
+                    if ((document.getElementById('taskStatusElement'+reply[i].id).innerHTML!='SUCCESS')&&(document.getElementById('taskStatusElement'+reply[i].id).innerHTML!='Error')) {
+                        if (reply[i].state==null) {
+                            document.getElementById('taskStatusElement'+reply[i].id).innerHTML = 'Unlaunched'
                         } else {
-                            status = reply.state
-                        }
-                        document.getElementById('taskStatusElement'+reply.id).innerHTML = status
-                        if (status=='Ready') {
-                            document.getElementById('launchTaskBtn'+reply.id).disabled = false
-                            document.getElementById('deleteTaskBtn'+reply.id).disabled = false
-                        } else if (status=='Deleting') {
-                            document.getElementById('launchTaskBtn'+reply.id).disabled = true
-                            document.getElementById('deleteTaskBtn'+reply.id).disabled = true
-                            document.getElementById('exploreTaskBtn'+reply.id).disabled = true
-                            document.getElementById('resultsBtn'+reply.id).disabled = true
-                        }
-                    }   
-    
-                    document.getElementById('taskHitsCompleted'+reply.id).innerHTML = 'Jobs Completed: ' + reply.hitsCompleted
-                    document.getElementById('taskHitsActive'+reply.id).innerHTML = 'Jobs Available: ' + reply.hitsActive
+                            if (reply[i].state == 'PROGRESS') {
+                                status = 'In Progress'
+                            } else if (reply[i].state == 'FAILURE') {
+                                status = 'Error'
+                            } else if ((reply[i].state == 'REVOKED')||(reply[i].state == 'Stopped')) {
+                                status = 'Stopped'
+                            } else if ((reply[i].state == 'PENDING')||(reply[i].state == 'Started')) {
+                                status = 'Started'
+                            } else {
+                                status = reply[i].state
+                            }
+                            document.getElementById('taskStatusElement'+reply[i].id).innerHTML = status
+                            if (status=='Ready') {
+                                document.getElementById('launchTaskBtn'+reply[i].id).disabled = false
+                                document.getElementById('deleteTaskBtn'+reply[i].id).disabled = false
+                            } else if (status=='Deleting') {
+                                document.getElementById('launchTaskBtn'+reply[i].id).disabled = true
+                                document.getElementById('deleteTaskBtn'+reply[i].id).disabled = true
+                                document.getElementById('exploreTaskBtn'+reply[i].id).disabled = true
+                                document.getElementById('resultsBtn'+reply[i].id).disabled = true
+                            }
+                        }   
         
-                    if ((reply.state=='SUCCESS')||(reply.state=='FAILURE')) {
-                        updatePage(current_page)
+                        document.getElementById('taskHitsCompleted'+reply[i].id).innerHTML = 'Jobs Completed: ' + reply[i].hitsCompleted
+                        document.getElementById('taskHitsActive'+reply[i].id).innerHTML = 'Jobs Available: ' + reply[i].hitsActive
+            
+                        if ((reply[i].state=='SUCCESS')||(reply[i].state=='FAILURE')) {
+                            updatePage(current_page)
+                        }
                     }
+                }
+                
+                if(timerTaskStatus != null) {
+                    clearTimeout(timerTaskStatus);
+                    timerTaskStatus = setTimeout(function() { updateTaskStatus(); }, 5000); //5 seconds
+                }
+                else{
+                    timerTaskStatus = setTimeout(function() { updateTaskStatus(); }, 5000); //5 seconds
                 }
             }
         }
-        xhttp.open("GET", '/MturkStatus/'+tskds[i]);
-        xhttp.send();
+        xhttp.open("POST", '/MturkStatus');
+        xhttp.send(formData);
+    }
+    else{
+        clearTimeout(timerTaskStatus);
     }
 }
 

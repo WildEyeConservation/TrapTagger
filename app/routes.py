@@ -311,29 +311,33 @@ def launchTask():
 
     return json.dumps({'message': message, 'status': 'Error'})
 
-@app.route('/MturkStatus/<task_id>')
+@app.route('/MturkStatus' , methods=['POST'])
 @login_required
-def MturkStatus(task_id):
+def MturkStatus():
     '''Returns a dictionary status of a requested task: state, hitsCompleted, hitsActive and id.'''
     if current_user.admin:
-        task = db.session.query(Task).get(int(task_id))
+        response = []
+        task_ids = ast.literal_eval(request.form['task_ids'])
 
-        jobs_finished = db.session.query(Turkcode)\
-                                .join(User, User.username==Turkcode.user_id)\
-                                .filter(User.parent_id!=None)\
-                                .filter(Turkcode.task_id==int(task_id))\
-                                .filter(Turkcode.tagging_time!=None)\
-                                .distinct().count()
+        for task_id in task_ids:
+            task = db.session.query(Task).get(int(task_id))
 
-        jobs_finished = jobs_finished - task.jobs_finished
-        jobs_active = db.session.query(Turkcode).filter(Turkcode.task_id==int(task_id)).filter(Turkcode.active==True).count()
+            jobs_finished = db.session.query(Turkcode)\
+                                    .join(User, User.username==Turkcode.user_id)\
+                                    .filter(User.parent_id!=None)\
+                                    .filter(Turkcode.task_id==int(task_id))\
+                                    .filter(Turkcode.tagging_time!=None)\
+                                    .distinct().count()
 
-        response = {
-            'state': task.status,
-            'hitsCompleted': jobs_finished,
-            'hitsActive': jobs_active,
-            'id': task_id
-        }
+            jobs_finished = jobs_finished - task.jobs_finished
+            jobs_active = db.session.query(Turkcode).filter(Turkcode.task_id==int(task_id)).filter(Turkcode.active==True).count()
+
+            response.append({
+                'state': task.status,
+                'hitsCompleted': jobs_finished,
+                'hitsActive': jobs_active,
+                'id': task_id
+            })
 
         return json.dumps(response)
 
@@ -684,7 +688,7 @@ def getIndividual(individual_id):
                             .first()
 
             video_url = None
-            if image.camera.videos.all():
+            if image.camera.videos:
                 video_url = image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename
 
             reply.append({

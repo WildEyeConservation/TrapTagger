@@ -778,6 +778,8 @@ function cleanModalIndividual() {
     mapHeight = null
     map = null
     mapStats = null
+    minDate = null
+    maxDate = null
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -1682,6 +1684,8 @@ function getTasks(url=null){
                 prev_url = reply.prev_url + '&individual_id=' + true
             }
 
+            setTimeout(function(){getTasks(url)}, 30000);
+
         }
     }
     xhttp.open("GET", request);
@@ -2002,7 +2006,6 @@ function onload(){
     checkSurvey()
     populateSelectors()
     getTasks()
-    processingTimer = setInterval(getTasks, 30000)
 
 }
 

@@ -546,9 +546,9 @@ function updatePage(url){
             if (taskProcessing==true) {
                 if (processingTimer != null) {
                     clearInterval(processingTimer)
-                    processingTimer = setInterval(updatePage, 30000)
+                    processingTimer = setTimeout(function() { updatePage(url); }, 30000)
                 } else {
-                    processingTimer = setInterval(updatePage, 30000)
+                    processingTimer = setTimeout(function() { updatePage(url); }, 30000)
                 }
             } else {
                 if (processingTimer != null) {
@@ -573,11 +573,6 @@ function updatePage(url){
 
             updateTaskStatus()
 
-            if (timerTaskStatus != null) {
-                clearInterval(timerTaskStatus)
-            }
-
-            timerTaskStatus = setInterval(updateTaskStatus, 5000); //5 seconds
 
             if (uploading&&!uploadStart) {
                 uploadFiles()
@@ -982,7 +977,7 @@ function checkTrapgroupCode() {
 
             if (tgCheckTimer == null) {
                 pingTgCheck()
-                tgCheckTimer = setInterval(pingTgCheck, 3000)
+                tgCheckTimer = setTimeout(function() { pingTgCheck(); }, 3000)
             }
             
             // checkingTrapgroupCode = true
