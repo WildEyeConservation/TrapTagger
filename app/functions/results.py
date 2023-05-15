@@ -360,72 +360,89 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                 .filter(~Detection.status.in_(['deleted','hidden']))
 
+    sq = db.session.query(Image)\
+                .join(Detection)\
+                .join(Camera)\
+                .join(Trapgroup)\
+                .filter(Trapgroup.survey_id==task.survey_id)\
+                .filter(Detection.static==False)\
+                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                .filter(~Detection.status.in_(['deleted','hidden']))\
+
     if len(include) != 0:
         query = query.filter(Label.id.in_(include))
+        sq = sq.filter(Label.id.in_(include))
 
     if len(exclude) != 0:
         query = query.filter(~Label.id.in_(exclude))
+        sq = sq.filter(~Label.id.in_(exclude))
 
     if GLOBALS.nothing_id in exclude:
         query = query.filter(Labelgroup.labels.any())
+        sq = sq.filter(Labelgroup.labels.any())
 
     if trapgroup_id:
         query = query.filter(Trapgroup.id==trapgroup_id)
+        sq = sq.filter(Trapgroup.id==trapgroup_id)
 
     df = pd.read_sql(query.statement,db.session.bind)
     task = db.session.query(Task).get(task_id)
 
     if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
-        covered_images = df['image_id'].unique()
-        covered_images = [int(r) for r in covered_images]
-        missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images))
-        if len(exclude) != 0:
-            exclude_images = db.session.query(Image).join(Cluster,Image.clusters).join(Label,Cluster.labels).filter(Cluster.task_id==task_id).filter(Label.id.in_(exclude)).distinct().all()
-            missing_images = missing_images.filter(~Image.id.in_([r.id for r in exclude_images]))
-        missing_images = missing_images.distinct().all()
-        missing_images = [r.id for r in missing_images]
+        sq = sq.subquery()
 
-        if len(missing_images) != 0:
-            #This includes all the images with no detections
-            query = db.session.query( \
-                            Image.id.label('image_id'),\
-                            Image.filename.label('image_name'), \
-                            Image.corrected_timestamp.label('timestamp'), \
-                            Image.timestamp.label('original_timestamp'), \
-                            Detection.id.label('detection'), \
-                            Detection.left.label('left'), \
-                            Detection.right.label('right'), \
-                            Detection.top.label('top'), \
-                            Detection.bottom.label('bottom'), \
-                            Detection.score.label('score'), \
-                            Cluster.notes.label('notes'), \
-                            Cluster.id.label('cluster'), \
-                            Camera.id.label('camera'), \
-                            Camera.path.label('file_path'), \
-                            Trapgroup.id.label('trapgroup_id'), \
-                            Trapgroup.tag.label('trapgroup'), \
-                            Trapgroup.latitude.label('latitude'), \
-                            Trapgroup.longitude.label('longitude'), \
-                            Trapgroup.altitude.label('altitude'), \
-                            Survey.id.label('survey_id'), \
-                            Survey.name.label('survey'), \
-                            Survey.description.label('survey_description')) \
-                            .join(Image,Cluster.images) \
-                            .join(Detection,Detection.image_id==Image.id) \
-                            .join(Camera,Image.camera_id==Camera.id) \
-                            .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
-                            .join(Survey,Trapgroup.survey_id==Survey.id) \
-                            .filter(Image.id.in_(missing_images)) \
-                            .filter(Cluster.task_id==task_id)
+        # covered_images = df['image_id'].unique()
+        # covered_images = [int(r) for r in covered_images]
+        # missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images))
+        # if len(exclude) != 0:
+        #     exclude_images = db.session.query(Image).join(Cluster,Image.clusters).join(Label,Cluster.labels).filter(Cluster.task_id==task_id).filter(Label.id.in_(exclude)).distinct().all()
+        #     missing_images = missing_images.filter(~Image.id.in_([r.id for r in exclude_images]))
+        # missing_images = missing_images.distinct().all()
+        # missing_images = [r.id for r in missing_images]
 
-            if trapgroup_id:
-                query = query.filter(Trapgroup.id==trapgroup_id)                            
+        # if len(missing_images) != 0:
+        #This includes all the images with no detections
+        query = db.session.query( \
+                        Image.id.label('image_id'),\
+                        Image.filename.label('image_name'), \
+                        Image.corrected_timestamp.label('timestamp'), \
+                        Image.timestamp.label('original_timestamp'), \
+                        Detection.id.label('detection'), \
+                        Detection.left.label('left'), \
+                        Detection.right.label('right'), \
+                        Detection.top.label('top'), \
+                        Detection.bottom.label('bottom'), \
+                        Detection.score.label('score'), \
+                        Cluster.notes.label('notes'), \
+                        Cluster.id.label('cluster'), \
+                        Camera.id.label('camera'), \
+                        Camera.path.label('file_path'), \
+                        Trapgroup.id.label('trapgroup_id'), \
+                        Trapgroup.tag.label('trapgroup'), \
+                        Trapgroup.latitude.label('latitude'), \
+                        Trapgroup.longitude.label('longitude'), \
+                        Trapgroup.altitude.label('altitude'), \
+                        Survey.id.label('survey_id'), \
+                        Survey.name.label('survey'), \
+                        Survey.description.label('survey_description')) \
+                        .join(Image,Cluster.images) \
+                        .join(Detection,Detection.image_id==Image.id) \
+                        .join(Camera,Image.camera_id==Camera.id) \
+                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                        .join(Survey,Trapgroup.survey_id==Survey.id) \
+                        .outerjoin(sq,sq.c.id==Image.id)\
+                        .filter(Image.id.in_(missing_images)) \
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(sq.c.id==None)
 
-            df2 = pd.read_sql(query.statement,db.session.bind)
+        if trapgroup_id:
+            query = query.filter(Trapgroup.id==trapgroup_id)                            
 
-            df2['label'] = 'None'
-            df2['tag'] = 'None'
-            df = pd.concat([df,df2]).reset_index()
+        df2 = pd.read_sql(query.statement,db.session.bind)
+
+        df2['label'] = 'None'
+        df2['tag'] = 'None'
+        df = pd.concat([df,df2]).reset_index()
 
     # Add individuals (they don't want to outer join)
     if individual_levels:

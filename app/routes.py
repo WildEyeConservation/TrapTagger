@@ -155,13 +155,13 @@ def launchTask():
     #                                     .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
     #                                     .distinct().all()]
                     
-    tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).distinct().all()
+    tasks = db.session.query(Task).filter(Task.id.in_([int(r) for r in task_ids])).filter(func.lower(Task.status).in_(Config.TASK_READY_STATUSES)).all()
 
     # check task statuses
-    statusPass = True
-    for task in tasks:
-        if task.status.lower() not in Config.TASK_READY_STATUSES:
-            statusPass = False
+    if len(tasks) != len(task_ids):
+        statusPass = False
+    else:
+        statusPass = True
 
     if (len(task_ids)>1) and ('-5' in taggingLevel):
         species = re.split(',',taggingLevel)[1]
@@ -234,8 +234,7 @@ def launchTask():
 
         #Check if all classifications are translated, if not, prompt
         untranslated = []
-        translations = db.session.query(Translation).filter(Translation.task==task).all()
-        translations = [translation.classification for translation in translations]
+        translations = [r[0] for r in db.session.query(Translation.classification).filter(Translation.task==task).all()]
 
         untranslated_prior = db.session.query(Detection.classification)\
                                 .join(Image)\
@@ -260,7 +259,7 @@ def launchTask():
                     db.session.add(translation)
                 else:
                     untranslated.append(classification)
-            db.session.commit()
+            # db.session.commit()
 
             if len(untranslated) != 0:
                 translations = db.session.query(Translation)\
@@ -274,15 +273,11 @@ def launchTask():
                     if not checkChildTranslations(translation.label):
                         for child in translation.label.children:
                             createChildTranslations(translation.classification,task.id,child)    
-                db.session.commit()
+                # db.session.commit()
 
         # Handle multi-task launch
         if len(task_ids) > 1:
-            task.sub_tasks = db.session.query(Task)\
-                                        .join(Survey)\
-                                        .filter(Survey.user==current_user)\
-                                        .filter(Task.id.in_(task_ids[1:]))\
-                                        .distinct().all()
+            task.sub_tasks = [tsk for tsk in tasks if tsk != task]
             for sub_task in task.sub_tasks:
                 sub_task.status = 'Processing'
                 sub_task.survey.status = 'Launched'
@@ -3313,10 +3308,8 @@ def createTask(survey_id,parentLabel):
             dbSurvey = db.session.query(Survey).get(int(survey_id))
             dbSurvey.status = 'Prepping Task'
             db.session.commit()
-            newTask_id = newTask.id
             
-            generateLabels(info[1], newTask_id)
-            prepTask.delay(newTask_id=newTask_id, survey_id=survey_id, includes=includes, translation=translation)
+            prepTask.delay(newTask_id=newTask.id, survey_id=survey_id, includes=includes, translation=translation, labels=info[1])
 
         return json.dumps('success')
     except:

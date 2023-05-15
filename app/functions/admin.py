@@ -643,36 +643,37 @@ def copyClusters(newTask_id):
 
     survey_id = db.session.query(Task).get(newTask_id).survey_id
     default = db.session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
-    trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==int(survey_id)).all()
+    
+    check = db.session.query(Cluster).filter(Cluster.task_id==newTask_id).first()
 
-    for trapgroup in trapgroups:
-        clusters = db.session.query(Cluster).join(Image, Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup.id).filter(Cluster.task_id==default.id).distinct().all()
-        check = db.session.query(Cluster).join(Image, Cluster.images).join(Camera).filter(Camera.trapgroup_id==trapgroup.id).filter(Cluster.task_id==newTask_id).first()
+    if check == None:
+        detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+        for detection in detections:
+            labelgroup = Labelgroup(detection_id=detection.id,task_id=newTask_id,checked=False)
+            db.session.add(labelgroup)
 
-        if check == None:
-            for cluster in clusters:
-                newCluster = Cluster(task_id=newTask_id)
-                db.session.add(newCluster)
-                newCluster.images=cluster.images
-                newCluster.classification = cluster.classification
+        clusters = db.session.query(Cluster).filter(Cluster.task_id==default.id).distinct().all()
+        for cluster in clusters:
+            newCluster = Cluster(task_id=newTask_id)
+            db.session.add(newCluster)
+            newCluster.images=cluster.images
+            newCluster.classification = cluster.classification
 
-                if cluster.labels != []:
-                    newCluster.labels=cluster.labels
-                    newCluster.user_id=cluster.user_id
-                    newCluster.timestamp = datetime.utcnow()
+            if cluster.labels != []:
+                newCluster.labels=cluster.labels
+                newCluster.user_id=cluster.user_id
+                newCluster.timestamp = datetime.utcnow()
 
-                detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).all()
-                for detection in detections:
-                    labelgroup = Labelgroup(detection_id=detection.id,task_id=newTask_id,checked=False)
-                    db.session.add(labelgroup)
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==newTask_id).all()
+                for labelgroup in labelgroups:
                     labelgroup.labels = cluster.labels
 
-            db.session.commit()
+        db.session.commit()
 
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def prepTask(self,newTask_id, survey_id, includes, translation):
+def prepTask(self,newTask_id, survey_id, includes, translation, labels):
     '''
     Celery task for preparing a new task for a survey, includes setting up translations, clustering, and auto-classification.
 
@@ -681,10 +682,14 @@ def prepTask(self,newTask_id, survey_id, includes, translation):
             survey_id (int): The ID of the survey for which it was added
             includes (list): The list of species to auto-classify
             translation (dict): The translations between user and classifier labels
+            labels (list): The list of labels for the task
     '''
 
     try:
-        setupTranslations(newTask_id, int(survey_id), translation, includes)
+        # Make this indempotent
+        if db.session.query(Label).filter(Label.task_id==newTask_id).first() == None:
+            generateLabels(labels, newTask_id, {})
+            setupTranslations(newTask_id, int(survey_id), translation, includes)
 
         newTask = db.session.query(Task).get(newTask_id)
         newTask.status = 'Generating Clusters'
@@ -701,8 +706,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation):
         updateIndividualIdStatus(newTask_id)
 
         newTask.status = 'Ready'
-        survey = db.session.query(Survey).get(int(survey_id))
-        survey.status = 'Ready'
+        newTask.survey.status = 'Ready'
         db.session.commit()
 
     except Exception as exc:
@@ -1064,15 +1068,15 @@ def re_classify_survey(self,survey_id,classifier):
 def createChildTranslations(classification,task_id,label):
     '''Creates a translation object in the database for the specified label and task, along with all its children.'''
 
-    translation = db.session.query(Translation)\
-                                    .filter(Translation.task_id==task_id)\
-                                    .filter(Translation.label_id==label.id)\
-                                    .filter(Translation.classification==classification)\
-                                    .first()
+    # translation = db.session.query(Translation)\
+    #                                 .filter(Translation.task_id==task_id)\
+    #                                 .filter(Translation.label_id==label.id)\
+    #                                 .filter(Translation.classification==classification)\
+    #                                 .first()
 
-    if translation == None:
-        translation = Translation(classification=classification, label_id=label.id, task_id=task_id)
-        db.session.add(translation)
+    # if translation == None:
+    translation = Translation(classification=classification, label_id=label.id, task_id=task_id)
+    db.session.add(translation)
 
     labelChildren = db.session.query(Label).filter(Label.parent==label).filter(Label.task_id==task_id).all()
     for child in labelChildren:
@@ -1126,20 +1130,20 @@ def setupTranslations(task_id, survey_id, translations, includes):
                 species = db.session.query(Label).filter(func.lower(Label.description)==func.lower(classification)).first()
 
         if species:
-            translation = db.session.query(Translation)\
-                                    .filter(Translation.task_id==task_id)\
-                                    .filter(Translation.label_id==species.id)\
-                                    .filter(Translation.classification==classification)\
-                                    .first()
+            # translation = db.session.query(Translation)\
+            #                         .filter(Translation.task_id==task_id)\
+            #                         .filter(Translation.label_id==species.id)\
+            #                         .filter(Translation.classification==classification)\
+            #                         .first()
 
-            if translation == None:
-                translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
-                db.session.add(translation)
+            # if translation == None:
+            translation = Translation(classification=classification, label_id=species.id, task_id=task_id)
+            db.session.add(translation)
 
             if classification.lower() in includes:
                 translation.auto_classify = True
                 
-    db.session.commit()
+    # db.session.commit()
 
     # Translate children categories as well
     translations = db.session.query(Translation)\
@@ -1150,10 +1154,14 @@ def setupTranslations(task_id, survey_id, translations, includes):
                             .filter(Label.description != 'Unknown')\
                             .filter(Translation.task_id==task_id).all()
     for translation in translations:
-        if not checkChildTranslations(translation.label):
+        check = db.session.query(Translation)\
+                        .filter(Translation.label_id==translation.label_id)\
+                        .filter(Translation.classification!=translation.classification)\
+                        .first()
+        if (check==None) and (not checkChildTranslations(translation.label)):
             for child in translation.label.children:
                 createChildTranslations(translation.classification,task_id,child)    
-    db.session.commit()
+    # db.session.commit()
 
     return True
 
@@ -1173,30 +1181,34 @@ def edit_translations(task_id, translations):
     db.session.commit()
     return True
 
-def generateLabels(labels, task_id):
+def generateLabels(labels, task_id, labelDictionary):
     '''Generates the specified labels for the requested task. Tunnels down repeatedly until all children labels are created.'''
     
     notYet = []
     for label in labels:
         if label[0].lower() not in ['knocked down','nothing','vehicles/humans/livestock','unknown','skip']:
             if label[2] == 'Vehicles/Humans/Livestock':
-                parent = db.session.query(Label).filter(Label.description==label[2]).first()
+                parent = db.session.query(Label).get(GLOBALS.vhl_id)
                 newLabel = Label(description=label[0], hotkey=label[1], task_id=task_id, parent=parent)
                 db.session.add(newLabel)
+                labelDictionary[label[0]] = newLabel
             elif label[2] == 'None':
                 newLabel = Label(description=label[0], hotkey=label[1], task_id=task_id, parent=None)
                 db.session.add(newLabel)
+                labelDictionary[label[0]] = newLabel
             else:
-                parent = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==label[2]).first()
-                if parent == None:
-                    notYet.append(label)
-                else:
+                if label[2] in labelDictionary.keys():
+                    parent = labelDictionary[label[2]]
                     newLabel = Label(description=label[0], hotkey=label[1], task_id=task_id, parent=parent)
                     db.session.add(newLabel)
-    db.session.commit()
+                    labelDictionary[label[0]] = newLabel
+                else:
+                    notYet.append(label)
+
+    # db.session.commit()
     
     if len(notYet) > 0:
-        generateLabels(notYet, task_id)
+        generateLabels(notYet, task_id, labelDictionary)
 
     return True
 
