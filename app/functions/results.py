@@ -1251,13 +1251,12 @@ def generate_excel(self,task_id):
         sheet["C3"].border = bottom_border
         sheet["D3"] = 'Altitude'
         sheet["D3"].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
-        sheet["E3"] = 'Card No.'
+        sheet["E3"] = 'Total Clusters'
         sheet["E3"].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
-        sheet["F3"] = 'Total Clusters'
-        sheet["F3"].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+
 
         speciesColumns = {}
-        currentCol = 7
+        currentCol = 6
         parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.parent.has()).all()
         vhl = db.session.query(Label).get(GLOBALS.vhl_id)
         parentLabels.append(vhl)
@@ -1277,22 +1276,23 @@ def generate_excel(self,task_id):
                 currentCol, speciesColumns, sheet = child_headings(task_id, label, currentCol, speciesColumns, sheet)
 
         finalColumn = currentColumn[:-1]
+        sheet[finalColumn + str(3)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
         print(speciesColumns)
 
         #Generate Rows
-        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).all()
+        traps = db.session.query(Trapgroup).filter(Trapgroup.survey==survey).all()
         labels = db.session.query(Label).filter(Label.task_id==task_id).all()
         labels.append(vhl)
         trapgroupsCompleted = []
         currentRow = 4
         currentFill = whiteFill
-        for camera in cameras:
-            if camera.trapgroup.tag not in trapgroupsCompleted:
-                sheet["A"+str(currentRow)] = camera.trapgroup.tag
-                sheet["B"+str(currentRow)] = camera.trapgroup.longitude
-                sheet["C"+str(currentRow)] = camera.trapgroup.latitude
-                sheet["D"+str(currentRow)] = camera.trapgroup.altitude
-                trapgroupsCompleted.append(camera.trapgroup.tag)
+        for trapgroup in traps:
+            if trapgroup.tag not in trapgroupsCompleted:
+                sheet["A"+str(currentRow)] = trapgroup.tag
+                sheet["B"+str(currentRow)] = trapgroup.longitude
+                sheet["C"+str(currentRow)] = trapgroup.latitude
+                sheet["D"+str(currentRow)] = trapgroup.altitude
+                trapgroupsCompleted.append(trapgroup.tag)
                 if currentFill == greyFill:
                     currentFill = whiteFill
                 else:
@@ -1304,20 +1304,16 @@ def generate_excel(self,task_id):
             sheet["D"+str(currentRow)].fill = currentFill
             sheet["D"+str(currentRow)].border = Border(right=Side(style='thin'))
 
-            for item in re.split('/',camera.path):
-                if camera.trapgroup.tag in item:
-                    sheet["E"+str(currentRow)] = item
-            sheet["E"+str(currentRow)].fill = currentFill
-            sheet["E"+str(currentRow)].border = right_border
+            camera_ids = [camera.id for camera in trapgroup.cameras]
 
-            sheet["F"+str(currentRow)] = db.session.query(Cluster) \
+            sheet["E"+str(currentRow)] = db.session.query(Cluster) \
                                                 .join(Image, Cluster.images) \
                                                 .filter(Cluster.task_id==task_id) \
-                                                .filter(Image.camera_id==camera.id) \
+                                                .filter(Image.camera_id.in_(camera_ids)) \
                                                 .distinct(Cluster.id) \
                                                 .count()
-            sheet["F"+str(currentRow)].fill = currentFill
-            sheet["F"+str(currentRow)].border = Border(right=Side(style='thin'))
+            sheet["E"+str(currentRow)].fill = currentFill
+            sheet["E"+str(currentRow)].border = Border(right=Side(style='thin'))
             
             for label in labels:
                 clusterCount = db.session.query(Cluster) \
@@ -1330,7 +1326,7 @@ def generate_excel(self,task_id):
                                     .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Cluster.task_id==task_id) \
                                     .filter(Labelgroup.labels.contains(label)) \
-                                    .filter(Image.camera_id==camera.id) \
+                                    .filter(Image.camera_id.in_(camera_ids)) \
                                     .distinct(Cluster.id) \
                                     .count()
 
@@ -1343,7 +1339,7 @@ def generate_excel(self,task_id):
 
                 sheet[speciesColumns[label.description]+str(currentRow)].fill = currentFill
 
-            sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'))
+            sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), left=Side(style='thin'))
             currentRow += 1
 
         sheet['A'+str(currentRow)].border = Border(top=Side(style='thin'))
@@ -1351,7 +1347,7 @@ def generate_excel(self,task_id):
         sheet['C'+str(currentRow)].border = Border(top=Side(style='thin'))
         sheet['D'+str(currentRow)].border = Border(top=Side(style='thin'))
         sheet['E'+str(currentRow)].border = Border(top=Side(style='thin'))
-        sheet['F'+str(currentRow)].border = Border(top=Side(style='thin'))
+
         for label in labels:
             sheet[speciesColumns[label.description]+str(currentRow)].border = Border(top=Side(style='thin'))
             sheet[speciesColumns[label.description]+str(currentRow)].fill = whiteFill
@@ -1362,7 +1358,7 @@ def generate_excel(self,task_id):
             sheet[speciesColumns[label.description]+'2'].fill = whiteFill
             sheet[speciesColumns[label.description]+'3'].fill = whiteFill
 
-        for item in ['A','B','C','D','E','F']:
+        for item in ['A','B','C','D','E']:
             sheet[item+str(currentRow)].fill = whiteFill
             sheet[item+str(currentRow+3)].fill = whiteFill
             sheet[item+str(currentRow+6)].fill = whiteFill
@@ -1371,24 +1367,24 @@ def generate_excel(self,task_id):
             sheet[item+'2'].fill = whiteFill
             sheet[item+'3'].fill = whiteFill
 
-        sheet[finalColumn+str(currentRow-1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+        sheet[finalColumn+str(currentRow-1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         #Generate Totals
         currentRow += 1
         sheet["A"+str(currentRow)] = 'Totals'
         sheet["A"+str(currentRow)].border = Border(right=Side(style='thin'), left=Side(style='thin'), top=Side(style='thin'))
         sheet["A"+str(currentRow)].fill = greyFill
-        sheet.merge_cells('A'+str(currentRow)+':E'+str(currentRow))
+        sheet.merge_cells('A'+str(currentRow)+':D'+str(currentRow))
         sheet["A"+str(currentRow+1)] = 'Percentage'
         sheet["A"+str(currentRow+1)].border = Border(right=Side(style='thin'), left=Side(style='thin'), bottom=Side(style='thin'))
         sheet["A"+str(currentRow+1)].fill = whiteFill
-        sheet.merge_cells('A'+str(currentRow+1)+':E'+str(currentRow+1))
+        sheet.merge_cells('A'+str(currentRow+1)+':D'+str(currentRow+1))
         totalCount = db.session.query(Cluster).filter(Cluster.task_id==task_id).distinct(Cluster.id).count()
-        sheet["F"+str(currentRow)] = totalCount
-        sheet["F"+str(currentRow)].border = top_border
-        sheet["F"+str(currentRow)].fill = greyFill
-        sheet["F"+str(currentRow+1)].border = bottom_border
-        sheet["F"+str(currentRow+1)].fill = whiteFill
+        sheet["E"+str(currentRow)] = totalCount
+        sheet["E"+str(currentRow)].border = top_border + right_border
+        sheet["E"+str(currentRow)].fill = greyFill
+        sheet["E"+str(currentRow+1)].border = bottom_border + right_border
+        sheet["E"+str(currentRow+1)].fill = whiteFill
         for label in labels:
             clusterCount = db.session.query(Cluster) \
                                     .join(Image, Cluster.images) \
@@ -1415,24 +1411,25 @@ def generate_excel(self,task_id):
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
-        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'))
-        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'), left=Side(style='thin'))
+        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         #Generate Category Totals
         currentRow += 3
         sheet["A"+str(currentRow)] = 'Category Totals'
         sheet["A"+str(currentRow)].border = Border(right=Side(style='thin'), left=Side(style='thin'), top=Side(style='thin'))
         sheet["A"+str(currentRow)].fill = greyFill
-        sheet.merge_cells('A'+str(currentRow)+':E'+str(currentRow))
+        sheet.merge_cells('A'+str(currentRow)+':D'+str(currentRow))
         sheet["A"+str(currentRow+1)] = 'Category Percentages'
         sheet["A"+str(currentRow+1)].border = Border(right=Side(style='thin'), left=Side(style='thin'), bottom=Side(style='thin'))
         sheet["A"+str(currentRow+1)].fill = whiteFill
-        sheet.merge_cells('A'+str(currentRow+1)+':E'+str(currentRow+1))
+        sheet.merge_cells('A'+str(currentRow+1)+':D'+str(currentRow+1))
         parentLabels.append(vhl)
-        sheet["F"+str(currentRow)].border = top_border
-        sheet["F"+str(currentRow)].fill = greyFill
-        sheet["F"+str(currentRow+1)].border = bottom_border
-        sheet["F"+str(currentRow+1)].fill = whiteFill
+        sheet["E"+str(currentRow)] = totalCount
+        sheet["E"+str(currentRow)].border = top_border + right_border
+        sheet["E"+str(currentRow)].fill = greyFill
+        sheet["E"+str(currentRow+1)].border = bottom_border + right_border
+        sheet["E"+str(currentRow+1)].fill = whiteFill
         for label in parentLabels:
             count = 0
             count += db.session.query(Cluster) \
@@ -1477,8 +1474,8 @@ def generate_excel(self,task_id):
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
-        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'))
-        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'), left=Side(style='thin'))
+        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         fileName = user.folder+'/docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
 
