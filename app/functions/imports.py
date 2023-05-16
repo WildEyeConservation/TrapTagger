@@ -368,7 +368,8 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
 
         cluster.images = []
         db.session.delete(cluster)
-        db.session.commit()
+    
+    db.session.commit()
 
     return removedClusters,[cluster.id for cluster in newClusters]
 

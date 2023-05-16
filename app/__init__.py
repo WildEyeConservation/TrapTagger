@@ -152,7 +152,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
     if (not Config.MAINTENANCE) and (sender=='celery@priority_worker'):
         import sqlalchemy as sa
-        from flask_migrate import upgrade
+        # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks, manageDownloads
         from app.functions.globals import importMonitor
@@ -165,9 +165,9 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         except sa.exc.ProgrammingError:
             pass
 
-        # Upgrade the db to the latest schema version
-        with app.app_context():
-            upgrade()
+        # # Upgrade the db to the latest schema version
+        # with app.app_context():
+        #     upgrade()
 
         setupDatabase()
 
