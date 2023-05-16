@@ -82,10 +82,13 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         if calculation_needed:
 
             # Delete old detSims
-            db.session.query(DetSimilarity)\
+            destims = db.session.query(DetSimilarity)\
                         .join(sq,DetSimilarity.detection_1==sq.c.id)\
                         .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
-                        .delete(synchronize_session=False)
+                        .all()
+
+            for destim in destims:
+                db.session.delete(destim)
 
             if algorithm == 'hotspotter':
                 # Wbia is only imported here to prevent its version of mysql interfering with flask migrate
