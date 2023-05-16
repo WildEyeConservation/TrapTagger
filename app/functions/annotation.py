@@ -440,7 +440,7 @@ def launch_task(self,task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+# @celery.task(bind=True,max_retries=29,ignore_result=True)
 def freeUpWork(self,task_id):
     '''Attempts to free up trapgroups etc. to allow task annoation to complete.'''
 
@@ -489,8 +489,8 @@ def freeUpWork(self,task_id):
         app.logger.info(' ')
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
-    finally:
-        db.session.remove()
+    # finally:
+    #     db.session.remove()
 
     return True
 
