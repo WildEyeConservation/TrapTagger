@@ -753,15 +753,16 @@ def reclusterAfterTimestampChange(survey_id):
     # create new default task
     task_id = cluster_survey(survey_id,'default')
     recluster_large_clusters(task_id,True)
-    db.session.commit()
-    defaultTask = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='default').first()
-    pool = Pool(processes=4)
-    for trapgroup in db.session.query(Survey).get(survey_id).trapgroups:
-        pool.apply_async(classifyTrapgroup,(defaultTask.id,trapgroup.id))
-    pool.close()
-    pool.join()
+    # db.session.commit()
+    
+    # pool = Pool(processes=4)
+    trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
+    for trapgroup_id in trapgroup_ids:
+        classifyTrapgroup(task_id,trapgroup_id)
+    # pool.close()
+    # pool.join()
 
-    db.session.commit()
+    # db.session.commit()
     survey=db.session.query(Survey).get(survey_id)
     for task in survey.tasks:
         if ('_o_l_d_' not in task.name) and (task.name != 'default'):

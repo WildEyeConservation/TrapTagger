@@ -228,7 +228,7 @@ def launch_task(self,task_id):
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
                                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .filter(exclude.id==None)\
+                                        .filter(exclude.c.id==None)\
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
 
@@ -441,7 +441,7 @@ def launch_task(self,task_id):
     return True
 
 # @celery.task(bind=True,max_retries=29,ignore_result=True)
-def freeUpWork(self,task_id):
+def freeUpWork(task_id):
     '''Attempts to free up trapgroups etc. to allow task annoation to complete.'''
 
     try:
