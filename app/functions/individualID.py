@@ -81,6 +81,12 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
         if calculation_needed:
 
+            # Delete old detSims
+            db.session.query(DetSimilarity)\
+                        .join(sq,DetSimilarity.detection_1==sq.c.id)\
+                        .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+                        .delete(synchronize_session=False)
+
             if algorithm == 'hotspotter':
                 # Wbia is only imported here to prevent its version of mysql interfering with flask migrate
                 # Also suppressing deprication warning since wbia's utool seems to be an issue
@@ -194,23 +200,23 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                         detection2_id = det_Translation[aid2]
                         covered_detections.append(detection2_id)
 
-                        detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                    or_(\
-                                                        and_(\
-                                                            DetSimilarity.detection_1==detection1_id,\
-                                                            DetSimilarity.detection_2==detection2_id),\
-                                                        and_(\
-                                                            DetSimilarity.detection_1==detection2_id,\
-                                                            DetSimilarity.detection_2==detection1_id)\
-                                                    )).first()
+                        # detSimilarity = db.session.query(DetSimilarity).filter(\
+                        #                             or_(\
+                        #                                 and_(\
+                        #                                     DetSimilarity.detection_1==detection1_id,\
+                        #                                     DetSimilarity.detection_2==detection2_id),\
+                        #                                 and_(\
+                        #                                     DetSimilarity.detection_1==detection2_id,\
+                        #                                     DetSimilarity.detection_2==detection1_id)\
+                        #                             )).first()
 
-                        if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
-                            db.session.add(detSimilarity)
+                        # if detSimilarity == None:
+                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id, score=float(score))
+                        db.session.add(detSimilarity)
 
-                        detSimilarity.score = float(score)
+                        # detSimilarity.score = float(score)
 
-                    non_covered_detections = db.session.query(Detection)\
+                    non_covered_detections = [r[0] for r in db.session.query(Detection.id)\
                                                     .join(Labelgroup)\
                                                     .join(Task)\
                                                     .join(Label,Labelgroup.labels)\
@@ -221,27 +227,27 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                                     .filter(~Detection.status.in_(['deleted','hidden'])) \
                                                     .filter(~Detection.id.in_(covered_detections))\
                                                     .filter(Detection.id!=detection1_id)\
-                                                    .distinct().all()
+                                                    .distinct().all()]
 
                     for non_covered in non_covered_detections:
-                        detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                        or_(\
-                                                            and_(\
-                                                                DetSimilarity.detection_1==detection1_id,\
-                                                                DetSimilarity.detection_2==non_covered.id),\
-                                                            and_(\
-                                                                DetSimilarity.detection_1==non_covered.id,\
-                                                                DetSimilarity.detection_2==detection1_id)\
-                                                        )).first()
+                        # detSimilarity = db.session.query(DetSimilarity).filter(\
+                        #                                 or_(\
+                        #                                     and_(\
+                        #                                         DetSimilarity.detection_1==detection1_id,\
+                        #                                         DetSimilarity.detection_2==non_covered.id),\
+                        #                                     and_(\
+                        #                                         DetSimilarity.detection_1==non_covered.id,\
+                        #                                         DetSimilarity.detection_2==detection1_id)\
+                        #                                 )).first()
 
-                        if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered.id)
-                            db.session.add(detSimilarity)
+                        # if detSimilarity == None:
+                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered, score=0)
+                        db.session.add(detSimilarity)
 
-                        if detSimilarity.score == None:
-                            detSimilarity.score = 0
+                        # if detSimilarity.score == None:
+                        #     detSimilarity.score = 0
 
-                    db.session.commit()
+                    # db.session.commit()
                     endTime = time.time()
                     app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,endTime - startTime))
 
@@ -250,54 +256,47 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 shutil.rmtree(imFolder, ignore_errors=True)
 
             elif algorithm == 'none':
-                allDetections = [r[0] for r in db.session.query(Detection.id)\
-                                    .join(Labelgroup)\
-                                    .join(Task)\
-                                    .join(Label,Labelgroup.labels)\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .filter(Label.description==species)\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                    .distinct().all()]
+                allDetections = queryDetections.copy()
 
                 for queryDetection in queryDetections:
                     allDetections.remove(queryDetection)
                     for detection in allDetections:
-                        detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                        or_(\
-                                                            and_(\
-                                                                DetSimilarity.detection_1==queryDetection,\
-                                                                DetSimilarity.detection_2==detection),\
-                                                            and_(\
-                                                                DetSimilarity.detection_1==detection,\
-                                                                DetSimilarity.detection_2==queryDetection)\
-                                                        )).first()
+                        # detSimilarity = db.session.query(DetSimilarity).filter(\
+                        #                                 or_(\
+                        #                                     and_(\
+                        #                                         DetSimilarity.detection_1==queryDetection,\
+                        #                                         DetSimilarity.detection_2==detection),\
+                        #                                     and_(\
+                        #                                         DetSimilarity.detection_1==detection,\
+                        #                                         DetSimilarity.detection_2==queryDetection)\
+                        #                                 )).first()
 
-                        if detSimilarity == None:
-                            detSimilarity = DetSimilarity(detection_1=queryDetection, detection_2=detection)
-                            db.session.add(detSimilarity)
+                        # if detSimilarity == None:
+                        detSimilarity = DetSimilarity(detection_1=queryDetection, detection_2=detection, score=1)
+                        db.session.add(detSimilarity)
 
-                        detSimilarity.score = 1
-                db.session.commit()
+                        # detSimilarity.score = 1
 
         endTime = time.time()
         app.logger.info("Hotspotter run completed in {}s".format(endTime - OverallStartTime))
 
-        user_ids = [r[0] for r in db.session.query(User.id)\
-                                            .join(Individual, Individual.user_id==User.id)\
-                                            .join(Task,Individual.tasks)\
-                                            .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                            .filter(Task.id.in_(task_ids))\
-                                            .filter(Individual.species==species)\
-                                            .filter(IndSimilarity.score==None)\
-                                            .filter(or_(User.passed=='cTrue',User.username=='Admin'))\
-                                            .distinct().all()]
-
-        calculate_individual_similarities.delay(task_id=task.id,species=species,user_ids=user_ids)
+        if len(task_ids)==1:
+            user_ids = [r[0] for r in db.session.query(User.id)\
+                                                .join(Individual, Individual.user_id==User.id)\
+                                                .join(Task,Individual.tasks)\
+                                                .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
+                                                .filter(Task.id.in_(task_ids))\
+                                                .filter(Individual.species==species)\
+                                                .filter(IndSimilarity.score==None)\
+                                                .filter(or_(User.passed=='cTrue',User.username=='Admin'))\
+                                                .distinct().all()]
+        else:
+            user_ids = []
 
         task.survey.status = 'indprocessing'
         db.session.commit()
+
+        calculate_individual_similarities.delay(task_id=task.id,species=species,user_ids=user_ids)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -326,6 +325,11 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
     try:
         # startTime = datetime.utcnow()
 
+        if type(individual1) == int:
+            celeryTask = True
+        else:
+            celeryTask = False
+
         if parameters == None:
             parameters = {}
             parameters["territorySize"] = 15 #km
@@ -351,8 +355,9 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
 
         iouWeight = parameters['iouWeight']
 
-        individual1 = db.session.query(Individual).get(individual1)
-        individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
+        if celeryTask:
+            individual1 = db.session.query(Individual).get(individual1)
+            individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
 
         # Find all family
         family = []
@@ -378,6 +383,17 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
 
         family = list(set(family))
 
+        Det1 = alias(Detection)
+        Det2 = alias(Detection)
+        Image1 = alias(Image)
+        Image2 = alias(Image)
+        Camera1 = alias(Camera)
+        Camera2 = alias(Camera)
+        Trapgroup1 = alias(Trapgroup)
+        Trapgroup2 = alias(Trapgroup)
+        individualDetections1 = alias(individualDetections)
+        individualDetections2 = alias(individualDetections)
+
         for individual2 in individuals2:
             if individual2 != individual1:
                 max_det1 = None
@@ -395,7 +411,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                 if similarity==None:
                     similarity = IndSimilarity(individual_1=individual1.id, individual_2=individual2.id)
                     db.session.add(similarity)
-                    db.session.commit()
+                    # db.session.commit()
                 else:
                     # If similarity has already been rejected etc., then skip
                     # -2500 suggestion unidentifiable
@@ -407,8 +423,12 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                 if individual2 in family:
                     max_similarity = -1500
                 else:
-                    images1 = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual1)).all()
-                    testImage = db.session.query(Image).join(Detection).filter(Image.id.in_([r.id for r in images1])).filter(Detection.individuals.contains(individual2)).first()
+                    testImage = db.session.query(Image)\
+                                            .join(Det1, Det1.c.image_id==Image.id)\
+                                            .join(Det2, Det2.c.image_id==Image.id)\
+                                            .filter(Det1.individuals.contains(individual1))\
+                                            .filter(Det2.individuals.contains(individual2))\
+                                            .first()
 
                     if testImage:
                         # Individuals share an image
@@ -424,70 +444,96 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                             if tag not in individual1.tags[:]:
                                 tagScore -= mismatchWeight
 
-                        detections1 = db.session.query(Detection)\
-                                                .filter(Detection.individuals.contains(individual1))\
-                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                                .filter(Detection.static == False) \
-                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                                .all()
-
-                        detections2 = db.session.query(Detection)\
-                                                .filter(Detection.individuals.contains(individual2))\
-                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                                .filter(Detection.static == False) \
-                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                                .all()
+                        detSimilarities = db.session.query(DetSimilarity.score,
+                                    Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
+                                    Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
+                                                .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
+                                                .join(Det2, Det2.c.id==DetSimilarity.detection_2)\
+                                                .join(Image1, Image1.c.id==Det1.c.image_id)\
+                                                .join(Image2, Image2.c.id==Det2.c.image_id)\
+                                                .join(Camera1, Camera1.c.id==Image1.c.camera_id)\
+                                                .join(Camera2, Camera2.c.id==Image2.c.camera_id)\
+                                                .join(Trapgroup1, Trapgroup1.c.id==Camera1.c.trapgroup_id)\
+                                                .join(Trapgroup2, Trapgroup2.c.id==Camera2.c.trapgroup_id)\
+                                                .join(individualDetections1, individualDetections1.c.detection_id==Det1.c.id)\
+                                                .join(individualDetections2, individualDetections2.c.detection_id==Det2.c.id)\
+                                                .filter(DetSimilarity.score>0)\
+                                                .filter(
+                                                    or_(
+                                                        and_(individualDetections1.c.individual_id==individual1.id,individualDetections2.c.individual_id==individual2.id),
+                                                        and_(individualDetections1.c.individual_id==individual2.id,individualDetections2.c.individual_id==individual1.id)
+                                                    )
+                                                ).distinct().all()
 
                         max_similarity = 0
-                        for detection1 in detections1:
-                            for detection2 in detections2:
-                                detSimilarity = db.session.query(DetSimilarity).filter(\
-                                                            or_(\
-                                                                and_(\
-                                                                    DetSimilarity.detection_1==detection1.id,\
-                                                                    DetSimilarity.detection_2==detection2.id),\
-                                                                and_(\
-                                                                    DetSimilarity.detection_1==detection2.id,\
-                                                                    DetSimilarity.detection_2==detection1.id)\
-                                                            )).first()
+                        for detSimilarity in detSimilarities:
+                            detSimScore = detSimilarity[0]
+                            det1 = {
+                                'id': detSimilarity[1],
+                                'left': detSimilarity[2],
+                                'right': detSimilarity[3],
+                                'top': detSimilarity[4],
+                                'bottom': detSimilarity[5]
+                            }
+                            image1 = {
+                                'camera_id': detSimilarity[6],
+                                'corrected_timestamp': detSimilarity[7]
+                            }
+                            trapgroup1 = {
+                                'latitude': detSimilarity[8],
+                                'longitude': detSimilarity[9]
+                            }
+                            det2 = {
+                                'id': detSimilarity[10],
+                                'left': detSimilarity[11],
+                                'right': detSimilarity[12],
+                                'top': detSimilarity[13],
+                                'bottom': detSimilarity[14]
+                            }
+                            image2 = {
+                                'camera_id': detSimilarity[15],
+                                'corrected_timestamp': detSimilarity[16]
+                            }
+                            trapgroup2 = {
+                                'latitude': detSimilarity[17],
+                                'longitude': detSimilarity[18]
+                            }
 
-                                if (detSimilarity != None) and (detSimilarity.score != None):
+                            iou_factor = 1
+                            if image1['camera_id']==image2['camera_id']:
+                                intersection_left = max(det1['left'],det2['left'])
+                                intersection_right = min(det1['right'],det2['right'])
+                                intersection_top = max(det1['top'],det2['top'])
+                                intersection_bottom = min(det1['bottom'],det2['bottom'])
 
-                                    iou_factor = 1
-                                    if detection1.image.camera==detection2.image.camera:
-                                        intersection_left = max(detection1.left,detection2.left)
-                                        intersection_right = min(detection1.right,detection2.right)
-                                        intersection_top = max(detection1.top,detection2.top)
-                                        intersection_bottom = min(detection1.bottom,detection2.bottom)
-        
-                                        if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
-                                            intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
-                                            detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
-                                            detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
-                                            union_area = detection1_area + detection2_area - intersection_area
-                                            iou = intersection_area/union_area
-                                            iou_factor = (1-(iouWeight*iou))**2
-                                    
-                                    if detection1.image.camera.trapgroup.latitude == detection1.image.camera.trapgroup.longitude == 0:
-                                        distanceScore = 1
-                                    else:
-                                        distance = coordinateDistance(detection1.image.camera.trapgroup.latitude, detection1.image.camera.trapgroup.longitude, detection2.image.camera.trapgroup.latitude, detection2.image.camera.trapgroup.longitude)
-                                        distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
-                                        if distanceScore < 1: distanceScore=1
+                                if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
+                                    intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
+                                    detection1_area = (det1['right']-det1['left'])*(det1['bottom']-det1['top'])
+                                    detection2_area = (det2['right']-det2['left'])*(det2['bottom']-det2['top'])
+                                    union_area = detection1_area + detection2_area - intersection_area
+                                    iou = intersection_area/union_area
+                                    iou_factor = (1-(iouWeight*iou))**2
+                            
+                            if trapgroup1['latitude'] == trapgroup1['longitude'] == 0:
+                                distanceScore = 1
+                            else:
+                                distance = coordinateDistance(trapgroup1['latitude'], trapgroup1['longitude'], trapgroup2['latitude'], trapgroup2['longitude'])
+                                distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
+                                if distanceScore < 1: distanceScore=1
 
-                                    if detection1.image.corrected_timestamp and detection2.image.corrected_timestamp:
-                                        time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
-                                    else:
-                                        time = 0
-                                    timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
-                                    if timeScore < 1: timeScore=1
+                            if image1['corrected_timestamp'] and image2['corrected_timestamp']:
+                                time = abs((image1['corrected_timestamp']-image2['corrected_timestamp']).total_seconds())
+                            else:
+                                time = 0
+                            timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
+                            if timeScore < 1: timeScore=1
 
-                                    adjusted_score = iou_factor * distanceScore * timeScore * (1 + (tagWeight*tagScore)) * detSimilarity.score
+                            adjusted_score = iou_factor * distanceScore * timeScore * (1 + (tagWeight*tagScore)) * detSimScore
 
-                                    if adjusted_score > max_similarity:
-                                        max_similarity = adjusted_score
-                                        max_det1 = detection1.id
-                                        max_det2 = detection2.id
+                            if adjusted_score > max_similarity:
+                                max_similarity = adjusted_score
+                                max_det1 = det1['id']
+                                max_det2 = det2['id']
 
                 similarity.score = max_similarity
                 if similarity.individual_1==individual1.id:
@@ -497,41 +543,43 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     similarity.detection_1 = max_det2
                     similarity.detection_2 = max_det1       
 
-                db.session.commit()
+                # db.session.commit()
         # endTime = datetime.utcnow()
         # app.logger.info('Finished Calculating Individual Similarity in {}s'.format((endTime - startTime).total_seconds()))
 
-        #Ensure there are no duplicate indsims due to race condition
-        sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
-                            .join(IndSimilarity, Individual.id==IndSimilarity.individual_1)\
-                            .filter(IndSimilarity.individual_2==individual1.id)\
-                            .group_by(Individual.id)\
-                            .subquery()
+        # #Ensure there are no duplicate indsims due to race condition
+        # sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
+        #                     .join(IndSimilarity, Individual.id==IndSimilarity.individual_1)\
+        #                     .filter(IndSimilarity.individual_2==individual1.id)\
+        #                     .group_by(Individual.id)\
+        #                     .subquery()
 		
-        sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
-                .join(IndSimilarity, Individual.id==IndSimilarity.individual_2)\
-                .filter(IndSimilarity.individual_1==individual1.id)\
-                .group_by(Individual.id)\
-                .subquery()
+        # sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
+        #         .join(IndSimilarity, Individual.id==IndSimilarity.individual_2)\
+        #         .filter(IndSimilarity.individual_1==individual1.id)\
+        #         .group_by(Individual.id)\
+        #         .subquery()
 
-        duplicates = db.session.query(Individual)\
-                .outerjoin(sq1,sq1.c.indID==Individual.id)\
-                .outerjoin(sq2,sq2.c.indID==Individual.id)\
-                .filter(or_(\
-                    (sq1.c.count+sq2.c.count)>1,\
-                    sq1.c.count>1,\
-                    sq2.c.count>1))\
-                .distinct().all()
+        # duplicates = db.session.query(Individual)\
+        #         .outerjoin(sq1,sq1.c.indID==Individual.id)\
+        #         .outerjoin(sq2,sq2.c.indID==Individual.id)\
+        #         .filter(or_(\
+        #             (sq1.c.count+sq2.c.count)>1,\
+        #             sq1.c.count>1,\
+        #             sq2.c.count>1))\
+        #         .distinct().all()
 
-        for duplicate in duplicates:
-            indsims = db.session.query(IndSimilarity)\
-                            .filter(or_(\
-                                and_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==duplicate.id),\
-                                and_(IndSimilarity.individual_1==duplicate.id,IndSimilarity.individual_2==individual1.id)))\
-                            .distinct().all()
-            for indsim in indsims[1:]:
-                db.session.delete(indsim)
-        db.session.commit()
+        # for duplicate in duplicates:
+        #     indsims = db.session.query(IndSimilarity)\
+        #                     .filter(or_(\
+        #                         and_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==duplicate.id),\
+        #                         and_(IndSimilarity.individual_1==duplicate.id,IndSimilarity.individual_2==individual1.id)))\
+        #                     .distinct().all()
+        #     for indsim in indsims[1:]:
+        #         db.session.delete(indsim)
+        
+        if celeryTask:
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -567,7 +615,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         task_ids = [r.id for r in task.sub_tasks]
         task_ids.append(task.id)
 
-        individuals1 = db.session.query(Individual.id)\
+        individuals1 = db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
@@ -577,35 +625,36 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         # calculate similarities between all of them
         if len(task_ids)==1: individuals1 = individuals1.filter(Individual.user_id.in_(user_ids))\
 
-        individuals1 = [r[0] for r in individuals1.all()]
+        individuals1 = individuals1.all()
 
-        individuals2 = [r[0] for r in db.session.query(Individual.id)\
+        individuals2 = db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
-                                            .all()]
+                                            .all()
 
         app.logger.info('Individual similarities are being calculated for {} individuals'.format(len(individuals1)))
 
-        pool = Pool(processes=4)
+        # pool = Pool(processes=4)
         for individual1 in individuals1:
             if individual1 in individuals2: individuals2.remove(individual1)
-            if individuals2: pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
-        pool.close()
-        pool.join()
+            if individuals2:
+                # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
+                calculate_individual_similarity(individual1,individuals2.copy())
+        # pool.close()
+        # pool.join()
 
         endTime = time.time()
         app.logger.info("All individual similarities completed in {}".format(endTime - OverallStartTime))
 
-        db.session.commit()
         task = db.session.query(Task).get(task_id)
         app.logger.info("Task status: {}".format(task.status))
         if task.sub_tasks and ('-5' in task.tagging_level):
             from app.functions.annotation import launch_task
             task.survey.status = 'Launched'
             db.session.commit()
-            launch_task.apply_async(kwargs={'task_id':task.id})
+            launch_task.apply_async(kwargs={'task_id':task_id})
         elif task.status != 'PROGRESS':
             #Check if complete
             incompleteIndividuals = db.session.query(Individual)\
@@ -621,7 +670,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
             if (incompleteIndividuals == 0) or (task.status=='Stopped'):
                 task.survey.status = 'Ready'
-                db.session.commit()
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

@@ -450,6 +450,16 @@ def delete_survey(self,survey_id):
                 # status = 'error'
                 # message = 'Could not delete images from S3.'
                 app.logger.info('Could not delete images from S3')
+        
+        #Delete images from S3-comp
+        if status != 'error':
+            try:
+                bucketObject.objects.filter(Prefix=survey.user.folder+'-comp/'+survey.name+'/').delete()
+                app.logger.info('images deleted from S3-comp successfully.')
+            except:
+                # status = 'error'
+                # message = 'Could not delete images from S3.'
+                app.logger.info('Could not delete images from S3-comp')
 
         #Delete survey
         if status != 'error':
