@@ -603,7 +603,6 @@ def cluster_survey(survey_id,queue='parallel'):
         results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue=queue))
 
     task_id = task.id
-    db.session.remove()
 
     #Wait for processing to complete
     db.session.remove()
