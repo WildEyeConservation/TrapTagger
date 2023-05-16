@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import coordinateDistance, retryTime
 import GLOBALS
 import time
-from sqlalchemy.sql import func, or_, and_
+from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy.sql.expression import cast
 from sqlalchemy import desc
 import random
