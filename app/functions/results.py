@@ -648,7 +648,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, start_date, end_date):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 

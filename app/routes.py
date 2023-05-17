@@ -6381,6 +6381,8 @@ def generateCSV():
             label_type = 'column'
             includes = []
             excludes = []
+            start_date = None
+            end_date = None
         else:
             selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
             level = ast.literal_eval(request.form['level'])
@@ -6389,6 +6391,9 @@ def generateCSV():
             label_type = ast.literal_eval(request.form['label_type'])
             includes = ast.literal_eval(request.form['includes'])
             excludes = ast.literal_eval(request.form['excludes'])
+            start_date = ast.literal_eval(request.form['start_date'])
+            end_date = ast.literal_eval(request.form['end_date'])
+
     except:
         return json.dumps('error')
 
@@ -6407,7 +6412,7 @@ def generateCSV():
         pass
 
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes))
-    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes)
+    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, start_date=start_date, end_date=end_date)
 
     return json.dumps('success')
 
