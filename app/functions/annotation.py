@@ -221,7 +221,7 @@ def launch_task(self,task_id):
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
                                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .filter(individualsSQ.c.id==None)
+                                        .filter(individualsSQ.c.id==None)\
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
 

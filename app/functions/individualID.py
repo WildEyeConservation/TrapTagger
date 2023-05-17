@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import coordinateDistance, retryTime
 import GLOBALS
 import time
-from sqlalchemy.sql import func, or_, and_
+from sqlalchemy.sql import func, or_, and_, alias
 from sqlalchemy.sql.expression import cast
 from sqlalchemy import desc
 import random
@@ -362,29 +362,29 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
             individual1 = db.session.query(Individual).get(individual1)
             individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
 
-        # Find all family
-        family = []
-        children = individual1.children
-        while children != []:
-            family.extend(children)
-            temp = []
-            for child in children:
-                temp.extend(child.children)
-            children = temp
+        # # Find all family
+        # family = []
+        # children = db.session.query(Individual).filter(Individual.parent==individual1).all()
+        # while children != []:
+        #     family.extend(children)
+        #     temp = []
+        #     for child in children:
+        #         temp.extend(db.session.query(Individual).filter(Individual.parent==child).all())
+        #     children = temp
 
-        parents = individual1.parents
-        while parents != []:
-            family.extend(parents)
-            temp = []
-            for parent in parents:
-                temp.extend(parent.parents)
-            parents = temp
+        # # siblings
+        # parents = db.session.query(Individual).filter(Individual.children.contains(individual1)).all()
+        # for parent in parents:
+        #     family.extend(db.session.query(Individual).filter(Individual.parent==parent).filter(Individual!=individual1).all())
 
-        # siblings
-        for parent in individual1.parents:
-            family.extend([child for child in parent.children if child.id != individual1.id])
+        # while parents != []:
+        #     family.extend(parents)
+        #     temp = []
+        #     for parent in parents:
+        #         temp.extend(db.session.query(Individual).filter(Individual.children.contains(parent)).all())
+        #     parents = temp
 
-        family = list(set(family))
+        # family = list(set(family))
 
         Det1 = alias(Detection)
         Det2 = alias(Detection)
@@ -423,9 +423,10 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     # -1500 family
                     if similarity.score and (similarity.score < 0): continue
 
-                if individual2 in family:
-                    max_similarity = -1500
-                else:
+                # if individual2 in family:
+                #     max_similarity = -1500
+                # else:
+                if True:
                     testImage = db.session.query(Image)\
                                             .join(Det1, Det1.c.image_id==Image.id)\
                                             .join(Det2, Det2.c.image_id==Image.id)\
@@ -647,7 +648,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
             if individual1 in individuals2: individuals2.remove(individual1)
             if individuals2:
                 # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
-                calculate_individual_similarity(individual1,individuals2.copy())
+                calculate_individual_similarity(individual1,individuals2)
         # pool.close()
         # pool.join()
 
