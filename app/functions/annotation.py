@@ -207,28 +207,21 @@ def launch_task(self,task_id):
                                         .group_by(Cluster.id)\
                                         .subquery()
 
-                    exclude = db.session.query(Detection)\
-                                        .join(Individual, Detection.individuals)\
-                                        .join(Labelgroup)\
-                                        .filter(Labelgroup.labels.contains(label))\
-                                        .filter(Labelgroup.task_id==task_id)\
-                                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                        .filter(Detection.static == False) \
-                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .filter(Individual.species==species)\
-                                        .filter(Individual.tasks.contains(task))\
-                                        .subquery()
+                    individualsSQ = db.session.query(Individual)\
+                                    .filter(Individual.species==species)\
+                                    .filter(Individual.tasks.contains(task))\
+                                    .subquery()
 
                     detections = db.session.query(Detection)\
                                         .join(sq,sq.c.detID==Detection.id)\
-                                        .outerjoin(exclude,exclude.c.id==Detection.id)\
+                                        .outerjoin(individualsSQ,Detection.individuals)\
                                         .join(Labelgroup)\
                                         .filter(Labelgroup.labels.contains(label))\
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
                                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        .filter(exclude.c.id==None)\
+                                        .filter(individualsSQ.c.id==None)
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
 

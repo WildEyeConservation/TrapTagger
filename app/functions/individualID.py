@@ -595,7 +595,8 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.remove()
+        if celeryTask:
+            db.session.remove()
 
     return True
 
