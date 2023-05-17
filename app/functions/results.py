@@ -302,7 +302,7 @@ def drop_nones(label_set):
         label_set.remove('None')
     return label_set
 
-def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id):
+def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate):
     '''
     Returns an all-encompassing dataframe for a task, subject to the parameter selections.
 
@@ -316,6 +316,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             include (list): The label ids to include
             exclude (list): The label ids to exclude
             trapgroup_id (int): The trapgroup id to filter on
+            startDate (datetime): The start date to filter on
+            endDate (datetime): The end date to filter on
 
         Returns:
             df (pd.dataframe): task dataframe
@@ -385,6 +387,14 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         query = query.filter(Trapgroup.id==trapgroup_id)
         sq = sq.filter(Trapgroup.id==trapgroup_id)
 
+    if startDate:
+        query = query.filter(Image.corrected_timestamp>=startDate)
+        sq = sq.filter(Image.corrected_timestamp>=startDate)
+
+    if endDate:
+        query = query.filter(Image.corrected_timestamp<=endDate)
+        sq = sq.filter(Image.corrected_timestamp<=endDate)
+
     df = pd.read_sql(query.statement,db.session.bind)
     task = db.session.query(Task).get(task_id)
 
@@ -431,12 +441,12 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                         .join(Survey,Trapgroup.survey_id==Survey.id) \
                         .outerjoin(sq,sq.c.id==Image.id)\
-                        .filter(Image.id.in_(missing_images)) \
                         .filter(Cluster.task_id==task_id)\
                         .filter(sq.c.id==None)
 
-        if trapgroup_id:
-            query = query.filter(Trapgroup.id==trapgroup_id)                            
+        if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
+        if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)                     
 
         df2 = pd.read_sql(query.statement,db.session.bind)
 
@@ -458,14 +468,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                     .filter(Individual.tasks.contains(task)) \
                     .filter(Individual.active==True)
 
-        if include:
-            query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
-
-        if exclude:
-            query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
-
-        if trapgroup_id:
-            query = query.filter(Trapgroup.id==trapgroup_id)
+        if include: query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
+        if exclude: query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
+        if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
+        if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)   
 
         df3 = pd.read_sql(query.statement,db.session.bind)
         df = pd.merge(df, df3, on=['detection','label'], how='outer')
@@ -648,7 +655,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -660,6 +667,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             label_type (str): The type of labelling scheme to be uses - row, column or list
             includes (list): List of label names that should included
             excludes (list): List of label names that should excluded
+            startDate (dateTime): The start date for the data to be included in the csv
+            endDate (dateTime): The end date for the data to be included in the csv
     '''
     
     try:
@@ -742,6 +751,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 
                 if label_level=='detection':
                     sq = rDets(db.session.query(Detection,func.count(distinct(Label.id)).label('count'))\
+                                        .join(Image)\
                                         .group_by(Detection.id))
                 elif label_level=='image':
                     sq = rDets(db.session.query(Image,func.count(distinct(Label.id)).label('count'))\
@@ -775,6 +785,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .join(Camera)\
                                         .join(Image)\
                                         .join(Detection))
+
+                if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+                if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
                 
                 sq = sq.join(Labelgroup)\
                         .join(Label,Labelgroup.labels)\
@@ -812,6 +825,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                 if tag_level=='detection':
                     sq = rDets(db.session.query(Detection,func.count(distinct(Tag.id)).label('count'))\
+                                        .join(Image)\
                                         .group_by(Detection.id))
                 elif tag_level=='image':
                     sq = rDets(db.session.query(Image,func.count(distinct(Tag.id)).label('count'))\
@@ -845,6 +859,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .join(Camera)\
                                         .join(Image)\
                                         .join(Detection))
+
+                if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+                if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
                 
                 sq = sq.join(Labelgroup)\
                         .join(Tag,Labelgroup.tags)\
@@ -869,6 +886,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             
             if individual_level=='detection':
                 sq = rDets(db.session.query(Detection,func.count(distinct(Individual.id)).label('count'))\
+                                    .join(Image)\
                                     .group_by(Detection.id))
             elif individual_level=='image':
                 sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
@@ -903,6 +921,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                     .join(Image)\
                                     .join(Detection))
 
+            if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+            if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
+
             sq = sq.join(Individual,Detection.individuals)\
                     .join(Task,Individual.tasks)\
                     .filter(Task.id.in_(selectedTasks))\
@@ -936,7 +957,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             
             for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
-                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id)
+                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
 
                 # Generate custom columns
                 for custom_name in custom_columns[str(task_id)]:
