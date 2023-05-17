@@ -46,7 +46,7 @@ var playControl = null
 var stopControl = null
 var playControlImage = null
 var drawnItems = null
-
+var jobTimer
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -1684,7 +1684,10 @@ function getTasks(url=null){
                 prev_url = reply.prev_url + '&individual_id=' + true
             }
 
-            setTimeout(function(){getTasks(url)}, 30000);
+            if(jobTimer!=null){	
+                clearTimeout(jobTimer);
+            }
+            jobTimer = setTimeout(function(){getTasks(url)}, 10000);
 
         }
     }

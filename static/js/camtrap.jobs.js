@@ -18,6 +18,7 @@ var next_url = null
 var current_page = '/getJobs'
 var processingTimer
 var timerJobStatus
+var jobTimer
 const btnNextJobs = document.querySelector('#btnNextJobs');
 const btnPrevJobs = document.querySelector('#btnPrevJobs');
 
@@ -115,7 +116,6 @@ function buildJob(job) {
 function onload(){
     /** Initialises the jobs page on load. */
     updatePage(current_page)
-    updateJobProgressBar()
 }
 
 window.addEventListener('load', onload, false);
@@ -169,55 +169,15 @@ function updatePage(url){
                 prev_url = reply.prev_url
             }
 
-            setTimeout(function() { updatePage(url); }, 30000);
+            if (jobTimer != null) {
+                clearTimeout(jobTimer);
+            }
+            jobTimer = setTimeout(function() { updatePage(url); }, 10000);
 
         }
     }
     xhttp.open("GET", url);
     xhttp.send();
-}
-
-function updateJobProgressBar() {
-    /** Updates the progress bars of all visible jobs. */
-    jobProgressBarDivs = document.querySelectorAll('[id^=jobProgressBarDiv]');
-
-    tskds = []
-    for (let i = 0; i < jobProgressBarDivs.length; i++) {
-        tskds.push(jobProgressBarDivs[i].id.split('jobProgressBarDiv')[1])
-    }
-
-    var formData = new FormData()
-    formData.append("task_ids", JSON.stringify(tskds))
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function() {
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
-
-            for (let i = 0; i < reply.length; i++) {
-                document.getElementById('jobsCompleted'+reply[i].id).innerHTML = 'Jobs Completed: ' + reply[i].jobsCompleted
-                document.getElementById('jobsAvailable'+reply[i].id).innerHTML = 'Jobs Available: ' + reply[i].jobsAvailable
-    
-                if (reply[i].jobsAvailable==0) {
-                    document.getElementById("takeJobBtn"+reply[i].id).disabled = true
-                } else {
-                    document.getElementById("takeJobBtn"+reply[i].id).disabled = false
-                }
-    
-                progBar = document.getElementById('progBar'+reply[i].id)
-                perc=(reply[i].completed/reply[i].total)*100
-                progBar.setAttribute('style',"width:"+perc+"%")
-                progBar.setAttribute('aria-valuenow',reply[i].completed)
-                progBar.setAttribute('aria-valuemax',reply[i].total)
-                progBar.innerHTML = reply[i].remaining
-            }
-
-            setTimeout(function() { updateJobProgressBar(); }, 10000);
-        }
-    }
-    xhttp.open("POST", '/updateTaskProgressBar');
-    xhttp.send(formData);
 }
 
 function generate_url() {
