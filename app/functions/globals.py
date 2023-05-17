@@ -704,29 +704,21 @@ def updateIndividualIdStatus(task_id):
     task = db.session.query(Task).get(task_id)
 
     for label in labels:
-        # label.icID_allowed = clusterIdComplete(task_id,label.id)
 
-        identified = db.session.query(Detection)\
-                            .join(Labelgroup)\
-                            .join(Individual, Detection.individuals)\
-                            .filter(Labelgroup.labels.contains(label))\
+        individualsSQ = db.session.query(Individual)\
                             .filter(Individual.species==label.description)\
-                            .filter(Labelgroup.task_id==task_id)\
                             .filter(Individual.tasks.contains(task))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .subquery()
 
-        label.unidentified_count = db.session.query(Cluster)\
+        label.unidentified_count = db.session.query(Cluster.id)\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
-                            .outerjoin(identified,identified.c.id==Detection.id)\
+                            .outerjoin(individualsSQ,Detection.individuals)\
                             .join(Labelgroup)\
                             .filter(Cluster.task_id==task_id)\
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(Labelgroup.labels.contains(label))\
-                            .filter(identified.c.id==None)\
+                            .filter(individualsSQ.c.id==None)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
@@ -1907,23 +1899,17 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
             if tL[0] == '-4':
                 # Cluster-level individual ID
                 # sq = sq.filter(Cluster.examined==False)
-                identified = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Individual, Detection.individuals)\
-                                    .filter(Labelgroup.labels.contains(label))\
-                                    .filter(Individual.species==species)\
-                                    .filter(Labelgroup.task_id==task_id)\
+
+                individualsSQ = db.session.query(Individual)\
+                                    .filter(Individual.species==label.description)\
                                     .filter(Individual.tasks.contains(task))\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
                                     .subquery()
 
                 sq = sq.join(Labelgroup)\
-                        .outerjoin(identified,identified.c.id==Detection.id)\
+                        .outerjoin(individualsSQ,Detection.individuals)\
                         .filter(Labelgroup.task_id==task_id)\
                         .filter(Labelgroup.labels.contains(label))\
-                        .filter(identified.c.id==None)
+                        .filter(individualsSQ.c.id==None)
 
             elif tL[0] == '-2':
                 # Species-level informational tagging
