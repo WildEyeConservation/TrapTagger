@@ -429,8 +429,10 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     testImage = db.session.query(Image)\
                                             .join(Det1, Det1.c.image_id==Image.id)\
                                             .join(Det2, Det2.c.image_id==Image.id)\
-                                            .filter(Det1.individuals.contains(individual1))\
-                                            .filter(Det2.individuals.contains(individual2))\
+                                            .join(individualDetections1,individualDetections1.c.detection_id==Det1.c.id)\
+                                            .join(individualDetections2,individualDetections2.c.detection_id==Det2.c.id)\
+                                            .filter(individualDetections1.c.individual_id==individual1.id)\
+                                            .filter(individualDetections2.c.individual_id==individual2.id)\
                                             .first()
 
                     if testImage:
