@@ -869,42 +869,48 @@ def reclusterAfterTimestampChange(survey_id):
             # pool.close()
             # pool.join()
 
-            labelgroupInfo = db.session.query(Labelgroup,NewGroup,Label.id,Tag.id)\
-                                        .join(Detection,Labelgroup.detection_id==Detection.id)\
-                                        .outerjoin(Label,Labelgroup.labels)\
-                                        .outerjoin(Tag,Labelgroup.tags)\
-                                        .join(NewGroup,NewGroup.c.detection_id==Detection.id)\
-                                        .filter(Labelgroup.task_id==task.id)\
-                                        .filter(NewGroup.c.task_id==newTask.id)\
-                                        .filter(Labelgroup.id==labelgroup_id)\
-                                        .all()
-
-            labelgroupInfo = db.session.query(Labelgroup,NewGroup,Label.id,Tag.id)\
-                                        .join(Detection,Labelgroup.detection_id==Detection.id)\
-                                        .outerjoin(Label,Labelgroup.labels)\
-                                        .outerjoin(Tag,Labelgroup.tags)\
-                                        .join(NewGroup,NewGroup.c.detection_id==Detection.id)\
-                                        .filter(Labelgroup.task_id==task.id)\
-                                        .filter(NewGroup.c.task_id==newTask.id)\
-                                        .filter(Labelgroup.id==labelgroup_id)\
-                                        .all()
-
-
             #copy labels & tags
-            labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
-            for labelgroup in labelgroups:
-                newGroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==newTask.id).filter(Labelgroup.detection_id==labelgroup.detection_id).first()
-                newGroup.checked = labelgroup.checked
-                newGroup.labels = [labelTranslations[label.id] for label in labelgroup.labels]
-                newGroup.tags = [tagTranslations[tag.id] for tag in labelgroup.tags]
+            queryData = db.session.query(Labelgroup,detectionLabels.c.label_id,detectionTags.c.tag_id,OldGroup.c.checked)\
+                                        .join(Detection,Labelgroup.detection_id==Detection.id)\
+                                        .join(OldGroup,OldGroup.c.detection_id==Detection.id)\
+                                        .outerjoin(detectionLabels,detectionLabels.c.labelgroup_id==OldGroup.c.id)\
+                                        .outerjoin(detectionTags,detectionTags.c.labelgroup_id==OldGroup.c.id)\
+                                        .filter(Labelgroup.task_id==newTask.id)\
+                                        .filter(OldGroup.c.task_id==task.id)\
+                                        .all()
 
-            # db.session.commit()
+            labelgroupInfo = {}
+            for item in queryData:
+                if item[0] not in labelgroupInfo.keys():
+                    labelgroupInfo[item[0]] = {'labels':[],'tags':[],'checked':item[3]}
+                if item[1] and (item[1] not in labelgroupInfo[item[0]]['labels']): labelgroupInfo[item[0]]['labels'].append(item[1])
+                if item[2] and (item[2] not in labelgroupInfo[item[0]]['tags']): labelgroupInfo[item[0]]['tags'].append(item[2])
 
-            clusters = db.session.query(Cluster).filter(Cluster.task_id==newTask.id).all()
-            for cluster in clusters:
-                cluster.labels = db.session.query(Label).join(Labelgroup,Label.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
-                cluster.tags = db.session.query(Tag).join(Labelgroup,Tag.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
-            # db.session.commit()
+            for labelgroup in labelgroupInfo:
+                labelgroup.checked = labelgroupInfo[labelgroup]['checked']
+                labelgroup.labels = [labelTranslations[label] for label in labelgroupInfo[labelgroup]['labels']]
+                labelgroup.tags = [tagTranslations[tag] for tag in labelgroupInfo[labelgroup]['tags']]
+
+            queryData = db.session.query(Cluster,Label,Tag)\
+                                        .join(Image,Cluster.images)\
+                                        .join(Detection)\
+                                        .join(Labelgroup)\
+                                        .outerjoin(Label,Labelgroup.labels)\
+                                        .outerjoin(Tag,Labelgroup.tags)\
+                                        .filter(Labelgroup.task_id==newTask.id)\
+                                        .filter(Cluster.task_id==newTask.id)\
+                                        .all()
+
+            clusterInfo = {}
+            for item in queryData:
+                if item[0] not in clusterInfo.keys():
+                    clusterInfo[item[0]] = {'labels':[],'tags':[]}
+                if item[1] and (item[1] not in clusterInfo[item[0]]['labels']): clusterInfo[item[0]]['labels'].append(item[1])
+                if item[2] and (item[2] not in clusterInfo[item[0]]['tags']): clusterInfo[item[0]]['tags'].append(item[2])
+
+            for cluster in clusterInfo:
+                cluster.labels = clusterInfo[cluster]['labels']
+                cluster.tags = clusterInfo[cluster]['tags']
 
             # copy notes
             oldClusters = db.session.query(Cluster).filter(Cluster.notes!=None).filter(Cluster.notes!='').filter(Cluster.task==task).distinct().all()

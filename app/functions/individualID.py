@@ -315,7 +315,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def calculate_individual_similarity(self,individual1,individuals2,parameters=None):
+def calculate_individual_similarity(self,individual1,individuals2,session=None,parameters=None):
     '''
     Calculates the similarity between a single individual, and a list of individuals.
 
@@ -327,6 +327,9 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
     
     try:
         # startTime = datetime.utcnow()
+
+        if session == None:
+            session = db.session()
 
         if type(individual1) == int:
             celeryTask = True
@@ -359,29 +362,29 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
         iouWeight = parameters['iouWeight']
 
         if celeryTask:
-            individual1 = db.session.query(Individual).get(individual1)
-            individuals2 = db.session.query(Individual).filter(Individual.id.in_(individuals2)).all()
+            individual1 = session.query(Individual).get(individual1)
+            individuals2 = session.query(Individual).filter(Individual.id.in_(individuals2)).all()
 
         # # Find all family
         # family = []
-        # children = db.session.query(Individual).filter(Individual.parent==individual1).all()
+        # children = session.query(Individual).filter(Individual.parent==individual1).all()
         # while children != []:
         #     family.extend(children)
         #     temp = []
         #     for child in children:
-        #         temp.extend(db.session.query(Individual).filter(Individual.parent==child).all())
+        #         temp.extend(session.query(Individual).filter(Individual.parent==child).all())
         #     children = temp
 
         # # siblings
-        # parents = db.session.query(Individual).filter(Individual.children.contains(individual1)).all()
+        # parents = session.query(Individual).filter(Individual.children.contains(individual1)).all()
         # for parent in parents:
-        #     family.extend(db.session.query(Individual).filter(Individual.parent==parent).filter(Individual!=individual1).all())
+        #     family.extend(session.query(Individual).filter(Individual.parent==parent).filter(Individual!=individual1).all())
 
         # while parents != []:
         #     family.extend(parents)
         #     temp = []
         #     for parent in parents:
-        #         temp.extend(db.session.query(Individual).filter(Individual.children.contains(parent)).all())
+        #         temp.extend(session.query(Individual).filter(Individual.children.contains(parent)).all())
         #     parents = temp
 
         # family = list(set(family))
@@ -401,7 +404,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
             if individual2 != individual1:
                 max_det1 = None
                 max_det2 = None
-                similarity = db.session.query(IndSimilarity).filter(\
+                similarity = session.query(IndSimilarity).filter(\
                                 or_(\
                                     and_(\
                                         IndSimilarity.individual_1==individual1.id,\
@@ -413,8 +416,8 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
 
                 if similarity==None:
                     similarity = IndSimilarity(individual_1=individual1.id, individual_2=individual2.id)
-                    db.session.add(similarity)
-                    # db.session.commit()
+                    session.add(similarity)
+                    # session.commit()
                 else:
                     # If similarity has already been rejected etc., then skip
                     # -2500 suggestion unidentifiable
@@ -427,7 +430,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                 #     max_similarity = -1500
                 # else:
                 if True:
-                    testImage = db.session.query(Image)\
+                    testImage = session.query(Image)\
                                             .join(Det1, Det1.c.image_id==Image.id)\
                                             .join(Det2, Det2.c.image_id==Image.id)\
                                             .join(individualDetections1,individualDetections1.c.detection_id==Det1.c.id)\
@@ -450,7 +453,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                             if tag not in individual1.tags[:]:
                                 tagScore -= mismatchWeight
 
-                        detSimilarities = db.session.query(DetSimilarity.score,
+                        detSimilarities = session.query(DetSimilarity.score,
                                     Det1.c.id,Det1.c.left,Det1.c.right,Det1.c.top,Det1.c.bottom,Image1.c.camera_id,Image1.c.corrected_timestamp,Trapgroup1.c.latitude,Trapgroup1.c.longitude,
                                     Det2.c.id,Det2.c.left,Det2.c.right,Det2.c.top,Det2.c.bottom,Image2.c.camera_id,Image2.c.corrected_timestamp,Trapgroup2.c.latitude,Trapgroup2.c.longitude)\
                                                 .join(Det1, Det1.c.id==DetSimilarity.detection_1)\
@@ -549,24 +552,24 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
                     similarity.detection_1 = max_det2
                     similarity.detection_2 = max_det1       
 
-                # db.session.commit()
+                # session.commit()
         # endTime = datetime.utcnow()
         # app.logger.info('Finished Calculating Individual Similarity in {}s'.format((endTime - startTime).total_seconds()))
 
         # #Ensure there are no duplicate indsims due to race condition
-        # sq1 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
+        # sq1 = session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
         #                     .join(IndSimilarity, Individual.id==IndSimilarity.individual_1)\
         #                     .filter(IndSimilarity.individual_2==individual1.id)\
         #                     .group_by(Individual.id)\
         #                     .subquery()
 		
-        # sq2 = db.session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
+        # sq2 = session.query(Individual.id.label('indID'),func.count(IndSimilarity.score).label('count'))\
         #         .join(IndSimilarity, Individual.id==IndSimilarity.individual_2)\
         #         .filter(IndSimilarity.individual_1==individual1.id)\
         #         .group_by(Individual.id)\
         #         .subquery()
 
-        # duplicates = db.session.query(Individual)\
+        # duplicates = session.query(Individual)\
         #         .outerjoin(sq1,sq1.c.indID==Individual.id)\
         #         .outerjoin(sq2,sq2.c.indID==Individual.id)\
         #         .filter(or_(\
@@ -576,16 +579,16 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
         #         .distinct().all()
 
         # for duplicate in duplicates:
-        #     indsims = db.session.query(IndSimilarity)\
+        #     indsims = session.query(IndSimilarity)\
         #                     .filter(or_(\
         #                         and_(IndSimilarity.individual_1==individual1.id,IndSimilarity.individual_2==duplicate.id),\
         #                         and_(IndSimilarity.individual_1==duplicate.id,IndSimilarity.individual_2==individual1.id)))\
         #                     .distinct().all()
         #     for indsim in indsims[1:]:
-        #         db.session.delete(indsim)
+        #         session.delete(indsim)
         
         if celeryTask:
-            db.session.commit()
+            session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -597,7 +600,7 @@ def calculate_individual_similarity(self,individual1,individuals2,parameters=Non
 
     finally:
         if celeryTask:
-            db.session.remove()
+            session.remove()
 
     return True
 
@@ -615,14 +618,16 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
     try:
         OverallStartTime = time.time()
 
-        task = db.session.query(Task).get(task_id)
+        session = db.session()
+
+        task = session.query(Task).get(task_id)
         task.survey.status = 'indprocessing'
-        db.session.commit()
+        session.commit()
 
         task_ids = [r.id for r in task.sub_tasks]
         task_ids.append(task.id)
 
-        individuals1 = db.session.query(Individual)\
+        individuals1 = session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
@@ -634,7 +639,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
         individuals1 = individuals1.all()
 
-        individuals2 = db.session.query(Individual)\
+        individuals2 = session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
                                             .filter(Individual.species==species)\
@@ -648,23 +653,25 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
             if individual1 in individuals2: individuals2.remove(individual1)
             if individuals2:
                 # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
-                calculate_individual_similarity(individual1,individuals2)
+                calculate_individual_similarity(individual1,individuals2,session)
         # pool.close()
         # pool.join()
 
         endTime = time.time()
         app.logger.info("All individual similarities completed in {}".format(endTime - OverallStartTime))
 
-        task = db.session.query(Task).get(task_id)
+        task = session.query(Task).get(task_id)
         app.logger.info("Task status: {}".format(task.status))
         if task.sub_tasks and ('-5' in task.tagging_level):
             from app.functions.annotation import launch_task
             task.survey.status = 'Launched'
-            db.session.commit()
+            session.commit()
             launch_task.apply_async(kwargs={'task_id':task_id})
         elif task.status != 'PROGRESS':
             #Check if complete
-            incompleteIndividuals = db.session.query(Individual)\
+            session.commit()
+            
+            incompleteIndividuals = session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
                                             .filter(Task.id.in_(task_ids))\
@@ -677,7 +684,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
             if (incompleteIndividuals == 0) or (task.status=='Stopped'):
                 task.survey.status = 'Ready'
-            db.session.commit()
+            session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -688,7 +695,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.remove()
+        session.remove()
 
     return True
 
