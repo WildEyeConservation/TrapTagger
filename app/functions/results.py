@@ -322,7 +322,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         Returns:
             df (pd.dataframe): task dataframe
     '''
-
+    task = db.session.query(Task).get(task_id)
+    
     query = db.session.query( \
                 Image.id.label('image_id'),\
                 Image.filename.label('image_name'), \
@@ -396,7 +397,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         sq = sq.filter(Image.corrected_timestamp<=endDate)
 
     df = pd.read_sql(query.statement,db.session.bind)
-    task = db.session.query(Task).get(task_id)
 
     if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
         sq = sq.subquery()
