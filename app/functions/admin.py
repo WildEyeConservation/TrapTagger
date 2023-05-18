@@ -762,30 +762,36 @@ def reclusterAfterTimestampChange(survey_id):
     # pool.close()
     # pool.join()
 
+    admin_id = db.session.query(User.id).filter(User.username=='Admin').first()[0]
+
+    OldGroup = alias(Labelgroup)
+
     # db.session.commit()
-    survey=db.session.query(Survey).get(survey_id)
-    for task in survey.tasks:
+    tasks=db.session.query(Task).filter(Task.survey_id==survey_id).all()
+    for task in tasks:
         if ('_o_l_d_' not in task.name) and (task.name != 'default'):
 
-            if '_copying' not in task.name:
-                taskName = task.name
+            # if '_copying' not in task.name:
 
-                _o_l_d_count = db.session.query(Task).filter(Task.name.contains(task.name+'_o_l_d_')).filter(Task.survey_id==survey_id).distinct().count()
+            taskName = task.name
 
-                #Rename old task
-                task.name += '_o_l_d_'
-                if _o_l_d_count: task.name += str(_o_l_d_count)
-                # db.session.commit
+            _o_l_d_count = db.session.query(Task).filter(Task.name.contains(task.name+'_o_l_d_')).filter(Task.survey_id==survey_id).distinct().count()
 
-                #create new task
-                newTask = Task(name=taskName+'_copying', survey_id=survey_id, status='Ready', tagging_level=task.tagging_level, tagging_time=task.tagging_time, test_size=task.test_size, size=task.size, parent_classification=task.parent_classification)
-                db.session.add(newTask)
-                db.session.commit()
-            else:
-                #Copy was interrupted
-                taskName = re.split('_copying',task.name)[0] + '_o_l_d_'
-                newTask = task
-                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name==taskName).first()
+            #Rename old task
+            task.name += '_o_l_d_'
+            if _o_l_d_count: task.name += str(_o_l_d_count)
+            # db.session.commit
+
+            #create new task
+            newTask = Task(name=taskName, survey_id=survey_id, status='Ready', tagging_level=task.tagging_level, tagging_time=task.tagging_time, test_size=task.test_size, size=task.size, parent_classification=task.parent_classification)
+            db.session.add(newTask)
+            # db.session.commit()
+
+            # else:
+            #     #Copy was interrupted
+            #     taskName = re.split('_copying',task.name)[0] + '_o_l_d_'
+            #     newTask = task
+            #     task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name==taskName).first()
 
             #copy labels, tags, and translations
             labelTranslations = {GLOBALS.vhl_id: db.session.query(Label).get(GLOBALS.vhl_id)}
@@ -805,6 +811,7 @@ def reclusterAfterTimestampChange(survey_id):
             # db.session.commit()
 
             #copy tags
+            tagTranslations = {}
             tags = db.session.query(Tag).filter(Tag.task_id==task.id).all()
             for tag in tags:
                 # check = db.session.query(Tag).filter(Tag.task_id==newTask.id).filter(Tag.description==tag.description).first()
@@ -813,6 +820,7 @@ def reclusterAfterTimestampChange(survey_id):
                                 description=tag.description,
                                 hotkey=tag.hotkey)
                 db.session.add(newTag)
+                tagTranslations[tag.id] = newTag
             # db.session.commit()
 
             translations = db.session.query(Translation).filter(Translation.task_id==task.id).all()
@@ -833,12 +841,14 @@ def reclusterAfterTimestampChange(survey_id):
             # deal with knockdowns
             downLabel =  db.session.query(Label).get(GLOBALS.knocked_id)
 
-            sq = db.session.query(Cluster.id,func.min(Image.corrected_timestamp).label('root'),func.max(Image.corrected_timestamp).label('last'))\
-                                    .join(Image,Cluster.Images)\
-                                    .filter(Cluster.task_id==task.id)\
-                                    .filter(Cluster.labels.contains(downLabel))\
-                                    .group_by(Cluster.id)\
-                                    .subquery()
+            # sq = db.session.query(Cluster.id,Image.id.label('rootImage'))\
+            #                         .join(Image,Cluster.images)\
+            #                         .filter(Cluster.task_id==task.id)\
+            #                         .filter(func.min(Image.corrected_timestamp))\
+            #                         .group_by(Cluster.id)\
+            #                         .subquery()
+
+            #                         .filter(Cluster.labels.contains(downLabel))\
 
 
             clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(downLabel)).all()
@@ -853,43 +863,48 @@ def reclusterAfterTimestampChange(survey_id):
                 trapgroup.user_id = None
                 trapgroup.processing = True
                 # db.session.commit()
-                finish_knockdown(rootImage.id, newTask.id, survey.user.id, lastImage.id)
+                finish_knockdown(rootImage.id, newTask.id, admin_id, lastImage.id)
                 # pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
 
             # pool.close()
             # pool.join()
+
+            labelgroupInfo = db.session.query(Labelgroup,NewGroup,Label.id,Tag.id)\
+                                        .join(Detection,Labelgroup.detection_id==Detection.id)\
+                                        .outerjoin(Label,Labelgroup.labels)\
+                                        .outerjoin(Tag,Labelgroup.tags)\
+                                        .join(NewGroup,NewGroup.c.detection_id==Detection.id)\
+                                        .filter(Labelgroup.task_id==task.id)\
+                                        .filter(NewGroup.c.task_id==newTask.id)\
+                                        .filter(Labelgroup.id==labelgroup_id)\
+                                        .all()
+
+            labelgroupInfo = db.session.query(Labelgroup,NewGroup,Label.id,Tag.id)\
+                                        .join(Detection,Labelgroup.detection_id==Detection.id)\
+                                        .outerjoin(Label,Labelgroup.labels)\
+                                        .outerjoin(Tag,Labelgroup.tags)\
+                                        .join(NewGroup,NewGroup.c.detection_id==Detection.id)\
+                                        .filter(Labelgroup.task_id==task.id)\
+                                        .filter(NewGroup.c.task_id==newTask.id)\
+                                        .filter(Labelgroup.id==labelgroup_id)\
+                                        .all()
+
 
             #copy labels & tags
             labelgroups = db.session.query(Labelgroup).join(Detection).filter(~Labelgroup.labels.contains(downLabel)).filter(Labelgroup.task_id==task.id).filter(Labelgroup.labels.any()).all()
             for labelgroup in labelgroups:
                 newGroup = db.session.query(Labelgroup).filter(Labelgroup.task_id==newTask.id).filter(Labelgroup.detection_id==labelgroup.detection_id).first()
                 newGroup.checked = labelgroup.checked
-                
-                labels = []
-                for label in labelgroup.labels[:]:
-                    if label.task_id != None:
-                        newLabel = db.session.query(Label).filter(Label.description==label.description).filter(Label.task_id==newTask.id).first()
-                    else:
-                        newLabel = label
-                    labels.append(newLabel)
-                newGroup.labels = labels
+                newGroup.labels = [labelTranslations[label.id] for label in labelgroup.labels]
+                newGroup.tags = [tagTranslations[tag.id] for tag in labelgroup.tags]
 
-                tags = []
-                for tag in labelgroup.tags[:]:
-                    if tag.task_id != None:
-                        newTag = db.session.query(Tag).filter(Tag.description==Tag.description).filter(Tag.task_id==newTask.id).first()
-                    else:
-                        newTag = tag
-                    tags.append(newTag)
-                newGroup.tags = tags
-
-            db.session.commit()
+            # db.session.commit()
 
             clusters = db.session.query(Cluster).filter(Cluster.task_id==newTask.id).all()
             for cluster in clusters:
                 cluster.labels = db.session.query(Label).join(Labelgroup,Label.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
                 cluster.tags = db.session.query(Tag).join(Labelgroup,Tag.labelgroups).join(Detection).join(Image).filter(Labelgroup.task_id==newTask.id).filter(Image.clusters.contains(cluster)).distinct().all()
-            db.session.commit()
+            # db.session.commit()
 
             # copy notes
             oldClusters = db.session.query(Cluster).filter(Cluster.notes!=None).filter(Cluster.notes!='').filter(Cluster.task==task).distinct().all()
@@ -904,7 +919,7 @@ def reclusterAfterTimestampChange(survey_id):
                         newCluster.notes += oldCluster.notes
                     else:
                         newCluster.notes = oldCluster.notes
-            db.session.commit()
+            # db.session.commit()
 
             # migrate individuals to new task
             individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
@@ -915,39 +930,24 @@ def reclusterAfterTimestampChange(survey_id):
                 # Update tags
                 tags = []
                 for tag in individual.tags:
-                    if tag.task==task:
-                        tag = db.session.query(Tag).filter(Tag.description==tag.description).filter(Tag.task_id==newTask.id).first()
+                    if tag.task_id==task.id:
+                        tag = tagTranslations[tag.id]
                     tags.append(tag)
                 individual.tags = tags
-            db.session.commit()
 
             # recalculate individual similarities as the heuristic values will have changed
-            species = [item[0] for item in db.session.query(Individual.species).filter(Individual.tasks.contains(newTask)).distinct().all()]
-            if species:
-                pool = Pool(processes=4)
-                for specie in species:
-                    user_ids = [r[0] for r in db.session.query(User.id)\
-                                                        .join(Individual, Individual.user_id==User.id)\
-                                                        .outerjoin(IndSimilarity, or_(IndSimilarity.individual_1==Individual.id,IndSimilarity.individual_2==Individual.id))\
-                                                        .filter(Individual.tasks.contains(newTask))\
-                                                        .filter(Individual.species==specie)\
-                                                        .filter(IndSimilarity.score==None)\
-                                                        .filter(User.passed=='cTrue')\
-                                                        .distinct().all()]
+            # species = [item[0] for item in db.session.query(Individual.species).filter(Individual.tasks.contains(newTask)).distinct().all()]
+            # for specie in species:
+            #     calculate_individual_similarities(newTask.id,specie,None)
 
-                    pool.apply_async(calculate_individual_similarities,(newTask.id,specie,user_ids))
+            # newTask.name = re.split('_copying',newTask.name)[0]
+            # db.session.commit()
 
-                pool.close()
-                pool.join()
+    for task in tasks:
+        if (task.name != 'default') and ('_o_l_d_' not in task.name):
+            updateAllStatuses.delay(task_id=task.id)
 
-            newTask.name = re.split('_copying',newTask.name)[0]
-            db.session.commit()
-
-    for task in survey.tasks:
-        if task.name != 'default':
-            updateTaskCompletionStatus(task.id)
-            updateLabelCompletionStatus(task.id)
-            updateIndividualIdStatus(task.id)
+    db.session.commit()
             
     return True
 

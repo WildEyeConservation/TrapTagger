@@ -253,6 +253,17 @@ def launch_task(self,task_id):
                 task_ids = [r.id for r in task.sub_tasks]
                 task_ids.append(task.id)
 
+                # check if indsims are actually there - specifically for post timestamp edits
+                if len(task_ids)==1:
+                    check = db.session.query(IndSimilarity)\
+                                    .join(Individual, IndSimilarity.individual_1==Individual.id)\
+                                    .join(Task,Individual.tasks)\
+                                    .filter(Task.id.in_(task_ids))\
+                                    .filter(Individual.species==species)\
+                                    .first()
+                    if check==None:
+                        calculate_individual_similarities(task.id,species,None)
+
                 #extract threshold
                 threshold = tL[2]
                 if threshold=='-1':

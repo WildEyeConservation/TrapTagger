@@ -294,7 +294,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                                 .filter(or_(User.passed=='cTrue',User.username=='Admin'))\
                                                 .distinct().all()]
         else:
-            user_ids = []
+            user_ids = None
 
         task.survey.status = 'indprocessing'
         db.session.commit()
@@ -630,7 +630,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
         # Don't need to do this for multi-task individual ID because all the individuals are already defined and we want to 
         # calculate similarities between all of them
-        if len(task_ids)==1: individuals1 = individuals1.filter(Individual.user_id.in_(user_ids))\
+        if (len(task_ids)==1) and user_ids: individuals1 = individuals1.filter(Individual.user_id.in_(user_ids))
 
         individuals1 = individuals1.all()
 
