@@ -6412,7 +6412,7 @@ def generateCSV():
         pass
 
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes))
-    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, start_date=start_date, end_date=end_date)
+    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, startDate=start_date, endDate=end_date)
 
     return json.dumps('success')
 
