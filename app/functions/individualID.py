@@ -600,7 +600,7 @@ def calculate_individual_similarity(self,individual1,individuals2,session=None,p
 
     finally:
         if celeryTask:
-            session.remove()
+            session.close()
 
     return True
 
@@ -695,7 +695,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        session.remove()
+        session.close()
 
     return True
 
