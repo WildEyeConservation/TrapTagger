@@ -491,7 +491,7 @@ def freeUpWork(task_id):
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+        # self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     # finally:
     #     db.session.remove()

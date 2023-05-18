@@ -482,7 +482,6 @@ function onload(){
     /**Function for initialising the page on load.*/
     checkNotifications()
     updatePage(current_page)
-    updateTaskProgressBar()
 }
 
 window.addEventListener('load', onload, false);
@@ -546,9 +545,9 @@ function updatePage(url){
             if (taskProcessing==true) {
                 if (processingTimer != null) {
                     clearInterval(processingTimer)
-                    processingTimer = setTimeout(function() { updatePage(url); }, 30000)
+                    processingTimer = setTimeout(function() { updatePage(url); }, 10000)
                 } else {
-                    processingTimer = setTimeout(function() { updatePage(url); }, 30000)
+                    processingTimer = setTimeout(function() { updatePage(url); }, 10000)
                 }
             } else {
                 if (processingTimer != null) {
@@ -570,8 +569,6 @@ function updatePage(url){
                 btnPrevSurveys.style.visibility = 'visible'
                 prev_url = reply.prev_url
             }
-
-            updateTaskStatus()
 
 
             if (uploading&&!uploadStart) {

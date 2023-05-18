@@ -223,6 +223,7 @@ function checkCSV() {
     cameraSpecies = false
     excludeProblem = false
     duplicateTask = false
+    invalidDate = false
 
     // Handles the selection of duplicate annototation tasks
     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
@@ -244,6 +245,15 @@ function checkCSV() {
                 excludeProblem = true
                 break
             }
+        }
+    }
+
+    // Handle date
+    startDateCSV = document.getElementById('startDateCSV').value
+    endDateCSV = document.getElementById('endDateCSV').value
+    if (startDateCSV != '' && endDateCSV != '') {
+        if (startDateCSV > endDateCSV) {
+            invalidDate = true
         }
     }
 
@@ -344,7 +354,13 @@ function checkCSV() {
         document.getElementById('taskError').innerHTML = ''
     }
 
-    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||(duplicateTask)) {
+    if (invalidDate) {
+        document.getElementById('dateErrorsCSV').innerHTML = 'The start date must be before the end date.'
+    } else {
+        document.getElementById('dateErrorsCSV').innerHTML = ''
+    }
+
+    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||(duplicateTask)||(invalidDate)) {
         legalCSV = false
     } else {
         legalCSV = true
@@ -526,6 +542,23 @@ btnCsvDownload.addEventListener('click', ()=>{
                 custom_columns[task_id][custom_name] = custom_column
             }
         }
+        // Date range
+        startDateCSV = document.getElementById('startDateCSV').value
+        endDateCSV = document.getElementById('endDateCSV').value
+
+        if(startDateCSV != ''){
+            startDateCSV = startDateCSV + ' 00:00:00'
+        }
+        else{
+            selectedStartDate = ''
+        }
+
+        if(endDateCSV != ''){
+            endDateCSV = endDateCSV + ' 23:59:59'
+        }
+        else{
+            endDateCSV = ''
+        }
 
         if (noEmpties) {
             var formData = new FormData()
@@ -536,6 +569,8 @@ btnCsvDownload.addEventListener('click', ()=>{
             formData.append("label_type", JSON.stringify(label_type))
             formData.append("includes", JSON.stringify(includes))
             formData.append("excludes", JSON.stringify(excludes))
+            formData.append("start_date", JSON.stringify(startDateCSV))
+            formData.append("end_date", JSON.stringify(endDateCSV))
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/generateCSV');
@@ -1424,6 +1459,10 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
             csvIncludeDiv.removeChild(csvIncludeDiv.firstChild);
         }
         document.getElementById('btnCsvDownload').disabled = false
+
+        document.getElementById('startDateCSV').value = ''
+        document.getElementById('endDateCSV').value = ''
+        document.getElementById('dateErrorsCSV').innerHTML = ''
     }
 });
 
