@@ -241,7 +241,7 @@ def importKML(survey_id):
 
     return True
 
-def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
+def recluster_large_clusters(task_id,updateClassifications,session=None,reClusters = None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -251,13 +251,15 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             reClusters (list): An optional list of clusters that should be reclustered instead of all clusters over 50 images in length
 
         Returns:
-            removedClusters (list): List of cluster IDs that have been removed
             newClusters (list): List of cluster IDs that have been added
     '''
-    
-    downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
-    subq = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
+    if session == None:
+        session = db.session()
+    
+    downLabel = session.query(Label).get(GLOBALS.knocked_id)
+
+    subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
                 .join(Image,Cluster.images)\
                 .filter(Cluster.task_id==task_id)\
                 .group_by(Cluster.id)\
@@ -265,7 +267,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
 
     if reClusters==None:
         # Handle already-labelled clusters
-        clusters = db.session.query(Cluster)\
+        clusters = session.query(Cluster)\
                     .join(subq,subq.c.clusterID==Cluster.id)\
                     .filter(Cluster.task_id==task_id)\
                     .filter(subq.c.imCount>50)\
@@ -274,11 +276,11 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                     .distinct().all()
 
         for cluster in clusters:
-            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
+            images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
             
             for n in range(math.ceil(len(images)/50)):
                 newCluster = Cluster(task_id=task_id)
-                db.session.add(newCluster)
+                session.add(newCluster)
                 newCluster.labels=cluster.labels
                 start_index = (n)*50
                 
@@ -292,36 +294,35 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                     newCluster.classification = classifyCluster(newCluster)
 
             cluster.images = []
-            db.session.delete(cluster)
-            # db.session.commit()
+            session.delete(cluster)
+            # session.commit()
         
-        # db.session.commit()
+        # session.commit()
                 
-    clusters = db.session.query(Cluster)\
-                .join(subq,subq.c.clusterID==Cluster.id)\
-                .filter(Cluster.task_id==task_id)\
-                .filter(subq.c.imCount>50)\
-                .filter(~Cluster.labels.any())
+        clusters = session.query(Cluster)\
+                    .join(subq,subq.c.clusterID==Cluster.id)\
+                    .filter(Cluster.task_id==task_id)\
+                    .filter(subq.c.imCount>50)\
+                    .filter(~Cluster.labels.any())
+                    .all()
 
-    if reClusters != None:
-        clusters = clusters.filter(Cluster.id.in_(reClusters))
+    else:
+        clusters = reClusters
 
-    clusters = clusters.all()
-    classifier = db.session.query(Task).get(task_id).survey.classifier
-    removedClusters = [cluster.id for cluster in clusters]
+    classifier = session.query(Task).get(task_id).survey.classifier
     newClusters = []
 
     for cluster in clusters:
         currCluster = None
-        images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-        cameras = [str(r[0]) for r in db.session.query(Camera.id).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
+        images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+        cameras = [str(r[0]) for r in session.query(Camera.id).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
 
         prevLabels = {}
         for cam in cameras:
             prevLabels[cam] = []
                 
         for image in images:
-            detections = db.session.query(Detection)\
+            detections = session.query(Detection)\
                                 .filter(Detection.image_id==image.id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
@@ -354,7 +355,7 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                 if currCluster and updateClassifications:
                     currCluster.classification = classifyCluster(currCluster)
                 currCluster = Cluster(task_id=task_id)
-                db.session.add(currCluster)
+                session.add(currCluster)
                 newClusters.append(currCluster)
                 prevLabels = {}
                 for cam in cameras:
@@ -367,11 +368,12 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             currCluster.classification = classifyCluster(currCluster)
 
         cluster.images = []
-        db.session.delete(cluster)
+        session.delete(cluster)
     
-    db.session.commit()
+    if reClusters == None:
+        session.commit()
 
-    return removedClusters,[cluster.id for cluster in newClusters]
+    return newClusters
 
 @celery.task(bind=True,max_retries=29)
 def cluster_trapgroup(self,trapgroup_id):
