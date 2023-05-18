@@ -549,15 +549,9 @@ btnCsvDownload.addEventListener('click', ()=>{
         if(startDateCSV != ''){
             startDateCSV = startDateCSV + ' 00:00:00'
         }
-        else{
-            selectedStartDate = ''
-        }
 
         if(endDateCSV != ''){
             endDateCSV = endDateCSV + ' 23:59:59'
-        }
-        else{
-            endDateCSV = ''
         }
 
         if (noEmpties) {
@@ -579,7 +573,7 @@ btnCsvDownload.addEventListener('click', ()=>{
                 return function() {
                     if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);  
-                        if (reply=='success') {
+                        if (reply.status=='success') {
                             document.getElementById('modalPWH').innerHTML = 'Please Wait'
                             document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                             modalCSVGenerate.modal('hide')
@@ -588,7 +582,12 @@ btnCsvDownload.addEventListener('click', ()=>{
                             waitForDownload()
                         } else {
                             document.getElementById('modalPWH').innerHTML = 'Error'
-                            document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                            if(reply.message == null){
+                                document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'  
+                            }
+                            else{
+                                document.getElementById('modalPWB').innerHTML = reply.message
+                            }
                             modalPW.modal({keyboard: true});
                             document.getElementById('btnCsvDownload').disabled = false
                         }
@@ -618,7 +617,7 @@ function downloadPreFormattedCSV() {
         return function() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
-                if (reply=='success') {
+                if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
                     document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalResults.modal('hide')
@@ -627,7 +626,12 @@ function downloadPreFormattedCSV() {
                     waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
-                    document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    if(reply.message == null){
+                        document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'  
+                    }
+                    else{
+                        document.getElementById('modalPWB').innerHTML = reply.message
+                    }
                     modalPW.modal({keyboard: true});
                 }
             }

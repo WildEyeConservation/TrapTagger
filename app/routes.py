@@ -6392,15 +6392,28 @@ def generateCSV():
             includes = ast.literal_eval(request.form['includes'])
             excludes = ast.literal_eval(request.form['excludes'])
             start_date = ast.literal_eval(request.form['start_date'])
+            if start_date == '': start_date = None
             end_date = ast.literal_eval(request.form['end_date'])
+            if end_date == '': end_date = None
 
     except:
-        return json.dumps('error')
+        return json.dumps({'status':'error',  'message': None})
 
     for selectedTask in selectedTasks:
         task = db.session.query(Task).get(selectedTask)
         if (task == None) or (task.survey.user != current_user):
-            return json.dumps('error')
+            return json.dumps({'status':'error',  'message': None})
+
+        if start_date != None:
+            check_start = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp>start_date).first()
+            if check_start==None: 
+                return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
+        
+        if end_date != None:
+            check_end = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp<end_date).first()
+            if check_end==None:
+                return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
+          
 
     task = db.session.query(Task).get(selectedTasks[0])
     fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
@@ -6411,10 +6424,10 @@ def generateCSV():
     except:
         pass
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes))
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date))
     generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, startDate=start_date, endDate=end_date)
 
-    return json.dumps('success')
+    return json.dumps({'status':'success', 'message': None})
 
 @app.route('/generateCOCO', methods=['POST'])
 @login_required
