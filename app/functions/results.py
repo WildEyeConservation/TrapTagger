@@ -323,6 +323,8 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             df (pd.dataframe): task dataframe
     '''
 
+    task = db.session.query(Task).get(task_id)
+
     query = db.session.query( \
                 Image.id.label('image_id'),\
                 Image.filename.label('image_name'), \
@@ -369,7 +371,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Trapgroup.survey_id==task.survey_id)\
                 .filter(Detection.static==False)\
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                .filter(~Detection.status.in_(['deleted','hidden']))\
+                .filter(~Detection.status.in_(['deleted','hidden']))
 
     if len(include) != 0:
         query = query.filter(Label.id.in_(include))
@@ -396,7 +398,6 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         sq = sq.filter(Image.corrected_timestamp<=endDate)
 
     df = pd.read_sql(query.statement,db.session.bind)
-    task = db.session.query(Task).get(task_id)
 
     if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
         sq = sq.subquery()
