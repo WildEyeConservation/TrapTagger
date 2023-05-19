@@ -1,0 +1,117 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<br>
+<div class='row'>
+    <div class="col-lg-3" style="padding-left: 30px;">
+        <div class="card" style='min-height:400px' id="filterCard">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
+                <h3>Generate</h3>
+            </div>
+            <div class="card-body" id="filterCardDiv">
+                <div id="baseGenerateDiv">
+                    <h5 style="margin-bottom: 2px">Analysis</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which analysis you want to apply.</i></div>
+                    <div class="row">
+                        <div class='col-lg-8'>
+                            <select id="analysisSelector" class='form-control'>
+                                <option value="0">Test 1</option>
+                                <option value="1">Test 2</option>
+                                <option value="2">Test 3</option>
+                            </select>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to see results for.</i></div>
+                    <div id="surveySelect"></div>
+                    <div id="addSurveyTask"></div>
+                    <div id="surveysErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <br>
+                    
+                    <h5 style="margin-bottom: 2px">Species</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to see results for.</i></div>
+                    <div class="row">
+                        <div class='col-lg-8'>
+                            <select id="resultsSpeciesSelector" class='form-control'>
+                            </select>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Data Unit</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which data unit you would like to see results for.</i></div>
+                    <div class="row">
+                        <div class='col-lg-8'>
+                            <select id="resultsDataUnit" class='form-control'>
+                                <option value="1">Images</option>
+                                <option value="2">Clusters</option>
+                                <option value="3">Sightings</option>
+                            </select>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Date range</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see results for.</i></div>
+                    <div class="row">
+                        <div class='col-lg-5'>
+                            <label for="startDate">Start date:</label><br>
+                            <input type="date" id="startDate" name="startDate">
+                        </div>
+                        <div class='col-lg-5'>
+                            <label for="endDate">End date:</label><br>
+                            <input type="date" id="endDateCSV" name="endDate">
+                        </div>
+                    </div>
+                    <div id="dateErrorsCSV" style="font-size: 80%; color: #DF691A"></div>
+                </div>
+                <br>
+
+                <div id="genrateDiv"></div>
+                
+            </div>
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);"></div>          
+        </div>
+    </div>
+    <div class='col-lg-9' style="padding-right: 30px;">
+        <div class="card" style='min-height:400px' id="mainCard">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
+            <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+                <div class='col-lg-4'>
+                    <h3>Results</h3>
+                </div>
+            </div>
+            </div>
+
+            <div class="card-body" id="resultsCard">
+                <div id="resultsDiv" ></div>   
+            </div>
+    
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+            </div>  
+        </div>
+    </div>
+</div>
+<br>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
+<script src="js/camtrap.results.v{{ version }}.js"></script>
+{% endblock %}
