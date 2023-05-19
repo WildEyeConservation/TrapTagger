@@ -7676,5 +7676,22 @@ def getIndividualAssociations(individual_id, order):
 
     return json.dumps({'associations': reply, 'next': next_page, 'prev': prev_page})
 
+@app.route('/results')
+def results():
+    '''Renders the results page.'''
 
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    elif current_user.parent_id != None:
+        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+            return redirect(url_for('sightings'))
+        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('clusterID'))
+        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('individualID'))
+        else:
+            return redirect(url_for('index'))
+    else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        return render_template('html/results.html', title='Results', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
 
