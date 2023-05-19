@@ -684,6 +684,8 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
             if (incompleteIndividuals == 0) or (task.status=='Stopped'):
                 task.survey.status = 'Ready'
+                session.commit()
+        else:
             session.commit()
 
     except Exception as exc:

@@ -56,39 +56,75 @@ def cleanupWorkers(one, two):
     Reschedules all active Celery tasks on app shutdown. Docker stop flask, and then docker-compose down when message appears. Alternatively, if you do 
     not wish to reschedule the currently active Celery tasks, use docker kill flask instead.
     '''
-    
-    inspector = celery.control.inspect()
-    queues = {'default': 'traptagger_worker'}
-    for queue in queues:
+
+    # Stop all task consumption
+    allQueues = ['default'] #default needs to be first
+    allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+    allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+    for queue in allQueues:
         celery.control.cancel_consumer(queue)
 
-        app.logger.info('')
-        app.logger.info('*********************************************************')
-        app.logger.info('')
+    app.logger.info('')
+    app.logger.info('*********************************************************')
+    app.logger.info('')
+    app.logger.info('All queues cancelled. Revoking active tasks...')
+    
+    # revoke active and reserved tasks
+    active_tasks = []
+    inspector = celery.control.inspect()
+    inspector_reserved = inspector.reserved()
+    inspector_active = inspector.active()
+    defaultWorkerNames = ['default_worker','traptagger_worker']
 
-        active_tasks = []
-        inspector_active = inspector.active()
-        if inspector_active!=None:
-            for worker in inspector_active:
-                if queues[queue] in worker: active_tasks.extend(inspector_active[worker])
+    if inspector_active!=None:
+        for worker in inspector_active:
+            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_active[worker])
+            for task in inspector_active[worker]:
+                try:
+                    celery.control.revoke(task['id'], terminate=True)
+                except:
+                    pass
+    
+    if inspector_reserved != None:
+        for worker in inspector_reserved:
+            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_reserved[worker])
+            for task in inspector_reserved[worker]:
+                try:
+                    celery.control.revoke(task['id'], terminate=True)
+                except:
+                    pass
 
-        inspector_reserved = inspector.reserved()
-        if inspector_reserved != None:
-            for worker in inspector_reserved:
-                if queues[queue] in worker: active_tasks.extend(inspector_reserved[worker])
+    app.logger.info('Active tasks revoked. Flushing queues...')
 
-        for active_task in active_tasks:
-            for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
-                                        'app.functions.imports','app.functions.individualID','app.functions.results']:
-                if function_location in active_task['name']:
-                    module = importlib.import_module(function_location)
-                    function_name = re.split(function_location+'.',active_task['name'])[1]
-                    active_function = getattr(module, function_name)
+    # Flush all other (non-default) queues
+    redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+    for queue in allQueues:
+        if queue != 'default':
+            while True:
+                task = redisClient.blpop(queue, timeout=1)
+                if not task:
                     break
-            kwargs = active_task['kwargs']
-            priority = active_task['delivery_info']['priority']
-            app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
-            active_function.apply_async(kwargs=kwargs, queue=queue, priority=priority)
+
+    app.logger.info('Queues flushed. Rescheduling active tasks...')
+
+    # Reschedule default queue tasks
+    for active_task in active_tasks:
+        for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
+                                    'app.functions.imports','app.functions.individualID','app.functions.results']:
+            if function_location in active_task['name']:
+                module = importlib.import_module(function_location)
+                function_name = re.split(function_location+'.',active_task['name'])[1]
+                active_function = getattr(module, function_name)
+                break
+        kwargs = active_task['kwargs']
+        # priority = active_task['delivery_info']['priority']
+        app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
+        active_function.apply_async(kwargs=kwargs, queue='default') #, priority=priority)
+
+    #Ensure redis db is saved
+    app.logger.info('Saving redis db...')
+    redisClient.save()
+    app.logger.info('Redis db saved')
 
     app.logger.info('')
     app.logger.info('*********************************************************')
@@ -180,8 +216,7 @@ def getQueueLengths(redisClient):
         print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
-    for classifier in db.session.query(Classifier).all():
-        queue = classifier.name
+    for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
         queueLength = redisClient.llen(queue)
         print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength

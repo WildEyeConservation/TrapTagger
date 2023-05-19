@@ -303,7 +303,7 @@ def recluster_large_clusters(task_id,updateClassifications,session=None,reCluste
                     .join(subq,subq.c.clusterID==Cluster.id)\
                     .filter(Cluster.task_id==task_id)\
                     .filter(subq.c.imCount>50)\
-                    .filter(~Cluster.labels.any())
+                    .filter(~Cluster.labels.any())\
                     .all()
 
     else:
