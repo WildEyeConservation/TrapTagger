@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp
-from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals
+from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
 from app.functions.results import resetImageDownloadStatus
 from app.functions.results import resetVideoDownloadStatus
 import GLOBALS
@@ -558,7 +558,7 @@ def wrapUpTask(self,task_id):
                                             .filter(Individual.name!='unidentifiable')\
                                             .filter(IndSimilarity.score==None)\
                                             .distinct().count() 
-
+            if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
             if incompleteIndividuals == 0:
                 task.survey.status = 'Ready'
 
