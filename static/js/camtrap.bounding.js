@@ -137,13 +137,16 @@ modalWait.on('hidden.bs.modal', function(){
 modalNote.on('shown.bs.modal', function(){
     /** Set the modalActive state, and focus on the notebox. */
     modalActive = true;
+    document.getElementById('notebox').value = clusters['map1'][clusterIndex['map1']].notes
+    var length = document.getElementById('notebox').value.length;
+    document.getElementById('notebox').setSelectionRange(length, length);
     document.getElementById('notebox').focus()
-    document.getElementById('notebox').select()
 });
 modalNote.on('hidden.bs.modal', function(){
     /** Clear the notebox on close. */
     modalActive = false;
     document.getElementById('notif').innerHTML = ""
+    document.getElementById('notebox').value = ""
 });
 
 function updateTargetRect (e) {
