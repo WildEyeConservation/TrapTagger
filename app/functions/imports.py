@@ -1311,7 +1311,12 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     print('Downloading {}'.format(filename))
                     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
 
-                    hash = generate_raw_image_hash(temp_file.name)
+                    try:
+                        hash = generate_raw_image_hash(temp_file.name)
+                        assert hash
+                    except:
+                        app.logger.info("Skipping {} could not generate hash...".format(dirpath+'/'+filename))
+                        continue
                     
                     try:
                         print('Extracting time stamp from {}'.format(filename))
