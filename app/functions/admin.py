@@ -246,8 +246,9 @@ def stop_task(self,task_id):
             db.session.commit()
             if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[task_id]['job'].release()
 
-            abandoned_jobs = db.session.query(Turkcode) \
+            abandoned_jobs = db.session.query(Turkcode,User,Task) \
                                 .join(User, User.username==Turkcode.user_id) \
+                                .join(Task)\
                                 .filter(User.parent_id!=None) \
                                 .filter(~User.passed.in_(['cTrue','cFalse'])) \
                                 .filter(Turkcode.task_id==int(task_id)) \

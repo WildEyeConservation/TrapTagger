@@ -225,6 +225,7 @@ def getQueueLengths(redisClient):
 
 def getImagesProcessing():
     '''Gets the quantities of images being processed'''
+    commit = False
     images_processing = {'total': 0, 'celery': 0}
     surveys = db.session.query(Survey).filter(Survey.images_processing!=0).distinct().all()
     for survey in surveys:
@@ -236,8 +237,9 @@ def getImagesProcessing():
                 if survey.classifier.name not in images_processing.keys(): images_processing[survey.classifier.name] = 0
                 images_processing[survey.classifier.name] += survey.images_processing
             survey.processing_initialised = True
-            db.session.commit()
-    return images_processing
+            commit = True
+            # db.session.commit()
+    return images_processing, commit
 
 def getInstanceCount(client,queue,ami,host_ip,instance_types):
     '''Returns the count of running instances for the given queue'''
@@ -428,7 +430,7 @@ def importMonitor():
         if queues:
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
             client = boto3.client('ec2',region_name=Config.AWS_REGION)
-            images_processing = getImagesProcessing()
+            images_processing, commit = getImagesProcessing()
             if Config.DEBUGGING: print('Images being imported: {}'.format(images_processing))
 
             current_instances = {}
@@ -522,8 +524,9 @@ def importMonitor():
         # self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
+        if commit: db.session.commit()
         db.session.remove()
-        countdown = 10 - (datetime.utcnow()-startTime).total_seconds()
+        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         importMonitor.apply_async(queue='priority', priority=0, countdown=countdown)
 
@@ -1471,30 +1474,33 @@ def retryTime(retries):
     if countdown > 3600: countdown=3600
     return countdown
 
-def createTurkcodes(number_of_workers, task_id):
+def createTurkcodes(number_of_workers, task_id, session):
     '''Creates requested number of turkcodes (jobs) for the specified task'''
     
-    turkcodes = []
+    user_ids = []
     for n in range(number_of_workers):
-        user_id = randomString(24)
-        check = db.session.query(Turkcode).filter(Turkcode.user_id==user_id).first()
-        if not check:
+        user_ids.append(randomString(24))
+
+    turkcodes = []
+    checks = [r[0] for r in session.query(Turkcode.user_id).filter(Turkcode.user_id.in_(user_ids)).all()]
+    for user_id in user_ids:
+        if user_id not in checks:
             turkcode = Turkcode(user_id=user_id, task_id=task_id, active=True)
-            db.session.add(turkcode)
+            session.add(turkcode)
             turkcodes.append({'user_id':user_id})
-    # db.session.commit()
+
     return turkcodes
 
-def deleteTurkcodes(number_of_jobs, jobs, task_id):
+def deleteTurkcodes(number_of_jobs, jobs, task_id, session):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
     if not populateMutex(int(task_id)): return jobs
     GLOBALS.mutex[int(task_id)]['job'].acquire()
-    db.session.commit()
-    turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
+    session.commit()
+    turkcodes = session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
     for turkcode in turkcodes:
-        db.session.delete(turkcode)
-    db.session.commit()
+        session.delete(turkcode)
+    session.commit()
     GLOBALS.mutex[int(task_id)]['job'].release()
     return jobs
 
@@ -1603,39 +1609,40 @@ def updateLabelCompletionStatus(task_id):
 
     return True
 
-def resolve_abandoned_jobs(abandoned_jobs):
+def resolve_abandoned_jobs(abandoned_jobs,session=None):
     '''Cleans up jobs that have been abandoned.'''
+
+    if session==None:
+        session = db.session()
     
-    for job in abandoned_jobs:
-        user = db.session.query(User).filter(User.username==job.user_id).first()
-        task_id = job.task_id
+    for item in abandoned_jobs:
+        job = item[0]
+        user = item[1]
+        task = item[2]
 
-        if user:
-            if ('-4' in job.task.tagging_level) and (job.task.survey.status=='indprocessing'):
-                app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
-                from app.functions.individualID import calculate_individual_similarities
-                calculate_individual_similarities.delay(task_id=job.task_id,species=re.split(',',job.task.tagging_level)[1],user_ids=[user.id])
-            elif '-5' in job.task.tagging_level:
-                #flush allocations
-                allocateds = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
+        if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
+            app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
+            from app.functions.individualID import calculate_individual_similarities
+            calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
+        elif '-5' in task.tagging_level:
+            #flush allocations
+            allocateds = session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
+            for allocated in allocateds:
+                allocated.allocated = None
+                allocated.allocation_timestamp = None
 
-                allocateds = db.session.query(Individual).filter(Individual.allocated==user.id).all()
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
+            allocateds = session.query(Individual).filter(Individual.allocated==user.id).all()
+            for allocated in allocateds:
+                allocated.allocated = None
+                allocated.allocation_timestamp = None
 
-            for trapgroup in user.trapgroup:
-                trapgroup.user_id = None
+        user.trapgroup = []
+        user.passed = 'cFalse'
 
-            user.passed = 'cFalse'
-
-            if int(task_id) in GLOBALS.mutex.keys():
-                GLOBALS.mutex[int(task_id)]['user'].pop(user.id, None)
+        if task.id in GLOBALS.mutex.keys():
+            GLOBALS.mutex[task.id]['user'].pop(user.id, None)
             
-    # db.session.commit()
+    # session.commit()
 
     return True
 

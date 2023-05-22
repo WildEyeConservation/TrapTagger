@@ -2482,10 +2482,9 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
                         .filter(Video.downloaded!=False)\
                         .all()
         
-        for chunk in chunker(videos,10000):
-            for video in chunk:
-                video.downloaded = False
-            db.session.commit()
+        for video in videos:
+            video.downloaded = False
+        db.session.commit()
 
         if then_set:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)

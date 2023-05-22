@@ -20,8 +20,7 @@ from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels,
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
-from app.functions.results import resetImageDownloadStatus
-from app.functions.results import resetVideoDownloadStatus
+from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -449,56 +448,34 @@ def launch_task(self,task_id):
     return True
 
 # @celery.task(bind=True,max_retries=29,ignore_result=True)
-def freeUpWork(task_id):
+def freeUpWork(task,session):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
-    try:
-        task = db.session.query(Task).get(task_id)
+    if '-5' not in task.tagging_level:
+        clusterSQ = db.session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
+                                .join(Camera)\
+                                .join(Image)\
+                                .join(Cluster,Image.clusters)\
+                                .filter(Cluster.task_id == task_id) \
+                                .subquery()
 
-        if '-5' not in task.tagging_level:
-            trapgroups = db.session.query(Trapgroup) \
-                            .join(Camera) \
-                            .join(Image) \
-                            .join(Cluster, Image.clusters) \
-                            .filter(Cluster.task_id == task_id) \
-                            .filter(Trapgroup.active == False) \
-                            .filter(Trapgroup.processing == False) \
-                            .filter(Trapgroup.queueing == False)\
-                            .filter(Cluster.examined==False)\
-                            .all()
+        trapgroups = session.query(Trapgroup) \
+                        .join(Camera) \
+                        .join(Image) \
+                        .join(Cluster, Image.clusters) \
+                        .join(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
+                        .filter(Cluster.task_id == task_id) \
+                        .filter(Trapgroup.active == False) \
+                        .filter(Trapgroup.processing == False) \
+                        .filter(Trapgroup.queueing == False)\
+                        .filter(Cluster.examined==False)\
+                        .filter(clusterSQ<datetime.utcnow()-timedelta(minutes=2))\
+                        .all()
 
-            if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
+        if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
 
-            for trapgroup in trapgroups:
-                most_recent = db.session.query(Cluster) \
-                                        .join(Image, Cluster.images) \
-                                        .join(Camera) \
-                                        .filter(Camera.trapgroup_id == trapgroup.id) \
-                                        .filter(Cluster.task_id == task_id) \
-                                        .filter(Cluster.timestamp!=None) \
-                                        .order_by(Cluster.timestamp.desc()) \
-                                        .first()
-
-                if most_recent:
-                    most_recent_time = most_recent.timestamp
-                    if (datetime.utcnow() - most_recent_time) > timedelta(minutes=2):
-                        trapgroup.active = True
-                        db.session.commit()
-                else:
-                    trapgroup.active = True
-
-        # db.session.commit()
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        # self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    # finally:
-    #     db.session.remove()
+        for trapgroup in trapgroups:
+            trapgroup.active = True
 
     return True
 
@@ -595,190 +572,123 @@ def wrapUpTask(self,task_id):
 
     return True
 
-def manage_task(task_id):
+def manage_task(task,session):
     '''Manages an active task by controlling the number of active jobs, cleaning up item statuses, and even cleans up tasks when annotation is complete.'''
 
-    try:
-        task = db.session.query(Task).get(task_id)
-        taggingLevel = task.tagging_level
-        survey_id = task.survey_id
+    task_id = task.id
+    taggingLevel = task.tagging_level
+    survey_id = task.survey_id
 
-        if not populateMutex(int(task_id)):
-            db.session.remove()
-            return True
+    if not populateMutex(int(task_id)):
+        return True
 
-        #Look for abandoned jobs
-        abandoned_jobs = db.session.query(Turkcode)\
-                                .join(User,User.username==Turkcode.user_id)\
-                                .filter(User.parent_id!=None)\
-                                .filter(~User.passed.in_(['cTrue','cFalse']))\
-                                .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
-                                .filter(Turkcode.task_id==task_id)\
-                                .filter(Turkcode.active==False)\
-                                .all()
+    #Manage number of workers
+    if '-5' in taggingLevel:
+        task_ids = [r.id for r in task.sub_tasks]
+        task_ids.append(task.id)
+        tL = re.split(',',taggingLevel)
+        species = tL[1]
+        OtherIndividual = alias(Individual)
 
-        if abandoned_jobs: resolve_abandoned_jobs(abandoned_jobs)
+        sq1 = session.query(Individual.id.label('indID1'))\
+                        .join(Task,Individual.tasks)\
+                        .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+                        .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+                        .filter(OtherIndividual.c.active==True)\
+                        .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(IndSimilarity.score>=tL[2])\
+                        .filter(IndSimilarity.skipped==False)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.species==species)\
+                        .filter(Individual.active==True)\
+                        .filter(Individual.name!='unidentifiable')\
+                        .group_by(Individual.id)\
+                        .subquery()
 
-        # Ensure there are no locked-out individuals
-        if '-5' in taggingLevel:
-            allocateds = db.session.query(IndSimilarity)\
-                                .join(User)\
-                                .filter(User.passed.in_(['cTrue','cFalse']))\
-                                .distinct().all()
-            
-            for allocated in allocateds:
-                allocated.allocated = None
-                allocated.allocation_timestamp = None
+        sq2 = session.query(Individual.id.label('indID2'))\
+                        .join(Task,Individual.tasks)\
+                        .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+                        .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+                        .filter(OtherIndividual.c.active==True)\
+                        .filter(OtherIndividual.c.name!='unidentifiable')\
+                        .filter(IndSimilarity.score>=tL[2])\
+                        .filter(IndSimilarity.skipped==False)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(Individual.species==species)\
+                        .filter(Individual.active==True)\
+                        .filter(Individual.name!='unidentifiable')\
+                        .group_by(Individual.id)\
+                        .subquery()
 
-            allocateds = db.session.query(Individual)\
-                                .join(User, User.id==Individual.allocated)\
-                                .filter(User.passed.in_(['cTrue','cFalse']))\
-                                .distinct().all()
-            
-            for allocated in allocateds:
-                allocated.allocated = None
-                allocated.allocation_timestamp = None
+        individuals_remaining = session.query(Individual)\
+                        .join(Task,Individual.tasks)\
+                        .outerjoin(sq1,sq1.c.indID1==Individual.id)\
+                        .outerjoin(sq2,sq2.c.indID2==Individual.id)\
+                        .filter(Task.id.in_(task_ids))\
+                        .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
+                        .distinct().count()
+        
+        max_workers_possible = individuals_remaining
 
-            # db.session.commit()
+    else:
+        max_workers_possible = session.query(Trapgroup) \
+                        .join(Camera) \
+                        .join(Image) \
+                        .join(Cluster, Image.clusters) \
+                        .filter(Cluster.task_id == task_id) \
+                        .filter(Cluster.examined==False)\
+                        .filter(Trapgroup.active == True) \
+                        .distinct().count()
 
-        #Catch trapgroups that are still allocated to users that are finished
-        trapgroups = db.session.query(Trapgroup)\
-                            .join(User)\
-                            .filter(Trapgroup.survey_id==survey_id)\
-                            .filter(User.passed.in_(['cTrue','cFalse']))\
-                            .distinct().all()
+    if max_workers_possible != 1:
+        max_workers_possible = math.floor(max_workers_possible * 0.9)
+    else:
+        max_workers_possible = 1
 
-        for trapgroup in trapgroups:
-            trapgroup.user_id = None
-            # db.session.commit()
-
-        #Manage number of workers
-        if '-5' in taggingLevel:
-            task_ids = [r.id for r in task.sub_tasks]
-            task_ids.append(task.id)
-            tL = re.split(',',taggingLevel)
-            species = tL[1]
-            OtherIndividual = alias(Individual)
-
-            sq1 = db.session.query(Individual.id.label('indID1'))\
-                            .join(Task,Individual.tasks)\
-                            .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                            .filter(OtherIndividual.c.active==True)\
-                            .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>=tL[2])\
-                            .filter(IndSimilarity.skipped==False)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .group_by(Individual.id)\
-                            .subquery()
-
-            sq2 = db.session.query(Individual.id.label('indID2'))\
-                            .join(Task,Individual.tasks)\
-                            .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                            .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                            .filter(OtherIndividual.c.active==True)\
-                            .filter(OtherIndividual.c.name!='unidentifiable')\
-                            .filter(IndSimilarity.score>=tL[2])\
-                            .filter(IndSimilarity.skipped==False)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.active==True)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .group_by(Individual.id)\
-                            .subquery()
-
-            individuals_remaining = db.session.query(Individual)\
-                            .join(Task,Individual.tasks)\
-                            .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                            .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
-                            .distinct().count()
-            
-            max_workers_possible = individuals_remaining
-
-        else:
-            max_workers_possible = db.session.query(Trapgroup) \
-                            .join(Camera) \
-                            .join(Image) \
-                            .join(Cluster, Image.clusters) \
-                            .filter(Cluster.task_id == task_id) \
-                            .filter(Cluster.examined==False)\
-                            .filter(Trapgroup.active == True) \
-                            .distinct().count()
-
-        if max_workers_possible != 1:
-            max_workers_possible = math.floor(max_workers_possible * 0.9)
-        else:
-            max_workers_possible = 1
-
-        #Check job count
-        task_jobs = db.session.query(Turkcode) \
-                            .join(User, User.username==Turkcode.user_id) \
-                            .filter(User.parent_id!=None) \
-                            .filter(~User.passed.in_(['cTrue','cFalse'])) \
-                            .filter(Turkcode.task_id==task_id) \
-                            .filter(Turkcode.active==False) \
-                            .all()
-
-        task_jobs.extend(db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).all())
-
-        if len(task_jobs) < max_workers_possible:
-            if Config.DEBUGGING: app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
-            createTurkcodes(max_workers_possible - len(task_jobs), task_id)
-        elif (len(task_jobs) > max_workers_possible):
-            if Config.DEBUGGING: app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
-            deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id)
-
-        #Check if finished:
-        if '-5' in taggingLevel:
-            clusters_remaining = individuals_remaining
-        else:
-            clusters_remaining = db.session.query(Cluster)\
-                            .filter(Cluster.task_id == task_id)\
-                            .filter(Cluster.examined==False)\
-                            .count()
-
-        task.clusters_remaining = clusters_remaining
-
-        if clusters_remaining==0:
-            processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.processing==True).first()
-            queueing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.queueing==True).first()
-
-            active_jobs = db.session.query(Turkcode) \
+    #Check job count
+    task_jobs = session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).all()
+    active_jobs = session.query(Turkcode) \
                                 .join(User, User.username==Turkcode.user_id) \
                                 .filter(User.parent_id!=None) \
                                 .filter(~User.passed.in_(['cTrue','cFalse'])) \
                                 .filter(Turkcode.task_id==task_id) \
                                 .filter(Turkcode.active==False) \
-                                .first()
+                                .all()
+    task_jobs.extend(active_jobs)
 
-            if (not processing) and (not queueing) and (not active_jobs):
-                app.logger.info('Task finished.')
-                task.status = 'Wrapping Up'
-                db.session.commit()
-                wrapUpTask.delay(task_id=task_id)
+    if len(task_jobs) < max_workers_possible:
+        if Config.DEBUGGING: app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
+        createTurkcodes(max_workers_possible - len(task_jobs), task_id, session)
+    elif (len(task_jobs) > max_workers_possible):
+        if Config.DEBUGGING: app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
+        deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id, session)
 
-        else:
-            if len(task_jobs) == 0:
-                freeUpWork(task_id=task_id)
+    #Check if finished:
+    if '-5' in taggingLevel:
+        clusters_remaining = individuals_remaining
+    else:
+        clusters_remaining = session.query(Cluster)\
+                        .filter(Cluster.task_id == task_id)\
+                        .filter(Cluster.examined==False)\
+                        .count()
 
-        db.session.commit()
+    task.clusters_remaining = clusters_remaining
 
-    except Exception:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
+    if (clusters_remaining==0) and (len(active_jobs)==0):
+        processing = session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Trapgroup.processing==True,Trapgroup.queueing==True)).first()
 
-    finally:
-        db.session.remove()
+        if not processing:
+            app.logger.info('Task finished.')
+            task.status = 'Wrapping Up'
+            # session.commit()
+            # wrapUpTask.delay(task_id=task_id)
+            return True
 
-    return True
+    # else:
+    #     if len(task_jobs) == 0:
+    #         freeUpWork(task_id=task_id)
+
+    return False
 
 @celery.task(ignore_result=True)
 def manageTasks():
@@ -786,21 +696,62 @@ def manageTasks():
 
     try:
         startTime = datetime.utcnow()
+        session = db.session()
 
         # Check Knockdown for timeout
-        tasks = db.session.query(Task)\
+        tasks = session.query(Task)\
                         .join(Survey)\
                         .join(User)\
                         .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
                         .filter(Task.status=='Knockdown Analysis')\
                         .distinct().all()
+        
         for task in tasks:
             task.status = 'successInitial'
-            db.session.commit()
+
+        #Look for abandoned jobs
+        abandoned_jobs = session.query(Turkcode,User,Task)\
+                                .join(User,User.username==Turkcode.user_id)\
+                                .join(Task)\
+                                .filter(User.parent_id!=None)\
+                                .filter(~User.passed.in_(['cTrue','cFalse']))\
+                                .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
+                                .filter(Turkcode.active==False)\
+                                .all()
+
+        if abandoned_jobs: resolve_abandoned_jobs(abandoned_jobs,session)
+
+        # Ensure there are no locked-out individuals
+        allocateds = session.query(IndSimilarity)\
+                            .join(User)\
+                            .filter(User.passed.in_(['cTrue','cFalse']))\
+                            .distinct().all()
+        
+        for allocated in allocateds:
+            allocated.allocated = None
+            allocated.allocation_timestamp = None
+
+        allocateds = session.query(Individual)\
+                            .join(User, User.id==Individual.allocated)\
+                            .filter(User.passed.in_(['cTrue','cFalse']))\
+                            .distinct().all()
+        
+        for allocated in allocateds:
+            allocated.allocated = None
+            allocated.allocation_timestamp = None
+
+        #Catch trapgroups that are still allocated to users that are finished
+        trapgroups = session.query(Trapgroup)\
+                            .join(User)\
+                            .filter(User.passed.in_(['cTrue','cFalse']))\
+                            .distinct().all()
+
+        for trapgroup in trapgroups:
+            trapgroup.user_id = None
 
         Owner = alias(User)
         Worker = alias(User)
-        tasks = [r[0] for r in db.session.query(Task.id)\
+        tasks = session.query(Task)\
                         .join(Survey)\
                         .join(Owner,Owner.c.id==Survey.user_id)\
                         .outerjoin(workersTable,Owner.c.id==workersTable.c.user_id)\
@@ -813,14 +764,21 @@ def manageTasks():
                             Worker.c.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
                             ))\
                         .filter(Task.status=='PROGRESS')\
-                        .distinct().all()]
+                        .distinct().all()
         print('{} tasks are currently active.'.format(len(tasks)))
 
-        pool = Pool(processes=4)
-        for task_id in tasks:
-            pool.apply_async(manage_task,(task_id,))
-        pool.close()
-        pool.join()
+        # pool = Pool(processes=4)
+        wrapUps = []
+        for task in tasks:
+            if manage_task(task,session): wrapUps.append(task.id)
+            # pool.apply_async(manage_task,(task_id,))
+        # pool.close()
+        # pool.join()
+
+        session.commit()
+
+        for task_id in wrapUps:
+            wrapUpTask.delay(task_id=task_id)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -830,9 +788,9 @@ def manageTasks():
         app.logger.info(' ')
 
     finally:
-        db.session.remove()
+        session.close()
         if Config.DEBUGGING: app.logger.info('Manage tasks completed in {}'.format(datetime.utcnow()-startTime))
-        countdown = 10 - (datetime.utcnow()-startTime).total_seconds()
+        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         manageTasks.apply_async(queue='priority', priority=0, countdown=countdown)
         
@@ -1410,33 +1368,33 @@ def manageDownloads():
     try:
         startTime = datetime.utcnow()
 
-        surveys = db.session.query(Survey)\
+        tasks = [r[0] for r in db.session.query(Task.id)\
+                            .join(Survey)\
                             .join(User)\
                             .join(Trapgroup)\
                             .join(Camera)\
                             .join(Image)\
                             .filter(Image.downloaded==True)\
                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .distinct().all()
+                            .filter(~Task.status.in_(['Processing','Preparing Download']))
+                            .distinct().all()]
         
-        for survey in surveys:
-            check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
-            if check==None:
-                resetImageDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None, include_frames=True)
+        for task in tasks:
+            resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
-        surveys = db.session.query(Survey)\
+        tasks = db.session.query(Task)\
+                            .join(Survey)\
                             .join(User)\
                             .join(Trapgroup)\
                             .join(Camera)\
                             .join(Video)\
                             .filter(Video.downloaded==True)\
                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+                            .filter(~Task.status.in_(['Processing','Preparing Download']))
                             .distinct().all()
         
-        for survey in surveys:
-            check = db.session.query(Task).filter(Task.survey==survey).filter(Task.status.in_(['Processing','Preparing Download'])).first()
-            if check==None:
-                resetVideoDownloadStatus.delay(task_id=survey.tasks[-1].id,then_set=False,labels=None,include_empties=None, include_frames=True)
+        for task in tasks:
+            resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
     except Exception as exc:
         app.logger.info(' ')
