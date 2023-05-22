@@ -2860,58 +2860,178 @@ def getHomeSurveys():
     '''Returns a paginated list of all surveys and their associated tasks for the current user.'''
     
     if current_user.admin:
-        survey_list = []
-        
-        # check for uploads and include those first
-        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='Uploading').distinct().all()
-        for survey in uploads:
-            survey_list.append(getSurveyInfo(survey))
-
         page = request.args.get('page', 1, type=int)
         order = request.args.get('order', 5, type=int)
         search = request.args.get('search', '', type=str)
         current_downloads = request.args.get('downloads', '', type=str)
 
-        surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
+        siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+        availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
+                                            .join(Turkcode)\
+                                            .join(User, User.username==Turkcode.user_id)\
+                                            .filter(User.parent_id!=None)\
+                                            .filter(Turkcode.tagging_time!=None)\
+                                            .group_by(Task.id).subquery()
 
+        survey_base_query = db.session.query(
+                                    Survey.id,
+                                    Survey.name,
+                                    Survey.description,
+                                    Survey.image_count,
+                                    Survey.video_count,
+                                    Survey.frame_count,
+                                    Survey.status,
+                                    siteSQ.c.count,
+                                    Task.id,
+                                    Task.name,
+                                    Task.status,
+                                    Task.complete,
+                                    Task.tagging_level,
+                                    Task.cluster_count,
+                                    Task.clusters_remaining,
+                                    availableJobsSQ.c.count,
+                                    completeJobsSQ.c.count
+                                ).outerjoin(Task,Task.survey_id==Survey.id)\
+                                .join(siteSQ,siteSQ.c.id==Survey.id)\
+                                .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
+                                .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                                .filter(Survey.user_id==current_user.id)\
+                                .filter(Task.name!='default')\
+                                .filter(~Task.name.contains('_o_l_d_'))
+
+        # uploading/downloading surveys always need to be on the page
         if current_downloads != '':
-            downloads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name.in_(re.split('[,]',current_downloads))).distinct().all()
-            surveys = surveys.filter(~Survey.id.in_([r.id for r in downloads]))
-            for survey in downloads:
-                survey_list.append(getSurveyInfo(survey))
+            compulsory_surveys = survey_base_query.filter(or_(
+                Survey.status=='Uploading',
+                Survey.name.in_(re.split('[,]',current_downloads))
+            ))
+        else:
+            compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading')
+        compulsory_surveys = compulsory_surveys.all()
 
+        # digest survey data
+        survey_data = {}
+        for item in compulsory_surveys:
+            if item[0] not in survey_data.keys():
+                surveyStatus = item[6]
+                if surveyStatus in ['indprocessing','Preparing Download']:
+	                surveyStatus = 'processing'
+                survey_data[item[0]] = {'id': item[0]
+                                        'name': item[1], 
+                                        'description': item[2], 
+                                        'numImages': item[3], 
+                                        'numVideos': item[4], 
+                                        'numFrames': item[5], 
+                                        'status': surveyStatus, 
+                                        'numTrapgroups': item[7], 
+                                        'tasks': []}
+            survey_data[item[0]]['tasks'].append({'id': item[8],
+                                                'name': item[9],
+                                                'status': item[10],
+                                                'complete': item[11],
+                                                'tagging_level': item[12],
+                                                'total': item[13],
+                                                'completed': item[13]-item[14],
+                                                'remaining': item[14],
+                                                'jobsAvailable': item[15],
+                                                'jobsCompleted': item[16]})
+
+        # add all the searches to the base query
         searches = re.split('[ ,]',search)
         for search in searches:
-            surveys = surveys.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+            survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
+        # add the order to the base query
         if order == 1:
             #Survey date
-            surveys = surveys.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
+            survey_base_query = survey_base_query.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
         elif order == 2:
             #Survey add date
-            surveys = surveys.order_by(Survey.id)
+            survey_base_query = survey_base_query.order_by(Survey.id)
         elif order == 3:
             #Alphabetical
-            surveys = surveys.order_by(Survey.name)
+            survey_base_query = survey_base_query.order_by(Survey.name)
         elif order == 4:
             #Survey date descending
-            surveys = surveys.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+            survey_base_query = survey_base_query.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
         elif order == 5:
             #Add date descending
-            surveys = surveys.order_by(desc(Survey.id))
+            survey_base_query = survey_base_query.order_by(desc(Survey.id))
 
-        count = 5-len(survey_list)
+        count = 5-len(survey_data)
         if count > 0:
-            surveys = surveys.distinct().paginate(page, count, False)
+            surveys = survey_base_query.all()
 
-            for survey in surveys.items:
-                survey_list.append(getSurveyInfo(survey))
+            # digest the rest of the data
+            survey_data2 = {}
+            for item in surveys:
+                if item[0] not in survey_data2.keys():
+                    surveyStatus = item[6]
+                    if surveyStatus in ['indprocessing','Preparing Download']:
+                        surveyStatus = 'processing'
+                    survey_data2[item[0]] = {'id': item[0]
+                                            'name': item[1], 
+                                            'description': item[2], 
+                                            'numImages': item[3], 
+                                            'numVideos': item[4], 
+                                            'numFrames': item[5], 
+                                            'status': surveyStatus, 
+                                            'numTrapgroups': item[7], 
+                                            'tasks': []}
+                survey_data2[item[0]]['tasks'].append({'id': item[8],
+                                                    'name': item[9],
+                                                    'status': item[10],
+                                                    'complete': item[11],
+                                                    'tagging_level': item[12],
+                                                    'total': item[13],
+                                                    'completed': item[13]-item[14],
+                                                    'remaining': item[14],
+                                                    'jobsAvailable': item[15],
+                                                    'jobsCompleted': item[16]})
 
-            next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order, downloads=current_downloads) if surveys.has_next else None
-            prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order, downloads=current_downloads) if surveys.has_prev else None
+            survey_ids = list(survey_data2.keys())
+            survey_ids = survey_ids[(page-1)*count:page*count]
+
+            for survey_id in survey_ids:
+                survey_data[survey_id] = survey_data2[survey_id]
+
+            if (page*count) >= len(survey_ids):
+                has_next = False
+            else:
+                has_next = True
+
+            if (page-1)*count > 0:
+                has_prev = True
+            else:
+                has_prev = False
+
+            next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads) if has_next else None
+            prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads) if has_prev else None
+
         else:
             next_url = None
             prev_url = None
+
+        # Handle disabled launches & translate to legacy client format
+        survey_list = []
+        for survey_id in survey_data:
+            survey = survey_data[survey_id]
+
+            disabledLaunch='false'
+            for task in survey['tasks']:
+                if task['status'].lower() not in Config.TASK_READY_STATUSES:
+                    disabledLaunch='true'
+
+                if ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
+                    dbTask = db.session.query(Task).get(task['id'])
+                    if task.sub_tasks:
+                        task['status'] = 'Processing'
+
+            for task in survey['tasks']:
+                task['disabledLaunch'] = disabledLaunch
+
+            survey_list.append(survey)
 
         current_user.last_ping = datetime.utcnow()
         db.session.commit()

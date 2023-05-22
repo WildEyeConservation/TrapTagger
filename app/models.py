@@ -334,6 +334,8 @@ class Cluster(db.Model):
     classification = db.Column(db.String(64), index=True)
     examined = db.Column(db.Boolean, default=False, index=True)
     skipped = db.Column(db.Boolean, default=False, index=True)
+    cluster_count = db.Column(db.Integer, index=False)
+    clusters_remaining = db.Column(db.Integer, index=False)
     images = db.relationship('Image', secondary=images, lazy=True, backref=db.backref('clusters', lazy=True))
     required_images = db.relationship('Image', secondary=requiredimagestable, lazy=True, backref=db.backref('required_for', lazy=True))
     tags = db.relationship('Tag', secondary=tags, lazy=True, backref=db.backref('clusters', lazy=True))
