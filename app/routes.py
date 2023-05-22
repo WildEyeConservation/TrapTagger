@@ -344,24 +344,6 @@ def MturkStatus():
     else:
         return redirect(url_for('jobs'))
 
-@app.route('/updateTaskProgressBar', methods=['POST'])
-@login_required
-def updateTaskProgressBar():
-    '''Returns a dictionary of data required to update a given task's progress bar.'''
-    
-    reply = []
-    task_ids = ast.literal_eval(request.form['task_ids'])
-
-    if current_user.admin or (current_user.parent_id == None):
-
-        for task_id in task_ids:
-            completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task_id)
-            reply.append({'completed':completed, 'total':total, 'remaining':remaining, 'id':task_id, 'jobsCompleted':jobsCompleted, 'jobsAvailable':jobsAvailable})
-        
-        return json.dumps(reply)
-
-    return redirect(url_for('jobs'))
-
 @app.route('/takeJob/<task_id>')
 @login_required
 def takeJob(task_id):
@@ -2866,8 +2848,8 @@ def getHomeSurveys():
         current_downloads = request.args.get('downloads', '', type=str)
 
         siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
-        availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
-        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
+        availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.user_id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.user_id)-Task.jobs_finished).label('count'))\
                                             .join(Turkcode)\
                                             .join(User, User.username==Turkcode.user_id)\
                                             .filter(User.parent_id!=None)\
@@ -2916,7 +2898,7 @@ def getHomeSurveys():
             if item[0] not in survey_data.keys():
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
-                    surveyStatus = 'processing'          
+                    surveyStatus = 'processing'
                 survey_data[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 

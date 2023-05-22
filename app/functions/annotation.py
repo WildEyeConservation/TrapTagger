@@ -341,7 +341,9 @@ def launch_task(self,task_id):
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .distinct().all()
 
-            if len(clusters) == 0:
+            cluster_count = len(clusters)
+
+            if cluster_count == 0:
                 # Release task if the are no clusters to annotate
                 updateTaskCompletionStatus(task_id)
                 updateLabelCompletionStatus(task_id)
@@ -358,6 +360,8 @@ def launch_task(self,task_id):
             for cluster in clusters:
                 cluster.examined = False
             # db.session.commit()
+
+        task.cluster_count = cluster_count
 
         if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
             prep_required_images(task_id)
@@ -737,6 +741,8 @@ def manage_task(task_id):
                             .filter(Cluster.task_id == task_id)\
                             .filter(Cluster.examined==False)\
                             .count()
+
+        task.clusters_remaining = clusters_remaining
 
         if clusters_remaining==0:
             processing = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.processing==True).first()
