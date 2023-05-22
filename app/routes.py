@@ -2879,8 +2879,7 @@ def getHomeSurveys():
                                 .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                                 .filter(Survey.user_id==current_user.id)\
-                                .filter(Task.name!='default')\
-                                .filter(~Task.name.contains('_o_l_d_'))
+                                .filter(or_(Task.id==None,and_(Task.name!='default',~Task.name.contains('_o_l_d_'))))
 
         # uploading/downloading surveys always need to be on the page
         if current_downloads != '':
@@ -2974,28 +2973,25 @@ def getHomeSurveys():
                                             'numTrapgroups': item[7], 
                                             'tasks': []}
 
-                taskInfo = {'id': item[8],
-                            'name': item[9],
-                            'status': item[10],
-                            'complete': item[11],
-                            'tagging_level': item[12],
-                            'total': item[13],
-                            'remaining': item[14],
-                            'jobsAvailable': item[15],
-                            'jobsCompleted': item[16]}
+                if item[8]:
+                    taskInfo = {'id': item[8],
+                                'name': item[9],
+                                'status': item[10],
+                                'complete': item[11],
+                                'tagging_level': item[12],
+                                'total': item[13],
+                                'remaining': item[14],
+                                'jobsAvailable': item[15],
+                                'jobsCompleted': item[16]}
 
-                if taskInfo['total'] and taskInfo['remaining']:
-                    taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
-                else:
-                    taskInfo['completed'] = 0
+                    if taskInfo['total'] and taskInfo['remaining']:
+                        taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+                    else:
+                        taskInfo['completed'] = 0
 
-                survey_data2[item[0]]['tasks'].append(taskInfo)
+                    survey_data2[item[0]]['tasks'].append(taskInfo)
 
             survey_ids = list(survey_data2.keys())
-            survey_ids = survey_ids[(page-1)*count:page*count]
-
-            for survey_id in survey_ids:
-                survey_data[survey_id] = survey_data2[survey_id]
 
             if (page*count) >= len(survey_ids):
                 has_next = False
@@ -3006,6 +3002,11 @@ def getHomeSurveys():
                 has_prev = True
             else:
                 has_prev = False
+
+            survey_ids = survey_ids[(page-1)*count:page*count]
+
+            for survey_id in survey_ids:
+                survey_data[survey_id] = survey_data2[survey_id]
 
             next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads) if has_next else None
             prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads) if has_prev else None
@@ -3021,7 +3022,7 @@ def getHomeSurveys():
 
             disabledLaunch='false'
             for task in survey['tasks']:
-                if task['status'].lower() not in Config.TASK_READY_STATUSES:
+                if task['status'] and (task['status'].lower() not in Config.TASK_READY_STATUSES):
                     disabledLaunch='true'
 
                 if task['tagging_level'] and ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
