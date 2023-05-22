@@ -2899,8 +2899,7 @@ def getHomeSurveys():
             if item[0] not in survey_data.keys():
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
-	                surveyStatus = 'processing'
-                
+                    surveyStatus = 'processing'
                 survey_data[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 
