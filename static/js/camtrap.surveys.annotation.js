@@ -376,40 +376,6 @@ function BuildTagRow(IDNum, div) {
     });
 }
 
-function updateTaskProgressBar() {
-    /** Updates all active task progress bars. */
-
-    taskProgressBarDivs = document.querySelectorAll('[id^=taskProgressBarDiv]');
-    tskds = []
-    for (let i = 0; i < taskProgressBarDivs.length; i++) {
-        tskds.push(taskProgressBarDivs[i].id.split('taskProgressBarDiv')[1])
-    }
-
-    var formData = new FormData()
-    formData.append("task_ids", JSON.stringify(tskds))
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function() {
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-
-            for (let i = 0; i < reply.length; i++) {
-                progBar = document.getElementById('progBar'+reply[i].id.toString())
-                progBar.setAttribute('aria-valuenow',reply[i].completed)
-                progBar.setAttribute('aria-valuemax',reply[i].total)
-                perc=(reply[i].completed/reply[i].total)*100
-                progBar.setAttribute('style',"width:"+perc+"%")
-                progBar.innerHTML = reply[i].remaining
-            }
-
-            setTimeout(function() { updateTaskProgressBar(); }, 10000);
-        }
-    }
-    xhttp.open("POST", '/updateTaskProgressBar');
-    xhttp.send(formData);
-}
-
 function updateTaskStatus() {
     /** Updates the task status information, including the jobs completed, and remaining. */
     
