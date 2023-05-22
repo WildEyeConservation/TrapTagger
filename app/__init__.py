@@ -171,6 +171,17 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
         setupDatabase()
 
+        # Flush all other (non-default) queues
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        for queue in allQueues:
+            if queue != 'default':
+                while True:
+                    task = redisClient.blpop(queue, timeout=1)
+                    if not task:
+                        break
+
+        print('Queues flushed.')
+
         importMonitor.apply_async(queue='priority', priority=0)
         manageTasks.apply_async(queue='priority', priority=0)
         manageDownloads.apply_async(queue='priority', priority=0)

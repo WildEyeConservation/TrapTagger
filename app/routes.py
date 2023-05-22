@@ -2926,9 +2926,7 @@ def getHomeSurveys():
             else:
                 taskInfo['completed'] = 0
 
-            survey_data[item[0]]['tasks'].append(taskInfo)
-
-                                                
+            survey_data[item[0]]['tasks'].append(taskInfo)            
 
         # add all the searches to the base query
         searches = re.split('[ ,]',search)
@@ -2936,18 +2934,20 @@ def getHomeSurveys():
             survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
         # add the order to the base query
-        if order == 1:
-            #Survey date
-            survey_base_query = survey_base_query.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
-        elif order == 2:
+        # if order == 1:
+        #     #Survey date
+        #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+        if order == 2:
             #Survey add date
             survey_base_query = survey_base_query.order_by(Survey.id)
         elif order == 3:
             #Alphabetical
             survey_base_query = survey_base_query.order_by(Survey.name)
-        elif order == 4:
-            #Survey date descending
-            survey_base_query = survey_base_query.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+        # elif order == 4:
+        #     #Survey date descending
+        #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
         elif order == 5:
             #Add date descending
             survey_base_query = survey_base_query.order_by(desc(Survey.id))
@@ -2989,7 +2989,7 @@ def getHomeSurveys():
                     taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
                 else:
                     taskInfo['completed'] = 0
-                                    
+
                 survey_data2[item[0]]['tasks'].append(taskInfo)
 
             survey_ids = list(survey_data2.keys())
@@ -3025,7 +3025,7 @@ def getHomeSurveys():
                 if task['status'].lower() not in Config.TASK_READY_STATUSES:
                     disabledLaunch='true'
 
-                if ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
+                if task['tagging_level'] and ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
                     dbTask = db.session.query(Task).get(task['id'])
                     if dbTask.sub_tasks:
                         task['status'] = 'Processing'
@@ -3088,37 +3088,37 @@ def getJobs():
     for search in searches:
         task_base_query = task_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
-    if order == 1:
-        #Survey date
-        # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
-        task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
-    elif order == 2:
+    # if order == 1:
+    #     #Survey date
+    #     # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
+    #     task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
+    if order == 2:
         #Survey add date
         task_base_query = task_base_query.order_by(Survey.id)
     elif order == 3:
         #Alphabetical
         task_base_query = task_base_query.order_by(Survey.name)
-    elif order == 4:
-        #Survey date descending
-        # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
-        task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
+    # elif order == 4:
+    #     #Survey date descending
+    #     # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+    #     task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
     elif order == 5:
         #Add date descending
         task_base_query = task_base_query.order_by(desc(Survey.id))
 
     tasks = task_base_query.all()
 
-    if (page*count) >= len(tasks):
+    if (page*5) >= len(tasks):
         has_next = False
     else:
         has_next = True
 
-    if (page-1)*count > 0:
+    if (page-1)*5 > 0:
         has_prev = True
     else:
         has_prev = False
 
-    tasks = tasks[(page-1)*count:page*count]
+    tasks = tasks[(page-1)*5:page*5]
 
     # digest the data
     task_list = []
