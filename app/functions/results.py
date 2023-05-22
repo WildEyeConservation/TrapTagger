@@ -1317,7 +1317,7 @@ def generate_excel(self,task_id):
 
         finalColumn = currentColumn[:-1]
         sheet[finalColumn + str(3)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
-        print(speciesColumns)
+        if Config.DEBUGGING: print(speciesColumns)
 
         #Generate Rows
         traps = db.session.query(Trapgroup).filter(Trapgroup.survey==survey).all()

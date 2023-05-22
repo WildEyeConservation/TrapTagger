@@ -411,7 +411,7 @@ def getAllIndividuals():
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
 
-    if Config.DEBUGGING: app.logger.info('{}, {}, {}, {}, {},{} , {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
+    if Config.DEBUGGING: app.logger.info('Get All Individuals for {}, {}, {}, {}, {},{} , {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
 
     reply = []
     next = None
@@ -643,7 +643,6 @@ def getIndividual(individual_id):
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
-    if Config.DEBUGGING: app.logger.info(order)
     if individual and (individual.tasks[0].survey.user==current_user):
         images = db.session.query(Image)\
                     .join(Detection)\
@@ -795,7 +794,7 @@ def submitTagsIndividual(individual_id):
 
     individual = db.session.query(Individual).get(individual_id)
     tags = ast.literal_eval(request.form['tags'])
-    if Config.DEBUGGING: app.logger.info(tags)
+    if Config.DEBUGGING: app.logger.info('Submit Individual tags: {}'.format(tags))
     if individual and((current_user == individual.tasks[0].survey.user)):
         if tags:
             individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
@@ -1026,7 +1025,7 @@ def deleteTask(task_id):
             status = 'success'
             message = ''
 
-            app.logger.info('Deleting task.')
+            app.logger.info('Deleting task {}.'.format(task_id))
             delete_task.delay(task_id=task_id)
     else:
         status = 'error'
@@ -1061,6 +1060,7 @@ def deleteSurvey(surveyName):
                     message = 'A task from this survey is currently launched. Please stop it before deleting this survey.'
         
         if status != 'error':
+            app.logger.info('Deleting survey {}.'.format(survey_id))
             delete_survey.delay(survey_id=survey_id)
 
             for task in tasks:
@@ -3707,7 +3707,7 @@ def ping():
             current_user.last_ping = datetime.utcnow()
             db.session.commit()
             if current_user.parent:
-                app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
+                if Config.DEBUGGING: app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
             return json.dumps('success')
     return json.dumps('error')
 
@@ -4750,7 +4750,7 @@ def get_clusters():
         reply['info'].append(Config.FINISHED_CLUSTER)
 
     OverallEndTime = time.time()
-    print("Entire get cluster completed in {}".format(OverallEndTime - OverallStartTime))
+    if Config.DEBUGGING: print("Entire get cluster completed in {}".format(OverallEndTime - OverallStartTime))
     return json.dumps(reply)
 
 @app.route('/getImage')
@@ -4843,12 +4843,12 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 images = db.session.query(Image).filter(Image.corrected_timestamp!=None).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
                 if (int(index) == (len(images)-1)) and (knockedstatus == '1'):
                     #beginning and end were knocked - don't need to do anything
-                    app.logger.info('Beginning and end were knocked - doing nothing.')
+                    if Config.DEBUGGING: app.logger.info('Beginning and end were knocked - doing nothing.')
                     cluster.checked = True
                     db.session.commit()
                 elif (int(index) == 0) and (knockedstatus == '0'):
                     #first image was not knocked down - need to recluster the whole thing
-                    app.logger.info('First image not knocked - reclustering the whole thing.')
+                    if Config.DEBUGGING: app.logger.info('First image not knocked - reclustering the whole thing.')
                     # unknock_cluster(cluster)
                     cluster_id = cluster.id
                     cluster.checked = True
@@ -4864,7 +4864,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 else:
                     #send next middle image
                     if (int(imageIndex) == 0) and (int(index) != 0):
-                        app.logger.info('Single image marked, sending next one.')
+                        if Config.DEBUGGING: app.logger.info('Single image marked, sending next one.')
                         if knockedstatus == '1':
                             if int(index) > T_index:
                                 T_index = int(index)
@@ -4872,7 +4872,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                             if int(index) < F_index:
                                 F_index = int(index)
                     else:
-                        app.logger.info('Initial cluster marked, sending next middle image.')
+                        if Config.DEBUGGING: app.logger.info('Initial cluster marked, sending next middle image.')
                         if len(images) > 6:
                             if knockedstatus == '1':
                                 T_index = int(index)
@@ -4892,7 +4892,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
                     if (newIndex == T_index) or (newIndex == F_index):
                         #finished with cluster - split up & recluster
-                        app.logger.info('Finished with cluster, splitting and reclustering.')
+                        if Config.DEBUGGING: app.logger.info('Finished with cluster, splitting and reclustering.')
                         #deallocate the trapgroup from the user
                         trapgroup = images[0].camera.trapgroup
                         trapgroup.active = False
@@ -4902,7 +4902,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                         db.session.commit()
                         splitClusterAndUnknock.apply_async(kwargs={'oldClusterID':cluster.id, 'SplitPoint':F_index})
                     else:
-                        app.logger.info('Sending index: {}'.format(newIndex))
+                        if Config.DEBUGGING: app.logger.info('Sending index: {}'.format(newIndex))
                         sortedImages = [images[newIndex]]
                         indices = [newIndex]
 
@@ -4929,7 +4929,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                         indices = [n for n in range(len(images))]
                         sortedImages = images
 
-                    app.logger.info('Sending new knocked-down cluster with image indices: {}'.format(indices))
+                    if Config.DEBUGGING: app.logger.info('Sending new knocked-down cluster with image indices: {}'.format(indices))
                     T_index = 0
                     F_index = 0
 
@@ -5484,7 +5484,7 @@ def assignLabel(clusterID):
                     else:
                         # Can't have nothing label alongside other labels
                         if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
-                            app.logger.info('Blocked nothing multi label!')
+                            if Config.DEBUGGING: app.logger.info('Blocked nothing multi label!')
                             labels.remove(GLOBALS.nothing_id)
 
                         # Don't necessarily know that false detections were removed anymore
@@ -6131,7 +6131,7 @@ def editTask(task_id):
 def submitTags(task_id):
     '''Handles the submission of tags for the specified task. Returns success/error status and then launches task.'''
     
-    app.logger.info('Received tags for task {}'.format(task_id))
+    if Config.DEBUGGING: app.logger.info('Received tags for task {}'.format(task_id))
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
 
@@ -6512,15 +6512,28 @@ def generateCSV():
             includes = ast.literal_eval(request.form['includes'])
             excludes = ast.literal_eval(request.form['excludes'])
             start_date = ast.literal_eval(request.form['start_date'])
+            if start_date == '': start_date = None
             end_date = ast.literal_eval(request.form['end_date'])
+            if end_date == '': end_date = None
 
     except:
-        return json.dumps('error')
+        return json.dumps({'status':'error',  'message': None})
 
     for selectedTask in selectedTasks:
         task = db.session.query(Task).get(selectedTask)
         if (task == None) or (task.survey.user != current_user):
-            return json.dumps('error')
+            return json.dumps({'status':'error',  'message': None})
+
+        if start_date != None:
+            check_start = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp>start_date).first()
+            if check_start==None: 
+                return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
+        
+        if end_date != None:
+            check_end = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.timestamp<end_date).first()
+            if check_end==None:
+                return json.dumps({'status':'error',  'message':'The date range specified is outside the survey. Please select a date range within the survey.'})
+          
 
     task = db.session.query(Task).get(selectedTasks[0])
     fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
@@ -6531,10 +6544,10 @@ def generateCSV():
     except:
         pass
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes))
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date))
     generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, startDate=start_date, endDate=end_date)
 
-    return json.dumps('success')
+    return json.dumps({'status':'success', 'message': None})
 
 @app.route('/generateCOCO', methods=['POST'])
 @login_required
@@ -6748,7 +6761,7 @@ def knockdown(imageId, clusterId):
 
         if (rootImage.corrected_timestamp==None) or (first_im.corrected_timestamp==None) or ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1)):
             #Still setting up
-            print('Still setting up.')
+            if Config.DEBUGGING: ('Still setting up.')
             if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < aCluster.task.size) or (current_user.admin == True):
@@ -6774,7 +6787,7 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
 
         else:
-            print('It is really knocked down.')
+            if Config.DEBUGGING: print('It is really knocked down.')
             num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
 
             if (num_cluster < db.session.query(Task).get(task_id).size) or (current_user.admin == True):
@@ -7085,7 +7098,7 @@ def getClassifierInfo():
 @login_required
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
-    print('Getting presigned')
+    if Config.DEBUGGING: print('Getting presigned')
     if current_user.admin:
         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
                                                                 Params={'Bucket': Config.BUCKET,
@@ -7543,7 +7556,7 @@ def writeInfoToImages(type_id,id):
                     splits[0] = splits[0] + '-comp'
                     url_new = '/'.join(splits)    
 
-                    app.logger.info(url_new)
+                    if Config.DEBUGGING: (url_new)
 
                     s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=url)
                     imageData = s3_response_object['Body'].read()
@@ -7625,7 +7638,7 @@ def writeInfoToImages(type_id,id):
                 splits[0] = splits[0] + '-comp'
                 url_new = '/'.join(splits)    
 
-                app.logger.info(url_new)
+                if Config.DEBUGGING: app.logger.info(url_new)
 
                 s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=url)
                 imageData = s3_response_object['Body'].read()

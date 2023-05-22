@@ -1319,7 +1319,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         continue
                     
                     try:
-                        print('Extracting time stamp from {}'.format(filename))
+                        if Config.DEBUGGING: print('Extracting time stamp from {}'.format(filename))
                         t = pyexifinfo.get_json(temp_file.name)[0]
                         timestamp = None
                         for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
@@ -1328,7 +1328,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                 break
                         # assert timestamp
                     except:
-                        app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
+                        if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
                 else:
                     # don't need to download the image or even extract a timestamp if pipelining
@@ -1336,7 +1336,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                 
                 if not pipeline:
                     # don't compress and upload the image if its a training-data pipeline
-                    print('Compressing {}'.format(filename))
+                    if Config.DEBUGGING: print('Compressing {}'.format(filename))
                     
                     # Wand does not appear to be thread safe
                     lock.acquire()
@@ -1376,12 +1376,12 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                 images.append(image)
         
         if batch:
-            print('Acquiring lock')
+            if Config.DEBUGGING: print('Acquiring lock')
             GLOBALS.lock.acquire()
             print('Queueing batch')
             GLOBALS.results_queue.append((images, detection.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.detection')))
             GLOBALS.lock.release()
-            print('Lock released')
+            if Config.DEBUGGING: print('Lock released')
 
     except Exception:
         app.logger.info(' ')
@@ -1446,17 +1446,17 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
         pool.join()
 
         # Fetch the results
-        print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
+        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
         counter = 0
         GLOBALS.lock.acquire()
         with allow_join_result():
             for images, result in GLOBALS.results_queue:
                 try:
                     counter += 1
-                    print('Fetching result {}'.format(counter))
+                    if Config.DEBUGGING: print('Fetching result {}'.format(counter))
                     starttime = datetime.utcnow()
                     response = result.get()
-                    print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+                    if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
 
                     for img, detections in zip(images, response):
                         try:
@@ -1496,7 +1496,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             
         # If we are piplining some training data, we need to save the crops
         if pipeline:
-            print('Pipelining data')
+            if Config.DEBUGGING: print('Pipelining data')
             if label_source:
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='import').first()
                 task_id = task.id
@@ -1521,7 +1521,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                 for image in images:
                     pool.apply_async(save_crops,(image.id,sourceBucket,min_area,destBucket,external,True,label_source,task_id))
 
-            print('All jobs queued.')
+            if Config.DEBUGGING: print('All jobs queued.')
             pool.close()
             pool.join()
 
@@ -1741,7 +1741,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                     GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
                     # GLOBALS.lock.release()
 
-            print('{} results to fetch'.format(len(GLOBALS.results_queue)))
+            if Config.DEBUGGING: print('{} results to fetch'.format(len(GLOBALS.results_queue)))
 
             counter = 0
             GLOBALS.lock.acquire()
@@ -1749,10 +1749,10 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                 for result in GLOBALS.results_queue:
                     try:
                         counter += 1
-                        print('Fetching result {}'.format(counter))
+                        if Config.DEBUGGING: print('Fetching result {}'.format(counter))
                         starttime = datetime.utcnow()
                         response = result.get()
-                        print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+                        if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
 
                         detections = db.session.query(Detection).filter(Detection.id.in_(list(response.keys()))).all()
                         for detection in detections:
@@ -2799,7 +2799,7 @@ def correct_timestamps(survey_id,setup_time=31):
             finish = images[-1].corrected_timestamp
 
             if (finish-start)>surveyLength:
-                print('Group {} too long: {}'.format(group,finish-start))
+                if Config.DEBUGGING: print('Group {} too long: {}'.format(group,finish-start))
                 max = timedelta(seconds=0)
                 point = None
                 prev = images[0].corrected_timestamp
@@ -2809,7 +2809,7 @@ def correct_timestamps(survey_id,setup_time=31):
                         max = delta
                         point = image
                     prev = image.corrected_timestamp
-                print('Being split at {}'.format(point.corrected_timestamp))
+                if Config.DEBUGGING: print('Being split at {}'.format(point.corrected_timestamp))
 
                 if point != None:
                     to_remove = []
@@ -2836,7 +2836,7 @@ def correct_timestamps(survey_id,setup_time=31):
                             if len(oldCam.images[:]) == 0:
                                 to_remove.append(oldCam.id)
                                 db.session.delete(oldCam)
-                            print('Added new camera for trapgroup {}, for path {}'.format(trapgroup.id,newCam.path))
+                            if Config.DEBUGGING: print('Added new camera for trapgroup {}, for path {}'.format(trapgroup.id,newCam.path))
 
                     for camId in to_remove:
                         groups[group].remove(camId)
@@ -2866,7 +2866,7 @@ def correct_timestamps(survey_id,setup_time=31):
                         dayDelta = surveyMidpoint.day-groupMidpoint.day
                         delta = relativedelta(years=yearDelta,months=monthDelta,days=dayDelta)
 
-                print('Cameras {} need to be adjusted by {}'.format(groups[group],delta))
+                if Config.DEBUGGING: print('Cameras {} need to be adjusted by {}'.format(groups[group],delta))
                 # for chunk in chunker(images,500):
                 for image in images:
                     image.corrected_timestamp += delta

@@ -429,7 +429,7 @@ def importMonitor():
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
             client = boto3.client('ec2',region_name=Config.AWS_REGION)
             images_processing = getImagesProcessing()
-            print('Images being imported: {}'.format(images_processing))
+            if Config.DEBUGGING: print('Images being imported: {}'.format(images_processing))
 
             current_instances = {}
             instances_required = {'default':0,'parallel':0}
@@ -474,7 +474,7 @@ def importMonitor():
 
                 if instances_required[queue] > max_instances: instances_required[queue] = max_instances
 
-            print('Instances required: {}'.format(instances_required))
+            if Config.DEBUGGING: print('Instances required: {}'.format(instances_required))
 
             # # Check database capacity requirement (parallel & default)
             # required_capacity = 1*(instances_required['default'] + instances_required['parallel'])
@@ -795,10 +795,10 @@ def removeFalseDetections(self,cluster_id,undo):
             detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
 
             if undo:
-                app.logger.info('Undoing the removal of false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
+                if Config.DEBUGGING: app.logger.info('Undoing the removal of false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
                 staticState = False
             else:
-                app.logger.info('Removing false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
+                if Config.DEBUGGING: app.logger.info('Removing false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
                 staticState = True
 
             images = []
@@ -957,7 +957,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=Non
     '''
     
     try:
-        app.logger.info('Started finish_knockdown for image ' + str(rootImageID))
+        if Config.DEBUGGING: app.logger.info('Started finish_knockdown for image ' + str(rootImageID))
 
         if sesssion == None:
             celeryTask = True
@@ -976,7 +976,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=Non
             GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].acquire()
             # session.commit()
 
-        app.logger.info('Continuing finish_knockdown for image ' + str(rootImageID))
+        if Config.DEBUGGING: app.logger.info('Continuing finish_knockdown for image ' + str(rootImageID))
 
         trapgroup.processing = True
         trapgroup.active = False
@@ -1095,7 +1095,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=Non
                 trapgroup.processing = False
                 session.commit()
 
-        app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
+        if Config.DEBUGGING: app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1124,7 +1124,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
     '''
     
     try:
-        app.logger.info('Started unknock_cluster for cluster ' + str(image_id))
+        if Config.DEBUGGING: app.logger.info('Started unknock_cluster for cluster ' + str(image_id))
 
         image = db.session.query(Image).get(image_id)
         cluster = db.session.query(Cluster).filter(Cluster.task_id == task_id).filter(Cluster.images.contains(image)).first()
@@ -1277,7 +1277,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
             trapgroup.processing = False
         db.session.commit()
 
-        app.logger.info('Completed unknock_cluster for cluster ' + str(image_id))
+        if Config.DEBUGGING: app.logger.info('Completed unknock_cluster for cluster ' + str(image_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1331,7 +1331,7 @@ def classifyTask(task_id,session = None,reClusters = None):
             else:
                 parentGroupings[label].extend(classifications)
 
-        app.logger.info('Groupings prepped for task '+str(task_id))
+        if Config.DEBUGGING: app.logger.info('Groupings prepped for task '+str(task_id))
 
         for species in parentGroupings:
 
@@ -2103,9 +2103,9 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
 
     image = db.session.query(Image).get(image_id)
     try:
-        print('Asserting image')
+        if Config.DEBUGGING: print('Asserting image')
         assert image
-        print('Success')
+        if Config.DEBUGGING: print('Success')
 
         # Download file
         print('Downloading file...')
@@ -2128,33 +2128,33 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                     GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
                 else:
                     GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
-            print('Success')
+            if Config.DEBUGGING:print('Success')
 
-            print('Opening image...')
+            if Config.DEBUGGING: print('Opening image...')
             with pilImage.open(temp_file.name) as img:
                 img.load()
 
             assert img
-            print('Success')
+            if Config.DEBUGGING: print('Success')
                 
             # always save as RGB for consistency
             if img.mode != 'RGB':
-                print('Converting to RGB')
+                if Config.DEBUGGING: print('Converting to RGB')
                 img = img.convert(mode='RGB')
 
             if update_image_info:
                 # Get image hash
-                print('Updating image hash...')
+                if Config.DEBUGGING: print('Updating image hash...')
                 try:
                     image.etag = md5(temp_file.name)
                     image.hash = generate_raw_image_hash(temp_file.name)
                     db.session.commit()
-                    print('Success')
+                    if Config.DEBUGGING: print('Success')
                 except:
                     print("Skipping {} could not generate hash...".format(image.camera.path+'/'+image.filename))
 
                 # Attempt to extract and save timestamp
-                print('Updating timestamp...')
+                if Config.DEBUGGING: print('Updating timestamp...')
                 try:
                     t = pyexifinfo.get_json(temp_file.name)[0]
                     timestamp = None
@@ -2165,61 +2165,61 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                     assert timestamp
                     image.timestamp = timestamp
                     db.session.commit()
-                    print('Success')
+                    if Config.DEBUGGING: print('Success')
                 except:
-                    print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
+                    if Config.DEBUGGING: print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
 
                 # Extract exif labels
-                print('Extracting Labels')
+                if Config.DEBUGGING: print('Extracting Labels')
                 if label_source:
                     try:
                         cluster = Cluster(task_id=task_id)
                         db.session.add(cluster)
                         cluster.images = [image]
-                        print('Cluster created')
+                        if Config.DEBUGGING: print('Cluster created')
                         if label_source=='iptc':
                             print('type: iptc')
                             info = IPTCInfo(temp_file.name)
-                            print('Info extracted')
+                            if Config.DEBUGGING: print('Info extracted')
                             for label_name in info['keywords']:
                                 description = label_name.decode()
-                                print('Handling label: {}'.format(description))
+                                if Config.DEBUGGING: print('Handling label: {}'.format(description))
                                 label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
                                 if not label:
-                                    print('Creating label')
+                                    if Config.DEBUGGING: print('Creating label')
                                     label = Label(description=description,task_id=task_id)
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
-                                print('label added')
+                                if Config.DEBUGGING: print('label added')
                         elif label_source=='path':
                             descriptions = [image.camera.path.split('/')[-1],image.camera.path.split('/')[-1]]
                             for description in descriptions:
-                                print('Handling label: {}'.format(description))
+                                if Config.DEBUGGING: print('Handling label: {}'.format(description))
                                 label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
                                 if not label:
-                                    print('Creating label')
+                                    if Config.DEBUGGING: print('Creating label')
                                     label = Label(description=description,task_id=task_id)
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
-                                print('label added')
+                                if Config.DEBUGGING: print('label added')
                         db.session.commit()
-                        print('Success')
+                        if Config.DEBUGGING: print('Success')
                     except:
-                        print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
+                        if Config.DEBUGGING: print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
 
             # crop the detections if they have sufficient area and score
-            print('Cropping detections...')
+            if Config.DEBUGGING: print('Cropping detections...')
             for detection in image.detections:
                 area = (detection.right-detection.left)*(detection.bottom-detection.top)
                 
                 if (area > min_area) and (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]):
                     key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
                     bbox = [detection.left,detection.top,(detection.right-detection.left),(detection.bottom-detection.top)]
-                    print('Crropping detection {} on image {}'.format(bbox,key))
+                    if Config.DEBUGGING: print('Crropping detection {} on image {}'.format(bbox,key))
                     save_crop(img, bbox_norm=bbox, square_crop=True, bucket=destBucket, key=key)
-                    print('Success')
+                    if Config.DEBUGGING: print('Success')
         print('Finished processing image!')
     
     except:
@@ -2464,7 +2464,7 @@ def getClusterClassifications(cluster_id):
     
     classifications = [[item[0],float(item[1])] for item in classifications]
     
-    print('Cluster classifications fetched in {}'.format(time.time()-startTime))
+    if Config.DEBUGGING: print('Cluster classifications fetched in {}'.format(time.time()-startTime))
     
     return classifications
 
