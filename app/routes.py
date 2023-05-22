@@ -2895,10 +2895,12 @@ def getHomeSurveys():
         # digest survey data
         survey_data = {}
         for item in compulsory_surveys:
+
             if item[0] not in survey_data.keys():
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
 	                surveyStatus = 'processing'
+                
                 survey_data[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 
@@ -2908,16 +2910,25 @@ def getHomeSurveys():
                                         'status': surveyStatus, 
                                         'numTrapgroups': item[7], 
                                         'tasks': []}
-            survey_data[item[0]]['tasks'].append({'id': item[8],
-                                                'name': item[9],
-                                                'status': item[10],
-                                                'complete': item[11],
-                                                'tagging_level': item[12],
-                                                'total': item[13],
-                                                'completed': item[13]-item[14],
-                                                'remaining': item[14],
-                                                'jobsAvailable': item[15],
-                                                'jobsCompleted': item[16]})
+
+            taskInfo = {'id': item[8],
+                        'name': item[9],
+                        'status': item[10],
+                        'complete': item[11],
+                        'tagging_level': item[12],
+                        'total': item[13],
+                        'remaining': item[14],
+                        'jobsAvailable': item[15],
+                        'jobsCompleted': item[16]}
+
+            if taskInfo['total'] and taskInfo['remaining']:
+                taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+            else:
+                taskInfo['completed'] = 0
+
+            survey_data[item[0]]['tasks'].append(taskInfo)
+
+                                                
 
         # add all the searches to the base query
         searches = re.split('[ ,]',search)
@@ -2948,10 +2959,12 @@ def getHomeSurveys():
             # digest the rest of the data
             survey_data2 = {}
             for item in surveys:
+
                 if item[0] not in survey_data2.keys():
                     surveyStatus = item[6]
                     if surveyStatus in ['indprocessing','Preparing Download']:
                         surveyStatus = 'processing'
+
                     survey_data2[item[0]] = {'id': item[0],
                                             'name': item[1], 
                                             'description': item[2], 
@@ -2961,16 +2974,23 @@ def getHomeSurveys():
                                             'status': surveyStatus, 
                                             'numTrapgroups': item[7], 
                                             'tasks': []}
-                survey_data2[item[0]]['tasks'].append({'id': item[8],
-                                                    'name': item[9],
-                                                    'status': item[10],
-                                                    'complete': item[11],
-                                                    'tagging_level': item[12],
-                                                    'total': item[13],
-                                                    'completed': item[13]-item[14],
-                                                    'remaining': item[14],
-                                                    'jobsAvailable': item[15],
-                                                    'jobsCompleted': item[16]})
+
+                taskInfo = {'id': item[8],
+                            'name': item[9],
+                            'status': item[10],
+                            'complete': item[11],
+                            'tagging_level': item[12],
+                            'total': item[13],
+                            'remaining': item[14],
+                            'jobsAvailable': item[15],
+                            'jobsCompleted': item[16]}
+
+                if taskInfo['total'] and taskInfo['remaining']:
+                    taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+                else:
+                    taskInfo['completed'] = 0
+                                    
+                survey_data2[item[0]]['tasks'].append(taskInfo)
 
             survey_ids = list(survey_data2.keys())
             survey_ids = survey_ids[(page-1)*count:page*count]
@@ -3007,7 +3027,7 @@ def getHomeSurveys():
 
                 if ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
                     dbTask = db.session.query(Task).get(task['id'])
-                    if task.sub_tasks:
+                    if dbTask.sub_tasks:
                         task['status'] = 'Processing'
 
             for task in survey['tasks']:
@@ -3033,70 +3053,108 @@ def getJobs():
     search = request.args.get('search', '', type=str)
     individual_id = request.args.get('individual_id', 'false', type=str)
 
-    quals = [r.id for r in current_user.qualifications]
-    if current_user.admin:
-        quals.append(current_user.id)
+    availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.user_id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+    completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.user_id)-Task.jobs_finished).label('count'))\
+                                        .join(Turkcode)\
+                                        .join(User, User.username==Turkcode.user_id)\
+                                        .filter(User.parent_id!=None)\
+                                        .filter(Turkcode.tagging_time!=None)\
+                                        .group_by(Task.id).subquery()
 
-    tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals))
+    Worker = alias(User)
+
+    task_base_query = db.session.query(
+                                Task.id,
+                                Task.tagging_level,
+                                Task.cluster_count,
+                                Task.clusters_remaining,
+                                availableJobsSQ.c.count,
+                                completeJobsSQ.c.count,
+                                Survey.name
+                            ).join(Survey,Task.survey_id==Survey.id)\
+                            .join(User,Survey.user_id==User.id)\
+                            .outerjoin(Worker, User.workers)\
+                            .join(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
+                            .join(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                            .filter(or_(User.id==current_user.id,Worker.c.id==current_user.id))
 
     if individual_id=='true':
         # We need to included the launching tasks on the individual ID page
-        tasks = tasks.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any())
+        task_base_query = task_base_query.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any())
     else:
-        tasks = tasks.filter(Task.status=='PROGRESS')
+        task_base_query = task_base_query.filter(Task.status=='PROGRESS')
 
     searches = re.split('[ ,]',search)
     for search in searches:
-        tasks = tasks.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+        task_base_query = task_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
     if order == 1:
         #Survey date
         # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
-        tasks = tasks.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
+        task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
     elif order == 2:
         #Survey add date
-        tasks = tasks.order_by(Survey.id)
+        task_base_query = task_base_query.order_by(Survey.id)
     elif order == 3:
         #Alphabetical
-        tasks = tasks.order_by(Survey.name)
+        task_base_query = task_base_query.order_by(Survey.name)
     elif order == 4:
         #Survey date descending
         # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
-        tasks = tasks.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
+        task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
     elif order == 5:
         #Add date descending
-        tasks = tasks.order_by(desc(Survey.id))
+        task_base_query = task_base_query.order_by(desc(Survey.id))
 
-    tasks = tasks.distinct().paginate(page, 5, False)
+    tasks = task_base_query.all()
 
+    if (page*count) >= len(tasks):
+        has_next = False
+    else:
+        has_next = True
+
+    if (page-1)*count > 0:
+        has_prev = True
+    else:
+        has_prev = False
+
+    tasks = tasks[(page-1)*count:page*count]
+
+    # digest the data
     task_list = []
     individual_id_names = []
-    for task in tasks.items:
-        completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task.id)
-        task_dict = {}
-        task_dict['id'] = task.id
-        if task.sub_tasks and ('-5' in task.tagging_level):
-            species = re.split(',',task.tagging_level)[1]
-            name = species+' Individual ID'
+    for item in tasks:
+        taskInfo = {'id': item[0],
+                    'name': item[6],
+                    'tagging_level': item[1],
+                    'total': item[2],
+                    'remaining': item[3],
+                    'jobsAvailable': item[4],
+                    'jobsCompleted': item[5]}
 
-            count = 1
-            while name in individual_id_names:
-                count += 1
-                name = species+' Individual ID '+str(count)
-            individual_id_names.append(name)
-
-            task_dict['name'] = name
+        if taskInfo['total'] and taskInfo['remaining']:
+            taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
         else:
-            task_dict['name'] = task.survey.name
-        task_dict['completed'] = completed
-        task_dict['total'] = total
-        task_dict['remaining'] = remaining
-        task_dict['jobsAvailable'] = jobsAvailable
-        task_dict['jobsCompleted'] = jobsCompleted
-        task_list.append(task_dict)
+            taskInfo['completed'] = 0
 
-    next_url = url_for('getJobs', page=tasks.next_num, order=order) if tasks.has_next else None
-    prev_url = url_for('getJobs', page=tasks.prev_num, order=order) if tasks.has_prev else None
+        if '-5' in taskInfo['tagging_level']:
+            dbTask = db.session.query(Task).get(taskInfo['id'])
+            if dbTask.sub_tasks:
+                species = re.split(',',taskInfo['tagging_level'])[1]
+                name = species+' Individual ID'
+
+                count = 1
+                while name in individual_id_names:
+                    count += 1
+                    name = species+' Individual ID '+str(count)
+                individual_id_names.append(name)
+
+                taskInfo['name'] = name
+        
+        task_list.append(taskInfo)
+
+    next_url = url_for('getJobs', page=(page+1), order=order) if has_next else None
+    prev_url = url_for('getJobs', page=(page-1), order=order) if has_prev else None
 
     current_user.last_ping = datetime.utcnow()
     db.session.commit()
