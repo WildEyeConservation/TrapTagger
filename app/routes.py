@@ -4630,7 +4630,7 @@ def get_clusters():
         reply['info'].append(Config.FINISHED_CLUSTER)
 
     OverallEndTime = time.time()
-    print("Entire get cluster completed in {}".format(OverallEndTime - OverallStartTime))
+    if Config.DEBUGGING: print("Entire get cluster completed in {}".format(OverallEndTime - OverallStartTime))
     return json.dumps(reply)
 
 @app.route('/getImage')
@@ -6641,7 +6641,7 @@ def knockdown(imageId, clusterId):
 
         if (rootImage.corrected_timestamp==None) or (first_im.corrected_timestamp==None) or ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1)):
             #Still setting up
-            print('Still setting up.')
+            if Config.DEBUGGING: ('Still setting up.')
             if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < aCluster.task.size) or (current_user.admin == True):
@@ -6667,7 +6667,7 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
 
         else:
-            print('It is really knocked down.')
+            if Config.DEBUGGING: print('It is really knocked down.')
             num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
 
             if (num_cluster < db.session.query(Task).get(task_id).size) or (current_user.admin == True):
@@ -6978,7 +6978,7 @@ def getClassifierInfo():
 @login_required
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
-    print('Getting presigned')
+    if Config.DEBUGGING: print('Getting presigned')
     if current_user.admin:
         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
                                                                 Params={'Bucket': Config.BUCKET,

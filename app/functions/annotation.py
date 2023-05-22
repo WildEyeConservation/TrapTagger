@@ -446,7 +446,7 @@ def launch_task(self,task_id):
 
 # @celery.task(bind=True,max_retries=29,ignore_result=True)
 def freeUpWork(task_id):
-    '''Attempts to free up trapgroups etc. to allow task annoation to complete.'''
+    '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
     try:
         task = db.session.query(Task).get(task_id)
@@ -463,7 +463,7 @@ def freeUpWork(task_id):
                             .filter(Cluster.examined==False)\
                             .all()
 
-            app.logger.info('{} inactive trapgroups identified for surevy {}'.format(len(trapgroups),task.survey.name))
+            if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
 
             for trapgroup in trapgroups:
                 most_recent = db.session.query(Cluster) \
@@ -723,10 +723,10 @@ def manage_task(task_id):
         task_jobs.extend(db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).all())
 
         if len(task_jobs) < max_workers_possible:
-            app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
+            if Config.DEBUGGING: app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
             createTurkcodes(max_workers_possible - len(task_jobs), task_id)
         elif (len(task_jobs) > max_workers_possible):
-            app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
+            if Config.DEBUGGING: app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
             deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id)
 
         #Check if finished:
@@ -1301,7 +1301,7 @@ def translate_cluster_for_client(cluster,id,isBounding,taggingLevel,user,sendVid
                     sortedImages.extend(images)
                 
             endTime = time.time()
-            print("getImages query completed in {}".format(endTime - startTime))
+            if Config.DEBUGGING: print("getImages query completed in {}".format(endTime - startTime))
 
             if '-4' in taggingLevel:
                 tL = re.split(',',taggingLevel)
