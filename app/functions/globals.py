@@ -426,6 +426,7 @@ def importMonitor():
         startTime = datetime.utcnow()
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         queues = getQueueLengths(redisClient)
+        commit = None
 
         if queues:
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
