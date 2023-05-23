@@ -23,7 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
-    VERSION = 13
+    VERSION = 17
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -89,7 +89,7 @@ class Config(object):
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 25
-    MAX_DEFAULT = 8
+    MAX_DEFAULT = 0
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
