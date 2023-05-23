@@ -1385,13 +1385,13 @@ def manageDownloads():
                             .join(Image)\
                             .filter(Image.downloaded==True)\
                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .filter(~Task.status.in_(['Processing','Preparing Download']))
+                            .filter(~Task.status.in_(['Processing','Preparing Download']))\
                             .distinct().all()]
         
         for task in tasks:
             resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
-        tasks = db.session.query(Task)\
+        tasks = [r[0] for r in db.session.query(Task.id)\
                             .join(Survey)\
                             .join(User)\
                             .join(Trapgroup)\
@@ -1399,8 +1399,8 @@ def manageDownloads():
                             .join(Video)\
                             .filter(Video.downloaded==True)\
                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .filter(~Task.status.in_(['Processing','Preparing Download']))
-                            .distinct().all()
+                            .filter(~Task.status.in_(['Processing','Preparing Download']))\
+                            .distinct().all()]
         
         for task in tasks:
             resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
