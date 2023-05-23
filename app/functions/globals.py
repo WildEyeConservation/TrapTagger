@@ -213,12 +213,12 @@ def getQueueLengths(redisClient):
     queues = {}
     for queue in Config.QUEUES:
         queueLength = redisClient.llen(queue)
-        print('{} queue length: {}'.format(queue,queueLength))
+        if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
     for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
         queueLength = redisClient.llen(queue)
-        print('{} queue length: {}'.format(queue,queueLength))
+        if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
     return queues

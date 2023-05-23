@@ -52,13 +52,21 @@ function buildJob(job) {
     jobsAvailable = document.createElement('div')
     jobsAvailable.setAttribute("id","jobsAvailable"+job.id)
     jobsAvailable.setAttribute("style","font-size: 70%")
-    jobsAvailable.innerHTML = 'Jobs Available: ' + job.jobsAvailable
+    if (job.jobsAvailable==null) {
+        jobsAvailable.innerHTML = 'Jobs Available: 0'
+    } else {
+        jobsAvailable.innerHTML = 'Jobs Available: ' + job.jobsAvailable
+    }
     jobsAvailableCol.appendChild(jobsAvailable)
 
     jobsCompleted = document.createElement('div')
     jobsCompleted.setAttribute("id","jobsCompleted"+job.id)
     jobsCompleted.setAttribute("style","font-size: 70%")
-    jobsCompleted.innerHTML = 'Jobs Completed: ' + job.jobsCompleted
+    if (job.jobsCompleted==null) {
+        jobsCompleted.innerHTML = 'Jobs Completed: 0'
+    } else {
+        jobsCompleted.innerHTML = 'Jobs Completed: ' + job.jobsCompleted
+    }
     jobsAvailableCol.appendChild(jobsCompleted)
 
     jobProgressBarCol = document.createElement('div')

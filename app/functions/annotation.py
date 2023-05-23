@@ -456,7 +456,7 @@ def freeUpWork(task,session):
                                 .join(Camera)\
                                 .join(Image)\
                                 .join(Cluster,Image.clusters)\
-                                .filter(Cluster.task_id == task_id) \
+                                .filter(Cluster.task_id == task.id) \
                                 .subquery()
 
         trapgroups = session.query(Trapgroup) \
@@ -464,12 +464,12 @@ def freeUpWork(task,session):
                         .join(Image) \
                         .join(Cluster, Image.clusters) \
                         .join(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
-                        .filter(Cluster.task_id == task_id) \
+                        .filter(Cluster.task_id == task.id) \
                         .filter(Trapgroup.active == False) \
                         .filter(Trapgroup.processing == False) \
                         .filter(Trapgroup.queueing == False)\
                         .filter(Cluster.examined==False)\
-                        .filter(clusterSQ<datetime.utcnow()-timedelta(minutes=2))\
+                        .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=2),clusterSQ.c.timestamp==None))\
                         .all()
 
         if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
@@ -686,9 +686,9 @@ def manage_task(task,session):
             # wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    # else:
-    #     if len(task_jobs) == 0:
-    #         freeUpWork(task_id=task_id)
+    else:
+        if task_jobs == 0:
+            freeUpWork(task,session)
 
     return False, jobs_to_delete
 

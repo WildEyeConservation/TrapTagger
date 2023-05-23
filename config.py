@@ -89,7 +89,7 @@ class Config(object):
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 25
-    MAX_DEFAULT = 0
+    MAX_DEFAULT = 8
     DNS = os.environ.get('DNS')
 
     # Species Classification Config

@@ -29,14 +29,22 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
         taskHitsActive.setAttribute("id","taskHitsActive"+task.id)
         taskHitsActive.setAttribute("style","font-size: 70%")
         taskInfoCol.appendChild(taskHitsActive)
-        taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
+        if (task.jobsAvailable==null) {
+            taskHitsActive.innerHTML = 'Jobs Available: 0'
+        } else {
+            taskHitsActive.innerHTML = 'Jobs Available: ' + task.jobsAvailable
+        }
 
         taskHitsCompleted = document.createElement('div')
         taskHitsCompleted.classList.add('row');
         taskHitsCompleted.setAttribute("id","taskHitsCompleted"+task.id)
         taskHitsCompleted.setAttribute("style","font-size: 70%")
         taskInfoCol.appendChild(taskHitsCompleted)
-        taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
+        if (task.jobsCompleted==null) {
+            taskHitsCompleted.innerHTML = 'Jobs Completed: 0'
+        } else {
+            taskHitsCompleted.innerHTML = 'Jobs Completed: ' + task.jobsCompleted
+        }
 
         taskProgressBarCol.classList.add('col-lg-6');
         taskProgressBarDiv.setAttribute("id","taskProgressBarDiv"+task.id)
