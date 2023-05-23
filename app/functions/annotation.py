@@ -578,9 +578,10 @@ def manage_task(task,session):
     task_id = task.id
     taggingLevel = task.tagging_level
     survey_id = task.survey_id
+    jobs_to_delete = 0
 
     if not populateMutex(int(task_id)):
-        return True
+        return False, jobs_to_delete
 
     #Manage number of workers
     if '-5' in taggingLevel:
@@ -646,22 +647,23 @@ def manage_task(task,session):
         max_workers_possible = 1
 
     #Check job count
-    task_jobs = session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).all()
+    task_jobs = session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
     active_jobs = session.query(Turkcode) \
                                 .join(User, User.username==Turkcode.user_id) \
                                 .filter(User.parent_id!=None) \
                                 .filter(~User.passed.in_(['cTrue','cFalse'])) \
                                 .filter(Turkcode.task_id==task_id) \
                                 .filter(Turkcode.active==False) \
-                                .all()
-    task_jobs.extend(active_jobs)
+                                .count()
+    task_jobs += active_jobs
 
-    if len(task_jobs) < max_workers_possible:
-        if Config.DEBUGGING: app.logger.info('Creating {} new hits.'.format(max_workers_possible - len(task_jobs)))
-        createTurkcodes(max_workers_possible - len(task_jobs), task_id, session)
-    elif (len(task_jobs) > max_workers_possible):
-        if Config.DEBUGGING: app.logger.info('Removing {} excess hits.'.format(len(task_jobs) - max_workers_possible))
-        deleteTurkcodes(len(task_jobs) - max_workers_possible, task_jobs, task_id, session)
+    if task_jobs < max_workers_possible:
+        if Config.DEBUGGING: app.logger.info('Creating {} new jobs.'.format(max_workers_possible - task_jobs))
+        createTurkcodes(max_workers_possible - task_jobs, task_id, session)
+    elif (task_jobs > max_workers_possible):
+        if Config.DEBUGGING: app.logger.info('Removing {} excess jobs.'.format(task_jobs - max_workers_possible))
+        jobs_to_delete = task_jobs - max_workers_possible
+        # deleteTurkcodes(task_jobs - max_workers_possible, task_id, session)
 
     #Check if finished:
     if '-5' in taggingLevel:
@@ -674,7 +676,7 @@ def manage_task(task,session):
 
     task.clusters_remaining = clusters_remaining
 
-    if (clusters_remaining==0) and (len(active_jobs)==0):
+    if (clusters_remaining==0) and (active_jobs==0):
         processing = session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Trapgroup.processing==True,Trapgroup.queueing==True)).first()
 
         if not processing:
@@ -682,13 +684,13 @@ def manage_task(task,session):
             task.status = 'Wrapping Up'
             # session.commit()
             # wrapUpTask.delay(task_id=task_id)
-            return True
+            return True, jobs_to_delete
 
     # else:
     #     if len(task_jobs) == 0:
     #         freeUpWork(task_id=task_id)
 
-    return False
+    return False, jobs_to_delete
 
 @celery.task(ignore_result=True)
 def manageTasks():
@@ -710,8 +712,8 @@ def manageTasks():
             task.status = 'successInitial'
 
         #Look for abandoned jobs
-        abandoned_jobs = session.query(Turkcode,User,Task)\
-                                .join(User,User.username==Turkcode.user_id)\
+        abandoned_jobs = session.query(User,Task)\
+                                .join(Turkcode,User.username==Turkcode.user_id)\
                                 .join(Task)\
                                 .filter(User.parent_id!=None)\
                                 .filter(~User.passed.in_(['cTrue','cFalse']))\
@@ -769,14 +771,21 @@ def manageTasks():
 
         # pool = Pool(processes=4)
         wrapUps = []
+        jobs_to_delete = {}
         for task in tasks:
-            if manage_task(task,session): wrapUps.append(task.id)
+            wrapUp, jobs_to_delete[task.id] = manage_task(task,session)
+            if wrapUp: wrapUps.append(task.id)
             # pool.apply_async(manage_task,(task_id,))
         # pool.close()
         # pool.join()
 
         session.commit()
 
+        # Delete excess jobs
+        for task_id in jobs_to_delete.keys():
+            deleteTurkcodes(jobs_to_delete[task_id], task_id, session)
+
+        # Wrap up finished tasks
         for task_id in wrapUps:
             wrapUpTask.delay(task_id=task_id)
 

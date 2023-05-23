@@ -1491,10 +1491,10 @@ def createTurkcodes(number_of_workers, task_id, session):
 
     return turkcodes
 
-def deleteTurkcodes(number_of_jobs, jobs, task_id, session):
+def deleteTurkcodes(number_of_jobs, task_id, session):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
-    if not populateMutex(int(task_id)): return jobs
+    if not populateMutex(int(task_id)): return False
     GLOBALS.mutex[int(task_id)]['job'].acquire()
     session.commit()
     turkcodes = session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
@@ -1502,7 +1502,7 @@ def deleteTurkcodes(number_of_jobs, jobs, task_id, session):
         session.delete(turkcode)
     session.commit()
     GLOBALS.mutex[int(task_id)]['job'].release()
-    return jobs
+    return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def updateAllStatuses(self,task_id):
@@ -1616,25 +1616,24 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         session = db.session()
     
     for item in abandoned_jobs:
-        job = item[0]
-        user = item[1]
-        task = item[2]
+        user = item[0]
+        task = item[1]
 
         if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
-            app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
+            if Config.DEBUGGING: app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
             from app.functions.individualID import calculate_individual_similarities
             calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
-        elif '-5' in task.tagging_level:
-            #flush allocations
-            allocateds = session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
-            for allocated in allocateds:
-                allocated.allocated = None
-                allocated.allocation_timestamp = None
+        # elif '-5' in task.tagging_level:
+        #     #flush allocations
+        #     allocateds = session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
+        #     for allocated in allocateds:
+        #         allocated.allocated = None
+        #         allocated.allocation_timestamp = None
 
-            allocateds = session.query(Individual).filter(Individual.allocated==user.id).all()
-            for allocated in allocateds:
-                allocated.allocated = None
-                allocated.allocation_timestamp = None
+        #     allocateds = session.query(Individual).filter(Individual.allocated==user.id).all()
+        #     for allocated in allocateds:
+        #         allocated.allocated = None
+        #         allocated.allocation_timestamp = None
 
         user.trapgroup = []
         user.passed = 'cFalse'
