@@ -4781,7 +4781,8 @@ def get_clusters():
                 individual.allocated = current_user.id
                 individual.allocation_timestamp = datetime.utcnow()
 
-            current_user.clusters_allocated += len(individuals)
+            clusters_allocated = current_user.clusters_allocated + len(individuals)
+            current_user.clusters_allocated = clusters_allocated
             session.commit()
             GLOBALS.mutex[task_id]['global'].release()
 
