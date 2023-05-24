@@ -5578,50 +5578,38 @@ def assignLabel(clusterID):
             num += 1
 
             #Check if image has already been knocked down, if so, ignore new label
-            downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+            downLabel = session.query(Label).get(GLOBALS.knocked_id)
             if downLabel and (downLabel in cluster.labels):
                 pass
             else:
-                if (num <= task.size) or (current_user.admin == True):
+                if (num <= task.size) or (current_user.admin):
                     newLabels = []
                          
                     if '-2' in taggingLevel:
                         cluster.tags = []
                     else:
+                        cluster.labels = []
+
                         # Can't have nothing label alongside other labels
                         if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
                             if Config.DEBUGGING: app.logger.info('Blocked nothing multi label!')
                             labels.remove(GLOBALS.nothing_id)
 
-                        # Don't necessarily know that false detections were removed anymore
-                        # if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and (str(GLOBALS.nothing_id) not in labels):
-                        #     reAllocated = True
-                        #     trapgroup = cluster.images[0].camera.trapgroup
-                        #     trapgroup.processing = True
-                        #     trapgroup.active = False
-                        #     trapgroup.user_id = None
-                        #     current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                        #     db.session.commit()
-                        #     removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
-                            
-                        cluster.labels = []
-
-                    if cluster.skipped:
-                        cluster.skipped = False
+                    cluster.skipped = False
 
                     for label_id in labels:
                         if int(label_id)==Config.SKIP_ID:
                             cluster.skipped = True
-                            parentLabel = db.session.query(Label).get(taggingLevel)
+                            parentLabel = session.query(Label).get(taggingLevel)
 
                             if ('-2' not in taggingLevel) and (parentLabel not in newLabels):
                                 newLabels.append(parentLabel)
 
                         else:
                             if '-2' in taggingLevel:
-                                newLabel = db.session.query(Tag).get(label_id)
+                                newLabel = session.query(Tag).get(label_id)
                             else:
-                                newLabel = db.session.query(Label).get(label_id)
+                                newLabel = session.query(Label).get(label_id)
                             
                             if newLabel:
                                 if newLabel.id == GLOBALS.wrong_id:
@@ -5629,141 +5617,13 @@ def assignLabel(clusterID):
                                     cluster.labels = []
                                     break
                                 
-                                else:
-                                    if remove_false_detections:
-                                        # sq = db.session.query(Cluster) \
-                                        #     .join(Image, Cluster.images) \
-                                        #     .join(Detection)
-
-                                        # sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
-
-                                        # clusters_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
-                                        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                        #                         .filter(Detection.static == False) \
-                                        #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        #                         .distinct().count()
-
-                                        tgs_available = db.session.query(Trapgroup)\
-                                                                .filter(Trapgroup.survey==task.survey)\
-                                                                .filter(Trapgroup.user_id==None)\
-                                                                .filter(Trapgroup.active==True)\
-                                                                .first()
-
-                                        sq = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                                                .join(Image) \
-                                                                .filter(Image.clusters.contains(cluster))\
-                                                                .subquery()
-
-                                        removable_detections = db.session.query(Detection)\
-                                                                .join(Image)\
-                                                                .join(sq,sq.c.detID==Detection.id)\
-                                                                .filter(Image.clusters.contains(cluster))\
-                                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                                                .filter(~Detection.status.in_(['deleted','hidden']))\
-                                                                .filter(Detection.static==False)\
-                                                                .filter(sq.c.area<0.1)\
-                                                                .first()
-
-                                        # sq = db.session.query(Trapgroup)\
-                                        #                         .join(Camera)\
-                                        #                         .join(Image)\
-                                        #                         .join(Detection)\
-                                        #                         .join(Cluster,Image.clusters)
-
-                                        # sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
-
-                                        # tgs_available = sq.filter(Cluster.task_id == cluster.task_id) \
-                                        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                        #                         .filter(Detection.static == False) \
-                                        #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        #                         .filter(Trapgroup.user_id==None)\
-                                        #                         .filter(Trapgroup.processing==False)\
-                                        #                         .filter(Trapgroup.queueing==False)\
-                                        #                         .distinct().count()
-
-                                        if tgs_available and (not explore) and removable_detections:
-                                            OverallStartTime = time.time()
-                                            reAllocated = True
-                                            trapgroup = cluster.images[0].camera.trapgroup
-                                            trapgroup.processing = True
-                                            trapgroup.active = False
-                                            trapgroup.user_id = None
-                                            current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                                            db.session.commit()
-                                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
-                                            survey_id = task.survey_id
-
-                                            # Get a new batch of clusters
-                                            db.session.close()
-                                            GLOBALS.mutex[task_id]['global'].acquire()
-                                            # Open a new session to ensure allocations are up to date after a long wait
-                                            session = db.session()
-
-                                            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
-                                            if trapgroup == None:
-                                                session.close()
-                                                GLOBALS.mutex[task_id]['global'].release()
-                                                newClusters = []
-                                            else:
-                                                limit = task_size - current_user.clusters_allocated
-                                                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
-
-                                                if len(clusterInfo)==0: current_user.trapgroup = []
-                                                if len(clusterInfo) <= limit:
-                                                    clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
-                                                    trapgroup.active = False
-                                                else:
-                                                    clusters_allocated = current_user.clusters_allocated + limit
-                                                current_user.clusters_allocated = clusters_allocated
-                                                
-                                                session.commit()
-                                                session.close()
-                                                GLOBALS.mutex[task_id]['global'].release()
-
-                                                newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None)['info']
-
-                                            if (clusters_allocated >= task_size) or (newClusters==[]):
-                                                newClusters.append(Config.FINISHED_CLUSTER)
-
-                                            # GLOBALS.mutex[task.id]['global'].acquire()
-                                            # db.session.commit()
-                                            # trapgroup = allocate_new_trapgroup(task.id,current_user.id)
-                                            # GLOBALS.mutex[task.id]['global'].release()
-
-                                            # if trapgroup == None:
-                                            #     clusters = []
-                                            # else:
-                                            #     GLOBALS.mutex[task.id]['user'][current_user.id].acquire()
-                                            #     limit = task.size - current_user.clusters_allocated
-                                            #     clusters = fetch_clusters(taggingLevel,task.id,isBounding,trapgroup.id,limit)
-                                            #     current_user.clusters_allocated += len(clusters)
-                                            #     db.session.commit()
-                                            #     GLOBALS.mutex[task.id]['user'][current_user.id].release()
-                                            
-                                            # if clusters == []:
-                                            #     current_user.trapgroup = []
-                                            #     db.session.commit()
-                                            #     newClusters = [Config.FINISHED_CLUSTER]
-
-                                            # else:
-                                            #     newClusters = []
-                                            #     for cluster in clusters:
-                                            #         if time.time() - OverallStartTime > 30:
-                                            #             # If this is taking too long, cut the request short
-                                            #             current_user.clusters_allocated -= (len(clusters) - len(newClusters))
-                                            #             db.session.commit()
-                                            #             break
-                                            #         newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,False))
-
-                                            #     if current_user.clusters_allocated >= task.size:
-                                            #         newClusters.append(Config.FINISHED_CLUSTER)
-
-                                    if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
-                                        newLabels.append(newLabel)
+                                elif (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
+                                    newLabels.append(newLabel)
 
                     if '-2' in taggingLevel:
                         cluster.tags.extend(newLabels)
                         cluster.skipped = True
+                        if Config.DEBUGGING: app.logger.info('Cluster tags: {}'.format([r.description for r in cluster.tags]))
                     else:
                         cluster.labels.extend(newLabels)
                         if Config.DEBUGGING: app.logger.info('Cluster labels: {}'.format([r.description for r in cluster.labels]))
@@ -5773,7 +5633,7 @@ def assignLabel(clusterID):
                     cluster.timestamp = datetime.utcnow()
 
                     # Copy labels over to labelgroups
-                    labelgroups = db.session.query(Labelgroup) \
+                    labelgroups = session.query(Labelgroup) \
                                             .join(Detection) \
                                             .join(Image) \
                                             .filter(Image.clusters.contains(cluster)) \
@@ -5786,9 +5646,80 @@ def assignLabel(clusterID):
                         else:
                             labelgroup.labels = cluster.labels
 
-                    db.session.commit()
-
                     if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
+
+                    if remove_false_detections:
+                        tgs_available = session.query(Trapgroup)\
+                                                .filter(Trapgroup.survey==task.survey)\
+                                                .filter(Trapgroup.user_id==None)\
+                                                .filter(Trapgroup.active==True)\
+                                                .first()
+
+                        removable_detections = session.query(Detection)\
+                                                .join(Image)\
+                                                .filter(Image.clusters.contains(cluster))\
+                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                                .filter(Detection.static==False)\
+                                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top))<0.1)\
+                                                .first()
+
+                        if tgs_available and (not explore) and removable_detections:
+                            reAllocated = True
+                            trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
+                            survey_id = task.survey_id
+                            task_size = task.size
+                            trapgroup.processing = True
+                            trapgroup.active = False
+                            trapgroup.user_id = None
+                            current_user.clusters_allocated = num
+
+                            label_description = None
+                            if int(taggingLevel) > 0: label_description = session.query(Label.description).get(int(taggingLevel)[0])
+                            
+                            session.commit()
+                            
+                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
+
+                            # Get a new batch of clusters
+                            session.close()
+                            GLOBALS.mutex[task_id]['global'].acquire()
+                            # Open a new session to ensure allocations are up to date after a long wait
+                            session = db.session()
+                            session.add(current_user)
+
+                            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                            if trapgroup == None:
+                                session.close()
+                                GLOBALS.mutex[task_id]['global'].release()
+                                newClusters = []
+                            else:
+                                limit = task_size - current_user.clusters_allocated
+                                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+
+                                if len(clusterInfo)==0: current_user.trapgroup = []
+                                if len(clusterInfo) <= limit:
+                                    clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                                    trapgroup.active = False
+                                else:
+                                    clusters_allocated = current_user.clusters_allocated + limit
+                                current_user.clusters_allocated = clusters_allocated
+                                
+                                session.commit()
+                                session.close()
+                                GLOBALS.mutex[task_id]['global'].release()
+
+                                newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None,label_description)['info']
+
+                            if (newClusters==[]) or (clusters_allocated >= task_size):
+                                newClusters.append(Config.FINISHED_CLUSTER)
+                        else:
+                            session.commit()
+                            session.close()
+
+                    else:
+                        session.commit()
+                        session.close()
 
         return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
 
