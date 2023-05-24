@@ -1496,13 +1496,13 @@ def deleteTurkcodes(number_of_jobs, task_id, session):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
     if not populateMutex(int(task_id)): return False
-    GLOBALS.mutex[int(task_id)]['job'].acquire()
+    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].acquire()
     session.commit()
     turkcodes = session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
     for turkcode in turkcodes:
         session.delete(turkcode)
     session.commit()
-    GLOBALS.mutex[int(task_id)]['job'].release()
+    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].release()
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
