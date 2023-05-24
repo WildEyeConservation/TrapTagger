@@ -650,7 +650,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
         # pool = Pool(processes=4)
         for individual1 in individuals1:
-            # if individual1 in individuals2: individuals2.remove(individual1)
+            if individual1 in individuals2: individuals2.remove(individual1)
             if individuals2:
                 # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
                 calculate_individual_similarity(individual1,individuals2,session)
