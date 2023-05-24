@@ -951,10 +951,11 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             task = db.session.query(Task).get(task_id)
 
             # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
-            if task.survey.image_count<250000:
-                trapgroups = [None]
-            else:
-                trapgroups = [tg.id for tg in task.survey.trapgroups]
+            trapgroups = [None]
+            # if task.survey.image_count<250000:
+            #     trapgroups = [None]
+            # else:
+            #     trapgroups = [tg.id for tg in task.survey.trapgroups]
             
             for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
