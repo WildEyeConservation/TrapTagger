@@ -99,7 +99,7 @@ class Config(object):
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
     # Individual ID Config
-    SIMILARITY_SCORE = 0.1
+    SIMILARITY_SCORE = 1.0
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
