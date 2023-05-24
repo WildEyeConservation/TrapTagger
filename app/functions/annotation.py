@@ -452,7 +452,7 @@ def freeUpWork(task,session):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
     if '-5' not in task.tagging_level:
-        clusterSQ = db.session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
+        clusterSQ = session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
                                 .join(Camera)\
                                 .join(Image)\
                                 .join(Cluster,Image.clusters)\
@@ -463,7 +463,7 @@ def freeUpWork(task,session):
                         .join(Camera) \
                         .join(Image) \
                         .join(Cluster, Image.clusters) \
-                        .join(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
+                        .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
                         .filter(Cluster.task_id == task.id) \
                         .filter(Trapgroup.active == False) \
                         .filter(Trapgroup.processing == False) \

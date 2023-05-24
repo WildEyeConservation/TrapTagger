@@ -4754,7 +4754,7 @@ def get_clusters():
     label_description = None
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
-        label_description = session.query(Label.description).get(int(taggingLevel)[0])
+        label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
         clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
@@ -5678,7 +5678,7 @@ def assignLabel(clusterID):
                             current_user.clusters_allocated = num
 
                             label_description = None
-                            if int(taggingLevel) > 0: label_description = session.query(Label.description).get(int(taggingLevel)[0])
+                            if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
                             
                             session.commit()
                             
