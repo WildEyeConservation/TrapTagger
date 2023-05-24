@@ -456,7 +456,7 @@ def freeUpWork(task,session):
                                 .join(Camera)\
                                 .join(Image)\
                                 .join(Cluster,Image.clusters)\
-                                .filter(Cluster.task_id == task_id) \
+                                .filter(Cluster.task_id == task.id) \
                                 .subquery()
 
         trapgroups = session.query(Trapgroup) \
@@ -464,7 +464,7 @@ def freeUpWork(task,session):
                         .join(Image) \
                         .join(Cluster, Image.clusters) \
                         .join(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
-                        .filter(Cluster.task_id == task_id) \
+                        .filter(Cluster.task_id == task.id) \
                         .filter(Trapgroup.active == False) \
                         .filter(Trapgroup.processing == False) \
                         .filter(Trapgroup.queueing == False)\

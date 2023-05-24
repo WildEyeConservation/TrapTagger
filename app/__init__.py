@@ -153,6 +153,8 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
     if (not Config.MAINTENANCE) and (sender=='celery@priority_worker'):
         import sqlalchemy as sa
+        import redis
+        from app.models import Classifier
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks, manageDownloads
@@ -174,6 +176,9 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
         # Flush all other (non-default) queues
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        allQueues = ['default'] #default needs to be first
+        allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+        allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
         for queue in allQueues:
             if queue not in ['default','ram_intensive']:
                 while True:

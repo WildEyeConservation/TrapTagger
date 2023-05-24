@@ -217,12 +217,12 @@ def getQueueLengths(redisClient):
     queues = {}
     for queue in Config.QUEUES:
         queueLength = redisClient.llen(queue)
-        print('{} queue length: {}'.format(queue,queueLength))
+        if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
     for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
         queueLength = redisClient.llen(queue)
-        print('{} queue length: {}'.format(queue,queueLength))
+        if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
     return queues
@@ -430,6 +430,7 @@ def importMonitor():
         startTime = datetime.utcnow()
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         queues = getQueueLengths(redisClient)
+        commit = None
 
         if queues:
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
@@ -1499,13 +1500,13 @@ def deleteTurkcodes(number_of_jobs, task_id, session):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
     if not populateMutex(int(task_id)): return False
-    GLOBALS.mutex[int(task_id)]['job'].acquire()
+    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].acquire()
     session.commit()
     turkcodes = session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
     for turkcode in turkcodes:
         session.delete(turkcode)
     session.commit()
-    GLOBALS.mutex[int(task_id)]['job'].release()
+    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].release()
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)

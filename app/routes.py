@@ -2989,6 +2989,17 @@ def getHomeSurveys():
                     else:
                         taskInfo['completed'] = 0
 
+                    if '-5' in taskInfo['tagging_level']:
+                        if taskInfo['remaining'] != None:
+                            taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
+                        else:
+                            taskInfo['remaining'] = '0 individuals remaining'
+                    else:
+                        if taskInfo['remaining'] != None:
+                            taskInfo['remaining'] = str(taskInfo['remaining']) + ' clusters remaining'
+                        else:
+                            taskInfo['remaining'] = '0 clusters remaining'
+
                     survey_data2[item[0]]['tasks'].append(taskInfo)
 
             survey_ids = list(survey_data2.keys())
@@ -3150,6 +3161,17 @@ def getJobs():
                 individual_id_names.append(name)
 
                 taskInfo['name'] = name
+
+            if taskInfo['remaining'] != None:
+                taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
+            else:
+                taskInfo['remaining'] = '0 individuals remaining'
+
+        else:
+            if taskInfo['remaining'] != None:
+                taskInfo['remaining'] = str(taskInfo['remaining']) + ' clusters remaining'
+            else:
+                taskInfo['remaining'] = '0 clusters remaining'
         
         task_list.append(taskInfo)
 

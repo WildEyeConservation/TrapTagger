@@ -178,7 +178,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                     det_Translation[aid] = detection_id
 
                 endTime = time.time()
-                app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
+                if Config.DEBUGGING: app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
                 
                 # Run Hotspotter
                 # quaid_list = query ids
@@ -252,7 +252,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
                     # db.session.commit()
                     endTime = time.time()
-                    app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,endTime - startTime))
+                    if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,endTime - startTime))
 
                 # Delete images & db
                 shutil.rmtree(dbName, ignore_errors=True)
@@ -650,7 +650,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
         # pool = Pool(processes=4)
         for individual1 in individuals1:
-            if individual1 in individuals2: individuals2.remove(individual1)
+            # if individual1 in individuals2: individuals2.remove(individual1)
             if individuals2:
                 # pool.apply_async(calculate_individual_similarity,(individual1,individuals2.copy()))
                 calculate_individual_similarity(individual1,individuals2,session)
@@ -680,7 +680,7 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
                                             .filter(IndSimilarity.score==None)\
                                             .distinct().count()
 
-            app.logger.info("incompleteIndividuals: {}".format(incompleteIndividuals))    
+            if Config.DEBUGGING: app.logger.info("incompleteIndividuals: {}".format(incompleteIndividuals))    
 
             if (incompleteIndividuals == 0) or (task.status=='Stopped'):
                 task.survey.status = 'Ready'
@@ -744,14 +744,14 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
     '''
 
     if indSimilarity and (indSimilarity.skipped == True):
-        app.logger.info('Undoing Skip')
+        if Config.DEBUGGING: app.logger.info('Undoing Skip')
         indSimilarity.skipped = False
     elif indSimilarity and (indSimilarity.score == -2000):
-        app.logger.info('Undoing Reject')
+        if Config.DEBUGGING: app.logger.info('Undoing Reject')
         indSimilarity.score = indSimilarity.old_score
     else:
         if individual2.active==False:
-            app.logger.info('Undoing Accept')
+            if Config.DEBUGGING: app.logger.info('Undoing Accept')
             individual2.active = True
 
             for detection in individual2.detections:
