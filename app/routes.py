@@ -2879,7 +2879,7 @@ def getHomeSurveys():
                                 .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                                 .filter(Survey.user_id==current_user.id)\
-                                .filter(or_(Task.id==None,and_(Task.name!='default',~Task.name.contains('_o_l_d_'))))
+                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))
 
         # uploading/downloading surveys always need to be on the page
         if current_downloads != '':
@@ -2909,22 +2909,23 @@ def getHomeSurveys():
                                         'numTrapgroups': item[7], 
                                         'tasks': []}
 
-            taskInfo = {'id': item[8],
-                        'name': item[9],
-                        'status': item[10],
-                        'complete': item[11],
-                        'tagging_level': item[12],
-                        'total': item[13],
-                        'remaining': item[14],
-                        'jobsAvailable': item[15],
-                        'jobsCompleted': item[16]}
+            if item[9]!='default':
+                taskInfo = {'id': item[8],
+                            'name': item[9],
+                            'status': item[10],
+                            'complete': item[11],
+                            'tagging_level': item[12],
+                            'total': item[13],
+                            'remaining': item[14],
+                            'jobsAvailable': item[15],
+                            'jobsCompleted': item[16]}
 
-            if taskInfo['total'] and taskInfo['remaining']:
-                taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
-            else:
-                taskInfo['completed'] = 0
+                if taskInfo['total'] and taskInfo['remaining']:
+                    taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+                else:
+                    taskInfo['completed'] = 0
 
-            survey_data[item[0]]['tasks'].append(taskInfo)            
+                survey_data[item[0]]['tasks'].append(taskInfo)            
 
         # add all the searches to the base query
         searches = re.split('[ ,]',search)
@@ -2973,7 +2974,7 @@ def getHomeSurveys():
                                             'numTrapgroups': item[7], 
                                             'tasks': []}
 
-                if item[8]:
+                if item[8] and (item[9]!='default'):
                     taskInfo = {'id': item[8],
                                 'name': item[9],
                                 'status': item[10],
