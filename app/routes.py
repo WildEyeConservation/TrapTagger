@@ -4796,19 +4796,17 @@ def get_clusters():
             session.add(current_user)
             session.refresh(current_user)
 
-            if current_user.trapgroup[:]:
-                trapgroup = current_user.trapgroup[0]
-            else:
-                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
-                if trapgroup == None:
-                    session.close()
-                    GLOBALS.mutex[task_id]['global'].release()
-                    return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+            # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
+            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+            if trapgroup == None:
+                session.close()
+                GLOBALS.mutex[task_id]['global'].release()
+                return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
             limit = task_size - current_user.clusters_allocated
             clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
-            if len(clusterInfo)==0: current_user.trapgroup = []
+            # if len(clusterInfo)==0: current_user.trapgroup = []
             if len(clusterInfo) <= limit:
                 clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
                 trapgroup.active = False
@@ -5703,7 +5701,7 @@ def assignLabel(clusterID):
                                 limit = task_size - current_user.clusters_allocated
                                 clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
-                                if len(clusterInfo)==0: current_user.trapgroup = []
+                                # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if len(clusterInfo) <= limit:
                                     clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
                                     trapgroup.active = False

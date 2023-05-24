@@ -468,6 +468,7 @@ def freeUpWork(task,session):
                         .filter(Trapgroup.active == False) \
                         .filter(Trapgroup.processing == False) \
                         .filter(Trapgroup.queueing == False)\
+                        .filter(Trapgroup.user_id == None)\
                         .filter(Cluster.examined==False)\
                         .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=2),clusterSQ.c.timestamp==None))\
                         .all()
