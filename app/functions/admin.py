@@ -92,47 +92,58 @@ def delete_task(self,task_id):
             try:
                 individuals_to_delete = []
                 task = db.session.query(Task).get(task_id)
+                tasks = [r[0] for r in db.session.query(Tag.id).filter(Tag.task_id==task_id).all()]
                 individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
-                for individual in individuals:
-                    detections = db.session.query(Detection)\
+                detections = [r[0] for r in db.session.query(Detection.id)\
                                         .join(Image)\
                                         .join(Camera)\
                                         .join(Trapgroup)\
-                                        .filter(Trapgroup.survey==task.survey)\
-                                        .filter(Detection.individuals.contains(individual))\
-                                        .distinct().all()
-                    
-                    individual.detections = [detection for detection in individual.detections if detection not in detections]
+                                        .filter(Trapgroup.survey_id==task.survey_id)\
+                                        .distinct().all()]
+                
+                for individual in individuals:                    
+                    individual.detections = [detection for detection in individual.detections if detection.id not in detections]
 
                     if len(individual.detections)==0:
-                        individuals_to_delete.append(individual)
+                        # individuals_to_delete.append(individual)
+                        individual.detections = []
+                        individual.children = []
+                        individual.tags = []
+                        individual.tasks = []
+                        indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                        for indSimilarity in indSimilarities:
+                            db.session.delete(indSimilarity)
+                        db.session.delete(individual)
                     else:
                         # no point doing this if its going to be deleted
-                        individual.tags = [tag for tag in individual.tags if tag not in task.tags]
+                        individual.tasks.remove(task)
+                        individual.tags = [tag for tag in individual.tags if tag.id not in tags]
 
-                for individual in individuals:
-                    if individual not in individuals_to_delete:
-                        individual.children = [child for child in individual.children if child not in individuals_to_delete]
-
-                individuals_to_delete = [r.id for r in individuals_to_delete]
                 db.session.commit()
 
-                individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
+                # for individual in individuals:
+                #     if individual not in individuals_to_delete:
+                #         individual.children = [child for child in individual.children if child not in individuals_to_delete]
+
+                # individuals_to_delete = [r.id for r in individuals_to_delete]
+                # db.session.commit()
+
+                # individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
                 # for chunk in chunker(individuals_to_delete,1000):
-                for individual in individuals:
-                    individual.detections = []
-                    individual.children = []
-                    individual.tags = []
-                    individual.tasks = []
-                db.session.commit()
+                # for individual in individuals:
+                #     individual.detections = []
+                #     individual.children = []
+                #     individual.tags = []
+                #     individual.tasks = []
+                # db.session.commit()
 
-                individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
-                for individual in individuals:
-                    indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
-                    for indSimilarity in indSimilarities:
-                        db.session.delete(indSimilarity)
-                    db.session.delete(individual)
-                db.session.commit()
+                # individuals = db.session.query(Individual).filter(Individual.id.in_(individuals_to_delete)).all()
+                # for individual in individuals:
+                #     indSimilarities = db.session.query(IndSimilarity).filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id)).all()
+                #     for indSimilarity in indSimilarities:
+                #         db.session.delete(indSimilarity)
+                #     db.session.delete(individual)
+                # db.session.commit()
 
                 app.logger.info('Individuals deleted successfully.')
 
@@ -182,19 +193,39 @@ def delete_task(self,task_id):
                 message = 'Could not delete labels.'
                 app.logger.info('Failed to delete labels.')
 
+        #Dissociate remaining multi-task individuals from this task's workers
+        if status != 'error':
+            try:
+                individuals = db.session.query(Individual)\
+                                        .join(User,or_(User.id==Individual.user_id,User.id==Individual.allocated))\
+                                        .join(Turkcode,Turkcode.user_id==User.username))\
+                                        .filter(Turkcode.task_id==task_id) \
+                                        .filter(User.email==None) \
+                                        .all()
+                
+                for individual in individuals:
+                    individual.user_id = None
+                    individual.allocated = None
+                
+                db.session.commit()
+                app.logger.info('Multi-task individuals dissociated successfully.')
+            except:
+                status = 'error'
+                message = 'Could not dissociate multi-task individuals.'
+                app.logger.info('Failed to dissociate multi-task individuals.')
+
         #Delete turkcodes & workers
         if status != 'error':
             try:
-                turkcodes = db.session.query(Turkcode) \
+                data = db.session.query(Turkcode,User) \
                                     .join(User, User.username==Turkcode.user_id) \
                                     .filter(Turkcode.task_id==task_id) \
                                     .filter(User.email==None) \
                                     .all()
                 # for chunk in chunker(turkcodes,1000):
-                for turkcode in turkcodes:
-                    worker = db.session.query(User).filter(User.username==turkcode.user_id).first()
-                    db.session.delete(worker)
-                    db.session.delete(turkcode)
+                for row in data:
+                    db.session.delete(row[1])
+                    db.session.delete(row[0])
                 db.session.commit()
                 app.logger.info('Turkcodes and workers deleted successfully.')
             except:

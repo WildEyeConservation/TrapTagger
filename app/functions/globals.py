@@ -74,7 +74,7 @@ def cleanupWorkers(one, two):
     inspector = celery.control.inspect()
     inspector_reserved = inspector.reserved()
     inspector_active = inspector.active()
-    defaultWorkerNames = ['default_worker','traptagger_worker']
+    defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
 
     if inspector_active!=None:
         for worker in inspector_active:
@@ -99,7 +99,7 @@ def cleanupWorkers(one, two):
     # Flush all other (non-default) queues
     redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
     for queue in allQueues:
-        if queue != 'default':
+        if queue not in ['default','ram_intensive']:
             while True:
                 task = redisClient.blpop(queue, timeout=1)
                 if not task:
@@ -118,8 +118,12 @@ def cleanupWorkers(one, two):
                 break
         kwargs = active_task['kwargs']
         # priority = active_task['delivery_info']['priority']
+        if 'ram_worker' in active_task['hostname']:
+            queue = 'ram_intensive'
+        else:
+            queue = 'default'
         app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
-        active_function.apply_async(kwargs=kwargs, queue='default') #, priority=priority)
+        active_function.apply_async(kwargs=kwargs, queue=queue) #, priority=priority)
 
     #Ensure redis db is saved
     app.logger.info('Saving redis db...')

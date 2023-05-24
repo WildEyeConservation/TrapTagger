@@ -75,6 +75,7 @@ def make_celery(flask_app):
         Queue('local',     routing_key='local.#'),
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
+        Queue('ram_intensive',     routing_key='ram_intensive.#'),
     ]
 
     if not Config.INITIAL_SETUP:
@@ -174,7 +175,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         # Flush all other (non-default) queues
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         for queue in allQueues:
-            if queue != 'default':
+            if queue not in ['default','ram_intensive']:
                 while True:
                     task = redisClient.blpop(queue, timeout=1)
                     if not task:

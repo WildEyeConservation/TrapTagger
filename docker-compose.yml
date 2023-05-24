@@ -15,43 +15,43 @@
 version: '3.1'
 services:
 
-    nginx:
-        # This is the default approach, uses certbot generated certificates, and auto-renews
-        restart: always
-        build:
-            context: ./
-            dockerfile: Dockerfile.certbot
-        image: nginxcertbot
-        container_name: nginx
-        depends_on:
-            - flask
-        volumes:
-            - /etc/letsencrypt:/etc/letsencrypt
-            - ./nginx.conf:/etc/nginx/conf.d/default.conf
-            - ./static:/etc/nginx/html
-        entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
-        ports:
-            - "80:80"
-            - "443:443"
-        networks:
-            - my-network
-
     # nginx:
-    #     # Use this alternative setup if using self-signed certificates
+    #     # This is the default approach, uses certbot generated certificates, and auto-renews
     #     restart: always
-    #     image: nginx:1.13.7
+    #     build:
+    #         context: ./
+    #         dockerfile: Dockerfile.certbot
+    #     image: nginxcertbot
     #     container_name: nginx
     #     depends_on:
     #         - flask
     #     volumes:
+    #         - /etc/letsencrypt:/etc/letsencrypt
     #         - ./nginx.conf:/etc/nginx/conf.d/default.conf
     #         - ./static:/etc/nginx/html
-    #         - ./certs:/etc/nginx/certs
-    #     networks:
-    #         - my-network
+    #     entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
     #     ports:
     #         - "80:80"
     #         - "443:443"
+    #     networks:
+    #         - my-network
+
+    nginx:
+        # Use this alternative setup if using self-signed certificates
+        restart: always
+        image: nginx:1.13.7
+        container_name: nginx
+        depends_on:
+            - flask
+        volumes:
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+            - ./static:/etc/nginx/html
+            - ./certs:/etc/nginx/certs
+        networks:
+            - my-network
+        ports:
+            - "80:80"
+            - "443:443"
 
     flask:
         # Main Flask app
@@ -68,7 +68,7 @@ services:
             - ./wildbook-ia/wbia:/code/wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
-            - GUNICORN_CMD_ARGS="--threads=8"
+            - GUNICORN_CMD_ARGS="--threads=3"
             - REDIS_IP=traptagger_redis
             - DATABASE_NAME=${DATABASE_NAME}
             - HOST_IP=${HOST_IP}
@@ -121,7 +121,7 @@ services:
             - ./wildbook-ia/wbia:/code/wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
-            - GUNICORN_CMD_ARGS="--threads=4"
+            - GUNICORN_CMD_ARGS="--threads=1"
             - REDIS_IP=traptagger_redis
             - DATABASE_NAME=${DATABASE_NAME}
             - HOST_IP=${HOST_IP}
@@ -203,6 +203,53 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
         command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
+        networks:
+            - my-network
+
+    ram_worker:
+        # worker that takes advantage of the greater amount of RAM on the server
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.0.1
+        container_name: ram_worker
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - PYTHONPATH=/code
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET=${BUCKET}
+            - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+            - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
+            - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+        command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 

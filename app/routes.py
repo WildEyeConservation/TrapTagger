@@ -6654,8 +6654,13 @@ def generateCSV():
     except:
         pass
 
+    if task.survey.image_count>250000:
+        queue='ram_intensive'
+    else:
+        queue='default'
+
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date))
-    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, startDate=start_date, endDate=end_date)
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
