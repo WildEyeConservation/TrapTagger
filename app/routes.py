@@ -2990,16 +2990,6 @@ def getHomeSurveys():
                     else:
                         taskInfo['completed'] = 0
 
-                    if '-5' in taskInfo['tagging_level']:
-                        if taskInfo['remaining'] != None:
-                            taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
-                        else:
-                            taskInfo['remaining'] = '0 individuals remaining'
-                    else:
-                        if taskInfo['remaining'] != None:
-                            taskInfo['remaining'] = str(taskInfo['remaining']) + ' clusters remaining'
-                        else:
-                            taskInfo['remaining'] = '0 clusters remaining'
 
                     survey_data2[item[0]]['tasks'].append(taskInfo)
 
@@ -3041,6 +3031,16 @@ def getHomeSurveys():
                     dbTask = db.session.query(Task).get(task['id'])
                     if dbTask.sub_tasks:
                         task['status'] = 'Processing'
+
+                    if task['remaining'] != None:
+                        task['remaining'] = str(task['remaining']) + ' individuals remaining'
+                    else:
+                        task['remaining'] = '0 individuals remaining'
+                elif task['tagging_level']:
+                    if task['remaining'] != None:
+                        task['remaining'] = str(task['remaining']) + ' clusters remaining'
+                    else:
+                        task['remaining'] = '0 clusters remaining'
 
             for task in survey['tasks']:
                 task['disabledLaunch'] = disabledLaunch
@@ -3087,7 +3087,7 @@ def getJobs():
                             .join(User,Survey.user_id==User.id)\
                             .outerjoin(Worker, User.workers)\
                             .join(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
-                            .join(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                            .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .filter(or_(User.id==current_user.id,Worker.c.id==current_user.id))
 
     if individual_id=='true':
@@ -4786,7 +4786,7 @@ def get_clusters():
             GLOBALS.mutex[task_id]['global'].acquire()
             # Open a new session to ensure allocations are up to date after a long wait
             session = db.session()
-
+            session.add(current_user)
             if current_user.trapgroup[:]:
                 trapgroup = current_user.trapgroup[0]
             else:
@@ -4797,7 +4797,7 @@ def get_clusters():
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
             limit = task_size - current_user.clusters_allocated
-            clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session)
+            clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
             if len(clusterInfo)==0: current_user.trapgroup = []
             if len(clusterInfo) <= limit:

@@ -686,7 +686,7 @@ def manage_task(task,session):
             # wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    elif len(task_jobs) == 0: freeUpWork(task_id=task_id)
+    elif task_jobs == 0: freeUpWork(task, session)
 
     return False, jobs_to_delete
 
