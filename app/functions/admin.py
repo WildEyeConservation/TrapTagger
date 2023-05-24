@@ -827,9 +827,14 @@ def reclusterAfterTimestampChange(survey_id):
             #     taskName = re.split('_copying',task.name)[0] + '_o_l_d_'
             #     newTask = task
             #     task = session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name==taskName).first()
-
+            
             #copy labels, tags, and translations
-            labelTranslations = {GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id)}
+            labelTranslations = {
+                GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id),
+                GLOBALS.knocked_id: session.query(Label).get(GLOBALS.knocked_id),
+                GLOBALS.nothing_id: session.query(Label).get(GLOBALS.nothing_id),
+                GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id)
+            }
             labels = session.query(Label).filter(Label.task_id==task.id).all()
             for label in labels:
                 newLabel = Label(description=label.description,hotkey=label.hotkey,complete=label.complete,task_id=newTask.id)
