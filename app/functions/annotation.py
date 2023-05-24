@@ -1096,7 +1096,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .outerjoin(Individual,Detection.individuals)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(classSQ.c.count/clusterDetCountSQ.c.count>=Config.MIN_CLASSIFICATION_RATIO)\
-                        .filter(classSQ.c.count>1)
+                        .filter(classSQ.c.count>1)\
+                        .filter(Cluster.examined==False)
 
         else:
             # Need to filter by trapgroup id and exclude video
@@ -1132,11 +1133,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .outerjoin(Label,Labelgroup.labels)\
                         .outerjoin(Tag,Labelgroup.tags)\
                         .outerjoin(Individual,Detection.individuals)\
-                        .filter(Camera.trapgroup_id==trapgroup_id)
+                        .filter(Camera.trapgroup_id==trapgroup_id)\
+                        .filter(Cluster.examined==False)
                         
         clusters = clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
-                        .filter(Cluster.examined==False)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Detection.static==False)\
