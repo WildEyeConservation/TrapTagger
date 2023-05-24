@@ -4680,117 +4680,154 @@ def get_clusters():
     OverallStartTime = time.time()
     id = request.args.get('id', None)
     reqId = request.args.get('reqId', None)
+    session = db.session()
     
     if reqId is None:
         reqId = '-99'
 
+    # Find task info
     if id is None:
         if current_user.admin == True:    
-            task_id = request.args.get('task', None)
+            task_id = int(request.args.get('task', None))
             if task_id is None:
                 return {'redirect': url_for('done')}, 278
         else:
             if current_user.parent_id==None:
                 return {'redirect': url_for('done')}, 278
             else:
-                task_id = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
+                task_id = session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
     else:
-        cluster = db.session.query(Cluster).get(id)
+        cluster = session.query(Cluster).get(id)
         task_id = cluster.task_id
     
     task = None
     try:
-        task = db.session.query(Task).get(task_id)
+        task = session.query(Task).get(task_id)
     except:
         return {'redirect': url_for('done')}, 278
     
+    # Check permissions
     if (task == None) or ((current_user.parent not in task.survey.user.workers) and (current_user.parent != task.survey.user) and (current_user != task.survey.user)):
         return {'redirect': url_for('done')}, 278
 
-    if current_user.admin == True:
+    # Check worker cluster counts
+    if current_user.admin:
         num = 0
     elif '-5' in task.tagging_level:
-        num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
+        num = session.query(Individual).filter(Individual.user_id==current_user.id).count()
     else:
-        num = db.session.query(Cluster).filter(Cluster.user==current_user).count()
+        num = session.query(Cluster).filter(Cluster.user==current_user).count()
 
     if (num >= (task.size + task.test_size)) or (current_user.passed in ['cFalse','false','cTrue']):    
         return {'redirect': url_for('done')}, 278
 
-    if (id is None) and (not populateMutex(int(task_id),current_user.id)): return json.dumps('error')
+    if (id is None) and (not populateMutex(task_id,current_user.id)): return json.dumps('error')
 
     isBounding = task.is_bounding
     taggingLevel = task.tagging_level
+    task_size = task.size
+    survey_id = task.survey_id
+    limit = 1
 
     if id:
-        sendVideo = True
-        clusters = [cluster]
+        clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+
     else:
-        sendVideo = False
 
         if '-5' in taggingLevel:
             # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
-            GLOBALS.mutex[int(task_id)]['global'].acquire()
-            db.session.commit()
+            session.close()
+            GLOBALS.mutex[task_id]['global'].acquire()
+            session = db.session()
             
-            clusters = fetch_clusters(taggingLevel,task_id,isBounding,None,1)
+            clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
 
-            for cluster in clusters:
-                bufferCount = db.session.query(Individual).filter(Individual.allocated==current_user.id).count()
-                if bufferCount >= 5:
-                    remInds = db.session.query(Individual)\
-                                    .filter(Individual.allocated==current_user.id)\
-                                    .order_by(Individual.allocation_timestamp).limit(bufferCount-4).all()
-                    for remInd in remInds:
-                        remInd.allocated = None
-                        remInd.allocation_timestamp = None
+            # de-allocate old individuals
+            for individual in individuals:
+                buffer = session.query(Individual).filter(Individual.allocated==current_user.id).order_by(Individual.allocation_timestamp).all()
+                if len(buffer) >= 5:
+                    for ind in buffer[:-4]:
+                        ind.allocated = None
+                        ind.allocation_timestamp = None
 
-                cluster.allocated = current_user.id
-                cluster.allocation_timestamp = datetime.utcnow()
+                # Allocate new individual
+                individual.allocated = current_user.id
+                individual.allocation_timestamp = datetime.utcnow()
 
-            current_user.clusters_allocated += len(clusters)
-            db.session.commit()
-            GLOBALS.mutex[int(task_id)]['global'].release()
+            current_user.clusters_allocated += len(individuals)
+            session.commit()
+            GLOBALS.mutex[task_id]['global'].release()
 
         else:
+            session.close()
+            GLOBALS.mutex[task_id]['global'].acquire()
+            # Open a new session to ensure allocations are up to date after a long wait
+            session = db.session()
+
             if current_user.trapgroup[:]:
                 trapgroup = current_user.trapgroup[0]
             else:
-                GLOBALS.mutex[int(task_id)]['global'].acquire()
-                db.session.commit()
-
-                trapgroup = allocate_new_trapgroup(int(task_id),current_user.id)
+                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
                 if trapgroup == None:
-                    GLOBALS.mutex[int(task_id)]['global'].release()
+                    session.close()
+                    GLOBALS.mutex[task_id]['global'].release()
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
-                GLOBALS.mutex[int(task_id)]['global'].release()
 
-            GLOBALS.mutex[int(task_id)]['user'][current_user.id].acquire()
-            limit = task.size - current_user.clusters_allocated
-            clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
-            current_user.clusters_allocated += len(clusters)
-            db.session.commit()
-            GLOBALS.mutex[int(task_id)]['user'][current_user.id].release()
+            limit = task_size - current_user.clusters_allocated
+            clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session)
 
-    if clusters == []:
-        current_user.trapgroup = []
-        db.session.commit()
+            if len(clusterInfo)==0: current_user.trapgroup = []
+            if len(clusterInfo) <= limit:
+                clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                trapgroup.active = False
+            else:
+                clusters_allocated = current_user.clusters_allocated + limit
+            current_user.clusters_allocated = clusters_allocated
+            
+            session.commit()
+            session.close()
+            GLOBALS.mutex[task_id]['global'].release()
+
+            # if current_user.trapgroup[:]:
+            #     trapgroup = current_user.trapgroup[0]
+            # else:
+            #     GLOBALS.mutex[task_id]['global'].acquire()
+            #     db.session.commit()
+
+            #     trapgroup = allocate_new_trapgroup(task_id,current_user.id)
+            #     if trapgroup == None:
+            #         GLOBALS.mutex[task_id]['global'].release()
+            #         return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+            #     GLOBALS.mutex[task_id]['global'].release()
+
+            # GLOBALS.mutex[task_id]['user'][current_user.id].acquire()
+            # limit = task.size - current_user.clusters_allocated
+            # # clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
+            # clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id)
+            # current_user.clusters_allocated += len(clusters)
+            # db.session.commit()
+            # GLOBALS.mutex[task_id]['user'][current_user.id].release()
+
+    # if clusters == []:
+    #     current_user.trapgroup = []
+    #     db.session.commit()
         # return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
-    reply = {'id': reqId, 'info': []}
-    for cluster in clusters:
-        if time.time() - OverallStartTime > 20:
-            # If this is taking too long, cut the request short
-            current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
-            db.session.commit()
-            break
-        reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,sendVideo))
+    # reply = {'id': reqId, 'info': []}
+    # for cluster in clusters:
+    #     if time.time() - OverallStartTime > 20:
+    #         # If this is taking too long, cut the request short
+    #         current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
+    #         db.session.commit()
+    #         break
+    #     reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,sendVideo))
 
-    if (id is None) and (current_user.clusters_allocated >= task.size):
+    reply = translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id)
+
+    if (id is None) and (clusters_allocated >= task_size):
         reply['info'].append(Config.FINISHED_CLUSTER)
 
-    OverallEndTime = time.time()
-    if Config.DEBUGGING: print("Entire get cluster completed in {}".format(OverallEndTime - OverallStartTime))
+    if Config.DEBUGGING: app.logger.info("Entire get cluster completed in {}".format(time.time() - OverallStartTime))
     return json.dumps(reply)
 
 @app.route('/getImage')
@@ -5499,6 +5536,7 @@ def assignLabel(clusterID):
         num2 = task.size + task.test_size
         cluster = db.session.query(Cluster).get(int(clusterID))
         isBounding = task.is_bounding
+        task_id = task.id
 
         if 'taggingLevel' in request.form:
             taggingLevel = str(request.form['taggingLevel'])
@@ -5625,40 +5663,72 @@ def assignLabel(clusterID):
                                             current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                                             db.session.commit()
                                             removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
+                                            survey_id = task.survey_id
 
                                             # Get a new batch of clusters
-                                            GLOBALS.mutex[task.id]['global'].acquire()
-                                            db.session.commit()
-                                            trapgroup = allocate_new_trapgroup(task.id,current_user.id)
-                                            GLOBALS.mutex[task.id]['global'].release()
+                                            db.session.close()
+                                            GLOBALS.mutex[task_id]['global'].acquire()
+                                            # Open a new session to ensure allocations are up to date after a long wait
+                                            session = db.session()
 
+                                            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
                                             if trapgroup == None:
-                                                clusters = []
-                                            else:
-                                                GLOBALS.mutex[task.id]['user'][current_user.id].acquire()
-                                                limit = task.size - current_user.clusters_allocated
-                                                clusters = fetch_clusters(taggingLevel,task.id,isBounding,trapgroup.id,limit)
-                                                current_user.clusters_allocated += len(clusters)
-                                                db.session.commit()
-                                                GLOBALS.mutex[task.id]['user'][current_user.id].release()
-                                            
-                                            if clusters == []:
-                                                current_user.trapgroup = []
-                                                db.session.commit()
-                                                newClusters = [Config.FINISHED_CLUSTER]
-
-                                            else:
+                                                session.close()
+                                                GLOBALS.mutex[task_id]['global'].release()
                                                 newClusters = []
-                                                for cluster in clusters:
-                                                    if time.time() - OverallStartTime > 30:
-                                                        # If this is taking too long, cut the request short
-                                                        current_user.clusters_allocated -= (len(clusters) - len(newClusters))
-                                                        db.session.commit()
-                                                        break
-                                                    newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,False))
+                                            else:
+                                                limit = task_size - current_user.clusters_allocated
+                                                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
-                                                if current_user.clusters_allocated >= task.size:
-                                                    newClusters.append(Config.FINISHED_CLUSTER)
+                                                if len(clusterInfo)==0: current_user.trapgroup = []
+                                                if len(clusterInfo) <= limit:
+                                                    clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                                                    trapgroup.active = False
+                                                else:
+                                                    clusters_allocated = current_user.clusters_allocated + limit
+                                                current_user.clusters_allocated = clusters_allocated
+                                                
+                                                session.commit()
+                                                session.close()
+                                                GLOBALS.mutex[task_id]['global'].release()
+
+                                                newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None)['info']
+
+                                            if (clusters_allocated >= task_size) or (newClusters==[]):
+                                                newClusters.append(Config.FINISHED_CLUSTER)
+
+                                            # GLOBALS.mutex[task.id]['global'].acquire()
+                                            # db.session.commit()
+                                            # trapgroup = allocate_new_trapgroup(task.id,current_user.id)
+                                            # GLOBALS.mutex[task.id]['global'].release()
+
+                                            # if trapgroup == None:
+                                            #     clusters = []
+                                            # else:
+                                            #     GLOBALS.mutex[task.id]['user'][current_user.id].acquire()
+                                            #     limit = task.size - current_user.clusters_allocated
+                                            #     clusters = fetch_clusters(taggingLevel,task.id,isBounding,trapgroup.id,limit)
+                                            #     current_user.clusters_allocated += len(clusters)
+                                            #     db.session.commit()
+                                            #     GLOBALS.mutex[task.id]['user'][current_user.id].release()
+                                            
+                                            # if clusters == []:
+                                            #     current_user.trapgroup = []
+                                            #     db.session.commit()
+                                            #     newClusters = [Config.FINISHED_CLUSTER]
+
+                                            # else:
+                                            #     newClusters = []
+                                            #     for cluster in clusters:
+                                            #         if time.time() - OverallStartTime > 30:
+                                            #             # If this is taking too long, cut the request short
+                                            #             current_user.clusters_allocated -= (len(clusters) - len(newClusters))
+                                            #             db.session.commit()
+                                            #             break
+                                            #         newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,False))
+
+                                            #     if current_user.clusters_allocated >= task.size:
+                                            #         newClusters.append(Config.FINISHED_CLUSTER)
 
                                     if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
                                         newLabels.append(newLabel)
