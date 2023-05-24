@@ -198,7 +198,7 @@ def delete_task(self,task_id):
             try:
                 individuals = db.session.query(Individual)\
                                         .join(User,or_(User.id==Individual.user_id,User.id==Individual.allocated))\
-                                        .join(Turkcode,Turkcode.user_id==User.username))\
+                                        .join(Turkcode,Turkcode.user_id==User.username)\
                                         .filter(Turkcode.task_id==task_id) \
                                         .filter(User.email==None) \
                                         .all()

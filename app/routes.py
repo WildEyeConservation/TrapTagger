@@ -2875,7 +2875,7 @@ def getHomeSurveys():
                                     availableJobsSQ.c.count,
                                     completeJobsSQ.c.count
                                 ).outerjoin(Task,Task.survey_id==Survey.id)\
-                                .join(siteSQ,siteSQ.c.id==Survey.id)\
+                                .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                                 .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                                 .filter(Survey.user_id==current_user.id)\
