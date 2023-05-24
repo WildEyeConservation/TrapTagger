@@ -896,7 +896,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .subquery()
         
         # Find the available individual with the most detections
-        cluster = db.session.query(
+        clusters = db.session.query(
                             Individual,
                             Individual.id,
                             Individual.notes,

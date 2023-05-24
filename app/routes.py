@@ -3086,15 +3086,15 @@ def getJobs():
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .join(User,Survey.user_id==User.id)\
                             .outerjoin(Worker, User.workers)\
-                            .join(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
+                            .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .filter(or_(User.id==current_user.id,Worker.c.id==current_user.id))
 
     if individual_id=='true':
         # We need to included the launching tasks on the individual ID page
-        task_base_query = task_base_query.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any())
+        task_base_query = task_base_query.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any()).filter(Task.tagging_level.contains('-5'))
     else:
-        task_base_query = task_base_query.filter(Task.status=='PROGRESS')
+        task_base_query = task_base_query.filter(Task.status=='PROGRESS').filter(availableJobsSQ.c.count>0)
 
     searches = re.split('[ ,]',search)
     for search in searches:
