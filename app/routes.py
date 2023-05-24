@@ -3094,7 +3094,7 @@ def getJobs():
         # We need to included the launching tasks on the individual ID page
         task_base_query = task_base_query.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any()).filter(Task.tagging_level.contains('-5'))
     else:
-        task_base_query = task_base_query.filter(Task.status=='PROGRESS').filter(availableJobsSQ.c.count>0)
+        task_base_query = task_base_query.filter(Task.status=='PROGRESS')
 
     searches = re.split('[ ,]',search)
     for search in searches:
@@ -4752,6 +4752,7 @@ def get_clusters():
     survey_id = task.survey_id
     limit = 1
     label_description = None
+    current_user_id = current_user.id
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
         label_description = session.query(Label.description).get(int(taggingLevel)[0])
@@ -4766,6 +4767,7 @@ def get_clusters():
             session.close()
             GLOBALS.mutex[task_id]['global'].acquire()
             session = db.session()
+            current_user = session.query(User).get(current_user_id)
             
             clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
 
@@ -4791,7 +4793,8 @@ def get_clusters():
             GLOBALS.mutex[task_id]['global'].acquire()
             # Open a new session to ensure allocations are up to date after a long wait
             session = db.session()
-            session.add(current_user)
+            current_user = session.query(User).get(current_user_id)
+
             if current_user.trapgroup[:]:
                 trapgroup = current_user.trapgroup[0]
             else:
@@ -5566,6 +5569,7 @@ def assignLabel(clusterID):
         cluster = session.query(Cluster).get(int(clusterID))
         isBounding = task.is_bounding
         task_id = task.id
+        current_user_id = current_user.id
 
         if 'taggingLevel' in request.form:
             taggingLevel = str(request.form['taggingLevel'])
@@ -5687,7 +5691,7 @@ def assignLabel(clusterID):
                             GLOBALS.mutex[task_id]['global'].acquire()
                             # Open a new session to ensure allocations are up to date after a long wait
                             session = db.session()
-                            session.add(current_user)
+                            current_user = session.query(User).get(current_user_id)
 
                             trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
                             if trapgroup == None:
