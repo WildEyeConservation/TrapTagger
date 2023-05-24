@@ -1397,7 +1397,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
 #                             for detection in detections]
 #     }
 
-def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id=None):
+def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id=None,label_description=None):
     '''Outputs a cluster dictionary for consumption by the client's browser.'''
 
     if ',' in taggingLevel:
@@ -1417,14 +1417,13 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
             elif (',' not in taggingLevel):
                 if (not isBounding) and int(taggingLevel) > 0:
                     # species annotating a parent category - remove the parent label
-                    label = session.query(Label).get(int(taggingLevel))
                     labels = []
                     label_ids = []
                     for description in clusterInfo[cluster_id]['label']:
-                        if description!=label.description:
+                        if description!=label_description:
                             labels.append(description)
                     for label_id in clusterInfo[cluster_id]['label_ids']:
-                        if label_id!=label.id:
+                        if label_id!=int(taggingLevel):
                             label_ids.append(label_id)
                     clusterInfo[cluster_id]['label'] = labels
                     clusterInfo[cluster_id]['label_ids'] = label_ids

@@ -4751,6 +4751,10 @@ def get_clusters():
     task_size = task.size
     survey_id = task.survey_id
     limit = 1
+    label_description = None
+
+    if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
+        label_description = session.query(Label.description).get(int(taggingLevel)[0])
 
     if id:
         clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
@@ -4845,7 +4849,7 @@ def get_clusters():
     #         break
     #     reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,sendVideo))
 
-    reply = translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id)
+    reply = translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id,label_description)
 
     if (id is None) and (clusters_allocated >= task_size):
         reply['info'].append(Config.FINISHED_CLUSTER)
@@ -5542,6 +5546,7 @@ def assignLabel(clusterID):
         reAllocated = False
         newClusters = []
         classifications = None
+        session = db.session()
 
         if Config.DEBUGGING: app.logger.info('Submitted labels: {}'.format(labels))
 
@@ -5553,11 +5558,11 @@ def assignLabel(clusterID):
             labels.append(str(GLOBALS.nothing_id))
             remove_false_detections = True
 
-        num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-        turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
+        num = session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+        turkcode = session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
         task = turkcode.task
         num2 = task.size + task.test_size
-        cluster = db.session.query(Cluster).get(int(clusterID))
+        cluster = session.query(Cluster).get(int(clusterID))
         isBounding = task.is_bounding
         task_id = task.id
 
