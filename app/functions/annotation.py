@@ -686,7 +686,7 @@ def manage_task(task,session):
             # wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    elif len(task_jobs) == 0: freeUpWork(task_id=task_id)
+    elif task_jobs == 0: freeUpWork(task, session)
 
     return False, jobs_to_delete
 
@@ -896,7 +896,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .subquery()
         
         # Find the available individual with the most detections
-        cluster = db.session.query(
+        clusters = db.session.query(
                             Individual,
                             Individual.id,
                             Individual.notes,

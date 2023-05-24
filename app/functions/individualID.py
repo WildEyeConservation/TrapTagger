@@ -400,8 +400,10 @@ def calculate_individual_similarity(self,individual1,individuals2,session=None,p
         individualDetections1 = alias(individualDetections)
         individualDetections2 = alias(individualDetections)
 
+        session.add(individual1)
         for individual2 in individuals2:
             if individual2 != individual1:
+                session.add(individual2)
                 max_det1 = None
                 max_det2 = None
                 similarity = session.query(IndSimilarity).filter(\
