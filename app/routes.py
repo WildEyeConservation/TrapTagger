@@ -2895,7 +2895,7 @@ def getHomeSurveys():
         survey_data = {}
         for item in compulsory_surveys:
 
-            if item[0] not in survey_data.keys():
+            if item[0] and (item[0] not in survey_data.keys()):
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
                     surveyStatus = 'processing'
@@ -2909,7 +2909,7 @@ def getHomeSurveys():
                                         'numTrapgroups': item[7], 
                                         'tasks': []}
 
-            if item[9]!='default':
+            if item[8] and (item[9]!='default'):
                 taskInfo = {'id': item[8],
                             'name': item[9],
                             'status': item[10],
@@ -2959,7 +2959,7 @@ def getHomeSurveys():
             survey_data2 = {}
             for item in surveys:
 
-                if item[0] not in survey_data2.keys():
+                if item[0] and (item[0] not in survey_data2.keys()):
                     surveyStatus = item[6]
                     if surveyStatus in ['indprocessing','Preparing Download']:
                         surveyStatus = 'processing'
