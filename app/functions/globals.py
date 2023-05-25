@@ -967,7 +967,7 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=Non
     try:
         if Config.DEBUGGING: app.logger.info('Started finish_knockdown for image ' + str(rootImageID))
 
-        if sesssion == None:
+        if session == None:
             celeryTask = True
             session = db.session()
         else:
