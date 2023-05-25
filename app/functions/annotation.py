@@ -1194,7 +1194,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
             if id and row[22] and (row[22] not in clusterInfo[row[0]]['videos'].keys()):
                 clusterInfo[row[0]]['videos'][row[22]] = {
                     'id': row[22],
-                    'url': row[7] + '/' + row[23],
+                    'url': row[7].split('/_video_images_')[0] + '/' + row[23],
                     'timestamp': numify_timestamp(row[4]),
                     'camera': row[6],
                     'rating': 1,
