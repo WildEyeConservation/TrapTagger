@@ -921,7 +921,7 @@ def populateMutex(task_id,user_id=None):
             if task and (task.status in ['PROGRESS','Processing','Knockdown Analysis']):
                 GLOBALS.mutex[task_id] = {
                     'global': threading.Lock(),
-                    'user': {},
+                    # 'user': {},
                     'job': threading.Lock(),
                     'trapgroup': {}
                 }
@@ -935,17 +935,17 @@ def populateMutex(task_id,user_id=None):
             if task and (task.status not in ['PROGRESS','Processing','Knockdown Analysis']):
                 GLOBALS.mutex.pop(task_id, None)
 
-        if user_id:
-            user = db.session.query(User).get(user_id)
-            if user:
-                if user_id not in GLOBALS.mutex[task_id]['user'].keys():
-                    if user.passed not in ['cTrue', 'cFalse', 'true', 'false']:
-                        GLOBALS.mutex[task_id]['user'][user_id] = threading.Lock()
-                    else:
-                        return False
-                else:
-                    if user.passed in ['cTrue', 'cFalse', 'true', 'false']:
-                        GLOBALS.mutex[task_id]['user'].pop(user_id, None)
+        # if user_id:
+        #     user = db.session.query(User).get(user_id)
+        #     if user:
+        #         if user_id not in GLOBALS.mutex[task_id]['user'].keys():
+        #             if user.passed not in ['cTrue', 'cFalse', 'true', 'false']:
+        #                 GLOBALS.mutex[task_id]['user'][user_id] = threading.Lock()
+        #             else:
+        #                 return False
+        #         else:
+        #             if user.passed in ['cTrue', 'cFalse', 'true', 'false']:
+        #                 GLOBALS.mutex[task_id]['user'].pop(user_id, None)
 
     except:
         return False
@@ -1649,8 +1649,8 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         user.trapgroup = []
         user.passed = 'cFalse'
 
-        if task.id in GLOBALS.mutex.keys():
-            GLOBALS.mutex[task.id]['user'].pop(user.id, None)
+        # if task.id in GLOBALS.mutex.keys():
+        #     GLOBALS.mutex[task.id]['user'].pop(user.id, None)
             
     # session.commit()
 

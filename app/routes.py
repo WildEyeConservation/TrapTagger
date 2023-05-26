@@ -6429,7 +6429,7 @@ def done():
         trapgroup.user_id = None
     db.session.commit()
 
-    GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
+    # GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
 
     if current_user.parent_id:
         admin_user = current_user.parent
