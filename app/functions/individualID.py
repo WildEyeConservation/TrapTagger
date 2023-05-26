@@ -444,13 +444,15 @@ def calculate_individual_similarity(self,individual1,individuals2,session=None,p
                         max_similarity = -1000
                     else:
                         tagScore = 0
-                        for tag in individual1.tags[:]:
-                            if tag in individual2.tags[:]:
+                        individual1_tags = session.query(Tag).filter(Tag.individuals.contains(individual1)).all()
+                        individual2_tags = session.query(Tag).filter(Tag.individuals.contains(individual2)).all()
+                        for tag in individual1_tags:
+                            if tag in individual2_tags:
                                 tagScore += matchWeight
                             else:
                                 tagScore -= mismatchWeight
-                        for tag in individual2.tags[:]:
-                            if tag not in individual1.tags[:]:
+                        for tag in individual2_tags:
+                            if tag not in individual1_tags:
                                 tagScore -= mismatchWeight
 
                         detSimilarities = session.query(DetSimilarity.score,
@@ -647,6 +649,10 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
                                             .all()
 
         app.logger.info('Individual similarities are being calculated for {} individuals'.format(len(individuals1)))
+
+        # This is a hack - do not touch
+        # Without this, the first individual in the list is not processed
+        if individuals1: calculate_individual_similarity(individuals1[0],[],session)
 
         # pool = Pool(processes=4)
         for individual1 in individuals1:
