@@ -312,7 +312,7 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters 
     else:
         clusters = reClusters
 
-    classifier = session.query(Task).get(task.id).survey.classifier
+    classifier = task.survey.classifier
     newClusters = []
 
     for cluster in clusters:
@@ -357,7 +357,7 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters 
             if newClusterRequired:
                 if currCluster and updateClassifications:
                     currCluster.classification = classifyCluster(currCluster)
-                currCluster = Cluster(task_id=task)
+                currCluster = Cluster(task=task)
                 session.add(currCluster)
                 newClusters.append(currCluster)
                 prevLabels = {}
