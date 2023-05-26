@@ -837,7 +837,7 @@ def reclusterAfterTimestampChange(survey_id):
                 GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id),
                 GLOBALS.knocked_id: session.query(Label).get(GLOBALS.knocked_id),
                 GLOBALS.nothing_id: session.query(Label).get(GLOBALS.nothing_id),
-                GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id)
+                GLOBALS.unknown_id: session.query(Label).get(GLOBALS.unknown_id)
             }
             labels = session.query(Label).filter(Label.task_id==task.id).all()
             for label in labels:

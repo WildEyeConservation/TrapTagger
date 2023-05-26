@@ -722,6 +722,8 @@ def getCameraStamps():
                             .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
                             .join(Image)\
                             .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(~Camera.path.contains('_video_images_'))\
+                            .filter(Image.timestamp!=None)\
                             .group_by(Trapgroup.id, Camera.id)\
                             .order_by(Trapgroup.tag)\
                             .distinct()\
