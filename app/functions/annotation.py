@@ -1014,7 +1014,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                             Individual.id,
                             Video.id,
                             Video.filename,
-                            IndividualTask.id
+                            IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -1086,7 +1086,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                             Individual.id,
                             classSQ.c.label,
                             classSQ.c.count/clusterDetCountSQ.c.count,
-                            IndividualTask.id
+                            IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
                         .join(classSQ,classSQ.c.id==Cluster.id)\
@@ -1129,7 +1129,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                             Tag.id,
                             Tag.description,
                             Individual.id,
-                            IndividualTask.id
+                            IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
