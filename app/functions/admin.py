@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
-                                    retryTime, chunker, populateMutex, resolve_abandoned_jobs, addChildLabels
+                                    retryTime, chunker, populateMutex, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
 from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
@@ -957,7 +957,7 @@ def reclusterAfterTimestampChange(survey_id):
                 cluster.tags = clusterInfo[cluster]['tags']
 
             # copy notes
-            noteData = session.query(Cluster,Note)\
+            noteData = session.query(Cluster,Cluster.notes)\
                                         .join(Image,Cluster.images)\
                                         .join(images,images.c.image_id==Image.id)\
                                         .join(OldCluster,OldCluster.c.id==images.c.cluster_id)\
