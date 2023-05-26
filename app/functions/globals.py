@@ -1392,7 +1392,7 @@ def classifyTask(task,session = None,reClusters = None):
                 for labelgroup in labelgroups:
                     if species not in labelgroup.labels: labelgroup.labels.append(species)
         
-        if commmit: session.commit()
+        if commit: session.commit()
         app.logger.info('Finished classifying task '+str(task))
 
     except Exception:
