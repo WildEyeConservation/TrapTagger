@@ -1142,7 +1142,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         
         clusters = clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
-                        .filter(IndividualTask.c.id == task_id)\
+                        .filter(or_(IndividualTask.c.id == task_id,IndividualTask.c.id == None))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Detection.static==False)\
