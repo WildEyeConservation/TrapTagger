@@ -680,24 +680,28 @@ def handleTaskEdit(self,task_id,changes,user_id):
 
     return True
 
-def copyClusters(newTask_id):
+def copyClusters(newTask,session=None):
     '''Copies default task clustering to the specified task.'''
 
-    survey_id = db.session.query(Task).get(newTask_id).survey_id
-    default = db.session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
+    if session == None:
+        session = db.session()
+        newTask = session.query(Task).get(newTask)
+
+    survey_id = newTask.survey_id
+    default = session.query(Task).filter(Task.name=='default').filter(Task.survey_id==int(survey_id)).first()
     
-    check = db.session.query(Cluster).filter(Cluster.task_id==newTask_id).first()
+    check = session.query(Cluster).filter(Cluster.task==newTask).first()
 
     if check == None:
-        detections = db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+        detections = session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
         for detection in detections:
-            labelgroup = Labelgroup(detection_id=detection.id,task_id=newTask_id,checked=False)
-            db.session.add(labelgroup)
+            labelgroup = Labelgroup(detection_id=detection.id,task=newTask,checked=False)
+            session.add(labelgroup)
 
-        clusters = db.session.query(Cluster).filter(Cluster.task_id==default.id).distinct().all()
+        clusters = session.query(Cluster).filter(Cluster.task_id==default.id).distinct().all()
         for cluster in clusters:
-            newCluster = Cluster(task_id=newTask_id)
-            db.session.add(newCluster)
+            newCluster = Cluster(task=newTask)
+            session.add(newCluster)
             newCluster.images=cluster.images
             newCluster.classification = cluster.classification
 
@@ -706,7 +710,7 @@ def copyClusters(newTask_id):
                 newCluster.user_id=cluster.user_id
                 newCluster.timestamp = datetime.utcnow()
 
-                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==newTask_id).all()
+                labelgroups = session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==newTask).all()
                 for labelgroup in labelgroups:
                     labelgroup.labels = cluster.labels
 
@@ -737,7 +741,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
         newTask.status = 'Generating Clusters'
         db.session.commit()
 
-        copyClusters(newTask_id)
+        copyClusters(newTask)
 
         newTask.status = 'Auto-Classifying'
         db.session.commit()
@@ -786,7 +790,7 @@ def reclusterAfterTimestampChange(survey_id):
 
     # create new default task
     task_id = cluster_survey(survey_id,'default')
-    recluster_large_clusters(task_id,True,session)
+    recluster_large_clusters(session.query(Task).get(task_id),True,session)
     # session.commit()
     
     # pool = Pool(processes=4)
@@ -801,7 +805,7 @@ def reclusterAfterTimestampChange(survey_id):
     OldGroup = alias(Labelgroup)
     OldCluster = alias(Cluster)
 
-    # session.commit()
+    session.commit()
     tasks=session.query(Task).filter(Task.survey_id==survey_id).all()
     for task in tasks:
         if ('_o_l_d_' not in task.name) and (task.name != 'default'):
@@ -837,7 +841,7 @@ def reclusterAfterTimestampChange(survey_id):
             }
             labels = session.query(Label).filter(Label.task_id==task.id).all()
             for label in labels:
-                newLabel = Label(description=label.description,hotkey=label.hotkey,complete=label.complete,task_id=newTask.id)
+                newLabel = Label(description=label.description,hotkey=label.hotkey,complete=label.complete,task=newTask)
                 session.add(newLabel)
                 labelTranslations[label.id] = newLabel
             for label in labels:
@@ -856,7 +860,7 @@ def reclusterAfterTimestampChange(survey_id):
             for tag in tags:
                 # check = session.query(Tag).filter(Tag.task_id==newTask.id).filter(Tag.description==tag.description).first()
                 # if not check:
-                newTag = Tag(   task_id=newTask.id,
+                newTag = Tag(   task=newTask,
                                 description=tag.description,
                                 hotkey=tag.hotkey)
                 session.add(newTag)
@@ -871,12 +875,12 @@ def reclusterAfterTimestampChange(survey_id):
                 #     newLabel = translation.label
                 # check = session.query(Translation).filter(Translation.classification==translation.classification).filter(Translation.task_id==newTask.id).filter(Translation.label_id==newLabel.id).first()
                 # if not check:
-                newTranslation = Translation(classification=translation.classification,auto_classify=translation.auto_classify,task_id=newTask.id,label=labelTranslations[translation.label_id])
+                newTranslation = Translation(classification=translation.classification,auto_classify=translation.auto_classify,task=newTask,label=labelTranslations[translation.label_id])
                 session.add(newTranslation)
             # session.commit()
 
             # Copying clusters
-            copyClusters(newTask.id)
+            copyClusters(newTask,session)
 
             # deal with knockdowns
             downLabel =  session.query(Label).get(GLOBALS.knocked_id)
@@ -903,7 +907,7 @@ def reclusterAfterTimestampChange(survey_id):
                 trapgroup.user_id = None
                 trapgroup.processing = True
                 # session.commit()
-                finish_knockdown(rootImage.id, newTask.id, admin_id, lastImage.id,session)
+                finish_knockdown(rootImage.id, newTask, admin_id, lastImage.id,session)
                 # pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
 
             # pool.close()
@@ -915,7 +919,7 @@ def reclusterAfterTimestampChange(survey_id):
                                         .join(OldGroup,OldGroup.c.detection_id==Detection.id)\
                                         .outerjoin(detectionLabels,detectionLabels.c.labelgroup_id==OldGroup.c.id)\
                                         .outerjoin(detectionTags,detectionTags.c.labelgroup_id==OldGroup.c.id)\
-                                        .filter(Labelgroup.task_id==newTask.id)\
+                                        .filter(Labelgroup.task==newTask)\
                                         .filter(OldGroup.c.task_id==task.id)\
                                         .all()
 
@@ -937,8 +941,8 @@ def reclusterAfterTimestampChange(survey_id):
                                         .join(Labelgroup)\
                                         .outerjoin(Label,Labelgroup.labels)\
                                         .outerjoin(Tag,Labelgroup.tags)\
-                                        .filter(Labelgroup.task_id==newTask.id)\
-                                        .filter(Cluster.task_id==newTask.id)\
+                                        .filter(Labelgroup.task==newTask)\
+                                        .filter(Cluster.task==newTask)\
                                         .all()
 
             clusterInfo = {}
@@ -958,7 +962,7 @@ def reclusterAfterTimestampChange(survey_id):
                                         .join(images,images.c.image_id==Image.id)\
                                         .join(OldCluster,OldCluster.c.id==images.c.cluster_id)\
                                         .filter(OldCluster.c.task_id==task.id)\
-                                        .filter(Cluster.task_id==newTask.id)\
+                                        .filter(Cluster.task==newTask)\
                                         .filter(OldCluster.c.notes!=None)\
                                         .filter(OldCluster.c.notes!='')\
                                         .all()

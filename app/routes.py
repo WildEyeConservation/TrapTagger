@@ -6895,7 +6895,7 @@ def knockdown(imageId, clusterId):
                     trapgroup.active = False
                     trapgroup.user_id = None
                     db.session.commit()
-                    finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':current_user.id})
+                    finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':current_user.id})
 
     return ""
 
