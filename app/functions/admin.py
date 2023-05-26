@@ -1001,12 +1001,12 @@ def reclusterAfterTimestampChange(survey_id):
             # newTask.name = re.split('_copying',newTask.name)[0]
             # session.commit()
 
-    for task in tasks:
-        if (task.name != 'default') and ('_o_l_d_' not in task.name):
-            updateAllStatuses.delay(task_id=task.id)
-
     session.commit()
+    tasks=[r[0] for r in session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').filter(~Task.name.contains('_o_l_d_')).all()]
     session.close()
+
+    for task_id in tasks:
+        updateAllStatuses.delay(task_id=task_id)
             
     return True
 
