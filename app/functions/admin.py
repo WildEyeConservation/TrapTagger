@@ -741,7 +741,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
         newTask.status = 'Generating Clusters'
         db.session.commit()
 
-        copyClusters(newTask)
+        copyClusters(newTask_id)
 
         newTask.status = 'Auto-Classifying'
         db.session.commit()
