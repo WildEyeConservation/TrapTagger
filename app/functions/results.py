@@ -951,10 +951,11 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             task = db.session.query(Task).get(task_id)
 
             # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
-            if task.survey.image_count<250000:
-                trapgroups = [None]
-            else:
-                trapgroups = [tg.id for tg in task.survey.trapgroups]
+            trapgroups = [None]
+            # if task.survey.image_count<250000:
+            #     trapgroups = [None]
+            # else:
+            #     trapgroups = [tg.id for tg in task.survey.trapgroups]
             
             for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
@@ -1317,7 +1318,7 @@ def generate_excel(self,task_id):
 
         finalColumn = currentColumn[:-1]
         sheet[finalColumn + str(3)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
-        print(speciesColumns)
+        if Config.DEBUGGING: print(speciesColumns)
 
         #Generate Rows
         traps = db.session.query(Trapgroup).filter(Trapgroup.survey==survey).all()
@@ -2482,10 +2483,9 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
                         .filter(Video.downloaded!=False)\
                         .all()
         
-        for chunk in chunker(videos,10000):
-            for video in chunk:
-                video.downloaded = False
-            db.session.commit()
+        for video in videos:
+            video.downloaded = False
+        db.session.commit()
 
         if then_set:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)

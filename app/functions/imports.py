@@ -241,7 +241,7 @@ def importKML(survey_id):
 
     return True
 
-def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
+def recluster_large_clusters(task,updateClassifications,session=None,reClusters = None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -251,34 +251,39 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             reClusters (list): An optional list of clusters that should be reclustered instead of all clusters over 50 images in length
 
         Returns:
-            removedClusters (list): List of cluster IDs that have been removed
             newClusters (list): List of cluster IDs that have been added
     '''
-    
-    downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
-    subq = db.session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
+    commit = False
+    if session == None:
+        commit = True
+        session = db.session()
+        task = session.query(Task).get(task)
+    
+    downLabel = session.query(Label).get(GLOBALS.knocked_id)
+
+    subq = session.query(Cluster.id.label('clusterID'),func.count(distinct(Image.id)).label('imCount'))\
                 .join(Image,Cluster.images)\
-                .filter(Cluster.task_id==task_id)\
+                .filter(Cluster.task==task)\
                 .group_by(Cluster.id)\
                 .subquery()
 
     if reClusters==None:
         # Handle already-labelled clusters
-        clusters = db.session.query(Cluster)\
+        clusters = session.query(Cluster)\
                     .join(subq,subq.c.clusterID==Cluster.id)\
-                    .filter(Cluster.task_id==task_id)\
+                    .filter(Cluster.task==task)\
                     .filter(subq.c.imCount>50)\
                     .filter(~Cluster.labels.contains(downLabel))\
                     .filter(Cluster.labels.any())\
                     .distinct().all()
 
         for cluster in clusters:
-            images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
+            images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
             
             for n in range(math.ceil(len(images)/50)):
-                newCluster = Cluster(task_id=task_id)
-                db.session.add(newCluster)
+                newCluster = Cluster(task=task)
+                session.add(newCluster)
                 newCluster.labels=cluster.labels
                 start_index = (n)*50
                 
@@ -292,36 +297,35 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
                     newCluster.classification = classifyCluster(newCluster)
 
             cluster.images = []
-            db.session.delete(cluster)
-            # db.session.commit()
+            session.delete(cluster)
+            # session.commit()
         
-        # db.session.commit()
+        # session.commit()
                 
-    clusters = db.session.query(Cluster)\
-                .join(subq,subq.c.clusterID==Cluster.id)\
-                .filter(Cluster.task_id==task_id)\
-                .filter(subq.c.imCount>50)\
-                .filter(~Cluster.labels.any())
+        clusters = session.query(Cluster)\
+                    .join(subq,subq.c.clusterID==Cluster.id)\
+                    .filter(Cluster.task==task)\
+                    .filter(subq.c.imCount>50)\
+                    .filter(~Cluster.labels.any())\
+                    .all()
 
-    if reClusters != None:
-        clusters = clusters.filter(Cluster.id.in_(reClusters))
+    else:
+        clusters = reClusters
 
-    clusters = clusters.all()
-    classifier = db.session.query(Task).get(task_id).survey.classifier
-    removedClusters = [cluster.id for cluster in clusters]
+    classifier = task.survey.classifier
     newClusters = []
 
     for cluster in clusters:
         currCluster = None
-        images = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
-        cameras = [str(r[0]) for r in db.session.query(Camera.id).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
+        images = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
+        cameras = [str(r[0]) for r in session.query(Camera.id).join(Image).filter(Image.clusters.contains(cluster)).distinct().all()]
 
         prevLabels = {}
         for cam in cameras:
             prevLabels[cam] = []
                 
         for image in images:
-            detections = db.session.query(Detection)\
+            detections = session.query(Detection)\
                                 .filter(Detection.image_id==image.id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
@@ -353,8 +357,8 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             if newClusterRequired:
                 if currCluster and updateClassifications:
                     currCluster.classification = classifyCluster(currCluster)
-                currCluster = Cluster(task_id=task_id)
-                db.session.add(currCluster)
+                currCluster = Cluster(task=task)
+                session.add(currCluster)
                 newClusters.append(currCluster)
                 prevLabels = {}
                 for cam in cameras:
@@ -367,11 +371,11 @@ def recluster_large_clusters(task_id,updateClassifications,reClusters = None):
             currCluster.classification = classifyCluster(currCluster)
 
         cluster.images = []
-        db.session.delete(cluster)
+        session.delete(cluster)
     
-    db.session.commit()
+    if commit: session.commit()
 
-    return removedClusters,[cluster.id for cluster in newClusters]
+    return newClusters
 
 @celery.task(bind=True,max_retries=29)
 def cluster_trapgroup(self,trapgroup_id):
@@ -1309,10 +1313,15 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     print('Downloading {}'.format(filename))
                     GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
 
-                    hash = generate_raw_image_hash(temp_file.name)
+                    try:
+                        hash = generate_raw_image_hash(temp_file.name)
+                        assert hash
+                    except:
+                        app.logger.info("Skipping {} could not generate hash...".format(dirpath+'/'+filename))
+                        continue
                     
                     try:
-                        print('Extracting time stamp from {}'.format(filename))
+                        if Config.DEBUGGING: print('Extracting time stamp from {}'.format(filename))
                         t = pyexifinfo.get_json(temp_file.name)[0]
                         timestamp = None
                         for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
@@ -1321,7 +1330,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                 break
                         # assert timestamp
                     except:
-                        app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
+                        if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
                 else:
                     # don't need to download the image or even extract a timestamp if pipelining
@@ -1329,7 +1338,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                 
                 if not pipeline:
                     # don't compress and upload the image if its a training-data pipeline
-                    print('Compressing {}'.format(filename))
+                    if Config.DEBUGGING: print('Compressing {}'.format(filename))
                     
                     # Wand does not appear to be thread safe
                     lock.acquire()
@@ -1369,12 +1378,12 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                 images.append(image)
         
         if batch:
-            print('Acquiring lock')
+            if Config.DEBUGGING: print('Acquiring lock')
             GLOBALS.lock.acquire()
             print('Queueing batch')
             GLOBALS.results_queue.append((images, detection.apply_async(kwargs={'batch': batch,'sourceBucket':sourceBucket,'external':external,'model':Config.DETECTOR}, queue='celery', routing_key='celery.detection')))
             GLOBALS.lock.release()
-            print('Lock released')
+            if Config.DEBUGGING: print('Lock released')
 
     except Exception:
         app.logger.info(' ')
@@ -1439,17 +1448,17 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
         pool.join()
 
         # Fetch the results
-        print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
+        if Config.DEBUGGING: print('{} batch results to fetch'.format(len(GLOBALS.results_queue)))
         counter = 0
         GLOBALS.lock.acquire()
         with allow_join_result():
             for images, result in GLOBALS.results_queue:
                 try:
                     counter += 1
-                    print('Fetching result {}'.format(counter))
+                    if Config.DEBUGGING: print('Fetching result {}'.format(counter))
                     starttime = datetime.utcnow()
                     response = result.get()
-                    print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+                    if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
 
                     for img, detections in zip(images, response):
                         try:
@@ -1489,7 +1498,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             
         # If we are piplining some training data, we need to save the crops
         if pipeline:
-            print('Pipelining data')
+            if Config.DEBUGGING: print('Pipelining data')
             if label_source:
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='import').first()
                 task_id = task.id
@@ -1514,7 +1523,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
                 for image in images:
                     pool.apply_async(save_crops,(image.id,sourceBucket,min_area,destBucket,external,True,label_source,task_id))
 
-            print('All jobs queued.')
+            if Config.DEBUGGING: print('All jobs queued.')
             pool.close()
             pool.join()
 
@@ -1734,7 +1743,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                     GLOBALS.results_queue.append(classify.apply_async(kwargs={'batch': batch}, queue=classifier, routing_key='classification.classify'))
                     # GLOBALS.lock.release()
 
-            print('{} results to fetch'.format(len(GLOBALS.results_queue)))
+            if Config.DEBUGGING: print('{} results to fetch'.format(len(GLOBALS.results_queue)))
 
             counter = 0
             GLOBALS.lock.acquire()
@@ -1742,10 +1751,10 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                 for result in GLOBALS.results_queue:
                     try:
                         counter += 1
-                        print('Fetching result {}'.format(counter))
+                        if Config.DEBUGGING: print('Fetching result {}'.format(counter))
                         starttime = datetime.utcnow()
                         response = result.get()
-                        print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
+                        if Config.DEBUGGING: print('Fetched result {} after {}.'.format(counter,datetime.utcnow()-starttime))
 
                         detections = db.session.query(Detection).filter(Detection.id.in_(list(response.keys()))).all()
                         for detection in detections:
@@ -2792,7 +2801,7 @@ def correct_timestamps(survey_id,setup_time=31):
             finish = images[-1].corrected_timestamp
 
             if (finish-start)>surveyLength:
-                print('Group {} too long: {}'.format(group,finish-start))
+                if Config.DEBUGGING: print('Group {} too long: {}'.format(group,finish-start))
                 max = timedelta(seconds=0)
                 point = None
                 prev = images[0].corrected_timestamp
@@ -2802,7 +2811,7 @@ def correct_timestamps(survey_id,setup_time=31):
                         max = delta
                         point = image
                     prev = image.corrected_timestamp
-                print('Being split at {}'.format(point.corrected_timestamp))
+                if Config.DEBUGGING: print('Being split at {}'.format(point.corrected_timestamp))
 
                 if point != None:
                     to_remove = []
@@ -2829,7 +2838,7 @@ def correct_timestamps(survey_id,setup_time=31):
                             if len(oldCam.images[:]) == 0:
                                 to_remove.append(oldCam.id)
                                 db.session.delete(oldCam)
-                            print('Added new camera for trapgroup {}, for path {}'.format(trapgroup.id,newCam.path))
+                            if Config.DEBUGGING: print('Added new camera for trapgroup {}, for path {}'.format(trapgroup.id,newCam.path))
 
                     for camId in to_remove:
                         groups[group].remove(camId)
@@ -2859,7 +2868,7 @@ def correct_timestamps(survey_id,setup_time=31):
                         dayDelta = surveyMidpoint.day-groupMidpoint.day
                         delta = relativedelta(years=yearDelta,months=monthDelta,days=dayDelta)
 
-                print('Cameras {} need to be adjusted by {}'.format(groups[group],delta))
+                if Config.DEBUGGING: print('Cameras {} need to be adjusted by {}'.format(groups[group],delta))
                 # for chunk in chunker(images,500):
                 for image in images:
                     image.corrected_timestamp += delta

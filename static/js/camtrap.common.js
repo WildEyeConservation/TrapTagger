@@ -225,9 +225,9 @@ function imageHighlight(switchOn,mapID = 'map1') {
 }
 
 function buildDetection(image,detection,mapID = 'map1',colour=null) {
-    if (detection.static == false) {
-                
-        if (detection.individual!='-1') {
+    if (detection.static == false) {   
+                 
+        if (isIDing && (detection.individual!='-1')) {
             rectOptions.color = individuals[individualIndex][detection.individual].colour
         } else {
             if (colour) {

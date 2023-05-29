@@ -344,24 +344,6 @@ def MturkStatus():
     else:
         return redirect(url_for('jobs'))
 
-@app.route('/updateTaskProgressBar', methods=['POST'])
-@login_required
-def updateTaskProgressBar():
-    '''Returns a dictionary of data required to update a given task's progress bar.'''
-    
-    reply = []
-    task_ids = ast.literal_eval(request.form['task_ids'])
-
-    if current_user.admin or (current_user.parent_id == None):
-
-        for task_id in task_ids:
-            completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task_id)
-            reply.append({'completed':completed, 'total':total, 'remaining':remaining, 'id':task_id, 'jobsCompleted':jobsCompleted, 'jobsAvailable':jobsAvailable})
-        
-        return json.dumps(reply)
-
-    return redirect(url_for('jobs'))
-
 @app.route('/takeJob/<task_id>')
 @login_required
 def takeJob(task_id):
@@ -411,7 +393,7 @@ def getAllIndividuals():
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
 
-    if Config.DEBUGGING: app.logger.info('{}, {}, {}, {}, {},{} , {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
+    if Config.DEBUGGING: app.logger.info('Get All Individuals for {}, {}, {}, {}, {},{} , {}, {}, {}'.format(task_ids,species_name,tag_name,trap_name,start_date,end_date,page,order,search))
 
     reply = []
     next = None
@@ -643,7 +625,6 @@ def getIndividual(individual_id):
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
-    if Config.DEBUGGING: app.logger.info(order)
     if individual and (individual.tasks[0].survey.user==current_user):
         images = db.session.query(Image)\
                     .join(Detection)\
@@ -741,6 +722,8 @@ def getCameraStamps():
                             .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
                             .join(Image)\
                             .filter(Trapgroup.survey_id==survey_id)\
+                            .filter(~Camera.path.contains('_video_images_'))\
+                            .filter(Image.timestamp!=None)\
                             .group_by(Trapgroup.id, Camera.id)\
                             .order_by(Trapgroup.tag)\
                             .distinct()\
@@ -795,7 +778,7 @@ def submitTagsIndividual(individual_id):
 
     individual = db.session.query(Individual).get(individual_id)
     tags = ast.literal_eval(request.form['tags'])
-    if Config.DEBUGGING: app.logger.info(tags)
+    if Config.DEBUGGING: app.logger.info('Submit Individual tags: {}'.format(tags))
     if individual and((current_user == individual.tasks[0].survey.user)):
         if tags:
             individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
@@ -1026,7 +1009,7 @@ def deleteTask(task_id):
             status = 'success'
             message = ''
 
-            app.logger.info('Deleting task.')
+            app.logger.info('Deleting task {}.'.format(task_id))
             delete_task.delay(task_id=task_id)
     else:
         status = 'error'
@@ -1061,6 +1044,7 @@ def deleteSurvey(surveyName):
                     message = 'A task from this survey is currently launched. Please stop it before deleting this survey.'
         
         if status != 'error':
+            app.logger.info('Deleting survey {}.'.format(survey_id))
             delete_survey.delay(survey_id=survey_id)
 
             for task in tasks:
@@ -2860,58 +2844,210 @@ def getHomeSurveys():
     '''Returns a paginated list of all surveys and their associated tasks for the current user.'''
     
     if current_user.admin:
-        survey_list = []
-        
-        # check for uploads and include those first
-        uploads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='Uploading').distinct().all()
-        for survey in uploads:
-            survey_list.append(getSurveyInfo(survey))
-
         page = request.args.get('page', 1, type=int)
         order = request.args.get('order', 5, type=int)
         search = request.args.get('search', '', type=str)
         current_downloads = request.args.get('downloads', '', type=str)
 
-        surveys = db.session.query(Survey).outerjoin(Task).filter(Survey.user_id==current_user.id).filter(~Survey.id.in_([r.id for r in uploads]))
+        siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+        availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.user_id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.user_id)-Task.jobs_finished).label('count'))\
+                                            .join(Turkcode)\
+                                            .join(User, User.username==Turkcode.user_id)\
+                                            .filter(User.parent_id!=None)\
+                                            .filter(Turkcode.tagging_time!=None)\
+                                            .group_by(Task.id).subquery()
 
+        survey_base_query = db.session.query(
+                                    Survey.id,
+                                    Survey.name,
+                                    Survey.description,
+                                    Survey.image_count,
+                                    Survey.video_count,
+                                    Survey.frame_count,
+                                    Survey.status,
+                                    siteSQ.c.count,
+                                    Task.id,
+                                    Task.name,
+                                    Task.status,
+                                    Task.complete,
+                                    Task.tagging_level,
+                                    Task.cluster_count,
+                                    Task.clusters_remaining,
+                                    availableJobsSQ.c.count,
+                                    completeJobsSQ.c.count
+                                ).outerjoin(Task,Task.survey_id==Survey.id)\
+                                .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
+                                .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
+                                .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                                .filter(Survey.user_id==current_user.id)\
+                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))
+
+        # uploading/downloading surveys always need to be on the page
         if current_downloads != '':
-            downloads = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.name.in_(re.split('[,]',current_downloads))).distinct().all()
-            surveys = surveys.filter(~Survey.id.in_([r.id for r in downloads]))
-            for survey in downloads:
-                survey_list.append(getSurveyInfo(survey))
+            compulsory_surveys = survey_base_query.filter(or_(
+                Survey.status=='Uploading',
+                Survey.name.in_(re.split('[,]',current_downloads))
+            ))
+        else:
+            compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading')
+        compulsory_surveys = compulsory_surveys.all()
 
+        # digest survey data
+        survey_data = {}
+        for item in compulsory_surveys:
+
+            if item[0] and (item[0] not in survey_data.keys()):
+                surveyStatus = item[6]
+                if surveyStatus in ['indprocessing','Preparing Download']:
+                    surveyStatus = 'processing'
+                survey_data[item[0]] = {'id': item[0],
+                                        'name': item[1], 
+                                        'description': item[2], 
+                                        'numImages': item[3], 
+                                        'numVideos': item[4], 
+                                        'numFrames': item[5], 
+                                        'status': surveyStatus, 
+                                        'numTrapgroups': item[7], 
+                                        'tasks': []}
+
+            if item[8] and (item[9]!='default'):
+                taskInfo = {'id': item[8],
+                            'name': item[9],
+                            'status': item[10],
+                            'complete': item[11],
+                            'tagging_level': item[12],
+                            'total': item[13],
+                            'remaining': item[14],
+                            'jobsAvailable': item[15],
+                            'jobsCompleted': item[16]}
+
+                if taskInfo['total'] and taskInfo['remaining']:
+                    taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+                else:
+                    taskInfo['completed'] = 0
+
+                survey_data[item[0]]['tasks'].append(taskInfo)            
+
+        # add all the searches to the base query
         searches = re.split('[ ,]',search)
         for search in searches:
-            surveys = surveys.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+            survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
-        if order == 1:
-            #Survey date
-            surveys = surveys.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
-        elif order == 2:
+        # add the order to the base query
+        # if order == 1:
+        #     #Survey date
+        #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+        if order == 2:
             #Survey add date
-            surveys = surveys.order_by(Survey.id)
+            survey_base_query = survey_base_query.order_by(Survey.id)
         elif order == 3:
             #Alphabetical
-            surveys = surveys.order_by(Survey.name)
-        elif order == 4:
-            #Survey date descending
-            surveys = surveys.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+            survey_base_query = survey_base_query.order_by(Survey.name)
+        # elif order == 4:
+        #     #Survey date descending
+        #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+        #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
         elif order == 5:
             #Add date descending
-            surveys = surveys.order_by(desc(Survey.id))
+            survey_base_query = survey_base_query.order_by(desc(Survey.id))
 
-        count = 5-len(survey_list)
+        count = 5-len(survey_data)
         if count > 0:
-            surveys = surveys.distinct().paginate(page, count, False)
+            surveys = survey_base_query.all()
 
-            for survey in surveys.items:
-                survey_list.append(getSurveyInfo(survey))
+            # digest the rest of the data
+            survey_data2 = {}
+            for item in surveys:
 
-            next_url = url_for('getHomeSurveys', page=surveys.next_num, order=order, downloads=current_downloads) if surveys.has_next else None
-            prev_url = url_for('getHomeSurveys', page=surveys.prev_num, order=order, downloads=current_downloads) if surveys.has_prev else None
+                if item[0] and (item[0] not in survey_data2.keys()):
+                    surveyStatus = item[6]
+                    if surveyStatus in ['indprocessing','Preparing Download']:
+                        surveyStatus = 'processing'
+
+                    survey_data2[item[0]] = {'id': item[0],
+                                            'name': item[1], 
+                                            'description': item[2], 
+                                            'numImages': item[3], 
+                                            'numVideos': item[4], 
+                                            'numFrames': item[5], 
+                                            'status': surveyStatus, 
+                                            'numTrapgroups': item[7], 
+                                            'tasks': []}
+
+                if item[8] and (item[9]!='default'):
+                    taskInfo = {'id': item[8],
+                                'name': item[9],
+                                'status': item[10],
+                                'complete': item[11],
+                                'tagging_level': item[12],
+                                'total': item[13],
+                                'remaining': item[14],
+                                'jobsAvailable': item[15],
+                                'jobsCompleted': item[16]}
+
+                    if taskInfo['total'] and taskInfo['remaining']:
+                        taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+                    else:
+                        taskInfo['completed'] = 0
+
+
+                    survey_data2[item[0]]['tasks'].append(taskInfo)
+
+            survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
+
+            if (page*count) >= len(survey_ids):
+                has_next = False
+            else:
+                has_next = True
+
+            if (page-1)*count > 0:
+                has_prev = True
+            else:
+                has_prev = False
+
+            survey_ids = survey_ids[(page-1)*count:page*count]
+
+            for survey_id in survey_ids:
+                survey_data[survey_id] = survey_data2[survey_id]
+
+            next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads) if has_next else None
+            prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads) if has_prev else None
+
         else:
             next_url = None
             prev_url = None
+
+        # Handle disabled launches & translate to legacy client format
+        survey_list = []
+        for survey_id in survey_data:
+            survey = survey_data[survey_id]
+
+            disabledLaunch='false'
+            for task in survey['tasks']:
+                if task['status'] and (task['status'].lower() not in Config.TASK_READY_STATUSES):
+                    disabledLaunch='true'
+
+                if task['tagging_level'] and ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
+                    dbTask = db.session.query(Task).get(task['id'])
+                    if dbTask.sub_tasks:
+                        task['status'] = 'Processing'
+
+                    if task['remaining'] != None:
+                        task['remaining'] = str(task['remaining']) + ' individuals remaining'
+                    else:
+                        task['remaining'] = '0 individuals remaining'
+                elif task['tagging_level']:
+                    if task['remaining'] != None:
+                        task['remaining'] = str(task['remaining']) + ' clusters remaining'
+                    else:
+                        task['remaining'] = '0 clusters remaining'
+
+            for task in survey['tasks']:
+                task['disabledLaunch'] = disabledLaunch
+
+            survey_list.append(survey)
 
         current_user.last_ping = datetime.utcnow()
         db.session.commit()
@@ -2931,70 +3067,119 @@ def getJobs():
     search = request.args.get('search', '', type=str)
     individual_id = request.args.get('individual_id', 'false', type=str)
 
-    quals = [r.id for r in current_user.qualifications]
-    if current_user.admin:
-        quals.append(current_user.id)
+    availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.user_id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+    completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.user_id)-Task.jobs_finished).label('count'))\
+                                        .join(Turkcode)\
+                                        .join(User, User.username==Turkcode.user_id)\
+                                        .filter(User.parent_id!=None)\
+                                        .filter(Turkcode.tagging_time!=None)\
+                                        .group_by(Task.id).subquery()
 
-    tasks = db.session.query(Task).join(Survey).filter(Survey.user_id.in_(quals))
+    Worker = alias(User)
+
+    task_base_query = db.session.query(
+                                Task.id,
+                                Task.tagging_level,
+                                Task.cluster_count,
+                                Task.clusters_remaining,
+                                availableJobsSQ.c.count,
+                                completeJobsSQ.c.count,
+                                Survey.name
+                            ).join(Survey,Task.survey_id==Survey.id)\
+                            .join(User,Survey.user_id==User.id)\
+                            .outerjoin(Worker, User.workers)\
+                            .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
+                            .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                            .filter(or_(User.id==current_user.id,Worker.c.id==current_user.id))
 
     if individual_id=='true':
         # We need to included the launching tasks on the individual ID page
-        tasks = tasks.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any())
+        task_base_query = task_base_query.filter(or_(Task.status=='PROGRESS',Task.status=='PENDING')).filter(Task.sub_tasks.any()).filter(Task.tagging_level.contains('-5'))
     else:
-        tasks = tasks.filter(Task.status=='PROGRESS')
+        task_base_query = task_base_query.filter(Task.status=='PROGRESS')
 
     searches = re.split('[ ,]',search)
     for search in searches:
-        tasks = tasks.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+        task_base_query = task_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
 
-    if order == 1:
-        #Survey date
-        # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
-        tasks = tasks.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
-    elif order == 2:
+    # if order == 1:
+    #     #Survey date
+    #     # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(Image.corrected_timestamp)
+    #     task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(Image.corrected_timestamp)
+    if order == 2:
         #Survey add date
-        tasks = tasks.order_by(Survey.id)
+        task_base_query = task_base_query.order_by(Survey.id)
     elif order == 3:
         #Alphabetical
-        tasks = tasks.order_by(Survey.name)
-    elif order == 4:
-        #Survey date descending
-        # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
-        tasks = tasks.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
+        task_base_query = task_base_query.order_by(Survey.name)
+    # elif order == 4:
+    #     #Survey date descending
+    #     # tasks = tasks.join(Trapgroup).join(Camera).join(Image).order_by(desc(Image.corrected_timestamp))
+    #     task_base_query = task_base_query.join(Cluster).join(Image,Cluster.images).order_by(desc(Image.corrected_timestamp))
     elif order == 5:
         #Add date descending
-        tasks = tasks.order_by(desc(Survey.id))
+        task_base_query = task_base_query.order_by(desc(Survey.id))
 
-    tasks = tasks.distinct().paginate(page, 5, False)
+    tasks = task_base_query.all()
 
+    if (page*5) >= len(tasks):
+        has_next = False
+    else:
+        has_next = True
+
+    if (page-1)*5 > 0:
+        has_prev = True
+    else:
+        has_prev = False
+
+    tasks = tasks[(page-1)*5:page*5]
+
+    # digest the data
     task_list = []
     individual_id_names = []
-    for task in tasks.items:
-        completed, total, remaining, jobsAvailable, jobsCompleted = getTaskProgress(task.id)
-        task_dict = {}
-        task_dict['id'] = task.id
-        if task.sub_tasks and ('-5' in task.tagging_level):
-            species = re.split(',',task.tagging_level)[1]
-            name = species+' Individual ID'
+    for item in tasks:
+        taskInfo = {'id': item[0],
+                    'name': item[6],
+                    'tagging_level': item[1],
+                    'total': item[2],
+                    'remaining': item[3],
+                    'jobsAvailable': item[4],
+                    'jobsCompleted': item[5]}
 
-            count = 1
-            while name in individual_id_names:
-                count += 1
-                name = species+' Individual ID '+str(count)
-            individual_id_names.append(name)
-
-            task_dict['name'] = name
+        if taskInfo['total'] and taskInfo['remaining']:
+            taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
         else:
-            task_dict['name'] = task.survey.name
-        task_dict['completed'] = completed
-        task_dict['total'] = total
-        task_dict['remaining'] = remaining
-        task_dict['jobsAvailable'] = jobsAvailable
-        task_dict['jobsCompleted'] = jobsCompleted
-        task_list.append(task_dict)
+            taskInfo['completed'] = 0
 
-    next_url = url_for('getJobs', page=tasks.next_num, order=order) if tasks.has_next else None
-    prev_url = url_for('getJobs', page=tasks.prev_num, order=order) if tasks.has_prev else None
+        if '-5' in taskInfo['tagging_level']:
+            dbTask = db.session.query(Task).get(taskInfo['id'])
+            if dbTask.sub_tasks:
+                species = re.split(',',taskInfo['tagging_level'])[1]
+                name = species+' Individual ID'
+
+                count = 1
+                while name in individual_id_names:
+                    count += 1
+                    name = species+' Individual ID '+str(count)
+                individual_id_names.append(name)
+
+                taskInfo['name'] = name
+
+            if taskInfo['remaining'] != None:
+                taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
+            else:
+                taskInfo['remaining'] = '0 individuals remaining'
+
+        else:
+            if taskInfo['remaining'] != None:
+                taskInfo['remaining'] = str(taskInfo['remaining']) + ' clusters remaining'
+            else:
+                taskInfo['remaining'] = '0 clusters remaining'
+        
+        task_list.append(taskInfo)
+
+    next_url = url_for('getJobs', page=(page+1), order=order) if has_next else None
+    prev_url = url_for('getJobs', page=(page-1), order=order) if has_prev else None
 
     current_user.last_ping = datetime.utcnow()
     db.session.commit()
@@ -3587,7 +3772,7 @@ def ping():
             current_user.last_ping = datetime.utcnow()
             db.session.commit()
             if current_user.parent:
-                app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
+                if Config.DEBUGGING: app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
             return json.dumps('success')
     return json.dumps('error')
 
@@ -4520,117 +4705,161 @@ def get_clusters():
     OverallStartTime = time.time()
     id = request.args.get('id', None)
     reqId = request.args.get('reqId', None)
+    session = db.session()
     
     if reqId is None:
         reqId = '-99'
 
+    # Find task info
     if id is None:
         if current_user.admin == True:    
-            task_id = request.args.get('task', None)
+            task_id = int(request.args.get('task', None))
             if task_id is None:
                 return {'redirect': url_for('done')}, 278
         else:
             if current_user.parent_id==None:
                 return {'redirect': url_for('done')}, 278
             else:
-                task_id = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
+                task_id = session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
     else:
-        cluster = db.session.query(Cluster).get(id)
+        cluster = session.query(Cluster).get(id)
         task_id = cluster.task_id
     
     task = None
     try:
-        task = db.session.query(Task).get(task_id)
+        task = session.query(Task).get(task_id)
     except:
         return {'redirect': url_for('done')}, 278
     
+    # Check permissions
     if (task == None) or ((current_user.parent not in task.survey.user.workers) and (current_user.parent != task.survey.user) and (current_user != task.survey.user)):
         return {'redirect': url_for('done')}, 278
 
-    if current_user.admin == True:
+    # Check worker cluster counts
+    if current_user.admin:
         num = 0
     elif '-5' in task.tagging_level:
-        num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
+        num = session.query(Individual).filter(Individual.user_id==current_user.id).count()
     else:
-        num = db.session.query(Cluster).filter(Cluster.user==current_user).count()
+        num = session.query(Cluster).filter(Cluster.user==current_user).count()
 
     if (num >= (task.size + task.test_size)) or (current_user.passed in ['cFalse','false','cTrue']):    
         return {'redirect': url_for('done')}, 278
 
-    if (id is None) and (not populateMutex(int(task_id),current_user.id)): return json.dumps('error')
+    if (id is None) and (not populateMutex(task_id,current_user.id)): return json.dumps('error')
 
     isBounding = task.is_bounding
     taggingLevel = task.tagging_level
+    task_size = task.size
+    survey_id = task.survey_id
+    limit = 1
+    label_description = None
+
+    if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
+        label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        sendVideo = True
-        clusters = [cluster]
+        clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+
     else:
-        sendVideo = False
 
         if '-5' in taggingLevel:
             # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
-            GLOBALS.mutex[int(task_id)]['global'].acquire()
-            db.session.commit()
+            session.close()
+            GLOBALS.mutex[task_id]['global'].acquire()
+            session = db.session()
+            session.add(current_user)
+            session.refresh(current_user)
             
-            clusters = fetch_clusters(taggingLevel,task_id,isBounding,None,1)
+            clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
 
-            for cluster in clusters:
-                bufferCount = db.session.query(Individual).filter(Individual.allocated==current_user.id).count()
-                if bufferCount >= 5:
-                    remInds = db.session.query(Individual)\
-                                    .filter(Individual.allocated==current_user.id)\
-                                    .order_by(Individual.allocation_timestamp).limit(bufferCount-4).all()
-                    for remInd in remInds:
-                        remInd.allocated = None
-                        remInd.allocation_timestamp = None
+            # de-allocate old individuals
+            for individual in individuals:
+                buffer = session.query(Individual).filter(Individual.allocated==current_user.id).order_by(Individual.allocation_timestamp).all()
+                if len(buffer) >= 5:
+                    for ind in buffer[:-4]:
+                        ind.allocated = None
+                        ind.allocation_timestamp = None
 
-                cluster.allocated = current_user.id
-                cluster.allocation_timestamp = datetime.utcnow()
+                # Allocate new individual
+                individual.allocated = current_user.id
+                individual.allocation_timestamp = datetime.utcnow()
 
-            current_user.clusters_allocated += len(clusters)
-            db.session.commit()
-            GLOBALS.mutex[int(task_id)]['global'].release()
+            clusters_allocated = current_user.clusters_allocated + len(individuals)
+            current_user.clusters_allocated = clusters_allocated
+            session.commit()
+            GLOBALS.mutex[task_id]['global'].release()
 
         else:
-            if current_user.trapgroup[:]:
-                trapgroup = current_user.trapgroup[0]
+            session.close()
+            GLOBALS.mutex[task_id]['global'].acquire()
+            # Open a new session to ensure allocations are up to date after a long wait
+            session = db.session()
+            session.add(current_user)
+            session.refresh(current_user)
+
+            # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
+            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+            if trapgroup == None:
+                session.close()
+                GLOBALS.mutex[task_id]['global'].release()
+                return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+
+            limit = task_size - current_user.clusters_allocated
+            clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+
+            # if len(clusterInfo)==0: current_user.trapgroup = []
+            if len(clusterInfo) <= limit:
+                clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                trapgroup.active = False
             else:
-                GLOBALS.mutex[int(task_id)]['global'].acquire()
-                db.session.commit()
+                clusters_allocated = current_user.clusters_allocated + limit
+            current_user.clusters_allocated = clusters_allocated
+            
+            session.commit()
+            session.close()
+            GLOBALS.mutex[task_id]['global'].release()
 
-                trapgroup = allocate_new_trapgroup(int(task_id),current_user.id)
-                if trapgroup == None:
-                    GLOBALS.mutex[int(task_id)]['global'].release()
-                    return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
-                GLOBALS.mutex[int(task_id)]['global'].release()
+            # if current_user.trapgroup[:]:
+            #     trapgroup = current_user.trapgroup[0]
+            # else:
+            #     GLOBALS.mutex[task_id]['global'].acquire()
+            #     db.session.commit()
 
-            GLOBALS.mutex[int(task_id)]['user'][current_user.id].acquire()
-            limit = task.size - current_user.clusters_allocated
-            clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
-            current_user.clusters_allocated += len(clusters)
-            db.session.commit()
-            GLOBALS.mutex[int(task_id)]['user'][current_user.id].release()
+            #     trapgroup = allocate_new_trapgroup(task_id,current_user.id)
+            #     if trapgroup == None:
+            #         GLOBALS.mutex[task_id]['global'].release()
+            #         return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+            #     GLOBALS.mutex[task_id]['global'].release()
 
-    if clusters == []:
-        current_user.trapgroup = []
-        db.session.commit()
+            # GLOBALS.mutex[task_id]['user'][current_user.id].acquire()
+            # limit = task.size - current_user.clusters_allocated
+            # # clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
+            # clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id)
+            # current_user.clusters_allocated += len(clusters)
+            # db.session.commit()
+            # GLOBALS.mutex[task_id]['user'][current_user.id].release()
+
+    # if clusters == []:
+    #     current_user.trapgroup = []
+    #     db.session.commit()
         # return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
-    reply = {'id': reqId, 'info': []}
-    for cluster in clusters:
-        if time.time() - OverallStartTime > 20:
-            # If this is taking too long, cut the request short
-            current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
-            db.session.commit()
-            break
-        reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,sendVideo))
+    # reply = {'id': reqId, 'info': []}
+    # for cluster in clusters:
+    #     if time.time() - OverallStartTime > 20:
+    #         # If this is taking too long, cut the request short
+    #         current_user.clusters_allocated -= (len(clusters) - len(reply['info']))
+    #         db.session.commit()
+    #         break
+    #     reply['info'].append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,sendVideo))
 
-    if (id is None) and (current_user.clusters_allocated >= task.size):
+    reply = translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id,label_description)
+
+    if (id is None) and (clusters_allocated >= task_size):
         reply['info'].append(Config.FINISHED_CLUSTER)
 
-    OverallEndTime = time.time()
-    print("Entire get cluster completed in {}".format(OverallEndTime - OverallStartTime))
+    if Config.DEBUGGING: app.logger.info("Entire get cluster completed in {}".format(time.time() - OverallStartTime))
     return json.dumps(reply)
 
 @app.route('/getImage')
@@ -4723,12 +4952,12 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 images = db.session.query(Image).filter(Image.corrected_timestamp!=None).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).all()
                 if (int(index) == (len(images)-1)) and (knockedstatus == '1'):
                     #beginning and end were knocked - don't need to do anything
-                    app.logger.info('Beginning and end were knocked - doing nothing.')
+                    if Config.DEBUGGING: app.logger.info('Beginning and end were knocked - doing nothing.')
                     cluster.checked = True
                     db.session.commit()
                 elif (int(index) == 0) and (knockedstatus == '0'):
                     #first image was not knocked down - need to recluster the whole thing
-                    app.logger.info('First image not knocked - reclustering the whole thing.')
+                    if Config.DEBUGGING: app.logger.info('First image not knocked - reclustering the whole thing.')
                     # unknock_cluster(cluster)
                     cluster_id = cluster.id
                     cluster.checked = True
@@ -4744,7 +4973,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 else:
                     #send next middle image
                     if (int(imageIndex) == 0) and (int(index) != 0):
-                        app.logger.info('Single image marked, sending next one.')
+                        if Config.DEBUGGING: app.logger.info('Single image marked, sending next one.')
                         if knockedstatus == '1':
                             if int(index) > T_index:
                                 T_index = int(index)
@@ -4752,7 +4981,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                             if int(index) < F_index:
                                 F_index = int(index)
                     else:
-                        app.logger.info('Initial cluster marked, sending next middle image.')
+                        if Config.DEBUGGING: app.logger.info('Initial cluster marked, sending next middle image.')
                         if len(images) > 6:
                             if knockedstatus == '1':
                                 T_index = int(index)
@@ -4772,7 +5001,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
                     if (newIndex == T_index) or (newIndex == F_index):
                         #finished with cluster - split up & recluster
-                        app.logger.info('Finished with cluster, splitting and reclustering.')
+                        if Config.DEBUGGING: app.logger.info('Finished with cluster, splitting and reclustering.')
                         #deallocate the trapgroup from the user
                         trapgroup = images[0].camera.trapgroup
                         trapgroup.active = False
@@ -4782,7 +5011,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                         db.session.commit()
                         splitClusterAndUnknock.apply_async(kwargs={'oldClusterID':cluster.id, 'SplitPoint':F_index})
                     else:
-                        app.logger.info('Sending index: {}'.format(newIndex))
+                        if Config.DEBUGGING: app.logger.info('Sending index: {}'.format(newIndex))
                         sortedImages = [images[newIndex]]
                         indices = [newIndex]
 
@@ -4809,7 +5038,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                         indices = [n for n in range(len(images))]
                         sortedImages = images
 
-                    app.logger.info('Sending new knocked-down cluster with image indices: {}'.format(indices))
+                    if Config.DEBUGGING: app.logger.info('Sending new knocked-down cluster with image indices: {}'.format(indices))
                     T_index = 0
                     F_index = 0
 
@@ -5322,6 +5551,7 @@ def assignLabel(clusterID):
         reAllocated = False
         newClusters = []
         classifications = None
+        session = db.session()
 
         if Config.DEBUGGING: app.logger.info('Submitted labels: {}'.format(labels))
 
@@ -5333,12 +5563,13 @@ def assignLabel(clusterID):
             labels.append(str(GLOBALS.nothing_id))
             remove_false_detections = True
 
-        num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-        turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
+        num = session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+        turkcode = session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
         task = turkcode.task
         num2 = task.size + task.test_size
-        cluster = db.session.query(Cluster).get(int(clusterID))
+        cluster = session.query(Cluster).get(int(clusterID))
         isBounding = task.is_bounding
+        task_id = task.id
 
         if 'taggingLevel' in request.form:
             taggingLevel = str(request.form['taggingLevel'])
@@ -5352,50 +5583,38 @@ def assignLabel(clusterID):
             num += 1
 
             #Check if image has already been knocked down, if so, ignore new label
-            downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+            downLabel = session.query(Label).get(GLOBALS.knocked_id)
             if downLabel and (downLabel in cluster.labels):
                 pass
             else:
-                if (num <= task.size) or (current_user.admin == True):
+                if (num <= task.size) or (current_user.admin):
                     newLabels = []
                          
                     if '-2' in taggingLevel:
                         cluster.tags = []
                     else:
-                        # Can't have nothing label alongside other labels
-                        if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
-                            app.logger.info('Blocked nothing multi label!')
-                            labels.remove(GLOBALS.nothing_id)
-
-                        # Don't necessarily know that false detections were removed anymore
-                        # if (GLOBALS.nothing_id in [r.id for r in cluster.labels]) and (str(GLOBALS.nothing_id) not in labels):
-                        #     reAllocated = True
-                        #     trapgroup = cluster.images[0].camera.trapgroup
-                        #     trapgroup.processing = True
-                        #     trapgroup.active = False
-                        #     trapgroup.user_id = None
-                        #     current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                        #     db.session.commit()
-                        #     removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':True})
-                            
                         cluster.labels = []
 
-                    if cluster.skipped:
-                        cluster.skipped = False
+                        # Can't have nothing label alongside other labels
+                        if (len(labels) > 1) and (str(GLOBALS.nothing_id) in labels):
+                            if Config.DEBUGGING: app.logger.info('Blocked nothing multi label!')
+                            labels.remove(GLOBALS.nothing_id)
+
+                    cluster.skipped = False
 
                     for label_id in labels:
                         if int(label_id)==Config.SKIP_ID:
                             cluster.skipped = True
-                            parentLabel = db.session.query(Label).get(taggingLevel)
+                            parentLabel = session.query(Label).get(taggingLevel)
 
                             if ('-2' not in taggingLevel) and (parentLabel not in newLabels):
                                 newLabels.append(parentLabel)
 
                         else:
                             if '-2' in taggingLevel:
-                                newLabel = db.session.query(Tag).get(label_id)
+                                newLabel = session.query(Tag).get(label_id)
                             else:
-                                newLabel = db.session.query(Label).get(label_id)
+                                newLabel = session.query(Label).get(label_id)
                             
                             if newLabel:
                                 if newLabel.id == GLOBALS.wrong_id:
@@ -5403,109 +5622,13 @@ def assignLabel(clusterID):
                                     cluster.labels = []
                                     break
                                 
-                                else:
-                                    if remove_false_detections:
-                                        # sq = db.session.query(Cluster) \
-                                        #     .join(Image, Cluster.images) \
-                                        #     .join(Detection)
-
-                                        # sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
-
-                                        # clusters_remaining = sq.filter(Cluster.task_id == cluster.task_id) \
-                                        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                        #                         .filter(Detection.static == False) \
-                                        #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        #                         .distinct().count()
-
-                                        tgs_available = db.session.query(Trapgroup)\
-                                                                .filter(Trapgroup.survey==task.survey)\
-                                                                .filter(Trapgroup.user_id==None)\
-                                                                .filter(Trapgroup.active==True)\
-                                                                .first()
-
-                                        sq = db.session.query(Detection.id.label('detID'),((Detection.right-Detection.left)*(Detection.bottom-Detection.top)).label('area')) \
-                                                                .join(Image) \
-                                                                .filter(Image.clusters.contains(cluster))\
-                                                                .subquery()
-
-                                        removable_detections = db.session.query(Detection)\
-                                                                .join(Image)\
-                                                                .join(sq,sq.c.detID==Detection.id)\
-                                                                .filter(Image.clusters.contains(cluster))\
-                                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                                                .filter(~Detection.status.in_(['deleted','hidden']))\
-                                                                .filter(Detection.static==False)\
-                                                                .filter(sq.c.area<0.1)\
-                                                                .first()
-
-                                        # sq = db.session.query(Trapgroup)\
-                                        #                         .join(Camera)\
-                                        #                         .join(Image)\
-                                        #                         .join(Detection)\
-                                        #                         .join(Cluster,Image.clusters)
-
-                                        # sq = taggingLevelSQ(sq,taggingLevel,isBounding,cluster.task_id)
-
-                                        # tgs_available = sq.filter(Cluster.task_id == cluster.task_id) \
-                                        #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                        #                         .filter(Detection.static == False) \
-                                        #                         .filter(~Detection.status.in_(['deleted','hidden'])) \
-                                        #                         .filter(Trapgroup.user_id==None)\
-                                        #                         .filter(Trapgroup.processing==False)\
-                                        #                         .filter(Trapgroup.queueing==False)\
-                                        #                         .distinct().count()
-
-                                        if tgs_available and (not explore) and removable_detections:
-                                            OverallStartTime = time.time()
-                                            reAllocated = True
-                                            trapgroup = cluster.images[0].camera.trapgroup
-                                            trapgroup.processing = True
-                                            trapgroup.active = False
-                                            trapgroup.user_id = None
-                                            current_user.clusters_allocated = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                                            db.session.commit()
-                                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
-
-                                            # Get a new batch of clusters
-                                            GLOBALS.mutex[task.id]['global'].acquire()
-                                            db.session.commit()
-                                            trapgroup = allocate_new_trapgroup(task.id,current_user.id)
-                                            GLOBALS.mutex[task.id]['global'].release()
-
-                                            if trapgroup == None:
-                                                clusters = []
-                                            else:
-                                                GLOBALS.mutex[task.id]['user'][current_user.id].acquire()
-                                                limit = task.size - current_user.clusters_allocated
-                                                clusters = fetch_clusters(taggingLevel,task.id,isBounding,trapgroup.id,limit)
-                                                current_user.clusters_allocated += len(clusters)
-                                                db.session.commit()
-                                                GLOBALS.mutex[task.id]['user'][current_user.id].release()
-                                            
-                                            if clusters == []:
-                                                current_user.trapgroup = []
-                                                db.session.commit()
-                                                newClusters = [Config.FINISHED_CLUSTER]
-
-                                            else:
-                                                newClusters = []
-                                                for cluster in clusters:
-                                                    if time.time() - OverallStartTime > 30:
-                                                        # If this is taking too long, cut the request short
-                                                        current_user.clusters_allocated -= (len(clusters) - len(newClusters))
-                                                        db.session.commit()
-                                                        break
-                                                    newClusters.append(translate_cluster_for_client(cluster,id,isBounding,taggingLevel,current_user,False))
-
-                                                if current_user.clusters_allocated >= task.size:
-                                                    newClusters.append(Config.FINISHED_CLUSTER)
-
-                                    if (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
-                                        newLabels.append(newLabel)
+                                elif (newLabel not in cluster.labels) and (newLabel not in cluster.tags) and (newLabel not in newLabels):
+                                    newLabels.append(newLabel)
 
                     if '-2' in taggingLevel:
                         cluster.tags.extend(newLabels)
                         cluster.skipped = True
+                        if Config.DEBUGGING: app.logger.info('Cluster tags: {}'.format([r.description for r in cluster.tags]))
                     else:
                         cluster.labels.extend(newLabels)
                         if Config.DEBUGGING: app.logger.info('Cluster labels: {}'.format([r.description for r in cluster.labels]))
@@ -5515,7 +5638,7 @@ def assignLabel(clusterID):
                     cluster.timestamp = datetime.utcnow()
 
                     # Copy labels over to labelgroups
-                    labelgroups = db.session.query(Labelgroup) \
+                    labelgroups = session.query(Labelgroup) \
                                             .join(Detection) \
                                             .join(Image) \
                                             .filter(Image.clusters.contains(cluster)) \
@@ -5528,9 +5651,81 @@ def assignLabel(clusterID):
                         else:
                             labelgroup.labels = cluster.labels
 
-                    db.session.commit()
-
                     if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
+
+                    if remove_false_detections:
+                        tgs_available = session.query(Trapgroup)\
+                                                .filter(Trapgroup.survey==task.survey)\
+                                                .filter(Trapgroup.user_id==None)\
+                                                .filter(Trapgroup.active==True)\
+                                                .first()
+
+                        removable_detections = session.query(Detection)\
+                                                .join(Image)\
+                                                .filter(Image.clusters.contains(cluster))\
+                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                                .filter(Detection.static==False)\
+                                                .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top))<0.1)\
+                                                .first()
+
+                        if tgs_available and (not explore) and removable_detections:
+                            reAllocated = True
+                            trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
+                            survey_id = task.survey_id
+                            task_size = task.size
+                            trapgroup.processing = True
+                            trapgroup.active = False
+                            trapgroup.user_id = None
+                            current_user.clusters_allocated = num
+
+                            label_description = None
+                            if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
+                            
+                            session.commit()
+                            
+                            removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
+
+                            # Get a new batch of clusters
+                            session.close()
+                            GLOBALS.mutex[task_id]['global'].acquire()
+                            # Open a new session to ensure allocations are up to date after a long wait
+                            session = db.session()
+                            session.add(current_user)
+                            session.refresh(current_user)
+
+                            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                            if trapgroup == None:
+                                session.close()
+                                GLOBALS.mutex[task_id]['global'].release()
+                                newClusters = []
+                            else:
+                                limit = task_size - current_user.clusters_allocated
+                                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+
+                                # if len(clusterInfo)==0: current_user.trapgroup = []
+                                if len(clusterInfo) <= limit:
+                                    clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                                    trapgroup.active = False
+                                else:
+                                    clusters_allocated = current_user.clusters_allocated + limit
+                                current_user.clusters_allocated = clusters_allocated
+                                
+                                session.commit()
+                                session.close()
+                                GLOBALS.mutex[task_id]['global'].release()
+
+                                newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None,label_description)['info']
+
+                            if (newClusters==[]) or (clusters_allocated >= task_size):
+                                newClusters.append(Config.FINISHED_CLUSTER)
+                        else:
+                            session.commit()
+                            session.close()
+
+                    else:
+                        session.commit()
+                        session.close()
 
         return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
 
@@ -6011,7 +6206,7 @@ def editTask(task_id):
 def submitTags(task_id):
     '''Handles the submission of tags for the specified task. Returns success/error status and then launches task.'''
     
-    app.logger.info('Received tags for task {}'.format(task_id))
+    if Config.DEBUGGING: app.logger.info('Received tags for task {}'.format(task_id))
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
 
@@ -6236,7 +6431,7 @@ def done():
         trapgroup.user_id = None
     db.session.commit()
 
-    GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
+    # GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
 
     if current_user.parent_id:
         admin_user = current_user.parent
@@ -6424,8 +6619,13 @@ def generateCSV():
     except:
         pass
 
+    if task.survey.image_count>250000:
+        queue='ram_intensive'
+    else:
+        queue='default'
+
     app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date))
-    generate_csv.delay(selectedTasks=selectedTasks, selectedLevel=level, requestedColumns=columns, custom_columns=custom_columns, label_type=label_type, includes=includes, excludes=excludes, startDate=start_date, endDate=end_date)
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -6641,7 +6841,7 @@ def knockdown(imageId, clusterId):
 
         if (rootImage.corrected_timestamp==None) or (first_im.corrected_timestamp==None) or ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1)):
             #Still setting up
-            print('Still setting up.')
+            if Config.DEBUGGING: ('Still setting up.')
             if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < aCluster.task.size) or (current_user.admin == True):
@@ -6667,7 +6867,7 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
 
         else:
-            print('It is really knocked down.')
+            if Config.DEBUGGING: print('It is really knocked down.')
             num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
 
             if (num_cluster < db.session.query(Task).get(task_id).size) or (current_user.admin == True):
@@ -6697,7 +6897,7 @@ def knockdown(imageId, clusterId):
                     trapgroup.active = False
                     trapgroup.user_id = None
                     db.session.commit()
-                    finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':current_user.id})
+                    finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':current_user.id})
 
     return ""
 
@@ -6978,7 +7178,7 @@ def getClassifierInfo():
 @login_required
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
-    print('Getting presigned')
+    if Config.DEBUGGING: print('Getting presigned')
     if current_user.admin:
         return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
                                                                 Params={'Bucket': Config.BUCKET,
@@ -7436,7 +7636,7 @@ def writeInfoToImages(type_id,id):
                     splits[0] = splits[0] + '-comp'
                     url_new = '/'.join(splits)    
 
-                    app.logger.info(url_new)
+                    if Config.DEBUGGING: (url_new)
 
                     s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=url)
                     imageData = s3_response_object['Body'].read()
@@ -7518,7 +7718,7 @@ def writeInfoToImages(type_id,id):
                 splits[0] = splits[0] + '-comp'
                 url_new = '/'.join(splits)    
 
-                app.logger.info(url_new)
+                if Config.DEBUGGING: app.logger.info(url_new)
 
                 s3_response_object = GLOBALS.s3client.get_object(Bucket=Config.BUCKET,Key=url)
                 imageData = s3_response_object['Body'].read()

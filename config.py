@@ -23,7 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
-    VERSION = 13
+    VERSION = 17
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -99,7 +99,7 @@ class Config(object):
     MIN_CLASSIFICATION_RATIO = 0.2 #the minimum ratio of detection classifications for a classification to be considered
 
     # Individual ID Config
-    SIMILARITY_SCORE = 0.1
+    SIMILARITY_SCORE = 1.0
 
     # Task and survey statuses
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']

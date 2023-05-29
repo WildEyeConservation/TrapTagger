@@ -369,6 +369,8 @@ class Task(db.Model):
     potential_vhl_clusters = db.Column(db.Integer, index=False)
     vhl_image_count = db.Column(db.Integer, index=False)
     vhl_sighting_count = db.Column(db.Integer, index=False)
+    cluster_count = db.Column(db.Integer, index=False)
+    clusters_remaining = db.Column(db.Integer, index=False)
     clusters = db.relationship('Cluster', backref='task', lazy=True)
     turkcodes = db.relationship('Turkcode', backref='task', lazy=True)
     labels = db.relationship('Label', backref='task', lazy=True)

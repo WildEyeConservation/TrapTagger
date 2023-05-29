@@ -56,39 +56,79 @@ def cleanupWorkers(one, two):
     Reschedules all active Celery tasks on app shutdown. Docker stop flask, and then docker-compose down when message appears. Alternatively, if you do 
     not wish to reschedule the currently active Celery tasks, use docker kill flask instead.
     '''
-    
-    inspector = celery.control.inspect()
-    queues = {'default': 'traptagger_worker'}
-    for queue in queues:
+
+    # Stop all task consumption
+    allQueues = ['default'] #default needs to be first
+    allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+    allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+    for queue in allQueues:
         celery.control.cancel_consumer(queue)
 
-        app.logger.info('')
-        app.logger.info('*********************************************************')
-        app.logger.info('')
+    app.logger.info('')
+    app.logger.info('*********************************************************')
+    app.logger.info('')
+    app.logger.info('All queues cancelled. Revoking active tasks...')
+    
+    # revoke active and reserved tasks
+    active_tasks = []
+    inspector = celery.control.inspect()
+    inspector_reserved = inspector.reserved()
+    inspector_active = inspector.active()
+    defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
 
-        active_tasks = []
-        inspector_active = inspector.active()
-        if inspector_active!=None:
-            for worker in inspector_active:
-                if queues[queue] in worker: active_tasks.extend(inspector_active[worker])
+    if inspector_active!=None:
+        for worker in inspector_active:
+            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_active[worker])
+            for task in inspector_active[worker]:
+                try:
+                    celery.control.revoke(task['id'], terminate=True)
+                except:
+                    pass
+    
+    if inspector_reserved != None:
+        for worker in inspector_reserved:
+            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_reserved[worker])
+            for task in inspector_reserved[worker]:
+                try:
+                    celery.control.revoke(task['id'], terminate=True)
+                except:
+                    pass
 
-        inspector_reserved = inspector.reserved()
-        if inspector_reserved != None:
-            for worker in inspector_reserved:
-                if queues[queue] in worker: active_tasks.extend(inspector_reserved[worker])
+    app.logger.info('Active tasks revoked. Flushing queues...')
 
-        for active_task in active_tasks:
-            for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
-                                        'app.functions.imports','app.functions.individualID','app.functions.results']:
-                if function_location in active_task['name']:
-                    module = importlib.import_module(function_location)
-                    function_name = re.split(function_location+'.',active_task['name'])[1]
-                    active_function = getattr(module, function_name)
+    # Flush all other (non-default) queues
+    redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+    for queue in allQueues:
+        if queue not in ['default','ram_intensive']:
+            while True:
+                task = redisClient.blpop(queue, timeout=1)
+                if not task:
                     break
-            kwargs = active_task['kwargs']
-            priority = active_task['delivery_info']['priority']
-            app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
-            active_function.apply_async(kwargs=kwargs, queue=queue, priority=priority)
+
+    app.logger.info('Queues flushed. Rescheduling active tasks...')
+
+    # Reschedule default queue tasks
+    for active_task in active_tasks:
+        for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
+                                    'app.functions.imports','app.functions.individualID','app.functions.results']:
+            if function_location in active_task['name']:
+                module = importlib.import_module(function_location)
+                function_name = re.split(function_location+'.',active_task['name'])[1]
+                active_function = getattr(module, function_name)
+                break
+        kwargs = active_task['kwargs']
+        # priority = active_task['delivery_info']['priority']
+        if 'ram_worker' in active_task['hostname']:
+            queue = 'ram_intensive'
+        else:
+            queue = 'default'
+        app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
+        active_function.apply_async(kwargs=kwargs, queue=queue) #, priority=priority)
+
+    #Ensure redis db is saved
+    app.logger.info('Saving redis db...')
+    redisClient.save()
+    app.logger.info('Redis db saved')
 
     app.logger.info('')
     app.logger.info('*********************************************************')
@@ -177,19 +217,19 @@ def getQueueLengths(redisClient):
     queues = {}
     for queue in Config.QUEUES:
         queueLength = redisClient.llen(queue)
-        print('{} queue length: {}'.format(queue,queueLength))
+        if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
-    for classifier in db.session.query(Classifier).all():
-        queue = classifier.name
+    for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
         queueLength = redisClient.llen(queue)
-        print('{} queue length: {}'.format(queue,queueLength))
+        if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
     return queues
 
 def getImagesProcessing():
     '''Gets the quantities of images being processed'''
+    commit = False
     images_processing = {'total': 0, 'celery': 0}
     surveys = db.session.query(Survey).filter(Survey.images_processing!=0).distinct().all()
     for survey in surveys:
@@ -201,8 +241,9 @@ def getImagesProcessing():
                 if survey.classifier.name not in images_processing.keys(): images_processing[survey.classifier.name] = 0
                 images_processing[survey.classifier.name] += survey.images_processing
             survey.processing_initialised = True
-            db.session.commit()
-    return images_processing
+            commit = True
+            # db.session.commit()
+    return images_processing, commit
 
 def getInstanceCount(client,queue,ami,host_ip,instance_types):
     '''Returns the count of running instances for the given queue'''
@@ -389,12 +430,13 @@ def importMonitor():
         startTime = datetime.utcnow()
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         queues = getQueueLengths(redisClient)
+        commit = None
 
         if queues:
             ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
             client = boto3.client('ec2',region_name=Config.AWS_REGION)
-            images_processing = getImagesProcessing()
-            print('Images being imported: {}'.format(images_processing))
+            images_processing, commit = getImagesProcessing()
+            if Config.DEBUGGING: print('Images being imported: {}'.format(images_processing))
 
             current_instances = {}
             instances_required = {'default':0,'parallel':0}
@@ -439,7 +481,7 @@ def importMonitor():
 
                 if instances_required[queue] > max_instances: instances_required[queue] = max_instances
 
-            print('Instances required: {}'.format(instances_required))
+            if Config.DEBUGGING: print('Instances required: {}'.format(instances_required))
 
             # # Check database capacity requirement (parallel & default)
             # required_capacity = 1*(instances_required['default'] + instances_required['parallel'])
@@ -487,8 +529,9 @@ def importMonitor():
         # self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
+        if commit: db.session.commit()
         db.session.remove()
-        countdown = 10 - (datetime.utcnow()-startTime).total_seconds()
+        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
         if countdown < 0: countdown=0
         importMonitor.apply_async(queue='priority', priority=0, countdown=countdown)
 
@@ -760,10 +803,10 @@ def removeFalseDetections(self,cluster_id,undo):
             detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
 
             if undo:
-                app.logger.info('Undoing the removal of false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
+                if Config.DEBUGGING: app.logger.info('Undoing the removal of false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
                 staticState = False
             else:
-                app.logger.info('Removing false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
+                if Config.DEBUGGING: app.logger.info('Removing false detections assocated with nothing-labelled cluster {}'.format(cluster_id))
                 staticState = True
 
             images = []
@@ -878,7 +921,7 @@ def populateMutex(task_id,user_id=None):
             if task and (task.status in ['PROGRESS','Processing','Knockdown Analysis']):
                 GLOBALS.mutex[task_id] = {
                     'global': threading.Lock(),
-                    'user': {},
+                    # 'user': {},
                     'job': threading.Lock(),
                     'trapgroup': {}
                 }
@@ -892,17 +935,17 @@ def populateMutex(task_id,user_id=None):
             if task and (task.status not in ['PROGRESS','Processing','Knockdown Analysis']):
                 GLOBALS.mutex.pop(task_id, None)
 
-        if user_id:
-            user = db.session.query(User).get(user_id)
-            if user:
-                if user_id not in GLOBALS.mutex[task_id]['user'].keys():
-                    if user.passed not in ['cTrue', 'cFalse', 'true', 'false']:
-                        GLOBALS.mutex[task_id]['user'][user_id] = threading.Lock()
-                    else:
-                        return False
-                else:
-                    if user.passed in ['cTrue', 'cFalse', 'true', 'false']:
-                        GLOBALS.mutex[task_id]['user'].pop(user_id, None)
+        # if user_id:
+        #     user = db.session.query(User).get(user_id)
+        #     if user:
+        #         if user_id not in GLOBALS.mutex[task_id]['user'].keys():
+        #             if user.passed not in ['cTrue', 'cFalse', 'true', 'false']:
+        #                 GLOBALS.mutex[task_id]['user'][user_id] = threading.Lock()
+        #             else:
+        #                 return False
+        #         else:
+        #             if user.passed in ['cTrue', 'cFalse', 'true', 'false']:
+        #                 GLOBALS.mutex[task_id]['user'].pop(user_id, None)
 
     except:
         return False
@@ -910,143 +953,159 @@ def populateMutex(task_id,user_id=None):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=None):
+def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, session=None):
     '''
     Celery task for marking a camera as knocked down. Combines all images into a new cluster, and reclusters the images from the other cameras.
 
         Parameters:
             rootImageID (int): The image viewed by the user when they marked a cluster as knocked down
-            task_id (int): The task being tagged
+            task (int/db object): The task being tagged
             current_user_id (int): The user who annotated the knock down
             lastImageID (int): The last image from the sequence that is known to be knocked down
     '''
     
     try:
-        app.logger.info('Started finish_knockdown for image ' + str(rootImageID))
+        if Config.DEBUGGING: app.logger.info('Started finish_knockdown for image ' + str(rootImageID))
 
-        populateMutex(int(task_id))
+        if session == None:
+            celeryTask = True
+            session = db.session()
+            task = session.query(Task).get(task)
+            task_id = task.id
+        else:
+            celeryTask = False
 
-        rootImage = db.session.query(Image).get(rootImageID)
-        trapgroup = rootImage.camera.trapgroup
+        if celeryTask: populateMutex(task_id)
+
+        rootImage = session.query(Image).get(rootImageID)
+        trapgroup = db.session.query(Trapgroup).join(Camera).join(Image).filter(Image.id==rootImageID).first()
         trapgroup_id = trapgroup.id
-        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+        downLabel = session.query(Label).get(GLOBALS.knocked_id)
 
-        if int(task_id) in GLOBALS.mutex.keys():
-            GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].acquire()
-            db.session.commit()
+        if celeryTask and (task_id in GLOBALS.mutex.keys()):
+            GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].acquire()
+            # session.commit()
 
-        app.logger.info('Continuing finish_knockdown for image ' + str(rootImageID))
+        if Config.DEBUGGING: app.logger.info('Continuing finish_knockdown for image ' + str(rootImageID))
 
         trapgroup.processing = True
         trapgroup.active = False
         trapgroup.user_id = None
-        db.session.commit()
+        if celeryTask: session.commit()
 
-        if int(task_id) in GLOBALS.mutex.keys():
-            GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].release()
+        if celeryTask and (task_id in GLOBALS.mutex.keys()):
+            GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].release()
 
-        cluster = Cluster(user_id=current_user_id, labels=[downLabel], timestamp=datetime.utcnow(), task_id=task_id)
-        db.session.add(cluster)
+        cluster = Cluster(user_id=current_user_id, labels=[downLabel], timestamp=datetime.utcnow(), task=task)
+        session.add(cluster)
 
         #Move images to new cluster
-        images = db.session.query(Image) \
+        images = session.query(Image) \
                         .filter(Image.camera == rootImage.camera) \
                         .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp)
 
         if lastImageID:
-            lastImage = db.session.query(Image).get(lastImageID)
+            lastImage = session.query(Image).get(lastImageID)
             images = images.filter(Image.corrected_timestamp <= lastImage.corrected_timestamp)
 
+        imageSQ = images.subquery()
         images = images.distinct().all() 
         cluster.images = images
 
         from app.functions.imports import classifyCluster
         cluster.classification = classifyCluster(cluster)
 
-        labelgroups = db.session.query(Labelgroup)\
+        labelgroups = session.query(Labelgroup)\
                                 .join(Detection)\
                                 .join(Image)\
                                 .filter(Image.clusters.contains(cluster))\
-                                .filter(Labelgroup.task_id==task_id)\
+                                .filter(Labelgroup.task==task)\
                                 .all()
 
         for labelgroup in labelgroups:
             labelgroup.labels = [downLabel]
 
-        db.session.commit()
+        # session.commit()
 
         if not lastImageID:
-            lastImage = db.session.query(Image).filter(Image.camera_id == rootImage.camera_id).order_by(desc(Image.corrected_timestamp)).first()
+            lastImage = session.query(Image).filter(Image.camera_id == rootImage.camera_id).order_by(desc(Image.corrected_timestamp)).first()
 
-        old_clusters = db.session.query(Cluster) \
+        old_clusters = session.query(Cluster) \
                             .join(Image, Cluster.images) \
                             .join(Camera) \
                             .filter(Camera.trapgroup_id == rootImage.camera.trapgroup.id) \
                             .filter(Image.corrected_timestamp >= rootImage.corrected_timestamp) \
                             .filter(Image.corrected_timestamp <= lastImage.corrected_timestamp) \
-                            .filter(Cluster.task_id == task_id) \
-                            .distinct(Cluster.id) \
+                            .filter(Cluster.task == task) \
+                            .distinct() \
                             .all()
 
-        recluster_ims = db.session.query(Image) \
-                            .join(Camera) \
-                            .filter(~Image.id.in_([r.id for r in images])) \
+        recluster_ims = session.query(Image) \
+                            .outerjoin(imageSQ, Image.id == imageSQ.c.id) \
+                            .filter(imageSQ.c.id == None) \
                             .filter(Image.clusters.any(Cluster.id.in_([r.id for r in old_clusters]))) \
                             .order_by(Image.corrected_timestamp) \
-                            .distinct(Image.id) \
+                            .distinct() \
                             .all()
 
         old_clusters.remove(cluster)
 
         for old_cluster in old_clusters:
             old_cluster.images = []
-            db.session.delete(old_cluster)
+            session.delete(old_cluster)
 
-        db.session.commit()
+        # session.commit()
 
         if len(recluster_ims) > 0:
-            reClusters = []
+            long_clusters = []
+            clusterList = []
             prev = None    
             for image in recluster_ims:
                 timestamp = image.corrected_timestamp
                 if not (prev) or (timestamp - prev).total_seconds() > 60:
                     if prev is not None:
                         reCluster.images = imList
+                        if len(imList) > 50:
+                            long_clusters.append(reCluster)
+                        else:
+                            clusterList.append(reCluster)
                         reCluster.classification = classifyCluster(reCluster)
-                        reClusters.append(reCluster)
-                    reCluster = Cluster(task_id=task_id, timestamp=datetime.utcnow())
-                    db.session.add(reCluster)
+                    reCluster = Cluster(task=task, timestamp=datetime.utcnow())
+                    session.add(reCluster)
                     imList = []                 
                 prev = timestamp
                 imList.append(image)
 
             reCluster.images = imList
+            if len(imList) > 50:
+                long_clusters.append(reCluster)
+            else:
+                clusterList.append(reCluster)
             reCluster.classification = classifyCluster(reCluster)
-            reClusters.append(reCluster)
-            db.session.commit()
+            # session.commit()
 
-            reClusters = [r.id for r in reClusters]
+            if long_clusters:
+                from app.functions.imports import recluster_large_clusters
+                newClusters = recluster_large_clusters(task,True,session,long_clusters)
+                clusterList.extend(newClusters)
 
-            from app.functions.imports import recluster_large_clusters
-            removedClusters, newClusters = recluster_large_clusters(task_id,True,reClusters)
-
-            clusterList = [r for r in reClusters if r not in removedClusters]
-            clusterList.extend(newClusters)
-            classifyTask(task_id,clusterList)
+            if clusterList: classifyTask(task,session,clusterList)
 
         #Reactivate trapgroup
-        trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
+        # trapgroup = session.query(Trapgroup).get(trapgroup_id)
 
-        if trapgroup.queueing:
-            trapgroup.queueing = False
-            unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
-        else:
-            re_evaluate_trapgroup_examined(trapgroup_id,task_id)
-            trapgroup.active = True
-            trapgroup.processing = False
-        db.session.commit()
+        if celeryTask:
+            if trapgroup.queueing:
+                trapgroup.queueing = False
+                session.commit()
+                unknock_cluster.apply_async(kwargs={'image_id':int(rootImageID), 'label_id':None, 'user_id':current_user_id, 'task_id':task_id})
+            else:
+                re_evaluate_trapgroup_examined(trapgroup_id,task_id)
+                trapgroup.active = True
+                trapgroup.processing = False
+                session.commit()
 
-        app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
+        if Config.DEBUGGING: app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1057,7 +1116,8 @@ def finish_knockdown(self,rootImageID, task_id, current_user_id, lastImageID=Non
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.remove()
+        if celeryTask:
+            session.close()
 
     return ''
 
@@ -1074,7 +1134,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
     '''
     
     try:
-        app.logger.info('Started unknock_cluster for cluster ' + str(image_id))
+        if Config.DEBUGGING: app.logger.info('Started unknock_cluster for cluster ' + str(image_id))
 
         image = db.session.query(Image).get(image_id)
         cluster = db.session.query(Cluster).filter(Cluster.task_id == task_id).filter(Cluster.images.contains(image)).first()
@@ -1186,7 +1246,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
                 db.session.delete(old_cluster)
 
         db.session.commit()
-        classifyTask(task_id,[r.id for r in clusterList])
+        classifyTask(task_id,None,clusterList)
 
         #Add label to original cluster
         if label_id != None:
@@ -1220,14 +1280,14 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         
         if trapgroup.queueing:
             trapgroup.queueing = False
-            finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task_id':task_id, 'current_user_id':user_id})
+            finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':user_id})
         else:
             re_evaluate_trapgroup_examined(trapgroup_id,task_id)
             trapgroup.active = True
             trapgroup.processing = False
         db.session.commit()
 
-        app.logger.info('Completed unknock_cluster for cluster ' + str(image_id))
+        if Config.DEBUGGING: app.logger.info('Completed unknock_cluster for cluster ' + str(image_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1242,33 +1302,41 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
     return None
 
-def classifyTask(task_id,reClusters = None):
+def classifyTask(task,session = None,reClusters = None):
     '''
     Auto-classifies and labels the species contained in each cluster of a specified task, based on the species selected by the user. Can be given a specific subset of 
     clusters to classify.
     '''
     
     try:
-        app.logger.info('Classifying task '+str(task_id))
-        admin = db.session.query(User).filter(User.username == 'Admin').first()
-        task = db.session.query(Task).get(task_id)
+        app.logger.info('Classifying task '+str(task))
+
+        commit = False
+        if session == None:
+            commit = True
+            session = db.session()
+
+        if type(task) == int:
+            task = session.query(Task).get(task)
+
+        admin = session.query(User).filter(User.username == 'Admin').first()
         parentLabel = task.parent_classification
         survey_id = task.survey_id
 
-        totalDetSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCountTotal')) \
+        totalDetSQ = session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCountTotal')) \
                                 .join(Image, Cluster.images) \
                                 .join(Detection) \
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
-                                .filter(Cluster.task_id==task_id) \
+                                .filter(Cluster.task==task) \
                                 .group_by(Cluster.id).subquery()
 
         parentGroupings = {}
-        labelGroupings = db.session.query(Label).join(Translation).filter(Translation.task_id==task_id).filter(Translation.auto_classify==True).distinct().all()
+        labelGroupings = session.query(Label).join(Translation).filter(Translation.task==task).filter(Translation.auto_classify==True).distinct().all()
         for label in labelGroupings:
-            classifications = [r[0] for r in db.session.query(Translation.classification).filter(Translation.task_id==task_id).filter(Translation.auto_classify==True).filter(Translation.label_id==label.id).all()]
+            classifications = [r[0] for r in session.query(Translation.classification).filter(Translation.task==task).filter(Translation.auto_classify==True).filter(Translation.label_id==label.id).all()]
             if parentLabel:
                 if label.parent_id != None:
                     label = label.parent
@@ -1277,11 +1345,11 @@ def classifyTask(task_id,reClusters = None):
             else:
                 parentGroupings[label].extend(classifications)
 
-        app.logger.info('Groupings prepped for task '+str(task_id))
+        if Config.DEBUGGING: app.logger.info('Groupings prepped for task '+str(task))
 
         for species in parentGroupings:
 
-            detCountSQ = db.session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCount')) \
+            detCountSQ = session.query(Cluster.id.label('clusID'), func.count(distinct(Detection.id)).label('detCount')) \
                                 .join(Image, Cluster.images) \
                                 .join(Camera)\
                                 .join(Trapgroup)\
@@ -1294,26 +1362,25 @@ def classifyTask(task_id,reClusters = None):
                                 .filter(~Detection.status.in_(['deleted','hidden'])) \
                                 .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                 .filter(Detection.classification.in_(parentGroupings[species])) \
-                                .filter(Cluster.task_id==task_id) \
+                                .filter(Cluster.task==task) \
                                 .group_by(Cluster.id).subquery()
 
-            detRatioSQ = db.session.query(Cluster.id.label('clusID'), (detCountSQ.c.detCount/totalDetSQ.c.detCountTotal).label('detRatio')) \
+            detRatioSQ = session.query(Cluster.id.label('clusID'), (detCountSQ.c.detCount/totalDetSQ.c.detCountTotal).label('detRatio')) \
                                 .join(detCountSQ, detCountSQ.c.clusID==Cluster.id) \
                                 .join(totalDetSQ, totalDetSQ.c.clusID==Cluster.id) \
-                                .filter(Cluster.task_id==task_id) \
+                                .filter(Cluster.task==task) \
                                 .subquery()
 
-            clusters = db.session.query(Cluster) \
+            clusters = session.query(Cluster) \
                                 .join(detCountSQ, detCountSQ.c.clusID==Cluster.id) \
                                 .join(detRatioSQ, detRatioSQ.c.clusID==Cluster.id) \
                                 .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
                                 .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
-                                .filter(Cluster.task_id==task_id)
+                                .filter(Cluster.task==task)\
+                                .distinct().all()
 
             if reClusters != None:
-                clusters = clusters.filter(Cluster.id.in_(reClusters))
-
-            clusters = clusters.distinct().all()
+                clusters = [cluster for cluster in clusters if cluster in reClusters]
 
             # for chunk in chunker(clusters,1000):
             for cluster in clusters:
@@ -1321,12 +1388,12 @@ def classifyTask(task_id,reClusters = None):
                 cluster.user_id = admin.id
                 cluster.timestamp = datetime.utcnow()
 
-                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task_id==task_id).all()
+                labelgroups = session.query(Labelgroup).join(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(Labelgroup.task==task).all()
                 for labelgroup in labelgroups:
                     if species not in labelgroup.labels: labelgroup.labels.append(species)
         
-        db.session.commit()
-        app.logger.info('Finished classifying task '+str(task_id))
+        if commit: session.commit()
+        app.logger.info('Finished classifying task '+str(task))
 
     except Exception:
         app.logger.info(' ')
@@ -1418,32 +1485,35 @@ def retryTime(retries):
     if countdown > 3600: countdown=3600
     return countdown
 
-def createTurkcodes(number_of_workers, task_id):
+def createTurkcodes(number_of_workers, task_id, session):
     '''Creates requested number of turkcodes (jobs) for the specified task'''
     
-    turkcodes = []
+    user_ids = []
     for n in range(number_of_workers):
-        user_id = randomString(24)
-        check = db.session.query(Turkcode).filter(Turkcode.user_id==user_id).first()
-        if not check:
+        user_ids.append(randomString(24))
+
+    turkcodes = []
+    checks = [r[0] for r in session.query(Turkcode.user_id).filter(Turkcode.user_id.in_(user_ids)).all()]
+    for user_id in user_ids:
+        if user_id not in checks:
             turkcode = Turkcode(user_id=user_id, task_id=task_id, active=True)
-            db.session.add(turkcode)
+            session.add(turkcode)
             turkcodes.append({'user_id':user_id})
-    # db.session.commit()
+
     return turkcodes
 
-def deleteTurkcodes(number_of_jobs, jobs, task_id):
+def deleteTurkcodes(number_of_jobs, task_id, session):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
-    if not populateMutex(int(task_id)): return jobs
-    GLOBALS.mutex[int(task_id)]['job'].acquire()
-    db.session.commit()
-    turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
+    if not populateMutex(int(task_id)): return False
+    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].acquire()
+    session.commit()
+    turkcodes = session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
     for turkcode in turkcodes:
-        db.session.delete(turkcode)
-    db.session.commit()
-    GLOBALS.mutex[int(task_id)]['job'].release()
-    return jobs
+        session.delete(turkcode)
+    session.commit()
+    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].release()
+    return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def updateAllStatuses(self,task_id):
@@ -1550,39 +1620,39 @@ def updateLabelCompletionStatus(task_id):
 
     return True
 
-def resolve_abandoned_jobs(abandoned_jobs):
+def resolve_abandoned_jobs(abandoned_jobs,session=None):
     '''Cleans up jobs that have been abandoned.'''
+
+    if session==None:
+        session = db.session()
     
-    for job in abandoned_jobs:
-        user = db.session.query(User).filter(User.username==job.user_id).first()
-        task_id = job.task_id
+    for item in abandoned_jobs:
+        user = item[0]
+        task = item[1]
 
-        if user:
-            if ('-4' in job.task.tagging_level) and (job.task.survey.status=='indprocessing'):
-                app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
-                from app.functions.individualID import calculate_individual_similarities
-                calculate_individual_similarities.delay(task_id=job.task_id,species=re.split(',',job.task.tagging_level)[1],user_ids=[user.id])
-            elif '-5' in job.task.tagging_level:
-                #flush allocations
-                allocateds = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
+        if ('-4' in task.tagging_level) and (task.survey.status=='indprocessing'):
+            if Config.DEBUGGING: app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
+            from app.functions.individualID import calculate_individual_similarities
+            calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
+        # elif '-5' in task.tagging_level:
+        #     #flush allocations
+        #     allocateds = session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
+        #     for allocated in allocateds:
+        #         allocated.allocated = None
+        #         allocated.allocation_timestamp = None
 
-                allocateds = db.session.query(Individual).filter(Individual.allocated==user.id).all()
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
+        #     allocateds = session.query(Individual).filter(Individual.allocated==user.id).all()
+        #     for allocated in allocateds:
+        #         allocated.allocated = None
+        #         allocated.allocation_timestamp = None
 
-            for trapgroup in user.trapgroup:
-                trapgroup.user_id = None
+        user.trapgroup = []
+        user.passed = 'cFalse'
 
-            user.passed = 'cFalse'
-
-            if int(task_id) in GLOBALS.mutex.keys():
-                GLOBALS.mutex[int(task_id)]['user'].pop(user.id, None)
+        # if task.id in GLOBALS.mutex.keys():
+        #     GLOBALS.mutex[task.id]['user'].pop(user.id, None)
             
-    # db.session.commit()
+    # session.commit()
 
     return True
 
@@ -2050,9 +2120,9 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
 
     image = db.session.query(Image).get(image_id)
     try:
-        print('Asserting image')
+        if Config.DEBUGGING: print('Asserting image')
         assert image
-        print('Success')
+        if Config.DEBUGGING: print('Success')
 
         # Download file
         print('Downloading file...')
@@ -2075,33 +2145,33 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                     GLOBALS.s3client.download_file(Bucket=source, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
                 else:
                     GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image.camera.path+'/'+image.filename, Filename=temp_file.name)
-            print('Success')
+            if Config.DEBUGGING:print('Success')
 
-            print('Opening image...')
+            if Config.DEBUGGING: print('Opening image...')
             with pilImage.open(temp_file.name) as img:
                 img.load()
 
             assert img
-            print('Success')
+            if Config.DEBUGGING: print('Success')
                 
             # always save as RGB for consistency
             if img.mode != 'RGB':
-                print('Converting to RGB')
+                if Config.DEBUGGING: print('Converting to RGB')
                 img = img.convert(mode='RGB')
 
             if update_image_info:
                 # Get image hash
-                print('Updating image hash...')
+                if Config.DEBUGGING: print('Updating image hash...')
                 try:
                     image.etag = md5(temp_file.name)
                     image.hash = generate_raw_image_hash(temp_file.name)
                     db.session.commit()
-                    print('Success')
+                    if Config.DEBUGGING: print('Success')
                 except:
                     print("Skipping {} could not generate hash...".format(image.camera.path+'/'+image.filename))
 
                 # Attempt to extract and save timestamp
-                print('Updating timestamp...')
+                if Config.DEBUGGING: print('Updating timestamp...')
                 try:
                     t = pyexifinfo.get_json(temp_file.name)[0]
                     timestamp = None
@@ -2112,61 +2182,61 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                     assert timestamp
                     image.timestamp = timestamp
                     db.session.commit()
-                    print('Success')
+                    if Config.DEBUGGING: print('Success')
                 except:
-                    print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
+                    if Config.DEBUGGING: print("Skipping {} could not extract EXIF timestamp...".format(image.camera.path+'/'+image.filename))
 
                 # Extract exif labels
-                print('Extracting Labels')
+                if Config.DEBUGGING: print('Extracting Labels')
                 if label_source:
                     try:
                         cluster = Cluster(task_id=task_id)
                         db.session.add(cluster)
                         cluster.images = [image]
-                        print('Cluster created')
+                        if Config.DEBUGGING: print('Cluster created')
                         if label_source=='iptc':
                             print('type: iptc')
                             info = IPTCInfo(temp_file.name)
-                            print('Info extracted')
+                            if Config.DEBUGGING: print('Info extracted')
                             for label_name in info['keywords']:
                                 description = label_name.decode()
-                                print('Handling label: {}'.format(description))
+                                if Config.DEBUGGING: print('Handling label: {}'.format(description))
                                 label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
                                 if not label:
-                                    print('Creating label')
+                                    if Config.DEBUGGING: print('Creating label')
                                     label = Label(description=description,task_id=task_id)
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
-                                print('label added')
+                                if Config.DEBUGGING: print('label added')
                         elif label_source=='path':
                             descriptions = [image.camera.path.split('/')[-1],image.camera.path.split('/')[-1]]
                             for description in descriptions:
-                                print('Handling label: {}'.format(description))
+                                if Config.DEBUGGING: print('Handling label: {}'.format(description))
                                 label = db.session.query(Label).filter(Label.description==description).filter(Label.task_id==task_id).first()
                                 if not label:
-                                    print('Creating label')
+                                    if Config.DEBUGGING: print('Creating label')
                                     label = Label(description=description,task_id=task_id)
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
-                                print('label added')
+                                if Config.DEBUGGING: print('label added')
                         db.session.commit()
-                        print('Success')
+                        if Config.DEBUGGING: print('Success')
                     except:
-                        print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
+                        if Config.DEBUGGING: print("Skipping {} could not extract labels...".format(image.camera.path+'/'+image.filename))
 
             # crop the detections if they have sufficient area and score
-            print('Cropping detections...')
+            if Config.DEBUGGING: print('Cropping detections...')
             for detection in image.detections:
                 area = (detection.right-detection.left)*(detection.bottom-detection.top)
                 
                 if (area > min_area) and (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]):
                     key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
                     bbox = [detection.left,detection.top,(detection.right-detection.left),(detection.bottom-detection.top)]
-                    print('Crropping detection {} on image {}'.format(bbox,key))
+                    if Config.DEBUGGING: print('Crropping detection {} on image {}'.format(bbox,key))
                     save_crop(img, bbox_norm=bbox, square_crop=True, bucket=destBucket, key=key)
-                    print('Success')
+                    if Config.DEBUGGING: print('Success')
         print('Finished processing image!')
     
     except:
@@ -2411,7 +2481,7 @@ def getClusterClassifications(cluster_id):
     
     classifications = [[item[0],float(item[1])] for item in classifications]
     
-    print('Cluster classifications fetched in {}'.format(time.time()-startTime))
+    if Config.DEBUGGING: print('Cluster classifications fetched in {}'.format(time.time()-startTime))
     
     return classifications
 

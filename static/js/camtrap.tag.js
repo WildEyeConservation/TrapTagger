@@ -349,11 +349,14 @@ modalWait.on('hidden.bs.modal', function(){
 modalNote.on('shown.bs.modal', function(){
     /** Additionally focuses on the note box when it is opened. */
     modalActive = true;
+    document.getElementById('notebox').value = clusters['map1'][clusterIndex['map1']].notes
+    var length = document.getElementById('notebox').value.length;
+    document.getElementById('notebox').setSelectionRange(length, length);
     document.getElementById('notebox').focus()
-    document.getElementById('notebox').select()
 });
 modalNote.on('hidden.bs.modal', function(){
     /** Additionally clears the note box when it is closed. */
     modalActive = false;
+    document.getElementById('notebox').value = ''
     document.getElementById('notif').innerHTML = ""
 });

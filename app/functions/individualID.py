@@ -178,7 +178,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                     det_Translation[aid] = detection_id
 
                 endTime = time.time()
-                app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
+                if Config.DEBUGGING: app.logger.info("Hotspotter DB set up in {}".format(endTime - startTime))
                 
                 # Run Hotspotter
                 # quaid_list = query ids
@@ -252,7 +252,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
                     # db.session.commit()
                     endTime = time.time()
-                    app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,endTime - startTime))
+                    if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,endTime - startTime))
 
                 # Delete images & db
                 shutil.rmtree(dbName, ignore_errors=True)
@@ -444,13 +444,15 @@ def calculate_individual_similarity(self,individual1,individuals2,session=None,p
                         max_similarity = -1000
                     else:
                         tagScore = 0
-                        for tag in individual1.tags[:]:
-                            if tag in individual2.tags[:]:
+                        individual1_tags = session.query(Tag).filter(Tag.individuals.contains(individual1)).all()
+                        individual2_tags = session.query(Tag).filter(Tag.individuals.contains(individual2)).all()
+                        for tag in individual1_tags:
+                            if tag in individual2_tags:
                                 tagScore += matchWeight
                             else:
                                 tagScore -= mismatchWeight
-                        for tag in individual2.tags[:]:
-                            if tag not in individual1.tags[:]:
+                        for tag in individual2_tags:
+                            if tag not in individual1_tags:
                                 tagScore -= mismatchWeight
 
                         detSimilarities = session.query(DetSimilarity.score,
@@ -648,6 +650,10 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
 
         app.logger.info('Individual similarities are being calculated for {} individuals'.format(len(individuals1)))
 
+        # This is a hack - do not touch
+        # Without this, the first individual in the list is not processed
+        if individuals1: calculate_individual_similarity(individuals1[0],[],session)
+
         # pool = Pool(processes=4)
         for individual1 in individuals1:
             if individual1 in individuals2: individuals2.remove(individual1)
@@ -680,10 +686,12 @@ def calculate_individual_similarities(self,task_id,species,user_ids):
                                             .filter(IndSimilarity.score==None)\
                                             .distinct().count()
 
-            app.logger.info("incompleteIndividuals: {}".format(incompleteIndividuals))    
+            if Config.DEBUGGING: app.logger.info("incompleteIndividuals: {}".format(incompleteIndividuals))    
 
             if (incompleteIndividuals == 0) or (task.status=='Stopped'):
                 task.survey.status = 'Ready'
+                session.commit()
+        else:
             session.commit()
 
     except Exception as exc:
@@ -742,14 +750,14 @@ def handleIndividualUndo(indSimilarity,individual1,individual2,task_id):
     '''
 
     if indSimilarity and (indSimilarity.skipped == True):
-        app.logger.info('Undoing Skip')
+        if Config.DEBUGGING: app.logger.info('Undoing Skip')
         indSimilarity.skipped = False
     elif indSimilarity and (indSimilarity.score == -2000):
-        app.logger.info('Undoing Reject')
+        if Config.DEBUGGING: app.logger.info('Undoing Reject')
         indSimilarity.score = indSimilarity.old_score
     else:
         if individual2.active==False:
-            app.logger.info('Undoing Accept')
+            if Config.DEBUGGING: app.logger.info('Undoing Accept')
             individual2.active = True
 
             for detection in individual2.detections:

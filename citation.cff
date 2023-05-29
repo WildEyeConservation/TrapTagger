@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: TrapTagger
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Nicholas
+    family-names: Osner
+    email: nicholas@wildeyeconservation.org
+    affiliation: WildEye Conservation
+    orcid: 'https://orcid.org/0000-0003-0112-522X'
+repository-code: 'https://github.com/WildEyeConservation/TrapTagger'
+url: 'https://wildeyeconservation.org/traptagger/'
+abstract: >-
+  An open-source web application for processing camera-trap
+  imagery using artificial intelligence.
+keywords:
+  - Artificial Intelligence
+  - Computer Vision
+  - Conservation
+  - Camera Traps
+license: Apache-2.0
