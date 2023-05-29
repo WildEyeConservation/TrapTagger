@@ -75,6 +75,7 @@ def make_celery(flask_app):
         Queue('local',     routing_key='local.#'),
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
+        Queue('ram_intensive',     routing_key='ram_intensive.#'),
     ]
 
     if not Config.INITIAL_SETUP:
@@ -152,7 +153,9 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
     if (not Config.MAINTENANCE) and (sender=='celery@priority_worker'):
         import sqlalchemy as sa
-        from flask_migrate import upgrade
+        import redis
+        from app.models import Classifier
+        # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks, manageDownloads
         from app.functions.globals import importMonitor
@@ -165,11 +168,25 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         except sa.exc.ProgrammingError:
             pass
 
-        # Upgrade the db to the latest schema version
-        with app.app_context():
-            upgrade()
+        # # Upgrade the db to the latest schema version
+        # with app.app_context():
+        #     upgrade()
 
         setupDatabase()
+
+        # Flush all other (non-default) queues
+        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+        allQueues = ['default'] #default needs to be first
+        allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+        allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+        for queue in allQueues:
+            if queue not in ['default','ram_intensive']:
+                while True:
+                    task = redisClient.blpop(queue, timeout=1)
+                    if not task:
+                        break
+
+        print('Queues flushed.')
 
         importMonitor.apply_async(queue='priority', priority=0)
         manageTasks.apply_async(queue='priority', priority=0)

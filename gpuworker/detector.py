@@ -109,6 +109,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                     'right':float(bbox[3]),
                                     'category':int(detection['category']),
                                     'score': float(detection['conf']),
+                                    'status': 'active',
                                     'source' : model}
                         )
 
@@ -120,6 +121,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                             'right':0.0,
                                             'category': 0,
                                             'score': 0.0,
+                                            'status': 'active',
                                             'source' : model})
                 
                 except:
@@ -130,6 +132,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                             'right':0.0,
                                             'category': 0,
                                             'score': 0.0,
+                                            'status': 'active',
                                             'source' : 'error'}]
                 
                 results.append(detections)
@@ -197,6 +200,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                         'right':float(box_np[i, j, 3]),
                                         'category':int(clss_np[i, j]),
                                         'score': float(score_np[i, j]),
+                                        'status': 'active',
                                         'source' : model})
                 if len(detections)==0:
                     print('No detections found...')
@@ -206,6 +210,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                         'right':0.0,
                                         'category': 0,
                                         'score': 0.0,
+                                        'status': 'active',
                                         'source' : model})
                 results.append(detections)
         print('Finished batch')
@@ -220,6 +225,7 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
                                     'right':0.0,
                                     'category': 0,
                                     'score': 0.0,
+                                    'status': 'active',
                                     'source' : 'error'}]
             results.append(detections)
     

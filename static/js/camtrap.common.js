@@ -106,6 +106,8 @@ var clusterRequests = {"map1": []}
 var finishedDisplaying = {"map1": true}
 var map = {"map1": null}
 var drawnItems = {"map1": null}
+var pauseControl = {"map1": null}
+var playControl = {"map1": null}
 var activeImage = {"map1": null}
 var fullRes = {"map1": false}
 var mapWidth = {"map1": null}
@@ -155,9 +157,29 @@ var colours = {
 
 function modifyToCompURL(url) {
     /** Modifies the source URL to the compressed folder of the user */
-    splits=url.split('/')
-    splits[0]=splits[0]+'-comp'
-    return splits.join('/')
+    var isImage = checkImage(url)
+    if (isImage) {
+        splits=url.split('/')
+        splits[0]=splits[0]+'-comp'
+        return splits.join('/')
+    }
+    else {
+        splits=url.split('/')
+        splits[0]=splits[0]+'-comp'
+        splits[splits.length-1]=splits[splits.length-1].split('.')[0]+'.mp4'
+        return splits.join('/')
+    }
+    
+}
+
+function checkImage(url){
+    /** Checks if the url is an image or not */
+    if (url.includes('jpg') || url.includes('JPG') || url.includes('jpeg') || url.includes('JPEG') || url.includes('png') || url.includes('PNG')) {
+        return true
+    }
+    else {
+        return false
+    }
 }
 
 function preload(mapID = 'map1') {
@@ -203,9 +225,9 @@ function imageHighlight(switchOn,mapID = 'map1') {
 }
 
 function buildDetection(image,detection,mapID = 'map1',colour=null) {
-    if (detection.static == false) {
-                
-        if (detection.individual!='-1') {
+    if (detection.static == false) {   
+                 
+        if (isIDing && (detection.individual!='-1')) {
             rectOptions.color = individuals[individualIndex][detection.individual].colour
         } else {
             if (colour) {
@@ -712,7 +734,25 @@ function updateCanvas(mapID = 'map1') {
                 addedDetections[mapID] = false
 
                 if (activeImage[mapID] != null) {
-                    activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                    if (isReviewing){
+                        var image_img = checkImage(image.url)
+                        if (activeImage[mapID]._url.length == 1){
+                            var activeImage_img = checkImage(activeImage[mapID]._url[0])
+                        }
+                        else{
+                            var activeImage_img = checkImage(activeImage[mapID]._url)
+                        }
+
+                        if (image_img != activeImage_img){
+                            updateMap(mapID, url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                        }
+                        else{
+                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                        }
+                    }
+                    else{
+                        activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                    }
                 }
 
                 if (isIDing && (typeof clusters['map1'][clusterIndex['map1']] != 'undefined') && (Object.keys(clusters).includes('map2')) && (typeof clusters['map2'][clusterIndex['map2']] != 'undefined') && (imageIndex['map1']<clusters['map1'][clusterIndex['map1']].images.length) && (imageIndex['map2']<clusters['map2'][clusterIndex['map2']].images.length)) {
@@ -1268,8 +1308,9 @@ function updateSlider(mapID = 'map1') {
 
             var track = clusterPositionSplide[mapID].Components.Elements.track
             clusterPositionSplide[mapID].on( 'click', function(wrapMapID,wrapTrack) {
-                return function() {
-                    imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
+                return function(event) {
+                    // imageIndex[wrapMapID] = parseInt(event.target.attributes.id.value.split("slide")[1])-1
+                    imageIndex[wrapMapID] = event.index
                     clusterPositionSplide[wrapMapID].go(imageIndex[wrapMapID])
                     update(wrapMapID)
                 }
@@ -1348,7 +1389,7 @@ function nextCluster(mapID = 'map1') {
                 preLoadCount = 1
                 updateProgress()
             } else {
-                preLoadCount = 5
+                preLoadCount = 20
             }
         
             if ((clusterIndex[mapID]>clusters[mapID].length-preLoadCount)&&(clusters[mapID][clusters[mapID].length-1].id != '-101')) {
@@ -1852,45 +1893,311 @@ function resetImageProperty() {
 
 
 function prepMap(mapID = 'map1') {
-    /** Initialises the Leaflet map for displaying images. */
+    /** Initialises the Leaflet map for displaying images or videos(in explore). */
     if (clusters[mapID][clusterIndex[mapID]].id=='-101') {
         window.location.replace("done")
     } else if ((clusters[mapID][clusterIndex[mapID]].id=='-99')||(clusters[mapID][clusterIndex[mapID]].id=='-782')) {
         nextCluster(mapID)
     } else {
         if (bucketName != null) {
-            mapReady[mapID] = false
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
-            var img = new Image();
-            img.onload = function(wrapMapID){
-                return function() {
-                    w = this.width
-                    h = this.height
-                
+            mapReady[mapID] = false            
+            var isImage = checkImage(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
+
+            if (!isImage) {
+                videoURL ="https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
+                vid = document.createElement('video')
+                vid.setAttribute('controls',true)
+                vid.setAttribute('width', 500);
+
+                // Video must be in mp4/webm format to be displayed 
+                sourceMP4 = document.createElement('source')
+                sourceMP4.setAttribute('src',videoURL)
+                sourceMP4.setAttribute('type','video/mp4')  
+
+                vid.appendChild(sourceMP4) 
+
+                vid.addEventListener('loadedmetadata', function() {
+                    // Video metadata has been loaded
+                    var w = vid.videoWidth
+                    var h = vid.videoHeight
+    
                     if (w>h) {
                         if (mapdiv2 != null) {
-                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            document.getElementById(mapDivs[mapID]).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                         }
                         else{
-                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(h/w)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            document.getElementById(mapDivs[mapID]).setAttribute('style','height: calc(50vw *'+(h/w)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                         }
                     } else {
                         if (mapdiv2 != null) {
-                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            document.getElementById(mapDivs[mapID]).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                         }
                         else{
-                            document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(w/h)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            document.getElementById(mapDivs[mapID]).setAttribute('style','height: calc(50vw *'+(w/h)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
                         }
                     }
 
-                    L.Browser.touch = true
-            
-                    map[wrapMapID] = new L.map(mapDivs[wrapMapID], {
+                    map[mapID] = L.map(mapDivs[mapID], {
                         crs: L.CRS.Simple,
                         maxZoom: 10,
                         center: [0, 0],
                         zoomSnap: 0
                     })
+                    var h1 = document.getElementById(mapDivs[mapID]).clientHeight
+                    var w1 = document.getElementById(mapDivs[mapID]).clientWidth
+                    var southWest = map[mapID].unproject([0, h1], 2);
+                    var northEast = map[mapID].unproject([w1, 0], 2);
+                    var bounds = new L.LatLngBounds(southWest, northEast);
+    
+                    mapWidth[mapID] = northEast.lng
+                    mapHeight[mapID] = southWest.lat
+    
+                    activeImage[mapID] = L.videoOverlay(videoURL, bounds, {
+                        opacity: 1,
+                        autoplay: false,
+                        loop: false
+                    }).addTo(map[mapID]);
+    
+                    activeImage[mapID].on('load', function () {
+
+                        while(map[mapID]._controlCorners['topright'].firstChild){
+                            map[mapID]._controlCorners['topright'].removeChild(map[mapID]._controlCorners['topright'].firstChild);
+                        }
+
+                        var MyPauseControl = L.Control.extend({
+                            onAdd: function() {
+                                var button = L.DomUtil.create('button');
+                                button.innerHTML = '⏸';
+                                L.DomEvent.on(button, 'click', function () {
+                                    activeImage[mapID].getElement().pause();
+                                });
+                                return button;
+                            }
+                        });
+                        var MyPlayControl = L.Control.extend({
+                            onAdd: function() {
+                                var button = L.DomUtil.create('button');
+                                button.innerHTML = '⏵';
+                                L.DomEvent.on(button, 'click', function () {
+                                    activeImage[mapID].getElement().play();
+                                });
+                                return button;
+                            }
+                        });
+                        
+                        playControl[mapID] = (new MyPlayControl()).addTo(map[mapID]);
+                        pauseControl[mapID] = (new MyPauseControl()).addTo(map[mapID]);
+                        
+                        finishedDisplaying[mapID] = true
+                    });
+                    
+                    map[mapID].setMaxBounds(bounds);
+                    map[mapID].fitBounds(bounds);
+                    map[mapID].setMinZoom(map[mapID].getZoom())
+
+                    map[mapID].on('resize', function(wrapMapID){
+                        return function () {
+                            h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                            w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+
+                            southWest = map[wrapMapID].unproject([0, h1], 2);
+                            northEast = map[wrapMapID].unproject([w1, 0], 2);
+                            bounds = new L.LatLngBounds(southWest, northEast);
+
+                            mapWidth[wrapMapID] = northEast.lng
+                            mapHeight[wrapMapID] = southWest.lat
+
+                            map[wrapMapID].invalidateSize()
+                            map[wrapMapID].setMaxBounds(bounds)
+                            map[wrapMapID].fitBounds(bounds)
+                            map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
+                            activeImage[wrapMapID].setBounds(bounds)
+
+                            var isImg = checkImage(activeImage[wrapMapID]._url)
+                            if (isImg) {
+                                addedDetections[wrapMapID] = false
+                                addDetections(wrapMapID)    
+                            }
+                        }
+                    }(mapID))
+
+                    map[mapID].on('drag', function(wrapMapID) {
+                        return function () {
+                            map[wrapMapID].panInsideBounds(bounds, { animate: false });
+                        }
+                    }(mapID));
+
+                    map[mapID].on('zoomstart', function(wrapMapID) {
+                        return function () { 
+                            if ((!fullRes[wrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapMapID][clusterIndex[wrapMapID]].id))) {
+                                var isImg = checkImage(clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
+                                if (isImg) {
+                                    activeImage[wrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
+                                    fullRes[wrapMapID] = true
+                                }
+                            }
+                        }
+                    }(mapID));
+
+                    mapReady[mapID] = true
+                    updateCanvas(mapID)
+
+                });                   
+            }
+            else{    
+                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
+                var img = new Image();
+                img.onload = function(wrapMapID){
+                    return function() {
+                        w = this.width
+                        h = this.height
+                    
+                        if (w>h) {
+                            if (mapdiv2 != null) {
+                                document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(h/w)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            }
+                            else{
+                                document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(h/w)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            }
+                        } else {
+                            if (mapdiv2 != null) {
+                                document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(36vw *'+(w/h)+');  width:36vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            }
+                            else{
+                                document.getElementById(mapDivs[wrapMapID]).setAttribute('style','height: calc(50vw *'+(w/h)+');  width:50vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+                            }
+                        }
+
+                        L.Browser.touch = true
+                
+                        map[wrapMapID] = new L.map(mapDivs[wrapMapID], {
+                            crs: L.CRS.Simple,
+                            maxZoom: 10,
+                            center: [0, 0],
+                            zoomSnap: 0
+                        })
+                        var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                        var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+
+                        var southWest = map[wrapMapID].unproject([0, h1], 2);
+                        var northEast = map[wrapMapID].unproject([w1, 0], 2);
+                        var bounds = new L.LatLngBounds(southWest, northEast);
+                
+                        mapWidth[wrapMapID] = northEast.lng
+                        mapHeight[wrapMapID] = southWest.lat
+                
+                        activeImage[wrapMapID] = L.imageOverlay(imageUrl, bounds).addTo(map[wrapMapID]);
+                        activeImage[wrapMapID].on('load', function(wrapWrapMapID) {
+                            return function () {
+                                addDetections(wrapWrapMapID)
+                            }
+                        }(wrapMapID));
+                        map[wrapMapID].setMaxBounds(bounds);
+                        map[wrapMapID].fitBounds(bounds)
+                        map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
+
+                        map[wrapMapID].on('resize', function(wrapWrapMapID){
+                            return function () {
+                                h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
+                                w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
+        
+                                southWest = map[wrapMapID].unproject([0, h1], 2);
+                                northEast = map[wrapMapID].unproject([w1, 0], 2);
+                                bounds = new L.LatLngBounds(southWest, northEast);
+                        
+                                mapWidth[wrapWrapMapID] = northEast.lng
+                                mapHeight[wrapWrapMapID] = southWest.lat
+
+                                map[wrapWrapMapID].invalidateSize()
+                                map[wrapWrapMapID].setMaxBounds(bounds)
+                                map[wrapWrapMapID].fitBounds(bounds)
+                                map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getZoom())
+                                activeImage[wrapWrapMapID].setBounds(bounds)
+
+                                var isImg = checkImage(activeImage[wrapWrapMapID]._url)
+                                if (isImg) {
+                                    addedDetections[wrapWrapMapID] = false
+                                    addDetections(wrapWrapMapID)    
+                                }
+                            }
+                        }(wrapMapID));
+
+
+                        map[wrapMapID].on('drag', function(wrapWrapMapID) {
+                            return function () {
+                                map[wrapWrapMapID].panInsideBounds(bounds, { animate: false });
+                            }
+                        }(wrapMapID));
+                
+                        drawnItems[wrapMapID] = new L.FeatureGroup();
+                        map[wrapMapID].addLayer(drawnItems[wrapMapID]);
+                
+                        map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
+                            return function () { 
+                                if ((!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
+                                    var isImg = checkImage(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
+                                    if (isImg) {
+                                        activeImage[wrapWrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
+                                        fullRes[wrapWrapMapID] = true
+                                    }
+                                }
+                            }
+                        }(wrapMapID));
+                
+                        if (isBounding) {
+                            fetchLabelHierarchy()
+                            setRectOptions()
+                            sightingAnalysisMapPrep()
+                        } else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                            setRectOptions()
+                            IDMapPrep(wrapMapID)
+                        } else {
+                            rectOptions = {
+                                color: "rgba(223,105,26,1)",
+                                fill: true,
+                                fillOpacity: 0.0,
+                                opacity: 0.8,
+                                weight:3,
+                                contextmenu: false,
+                            }            
+                        }
+                        mapReady[wrapMapID] = true
+                        updateCanvas(wrapMapID)
+                    }
+                }(mapID);
+                img.src = imageUrl
+            }
+        }
+    }
+}
+
+function updateMap(mapID = 'map1', url){
+    /** Updates the map displayed depending if the source is a video or image. */
+
+    if (isReviewing){
+
+        mapReady[mapID] = false
+        var isImage = checkImage(url)
+        map[mapID].removeLayer(activeImage[mapID])
+        if (drawnItems[mapID] != null) {
+            map[mapID].removeLayer(drawnItems[mapID])
+        }
+        if (pauseControl[mapID] != null && playControl[mapID] != null) {
+            pauseControl[mapID].remove()
+            playControl[mapID].remove()
+        }
+
+        if (isImage){
+            imageUrl = url
+            var img = new Image();
+            img.onload = function(wrapMapID){
+                return function() {
+                    w = this.width
+                    h = this.height              
+
+                    document.getElementById(mapDivs[wrapMapID]).style.height = 'calc(50vw *'+(h/w)+')'
+                    document.getElementById(mapDivs[wrapMapID]).style.width = '50vw'  
+
                     var h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
                     var w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
 
@@ -1907,73 +2214,96 @@ function prepMap(mapID = 'map1') {
                             addDetections(wrapWrapMapID)
                         }
                     }(wrapMapID));
-                    map[wrapMapID].setMaxBounds(bounds);
-                    map[wrapMapID].fitBounds(bounds)
-                    map[wrapMapID].setMinZoom(map[wrapMapID].getZoom())
 
-                    map[wrapMapID].on('resize', function(wrapWrapMapID){
-                        return function () {
-                            h1 = document.getElementById(mapDivs[wrapMapID]).clientHeight
-                            w1 = document.getElementById(mapDivs[wrapMapID]).clientWidth
-       
-                            southWest = map[wrapMapID].unproject([0, h1], 2);
-                            northEast = map[wrapMapID].unproject([w1, 0], 2);
-                            bounds = new L.LatLngBounds(southWest, northEast);
-                    
-                            mapWidth[wrapWrapMapID] = northEast.lng
-                            mapHeight[wrapWrapMapID] = southWest.lat
-
-                            map[wrapWrapMapID].invalidateSize()
-                            map[wrapWrapMapID].setMaxBounds(bounds)
-                            map[wrapWrapMapID].fitBounds(bounds)
-                            map[wrapWrapMapID].setMinZoom(map[wrapWrapMapID].getZoom())
-                            activeImage[wrapWrapMapID].setBounds(bounds)
-                            addedDetections[wrapWrapMapID] = false
-                            addDetections(wrapWrapMapID)    
-                        }
-                    }(wrapMapID));
-
-
-                    map[wrapMapID].on('drag', function(wrapWrapMapID) {
-                        return function () {
-                            map[wrapWrapMapID].panInsideBounds(bounds, { animate: false });
-                        }
-                    }(wrapMapID));
-            
                     drawnItems[wrapMapID] = new L.FeatureGroup();
                     map[wrapMapID].addLayer(drawnItems[wrapMapID]);
-            
-                    map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
-                        return function () { 
-                            if ((!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
-                                activeImage[wrapWrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
-                                fullRes[wrapWrapMapID] = true
-                            }
-                        }
-                    }(wrapMapID));
-            
-                    if (isBounding) {
-                        fetchLabelHierarchy()
-                        setRectOptions()
-                        sightingAnalysisMapPrep()
-                    } else if (isIDing && (document.getElementById('btnSendToBack')==null)) {
-                        setRectOptions()
-                        IDMapPrep(wrapMapID)
-                    } else {
-                        rectOptions = {
-                            color: "rgba(223,105,26,1)",
-                            fill: true,
-                            fillOpacity: 0.0,
-                            opacity: 0.8,
-                            weight:3,
-                            contextmenu: false,
-                        }            
-                    }
-                    mapReady[wrapMapID] = true
-                    updateCanvas(wrapMapID)
+                    
+                    rectOptions = {
+                        color: "rgba(223,105,26,1)",
+                        fill: true,
+                        fillOpacity: 0.0,
+                        opacity: 0.8,
+                        weight:3,
+                        contextmenu: false,
+                    }    
+                    
+                    mapReady[mapID] = true
+                    updateCanvas(mapID)       
                 }
             }(mapID);
             img.src = imageUrl
+
+        } else {
+            videoURL = url
+            vid = document.createElement('video')
+            vid.setAttribute('controls',true)
+            vid.setAttribute('width', 500);
+
+            sourceMP4 = document.createElement('source')
+            sourceMP4.setAttribute('src',videoURL)
+            sourceMP4.setAttribute('type','video/mp4')  
+
+            vid.appendChild(sourceMP4) 
+
+            vid.addEventListener('loadedmetadata', function() {
+                var w = vid.videoWidth
+                var h = vid.videoHeight
+
+                document.getElementById(mapDivs[mapID]).style.height = 'calc(50vw *'+(h/w)+')'
+                document.getElementById(mapDivs[mapID]).style.width = '50vw'  
+
+                var h1 = document.getElementById(mapDivs[mapID]).clientHeight
+                var w1 = document.getElementById(mapDivs[mapID]).clientWidth
+                var southWest = map[mapID].unproject([0, h1], 2);
+                var northEast = map[mapID].unproject([w1, 0], 2);
+                var bounds = new L.LatLngBounds(southWest, northEast);
+    
+                mapWidth[mapID] = northEast.lng
+                mapHeight[mapID] = southWest.lat
+    
+                activeImage[mapID] = L.videoOverlay(videoURL, bounds, {
+                    opacity: 1,
+                    autoplay: false,
+                    loop: false
+                }).addTo(map[mapID]);
+                
+
+                activeImage[mapID].on('load', function () {
+                    while(map[mapID]._controlCorners['topright'].firstChild){
+                        map[mapID]._controlCorners['topright'].removeChild(map[mapID]._controlCorners['topright'].firstChild);
+                    }
+
+                    var MyPauseControl = L.Control.extend({
+                        onAdd: function() {
+                            var button = L.DomUtil.create('button');
+                            button.innerHTML = '⏸';
+                            L.DomEvent.on(button, 'click', function () {
+                                activeImage[mapID].getElement().pause();
+                            });
+                            return button;
+                        }
+                    });
+                    var MyPlayControl = L.Control.extend({
+                        onAdd: function() {
+                            var button = L.DomUtil.create('button');
+                            button.innerHTML = '⏵';
+                            L.DomEvent.on(button, 'click', function () {
+                                activeImage[mapID].getElement().play();
+                            });
+                            return button;
+                        }
+                    });
+                    
+                    playControl[mapID] = (new MyPlayControl()).addTo(map[mapID]);
+                    pauseControl[mapID] = (new MyPauseControl()).addTo(map[mapID]);
+                    
+                    finishedDisplaying[mapID] = true
+                });          
+
+                mapReady[mapID] = true
+                updateCanvas(mapID)
+
+            });                   
         }
     }
 }
@@ -1986,6 +2316,9 @@ function pingServer() {
         function(){
             if (this.readyState == 4 && this.status == 278) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
+            }
+            else if (this.readyState == 4 && this.status == 200) {
+                setTimeout(function() { pingServer(); }, 30000);
             }
         }
         xhttp.open("POST", '/ping');
@@ -2026,7 +2359,7 @@ function updateProgress() {
 function onload (){
     /** Initialises the page on load. */
     if (!isReviewing && !isViewing) {
-        pingTimer = setInterval(pingServer, 30000);
+        pingServer()
     }
 
     if (document.location.href.includes('task')) {
@@ -2870,7 +3203,7 @@ function checkWaitModal(mapID = 'map1') {
     PlsWaitCountDown -= 1
     if (PlsWaitCountDown<=0) {
         if (isComparison) {
-            PlsWaitCountDown = 30
+            PlsWaitCountDown = 40
         } else {
             window.location.replace("done")
             document.getElementById('PlsWaitCountDownDiv').innerHTML = "0"
@@ -2953,7 +3286,7 @@ modalWait2.on('shown.bs.modal', function(){
         modalWait2.modal('hide');
     }
     modalActive2 = true;
-    PlsWaitCountDown = 30
+    PlsWaitCountDown = 40
     document.getElementById('PlsWaitCountDownDiv').innerHTML = PlsWaitCountDown
     timerWaitModal = setInterval(checkWaitModal, 1000);
 });

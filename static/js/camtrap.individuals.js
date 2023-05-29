@@ -41,17 +41,12 @@ var allSites = null
 var allIndividualImages = null
 var minDate = null
 var maxDate = null
-
-
-function next_individuals() {
-    /** Gets the next page of individuals in the individuals modal. */
-    getIndividuals(individual_next)
-}
-
-function prev_individuals() {
-    /** Gets the previous page of individuals from the individuals modal. */
-    getIndividuals(individual_prev)
-}
+var pauseControl = null
+var playControl = null
+var stopControl = null
+var playControlImage = null
+var drawnItems = null
+var jobTimer
 
 function getIndividuals(page = null) {
     /** Gets a page of individuals. Gets the first page if none is specified. */
@@ -238,11 +233,15 @@ function getIndividualInfo(individualID){
                 lastSeen = info.seen_range[1]
                 individualLastSeen = lastSeen
 
-                document.getElementById('firstSeenDiv').innerHTML =  firstSeen
-                document.getElementById('lastSeenDiv').innerHTML = lastSeen
+                if(firstSeen){
+                    document.getElementById('firstSeenDiv').innerHTML =  firstSeen
+                    minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
+                }
 
-                minDate = firstSeen.split(' ')[0].replace(/\//g, '-')
-                maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+                if(lastSeen){
+                    document.getElementById('lastSeenDiv').innerHTML = lastSeen
+                    maxDate = lastSeen.split(' ')[0].replace(/\//g, '-')
+                }
 
                 document.getElementById('startDateIndiv').setAttribute('min', minDate)
                 document.getElementById('endDateIndiv').setAttribute('min', minDate)
@@ -356,8 +355,10 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
                     
                 });
 
-                prepMap(individualImages[0])
+                prepMapIndividual(individualImages[0])
                 updateSlider()
+
+                buildAssociationTable(individualID)
              
             }
             else{
@@ -395,7 +396,7 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
                 document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
                 initialiseMapAndSlider()
-                prepMap(individualImages[0])
+                prepMapIndividual(individualImages[0])
                 updateSlider()        
                 
             }
@@ -727,73 +728,6 @@ function validateDateRange() {
     }
 }
 
-function modifyToCompURL(url) {
-    /** Modifies the source URL to the compressed folder of the user */
-    splits=url.split('/')
-    splits[0]=splits[0]+'-comp'
-    return splits.join('/')
-}
-
-function updateSlider() {
-    /** Updates the image slider for the individual modal. */
-    
-    imageSplide = document.getElementById('imageSplide')
-    while(imageSplide.firstChild){
-        imageSplide.removeChild(imageSplide.firstChild);
-    }
-
-    for (let i=0;i<individualImages.length;i++) {
-        img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
-        imgli = document.createElement('li')
-        imgli.classList.add('splide__slide')
-        imgli.appendChild(img)
-        imageSplide.appendChild(imgli)
-    }
-
-    if (individualSplide==null) {
-        // Initialise Splide
-        individualSplide = new Splide( document.getElementById('splide'), {
-            rewind      : false,
-            fixedWidth  : 200,
-            fixedHeight : 128,
-            isNavigation: true,
-            keyboard    : true,
-            gap         : 5,
-            pagination  : false,
-            cover       : true,
-            breakpoints : {
-                '600': {
-                    fixedWidth  : 66,
-                    fixedHeight : 40
-                }
-            }
-        } ).mount();
-
-        individualSplide.on( 'moved', function() {
-            if (bucketName!=null) {
-                finishedDisplaying = false
-                image = individualImages[individualSplide.index]
-                document.getElementById('tgInfo').innerHTML = "Site: " + image.trapgroup.tag
-                document.getElementById('timeInfo').innerHTML = image.timestamp
-                addedDetections = false
-                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
-            }
-        });
-
-        var track = individualSplide.Components.Elements.track
-        individualSplide.on( 'click', function(wrapTrack) {
-            return function() {
-                imageIndex = parseInt(event.toElement.id.split("slide")[1])-1
-                individualSplide.go(imageIndex)
-            }
-        }(track));
-
-    } else {
-        individualSplide.refresh()
-    }
-}
-
 function cleanModalIndividual() {
     /** Clears the individual modal */
     
@@ -821,6 +755,16 @@ function cleanModalIndividual() {
     while(surveysDiv.firstChild){
         surveysDiv.removeChild(surveysDiv.firstChild);
     }
+
+    associationsDiv = document.getElementById('associationsDiv')
+    while(associationsDiv.firstChild){
+        associationsDiv.removeChild(associationsDiv.firstChild);
+    }
+
+    orderAssociationsDiv = document.getElementById('orderAssociationsDiv')	
+    while(orderAssociationsDiv.firstChild){
+        orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
+    }
     
     individualSplide = null
     individualImages = null
@@ -834,6 +778,8 @@ function cleanModalIndividual() {
     mapHeight = null
     map = null
     mapStats = null
+    minDate = null
+    maxDate = null
 
     document.getElementById('tgInfo').innerHTML = 'Site: '
     document.getElementById('timeInfo').innerHTML = ''
@@ -869,17 +815,6 @@ modalIndividual.on('hidden.bs.modal', function(){
         getTasks()
     }
 });
-
-// modalIndividual.on('shown.bs.modal', function(){
-//     /** Initialises the individual modal when opened. */
-
-//     if (map==null) {
-//         prepMap(individualImages[0])
-//         updateSlider()
-//     }
-
-// });
-
 
 $('#orderIndivImages').on('change', function() {
     updateIndividualFilter()
@@ -943,178 +878,6 @@ function updateIndividualFilter() {
 
     updateIndividual(selectedIndividual, selectedIndividualName, order_value, site, startDate, endDate)
 }
-
-
-function addDetections(image) {
-    //** Adds detections to the main image displayed in the individual modal. */
-    if (!addedDetections) {
-        map.setZoom(map.getMinZoom())
-        fullRes = false
-        drawnItems.clearLayers()
-        for (let i=0;i<image.detections.length;i++) {
-            detection = image.detections[i]
-            if (detection.static == false) {
-                rectOptions.color = "rgba(223,105,26,1)"
-                rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
-                drawnItems.addLayer(rect)
-            }
-        }
-        finishedDisplaying = true
-        addedDetections = true
-    }
-}
-
-function prepMap(image) {
-    /** Initialises the Leaflet image map for the individual ID modal. */
-
-    if (bucketName != null) {
-        mapReady = false
-        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
-        var img = new Image();
-        img.onload = function(){
-            w = this.width
-            h = this.height
-
-
-            if (w>h) {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
-            } else {
-                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
-            }
-
-            L.Browser.touch = true
-    
-            map = new L.map('mapDiv', {
-                crs: L.CRS.Simple,
-                maxZoom: 10,
-                center: [0, 0],
-                zoomSnap: 0
-            })
-
-            var h1 = document.getElementById('mapDiv').clientHeight
-            var w1 = document.getElementById('mapDiv').clientWidth
-    
-            var southWest = map.unproject([0, h1], 2);
-            var northEast = map.unproject([w1, 0], 2);
-            var bounds = new L.LatLngBounds(southWest, northEast);
-    
-            mapWidth = northEast.lng
-            mapHeight = southWest.lat
-    
-            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
-            activeImage.on('load', function() {
-                addedDetections = false
-                addDetections(individualImages[individualSplide.index])
-            });
-            map.setMaxBounds(bounds);
-            map.fitBounds(bounds)
-            map.setMinZoom(map.getZoom())
-
-            hc = document.getElementById('mapDiv').clientHeight
-            wc = document.getElementById('mapDiv').clientWidth
-            map.on('resize', function(){
-                if(document.getElementById('mapDiv').clientHeight){
-                    h1 = document.getElementById('mapDiv').clientHeight
-                    w1 = document.getElementById('mapDiv').clientWidth
-                }
-                else{
-                    h1 = hc
-                    w1 = wc
-                }
-                
-                southWest = map.unproject([0, h1], 2);
-                northEast = map.unproject([w1, 0], 2);
-                bounds = new L.LatLngBounds(southWest, northEast);
-        
-                mapWidth = northEast.lng
-                mapHeight = southWest.lat
-
-                map.invalidateSize()
-                map.setMaxBounds(bounds)
-                map.fitBounds(bounds)
-                map.setMinZoom(map.getZoom())
-                activeImage.setBounds(bounds)
-                addedDetections = false
-                addDetections(individualImages[individualSplide.index])    
-            });
-
-
-            map.on('drag', function() {
-                map.panInsideBounds(bounds, { animate: false });
-            });
-    
-            drawnItems = new L.FeatureGroup();
-            map.addLayer(drawnItems);
-    
-            map.on('zoomstart', function() {
-                if (!fullRes) {
-                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
-                    fullRes = true
-                }
-            });
-    
-            rectOptions = {
-                color: "rgba(223,105,26,1)",
-                fill: true,
-                fillOpacity: 0.0,
-                opacity: 0.8,
-                weight:3,
-                contextmenu: false,
-            }            
-
-            mapReady = true
-        };
-        img.src = imageUrl
-    }
-
-}
-
-function deleteIndividual() {
-    /** Deletes the selected individual. */
-    modalAlertIndividuals.modal('hide')
-    cleanModalIndividual()
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            if (reply=='success') {
-                getIndividuals(current_page)
-            }
-        }
-    }
-    xhttp.open("GET", '/deleteIndividual/'+selectedIndividual.toString());
-    xhttp.send();
-}
-
-function removeImage() {
-    /** Removes the currently displayed individual from the selected individual. */
-    modalAlertIndividuals.modal('hide')
-    modalIndividual.modal({keyboard: true});
-    if (individualImages.length > 1){
-        image = individualImages[individualSplide.index]
-        detection = image.detections[0]
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                if (reply.status=='success') {
-                    index = individualImages.indexOf(image);
-                    if (index > -1) {
-                        individualImages.splice(index, 1);
-                    }
-                    updateSlider()
-                    individualSplide.go(0)
-                }
-            }
-        }
-        xhttp.open("GET", '/dissociateDetection/'+detection.id.toString()+'?individual_id='+selectedIndividual.toString());
-        xhttp.send();
-    }
-    
-}
-
 
 function buildSurveySelect(){
     /** Builds the selectors for the surveys and annotation sets */
@@ -1444,7 +1207,6 @@ function addSurvey(){
     col.appendChild(btnAdd);
 
 }
-
 
 function launchID(){
     /** Launch Individual ID accross surveys modal */
@@ -1922,6 +1684,11 @@ function getTasks(url=null){
                 prev_url = reply.prev_url + '&individual_id=' + true
             }
 
+            if(jobTimer!=null){	
+                clearTimeout(jobTimer);
+            }
+            jobTimer = setTimeout(function(){getTasks(url)}, 10000);
+
         }
     }
     xhttp.open("GET", request);
@@ -1962,13 +1729,286 @@ function clear_filters(){
     getIndividuals()
 }
 
+function buildAssociationTable(individual_id){
+    /** Builds the table of associations for the individual. */
+
+    var associationsDiv = document.getElementById('associationsDiv');
+
+    var table = document.createElement('table');
+    table.classList.add('table');
+    table.classList.add('table-striped');
+    table.setAttribute('id','associationsTable');
+    table.setAttribute('style','width:100%');
+    // Set border of table
+    table.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;');
+
+    var tableHead = document.createElement('thead');
+    var tableHeadRow = document.createElement('tr');
+    tableHeadRow.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    // tableHeadRow.setAttribute('style','background-color: #4E5D6C');
+    var tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Individual Image';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Individual Name';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Nr. Cluster Associations';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHeadCell = document.createElement('th');
+    tableHeadCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+    tableHeadCell.innerHTML = 'Nr. Image Associations';
+    tableHeadRow.appendChild(tableHeadCell);
+    tableHead.appendChild(tableHeadRow);
+    table.appendChild(tableHead);
+
+    var tableBody = document.createElement('tbody');
+    tableBody.setAttribute('id','associationsTableBody');
+    table.appendChild(tableBody);
+
+    associationsDiv.appendChild(table)
+
+    
+    var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Order'
+    h5.setAttribute('style','margin-bottom: 2px')
+    orderAssociationsDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select the order you would like to view your individual\'s associations.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    orderAssociationsDiv.appendChild(h5)
+
+    var select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','associationOrderSelector')
+    orderAssociationsDiv.appendChild(select)
+
+    fillSelect(select, ['Name', 'Clusters' ,'Images'], ['1','2','3'])
+    select.value = '2'
+
+    $("#associationOrderSelector").change( function() {
+        getIndividualAssociations(individual_id)
+    });
+
+    var divRadio = document.createElement('div')
+    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+    var radio = document.createElement('input')
+    radio.setAttribute('type', 'radio')
+    radio.setAttribute('id', 'ascOrderAssoc')
+    radio.setAttribute('name', 'orderAssoc')
+    radio.setAttribute('class', 'custom-control-input')
+    radio.setAttribute('value', 'asc')
+    divRadio.appendChild(radio)
+
+    var label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'ascOrderAssoc')
+    label.innerHTML = 'Ascending'
+    divRadio.appendChild(label)
+
+    orderAssociationsDiv.appendChild(divRadio)
+
+    divRadio = document.createElement('div')
+    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+    radio = document.createElement('input')
+    radio.setAttribute('type', 'radio')
+    radio.setAttribute('id', 'descOrderAssoc')
+    radio.setAttribute('name', 'orderAssoc')
+    radio.setAttribute('class', 'custom-control-input')
+    radio.setAttribute('value', 'desc')
+    radio.checked = true
+    divRadio.appendChild(radio)
+
+    label = document.createElement('label')
+    label.setAttribute('class', 'custom-control-label')
+    label.setAttribute('for', 'descOrderAssoc')
+    label.innerHTML = 'Descending'
+    divRadio.appendChild(label)
+
+    orderAssociationsDiv.appendChild(divRadio)
+
+    $('#ascOrderAssoc').change( function() {
+        getIndividualAssociations(individual_id)
+    });
+
+    $('#descOrderAssoc').change( function() {
+        getIndividualAssociations(individual_id)
+    });
+
+    var row = document.createElement('div')
+    row.setAttribute('class', 'row')
+
+    var col1 = document.createElement('div')
+    col1.setAttribute('class', 'col-lg-2')
+
+    var col2 = document.createElement('div')	
+    col2.setAttribute('class', 'col-lg-8')
+
+    var col3 = document.createElement('div')
+    col3.setAttribute('class', 'col-lg-2')
+
+    row.appendChild(col1)
+    row.appendChild(col2)
+    row.appendChild(col3)
+
+    associationsDiv.appendChild(row)
+
+    var button = document.createElement('button')
+    button.setAttribute('class', 'btn btn-primary float-left')
+    button.setAttribute('type', 'button')
+    button.setAttribute('id', 'btnPrevAssoc')
+    button.innerHTML = 'Prev'
+    button.style.visibility = 'hidden'
+    col1.appendChild(button)
+
+    $('#btnPrevAssoc').click( function() {
+        getIndividualAssociations(individual_id, associations_prev)
+    });
+
+    button = document.createElement('button')
+    button.setAttribute('class', 'btn btn-primary float-right')
+    button.setAttribute('type', 'button')
+    button.setAttribute('id', 'btnNextAssoc')
+    button.innerHTML = 'Next'
+    button.style.visibility = 'hidden'
+    col3.appendChild(button)
+
+    $('#btnNextAssoc').click( function() {
+        getIndividualAssociations(individual_id, associations_next)
+    });
+
+    getIndividualAssociations(individual_id)
+    
+}
+
+function getIndividualAssociations(individual_id, page=null){
+    /** Gets the associations for the current individual. */
+
+    var orderSelect = document.getElementById('associationOrderSelector').value
+    var radioAsc = document.getElementById('ascOrderAssoc')
+    var order = ''
+
+    if (radioAsc.checked) {
+        order = 'a' + orderSelect.toString()
+    } else {
+        order = 'd' + orderSelect.toString()
+    }
+
+    var request = '/getIndividualAssociations/' + individual_id.toString() + '/' + order.toString() 
+
+    if (page != null) {
+        request += '?page=' + page.toString()
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+            var tableBody = document.getElementById('associationsTableBody');
+            tableBody.innerHTML = ''
+
+            if (reply.associations.length == 0) {
+                var row = document.createElement('tr');
+                row.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+
+                var cell = document.createElement('td');
+                cell.setAttribute('colspan', '4')
+                cell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
+                cell.innerHTML = 'No associations found.'
+                row.appendChild(cell);
+                tableBody.appendChild(row);
+
+                var orderAssociationsDiv = document.getElementById('orderAssociationsDiv');
+                while (orderAssociationsDiv.firstChild) {
+                    orderAssociationsDiv.removeChild(orderAssociationsDiv.firstChild);
+                }
+            }
+            else{
+                for (let i=0;i<reply.associations.length;i++) {
+                    buildAssociation(reply.associations[i])
+                }
+            }
+
+            if (reply.next==null) {
+                document.getElementById('btnNextAssoc').style.visibility = 'hidden'
+                associations_next = null
+            } else {
+                document.getElementById('btnNextAssoc').style.visibility = 'visible'
+                associations_next = reply.next
+            }
+
+            if (reply.prev==null) {
+                document.getElementById('btnPrevAssoc').style.visibility = 'hidden'
+                associations_prev = null
+            } else {
+                document.getElementById('btnPrevAssoc').style.visibility = 'visible'
+                associations_prev = reply.prev
+            }
+            
+        }
+    }
+    xhttp.open("GET", request);
+    xhttp.send();
+}
+
+function buildAssociation(association){
+    /** Builds the association row in table. */
+
+    var table = document.getElementById('associationsTableBody');
+    var row = document.createElement('tr');
+    row.setAttribute('style','border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;')
+
+    var imageCell = document.createElement('td');
+    imageCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
+    var image = document.createElement('img');
+    image.setAttribute('width','100%')
+    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(association.url)
+    imageCell.appendChild(image);
+    row.appendChild(imageCell);
+
+    image.addEventListener('click', function(individualID,individualName){
+        return function() {
+            cleanModalIndividual()        
+            individualTags(individualID)
+            getIndividual(individualID,individualName)
+            modalIndividual.scrollTop(0)
+        }
+    }(association.id,association.name));
+                                      
+  
+    var nameCell = document.createElement('td');
+    nameCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
+    nameCell.textContent = association.name;
+    row.appendChild(nameCell);
+  
+    var clusterCountCell = document.createElement('td');
+    clusterCountCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
+    clusterCountCell.textContent = association.cluster_count;
+    row.appendChild(clusterCountCell);
+  
+    var imageCountCell = document.createElement('td');
+    imageCountCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse;  text-align: center; vertical-align: middle;')
+    imageCountCell.textContent = association.image_count;
+    row.appendChild(imageCountCell);
+
+    table.appendChild(row);
+}
+
 function onload(){
     /**Function for initialising the page on load.*/
     addSurvey()
     checkSurvey()
     populateSelectors()
     getTasks()
-    processingTimer = setInterval(getTasks, 30000)
 
 }
 

@@ -60,35 +60,37 @@ async function checkFileBatch() {
             fileNames.push(surveyName + '/' + item[0] + '/' + item[1].name)
         }
 
-        try {
-            limitTT(()=> fetch('/check_upload_files', {
-                method: 'post',
-                headers: {
-                    accept: 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    filenames: fileNames
-                })
-            }).then((response) => {
+        limitTT(()=> fetch('/fileHandler/check_upload_files', {
+            method: 'post',
+            headers: {
+                accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                filenames: fileNames
+            })
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error(response.statusText)
+            } else {
                 return response.json()
-            }).then((data) => {
-                for (let i=0;i<items.length;i++) {
-                    let item = items[i]
-                    if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
-                        uploadQueue.push(item)
-                    } else {
-                        filesUploaded += 1
-                        filesQueued += 1
-                        updateUploadProgress(filesUploaded,filecount)
-                    }
+            }
+        }).then((data) => {
+            for (let i=0;i<items.length;i++) {
+                let item = items[i]
+                if (!data.includes(surveyName + '/' + item[0] + '/' + item[1].name)) {
+                    uploadQueue.push(item)
+                } else {
+                    filesUploaded += 1
+                    filesQueued += 1
+                    updateUploadProgress(filesUploaded,filecount)
                 }
-                checkFinishedUpload()
-            }))
-        } catch(e) {
+            }
+            checkFinishedUpload()
+        })).catch( (error) => {
             proposedQueue.push(...items)
             setTimeout(function() { checkFileBatch(); }, 10000);
-        }
+        })
 
         checkFileBatch()
     } else {

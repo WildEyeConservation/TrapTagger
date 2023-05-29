@@ -223,6 +223,7 @@ function checkCSV() {
     cameraSpecies = false
     excludeProblem = false
     duplicateTask = false
+    invalidDate = false
 
     // Handles the selection of duplicate annototation tasks
     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
@@ -244,6 +245,15 @@ function checkCSV() {
                 excludeProblem = true
                 break
             }
+        }
+    }
+
+    // Handle date
+    startDateCSV = document.getElementById('startDateCSV').value
+    endDateCSV = document.getElementById('endDateCSV').value
+    if (startDateCSV != '' && endDateCSV != '') {
+        if (startDateCSV > endDateCSV) {
+            invalidDate = true
         }
     }
 
@@ -344,7 +354,13 @@ function checkCSV() {
         document.getElementById('taskError').innerHTML = ''
     }
 
-    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||(duplicateTask)) {
+    if (invalidDate) {
+        document.getElementById('dateErrorsCSV').innerHTML = 'The start date must be before the end date.'
+    } else {
+        document.getElementById('dateErrorsCSV').innerHTML = ''
+    }
+
+    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||(duplicateTask)||(invalidDate)) {
         legalCSV = false
     } else {
         legalCSV = true
@@ -526,6 +542,17 @@ btnCsvDownload.addEventListener('click', ()=>{
                 custom_columns[task_id][custom_name] = custom_column
             }
         }
+        // Date range
+        startDateCSV = document.getElementById('startDateCSV').value
+        endDateCSV = document.getElementById('endDateCSV').value
+
+        if(startDateCSV != ''){
+            startDateCSV = startDateCSV + ' 00:00:00'
+        }
+
+        if(endDateCSV != ''){
+            endDateCSV = endDateCSV + ' 23:59:59'
+        }
 
         if (noEmpties) {
             var formData = new FormData()
@@ -536,6 +563,8 @@ btnCsvDownload.addEventListener('click', ()=>{
             formData.append("label_type", JSON.stringify(label_type))
             formData.append("includes", JSON.stringify(includes))
             formData.append("excludes", JSON.stringify(excludes))
+            formData.append("start_date", JSON.stringify(startDateCSV))
+            formData.append("end_date", JSON.stringify(endDateCSV))
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/generateCSV');
@@ -544,21 +573,21 @@ btnCsvDownload.addEventListener('click', ()=>{
                 return function() {
                     if (this.readyState == 4 && this.status == 200) {
                         reply = JSON.parse(this.responseText);  
-                        if (reply=='success') {
+                        if (reply.status=='success') {
                             document.getElementById('modalPWH').innerHTML = 'Please Wait'
                             document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                             modalCSVGenerate.modal('hide')
                             modalPW.modal({keyboard: true});
                             csv_task_ids.push(selectedtask)
-                            if (waitForDownloadTimer != null) {
-                                clearInterval(waitForDownloadTimer)
-                                waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                            } else {
-                                waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                            }
+                            waitForDownload()
                         } else {
                             document.getElementById('modalPWH').innerHTML = 'Error'
-                            document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                            if(reply.message == null){
+                                document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'  
+                            }
+                            else{
+                                document.getElementById('modalPWB').innerHTML = reply.message
+                            }
                             modalPW.modal({keyboard: true});
                             document.getElementById('btnCsvDownload').disabled = false
                         }
@@ -588,21 +617,21 @@ function downloadPreFormattedCSV() {
         return function() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
-                if (reply=='success') {
+                if (reply.status=='success') {
                     document.getElementById('modalPWH').innerHTML = 'Please Wait'
                     document.getElementById('modalPWB').innerHTML = 'Your CSV file is being generated and the download will commence shortly. Please note that this may take a while, especially for larger data sets. Do not navigate away from this page.'
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     csv_task_ids.push(selectedtask)
-                    if (waitForDownloadTimer != null) {
-                        clearInterval(waitForDownloadTimer)
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    } else {
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    }
+                    waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
-                    document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
+                    if(reply.message == null){
+                        document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'  
+                    }
+                    else{
+                        document.getElementById('modalPWB').innerHTML = reply.message
+                    }
                     modalPW.modal({keyboard: true});
                 }
             }
@@ -629,12 +658,7 @@ function downloadCOCO() {
                     modalResults.modal('hide')
                     modalPW.modal({keyboard: true});
                     coco_task_ids.push(selectedtask)
-                    if (waitForDownloadTimer != null) {
-                        clearInterval(waitForDownloadTimer)
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    } else {
-                        waitForDownloadTimer = setInterval(waitForDownload, 10000)
-                    }
+                    waitForDownload()
                 } else {
                     document.getElementById('modalPWH').innerHTML = 'Error'
                     document.getElementById('modalPWB').innerHTML = 'An unexpected error has occurred. Please try again.'
@@ -1439,6 +1463,10 @@ modalCSVGenerate.on('hidden.bs.modal', function(){
             csvIncludeDiv.removeChild(csvIncludeDiv.firstChild);
         }
         document.getElementById('btnCsvDownload').disabled = false
+
+        document.getElementById('startDateCSV').value = ''
+        document.getElementById('endDateCSV').value = ''
+        document.getElementById('dateErrorsCSV').innerHTML = ''
     }
 });
 

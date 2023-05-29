@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
@@ -302,7 +302,7 @@ def drop_nones(label_set):
         label_set.remove('None')
     return label_set
 
-def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id):
+def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate):
     '''
     Returns an all-encompassing dataframe for a task, subject to the parameter selections.
 
@@ -316,10 +316,14 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             include (list): The label ids to include
             exclude (list): The label ids to exclude
             trapgroup_id (int): The trapgroup id to filter on
+            startDate (datetime): The start date to filter on
+            endDate (datetime): The end date to filter on
 
         Returns:
             df (pd.dataframe): task dataframe
     '''
+
+    task = db.session.query(Task).get(task_id)
 
     query = db.session.query( \
                 Image.id.label('image_id'),\
@@ -360,72 +364,96 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                 .filter(~Detection.status.in_(['deleted','hidden']))
 
+    sq = db.session.query(Image)\
+                .join(Detection)\
+                .join(Camera)\
+                .join(Trapgroup)\
+                .filter(Trapgroup.survey_id==task.survey_id)\
+                .filter(Detection.static==False)\
+                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                .filter(~Detection.status.in_(['deleted','hidden']))
+
     if len(include) != 0:
         query = query.filter(Label.id.in_(include))
+        sq = sq.filter(Label.id.in_(include))
 
     if len(exclude) != 0:
         query = query.filter(~Label.id.in_(exclude))
+        sq = sq.filter(~Label.id.in_(exclude))
 
     if GLOBALS.nothing_id in exclude:
         query = query.filter(Labelgroup.labels.any())
+        sq = sq.filter(Labelgroup.labels.any())
 
     if trapgroup_id:
         query = query.filter(Trapgroup.id==trapgroup_id)
+        sq = sq.filter(Trapgroup.id==trapgroup_id)
+
+    if startDate:
+        query = query.filter(Image.corrected_timestamp>=startDate)
+        sq = sq.filter(Image.corrected_timestamp>=startDate)
+
+    if endDate:
+        query = query.filter(Image.corrected_timestamp<=endDate)
+        sq = sq.filter(Image.corrected_timestamp<=endDate)
 
     df = pd.read_sql(query.statement,db.session.bind)
-    task = db.session.query(Task).get(task_id)
 
     if (len(include) == 0) and (GLOBALS.nothing_id not in exclude):
-        covered_images = df['image_id'].unique()
-        covered_images = [int(r) for r in covered_images]
-        missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images))
-        if len(exclude) != 0:
-            exclude_images = db.session.query(Image).join(Cluster,Image.clusters).join(Label,Cluster.labels).filter(Cluster.task_id==task_id).filter(Label.id.in_(exclude)).distinct().all()
-            missing_images = missing_images.filter(~Image.id.in_([r.id for r in exclude_images]))
-        missing_images = missing_images.distinct().all()
-        missing_images = [r.id for r in missing_images]
+        sq = sq.subquery()
 
-        if len(missing_images) != 0:
-            #This includes all the images with no detections
-            query = db.session.query( \
-                            Image.id.label('image_id'),\
-                            Image.filename.label('image_name'), \
-                            Image.corrected_timestamp.label('timestamp'), \
-                            Image.timestamp.label('original_timestamp'), \
-                            Detection.id.label('detection'), \
-                            Detection.left.label('left'), \
-                            Detection.right.label('right'), \
-                            Detection.top.label('top'), \
-                            Detection.bottom.label('bottom'), \
-                            Detection.score.label('score'), \
-                            Cluster.notes.label('notes'), \
-                            Cluster.id.label('cluster'), \
-                            Camera.id.label('camera'), \
-                            Camera.path.label('file_path'), \
-                            Trapgroup.id.label('trapgroup_id'), \
-                            Trapgroup.tag.label('trapgroup'), \
-                            Trapgroup.latitude.label('latitude'), \
-                            Trapgroup.longitude.label('longitude'), \
-                            Trapgroup.altitude.label('altitude'), \
-                            Survey.id.label('survey_id'), \
-                            Survey.name.label('survey'), \
-                            Survey.description.label('survey_description')) \
-                            .join(Image,Cluster.images) \
-                            .join(Detection,Detection.image_id==Image.id) \
-                            .join(Camera,Image.camera_id==Camera.id) \
-                            .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
-                            .join(Survey,Trapgroup.survey_id==Survey.id) \
-                            .filter(Image.id.in_(missing_images)) \
-                            .filter(Cluster.task_id==task_id)
+        # covered_images = df['image_id'].unique()
+        # covered_images = [int(r) for r in covered_images]
+        # missing_images = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(~Image.id.in_(covered_images))
+        # if len(exclude) != 0:
+        #     exclude_images = db.session.query(Image).join(Cluster,Image.clusters).join(Label,Cluster.labels).filter(Cluster.task_id==task_id).filter(Label.id.in_(exclude)).distinct().all()
+        #     missing_images = missing_images.filter(~Image.id.in_([r.id for r in exclude_images]))
+        # missing_images = missing_images.distinct().all()
+        # missing_images = [r.id for r in missing_images]
 
-            if trapgroup_id:
-                query = query.filter(Trapgroup.id==trapgroup_id)                            
+        # if len(missing_images) != 0:
+        #This includes all the images with no detections
+        query = db.session.query( \
+                        Image.id.label('image_id'),\
+                        Image.filename.label('image_name'), \
+                        Image.corrected_timestamp.label('timestamp'), \
+                        Image.timestamp.label('original_timestamp'), \
+                        Detection.id.label('detection'), \
+                        Detection.left.label('left'), \
+                        Detection.right.label('right'), \
+                        Detection.top.label('top'), \
+                        Detection.bottom.label('bottom'), \
+                        Detection.score.label('score'), \
+                        Cluster.notes.label('notes'), \
+                        Cluster.id.label('cluster'), \
+                        Camera.id.label('camera'), \
+                        Camera.path.label('file_path'), \
+                        Trapgroup.id.label('trapgroup_id'), \
+                        Trapgroup.tag.label('trapgroup'), \
+                        Trapgroup.latitude.label('latitude'), \
+                        Trapgroup.longitude.label('longitude'), \
+                        Trapgroup.altitude.label('altitude'), \
+                        Survey.id.label('survey_id'), \
+                        Survey.name.label('survey'), \
+                        Survey.description.label('survey_description')) \
+                        .join(Image,Cluster.images) \
+                        .join(Detection,Detection.image_id==Image.id) \
+                        .join(Camera,Image.camera_id==Camera.id) \
+                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                        .join(Survey,Trapgroup.survey_id==Survey.id) \
+                        .outerjoin(sq,sq.c.id==Image.id)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(sq.c.id==None)
 
-            df2 = pd.read_sql(query.statement,db.session.bind)
+        if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
+        if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)                     
 
-            df2['label'] = 'None'
-            df2['tag'] = 'None'
-            df = pd.concat([df,df2]).reset_index()
+        df2 = pd.read_sql(query.statement,db.session.bind)
+
+        df2['label'] = 'None'
+        df2['tag'] = 'None'
+        df = pd.concat([df,df2]).reset_index()
 
     # Add individuals (they don't want to outer join)
     if individual_levels:
@@ -441,14 +469,11 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                     .filter(Individual.tasks.contains(task)) \
                     .filter(Individual.active==True)
 
-        if include:
-            query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
-
-        if exclude:
-            query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
-
-        if trapgroup_id:
-            query = query.filter(Trapgroup.id==trapgroup_id)
+        if include: query = query.filter(Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(include)).distinct().all()]))
+        if exclude: query = query.filter(~Individual.species.in_([r[0] for r in db.session.query(Label.description).filter(Label.id.in_(exclude)).distinct().all()]))
+        if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
+        if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)   
 
         df3 = pd.read_sql(query.statement,db.session.bind)
         df = pd.merge(df, df3, on=['detection','label'], how='outer')
@@ -631,7 +656,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -643,6 +668,8 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             label_type (str): The type of labelling scheme to be uses - row, column or list
             includes (list): List of label names that should included
             excludes (list): List of label names that should excluded
+            startDate (dateTime): The start date for the data to be included in the csv
+            endDate (dateTime): The end date for the data to be included in the csv
     '''
     
     try:
@@ -694,10 +721,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 individual_levels.append(re.split('_individuals',column)[0])
 
         # Generate include an exclude lists
-        include = [r.id for r in db.session.query(Label).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(includes)).distinct().all()]
-        include.extend([r.id for r in db.session.query(Label).filter(Label.task_id==None).filter(Label.description.in_(includes)).distinct().all()])
-        exclude = [r.id for r in db.session.query(Label).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(excludes)).distinct().all()]
-        exclude.extend([r.id for r in db.session.query(Label).filter(Label.task_id==None).filter(Label.description.in_(excludes)).distinct().all()])
+        include = [r[0] for r in db.session.query(Label.id).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(includes)).distinct().all()]
+        include.extend([r[0] for r in db.session.query(Label.id).filter(Label.task_id==None).filter(Label.description.in_(includes)).distinct().all()])
+        exclude = [r[0] for r in db.session.query(Label.id).filter(Label.task_id.in_(selectedTasks)).filter(Label.description.in_(excludes)).distinct().all()]
+        exclude.extend([r[0] for r in db.session.query(Label.id).filter(Label.task_id==None).filter(Label.description.in_(excludes)).distinct().all()])
 
         # Handle bounding boxes
         if 'boxes' in requestedColumns:
@@ -725,6 +752,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 
                 if label_level=='detection':
                     sq = rDets(db.session.query(Detection,func.count(distinct(Label.id)).label('count'))\
+                                        .join(Image)\
                                         .group_by(Detection.id))
                 elif label_level=='image':
                     sq = rDets(db.session.query(Image,func.count(distinct(Label.id)).label('count'))\
@@ -758,6 +786,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .join(Camera)\
                                         .join(Image)\
                                         .join(Detection))
+
+                if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+                if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
                 
                 sq = sq.join(Labelgroup)\
                         .join(Label,Labelgroup.labels)\
@@ -795,6 +826,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                 if tag_level=='detection':
                     sq = rDets(db.session.query(Detection,func.count(distinct(Tag.id)).label('count'))\
+                                        .join(Image)\
                                         .group_by(Detection.id))
                 elif tag_level=='image':
                     sq = rDets(db.session.query(Image,func.count(distinct(Tag.id)).label('count'))\
@@ -828,6 +860,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                         .join(Camera)\
                                         .join(Image)\
                                         .join(Detection))
+
+                if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+                if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
                 
                 sq = sq.join(Labelgroup)\
                         .join(Tag,Labelgroup.tags)\
@@ -852,6 +887,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             
             if individual_level=='detection':
                 sq = rDets(db.session.query(Detection,func.count(distinct(Individual.id)).label('count'))\
+                                    .join(Image)\
                                     .group_by(Detection.id))
             elif individual_level=='image':
                 sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
@@ -886,6 +922,9 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                                     .join(Image)\
                                     .join(Detection))
 
+            if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+            if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
+
             sq = sq.join(Individual,Detection.individuals)\
                     .join(Task,Individual.tasks)\
                     .filter(Task.id.in_(selectedTasks))\
@@ -910,10 +949,17 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
         outputDF = None
         for task_id in selectedTasks:
             task = db.session.query(Task).get(task_id)
+
+            # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
+            trapgroups = [None]
+            # if task.survey.image_count<250000:
+            #     trapgroups = [None]
+            # else:
+            #     trapgroups = [tg.id for tg in task.survey.trapgroups]
             
-            for trapgroup in task.survey.trapgroups:
+            for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
-                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup.id)
+                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
 
                 # Generate custom columns
                 for custom_name in custom_columns[str(task_id)]:
@@ -1246,13 +1292,12 @@ def generate_excel(self,task_id):
         sheet["C3"].border = bottom_border
         sheet["D3"] = 'Altitude'
         sheet["D3"].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
-        sheet["E3"] = 'Card No.'
+        sheet["E3"] = 'Total Clusters'
         sheet["E3"].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
-        sheet["F3"] = 'Total Clusters'
-        sheet["F3"].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+
 
         speciesColumns = {}
-        currentCol = 7
+        currentCol = 6
         parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.parent.has()).all()
         vhl = db.session.query(Label).get(GLOBALS.vhl_id)
         parentLabels.append(vhl)
@@ -1272,22 +1317,23 @@ def generate_excel(self,task_id):
                 currentCol, speciesColumns, sheet = child_headings(task_id, label, currentCol, speciesColumns, sheet)
 
         finalColumn = currentColumn[:-1]
-        print(speciesColumns)
+        sheet[finalColumn + str(3)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
+        if Config.DEBUGGING: print(speciesColumns)
 
         #Generate Rows
-        cameras = db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).all()
+        traps = db.session.query(Trapgroup).filter(Trapgroup.survey==survey).all()
         labels = db.session.query(Label).filter(Label.task_id==task_id).all()
         labels.append(vhl)
         trapgroupsCompleted = []
         currentRow = 4
         currentFill = whiteFill
-        for camera in cameras:
-            if camera.trapgroup.tag not in trapgroupsCompleted:
-                sheet["A"+str(currentRow)] = camera.trapgroup.tag
-                sheet["B"+str(currentRow)] = camera.trapgroup.longitude
-                sheet["C"+str(currentRow)] = camera.trapgroup.latitude
-                sheet["D"+str(currentRow)] = camera.trapgroup.altitude
-                trapgroupsCompleted.append(camera.trapgroup.tag)
+        for trapgroup in traps:
+            if trapgroup.tag not in trapgroupsCompleted:
+                sheet["A"+str(currentRow)] = trapgroup.tag
+                sheet["B"+str(currentRow)] = trapgroup.longitude
+                sheet["C"+str(currentRow)] = trapgroup.latitude
+                sheet["D"+str(currentRow)] = trapgroup.altitude
+                trapgroupsCompleted.append(trapgroup.tag)
                 if currentFill == greyFill:
                     currentFill = whiteFill
                 else:
@@ -1299,20 +1345,16 @@ def generate_excel(self,task_id):
             sheet["D"+str(currentRow)].fill = currentFill
             sheet["D"+str(currentRow)].border = Border(right=Side(style='thin'))
 
-            for item in re.split('/',camera.path):
-                if camera.trapgroup.tag in item:
-                    sheet["E"+str(currentRow)] = item
-            sheet["E"+str(currentRow)].fill = currentFill
-            sheet["E"+str(currentRow)].border = right_border
+            camera_ids = [camera.id for camera in trapgroup.cameras]
 
-            sheet["F"+str(currentRow)] = db.session.query(Cluster) \
+            sheet["E"+str(currentRow)] = db.session.query(Cluster) \
                                                 .join(Image, Cluster.images) \
                                                 .filter(Cluster.task_id==task_id) \
-                                                .filter(Image.camera_id==camera.id) \
+                                                .filter(Image.camera_id.in_(camera_ids)) \
                                                 .distinct(Cluster.id) \
                                                 .count()
-            sheet["F"+str(currentRow)].fill = currentFill
-            sheet["F"+str(currentRow)].border = Border(right=Side(style='thin'))
+            sheet["E"+str(currentRow)].fill = currentFill
+            sheet["E"+str(currentRow)].border = Border(right=Side(style='thin'))
             
             for label in labels:
                 clusterCount = db.session.query(Cluster) \
@@ -1325,7 +1367,7 @@ def generate_excel(self,task_id):
                                     .filter(~Detection.status.in_(['deleted','hidden']))\
                                     .filter(Cluster.task_id==task_id) \
                                     .filter(Labelgroup.labels.contains(label)) \
-                                    .filter(Image.camera_id==camera.id) \
+                                    .filter(Image.camera_id.in_(camera_ids)) \
                                     .distinct(Cluster.id) \
                                     .count()
 
@@ -1338,7 +1380,7 @@ def generate_excel(self,task_id):
 
                 sheet[speciesColumns[label.description]+str(currentRow)].fill = currentFill
 
-            sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'))
+            sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), left=Side(style='thin'))
             currentRow += 1
 
         sheet['A'+str(currentRow)].border = Border(top=Side(style='thin'))
@@ -1346,7 +1388,7 @@ def generate_excel(self,task_id):
         sheet['C'+str(currentRow)].border = Border(top=Side(style='thin'))
         sheet['D'+str(currentRow)].border = Border(top=Side(style='thin'))
         sheet['E'+str(currentRow)].border = Border(top=Side(style='thin'))
-        sheet['F'+str(currentRow)].border = Border(top=Side(style='thin'))
+
         for label in labels:
             sheet[speciesColumns[label.description]+str(currentRow)].border = Border(top=Side(style='thin'))
             sheet[speciesColumns[label.description]+str(currentRow)].fill = whiteFill
@@ -1357,7 +1399,7 @@ def generate_excel(self,task_id):
             sheet[speciesColumns[label.description]+'2'].fill = whiteFill
             sheet[speciesColumns[label.description]+'3'].fill = whiteFill
 
-        for item in ['A','B','C','D','E','F']:
+        for item in ['A','B','C','D','E']:
             sheet[item+str(currentRow)].fill = whiteFill
             sheet[item+str(currentRow+3)].fill = whiteFill
             sheet[item+str(currentRow+6)].fill = whiteFill
@@ -1366,24 +1408,24 @@ def generate_excel(self,task_id):
             sheet[item+'2'].fill = whiteFill
             sheet[item+'3'].fill = whiteFill
 
-        sheet[finalColumn+str(currentRow-1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+        sheet[finalColumn+str(currentRow-1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         #Generate Totals
         currentRow += 1
         sheet["A"+str(currentRow)] = 'Totals'
         sheet["A"+str(currentRow)].border = Border(right=Side(style='thin'), left=Side(style='thin'), top=Side(style='thin'))
         sheet["A"+str(currentRow)].fill = greyFill
-        sheet.merge_cells('A'+str(currentRow)+':E'+str(currentRow))
+        sheet.merge_cells('A'+str(currentRow)+':D'+str(currentRow))
         sheet["A"+str(currentRow+1)] = 'Percentage'
         sheet["A"+str(currentRow+1)].border = Border(right=Side(style='thin'), left=Side(style='thin'), bottom=Side(style='thin'))
         sheet["A"+str(currentRow+1)].fill = whiteFill
-        sheet.merge_cells('A'+str(currentRow+1)+':E'+str(currentRow+1))
+        sheet.merge_cells('A'+str(currentRow+1)+':D'+str(currentRow+1))
         totalCount = db.session.query(Cluster).filter(Cluster.task_id==task_id).distinct(Cluster.id).count()
-        sheet["F"+str(currentRow)] = totalCount
-        sheet["F"+str(currentRow)].border = top_border
-        sheet["F"+str(currentRow)].fill = greyFill
-        sheet["F"+str(currentRow+1)].border = bottom_border
-        sheet["F"+str(currentRow+1)].fill = whiteFill
+        sheet["E"+str(currentRow)] = totalCount
+        sheet["E"+str(currentRow)].border = top_border + right_border
+        sheet["E"+str(currentRow)].fill = greyFill
+        sheet["E"+str(currentRow+1)].border = bottom_border + right_border
+        sheet["E"+str(currentRow+1)].fill = whiteFill
         for label in labels:
             clusterCount = db.session.query(Cluster) \
                                     .join(Image, Cluster.images) \
@@ -1410,24 +1452,25 @@ def generate_excel(self,task_id):
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
-        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'))
-        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'), left=Side(style='thin'))
+        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         #Generate Category Totals
         currentRow += 3
         sheet["A"+str(currentRow)] = 'Category Totals'
         sheet["A"+str(currentRow)].border = Border(right=Side(style='thin'), left=Side(style='thin'), top=Side(style='thin'))
         sheet["A"+str(currentRow)].fill = greyFill
-        sheet.merge_cells('A'+str(currentRow)+':E'+str(currentRow))
+        sheet.merge_cells('A'+str(currentRow)+':D'+str(currentRow))
         sheet["A"+str(currentRow+1)] = 'Category Percentages'
         sheet["A"+str(currentRow+1)].border = Border(right=Side(style='thin'), left=Side(style='thin'), bottom=Side(style='thin'))
         sheet["A"+str(currentRow+1)].fill = whiteFill
-        sheet.merge_cells('A'+str(currentRow+1)+':E'+str(currentRow+1))
+        sheet.merge_cells('A'+str(currentRow+1)+':D'+str(currentRow+1))
         parentLabels.append(vhl)
-        sheet["F"+str(currentRow)].border = top_border
-        sheet["F"+str(currentRow)].fill = greyFill
-        sheet["F"+str(currentRow+1)].border = bottom_border
-        sheet["F"+str(currentRow+1)].fill = whiteFill
+        sheet["E"+str(currentRow)] = totalCount
+        sheet["E"+str(currentRow)].border = top_border + right_border
+        sheet["E"+str(currentRow)].fill = greyFill
+        sheet["E"+str(currentRow+1)].border = bottom_border + right_border
+        sheet["E"+str(currentRow+1)].fill = whiteFill
         for label in parentLabels:
             count = 0
             count += db.session.query(Cluster) \
@@ -1472,8 +1515,8 @@ def generate_excel(self,task_id):
                 sheet[speciesColumns[label.description]+str(currentRow)].border = Border(left=Side(style='thin'), top=Side(style='thin'))
                 sheet[speciesColumns[label.description]+str(currentRow+1)].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
 
-        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'))
-        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'))
+        sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'), left=Side(style='thin'))
+        sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
         fileName = user.folder+'/docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
 
@@ -1535,7 +1578,7 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                         .distinct().order_by(Tag.description).all()
 
     imagePaths = []
-    baseName = image.camera.trapgroup.tag + '_' + image.corrected_timestamp.strftime("%Y%m%d_%H%M%S")
+    baseName = image.camera.trapgroup.tag + '_' + stringify_timestamp(image.corrected_timestamp, True)	
     for label in imageLabels:
         
         if (label.id==GLOBALS.nothing_id) and not include_empties:
@@ -1571,6 +1614,86 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                 imagePaths.append(imagePath)
 
     return list(set(imagePaths)), [label.description for label in imageLabels], [tag.description for tag in imageTags]
+
+def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_structure,requested_labels,include_empties):
+    '''Returns the paths, labels and tags for a particular video and task for video sorting and metadata labelling.'''
+
+    if '0' in requested_labels:
+        requested_labels = [r.id for r in task.labels]
+        requested_labels.append(GLOBALS.vhl_id)
+        requested_labels.append(GLOBALS.knocked_id)
+        requested_labels.append(GLOBALS.unknown_id)
+    if include_empties: requested_labels.append(GLOBALS.nothing_id)
+    requested_labels = [int(r) for r in requested_labels]
+
+    splitPath = re.split('/', video.camera.path.split('_video_images_')[0])
+
+    videoImages = db.session.query(Image).filter(Image.camera_id == video.camera_id).all()
+    video_images_ids = [image.id for image in videoImages]
+
+    videoLabels = db.session.query(Label)\
+                        .join(Labelgroup,Label.labelgroups)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .filter(Image.id.in_(video_images_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Labelgroup.task==task)\
+                        .distinct().order_by(Label.description).all()
+    
+    if videoLabels == []:
+        videoLabels = [db.session.query(Label).get(GLOBALS.nothing_id)]
+
+    videoTags = db.session.query(Tag)\
+                        .join(Labelgroup,Tag.labelgroups)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .filter(Image.id.in_(video_images_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Labelgroup.task==task)\
+                        .distinct().order_by(Tag.description).all()
+    
+    videoPaths = []
+    baseName = video.camera.trapgroup.tag + '_' + stringify_timestamp(videoImages[0].corrected_timestamp, True)
+    for label in videoLabels:
+            
+            if (label.id==GLOBALS.nothing_id) and not include_empties:
+                continue
+            
+            individuals = [None]
+            
+            if individual_sorted:
+                individuals = db.session.query(Individual)\
+                                    .join(Detection,Individual.detections)\
+                                    .join(Image)\
+                                    .filter(Image.id.in_(video_images_ids))\
+                                    .filter(Individual.tasks.contains(task))\
+                                    .filter(Individual.species==label.description)\
+                                    .filter(Individual.active==True)\
+                                    .distinct().all()
+                if len(individuals)==0: individuals = [None]
+            
+            for individual in individuals:
+                if label.id in requested_labels:
+                    videoPath = ''
+                    if species_sorted:  videoPath += '/' + label.description.replace('/','_').replace('\\','_')
+                    if individual and individual_sorted: videoPath += '/' + individual.name
+                    if flat_structure:
+                        filename = baseName
+                        for videoLabel in videoLabels: filename += '_' + videoLabel.description.replace(' ','_').replace('/','_').replace('\\','_')
+                        filename += '_' + str(video.id) + '.avi'
+                        videoPath += '/' + filename
+                    else:
+                        startPoint = 1
+                        if splitPath[1]==task.survey.name: startPoint=2
+                        for split in splitPath[startPoint:]: videoPath += '/' + split
+                        videoPath += '/' +video.filename
+                    videoPaths.append(videoPath)
+
+    return list(set(videoPaths)), [label.description for label in videoLabels], [tag.description for tag in videoTags]
 
 # def prepare_exif_image(image_id,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
 #     '''
@@ -2083,7 +2206,7 @@ def generate_coco(self,task_id):
                 images.append({
                     "id" : str(image.id),
                     "file_name" : '/'.join(image.camera.path.split('/')[1:])+'/'+image.filename,
-                    "datetime": str(image.corrected_timestamp),
+                    "datetime": stringify_timestamp(image.corrected_timestamp),
                     "seq_id": str(cluster.id),
                     "seq_num_frames": len(cluster.images[:]),
                     "location": image.camera.trapgroup.tag,
@@ -2166,8 +2289,7 @@ def generate_coco(self,task_id):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def setImageDownloadStatus(self,task_id,labels,include_empties):
-    
+def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
     try:
         task = db.session.query(Task).get(task_id)
         task.status='Preparing Download'
@@ -2180,11 +2302,31 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
             labels.append(GLOBALS.unknown_id)
         labels = [int(r) for r in labels]
 
-        wantedImages = db.session.query(Image)\
+        if include_frames:
+            wantedImages = db.session.query(Image)\
                             .join(Detection)\
                             .join(Labelgroup)\
                             .outerjoin(Label,Labelgroup.labels)\
-                            .filter(Labelgroup.task_id==task_id)       
+                            .filter(Labelgroup.task_id==task_id)    
+        else:
+            wantedImages = db.session.query(Image)\
+                            .join(Camera)\
+                            .outerjoin(Video)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Video.id==None)
+                            
+
+        if include_video:
+            wantedVideos = db.session.query(Video)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id==task_id)               
         
         if include_empties:
             if GLOBALS.nothing_id not in labels: labels.append(GLOBALS.nothing_id)
@@ -2203,8 +2345,18 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                                 ~Labelgroup.labels.any(),\
                                 rDetImages.c.image_id==None
                             ))
+
+            if include_video:
+                wantedVideos = wantedVideos.outerjoin(rDetImages,rDetImages.c.image_id==Image.id)\
+                            .filter(or_(\
+                                Label.id.in_(labels),\
+                                ~Labelgroup.labels.any(),\
+                                rDetImages.c.image_id==None
+                            ))
         else:
             wantedImages = rDets(wantedImages.filter(Label.id.in_(labels)))
+            if include_video:
+                wantedVideos = rDets(wantedVideos.filter(Label.id.in_(labels)))
 
         wantedImages = wantedImages.distinct().all()
 
@@ -2214,24 +2366,50 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
                             .filter(Trapgroup.survey==task.survey)\
                             .distinct().all()
 
+        if include_video:
+            wantedVideos = wantedVideos.distinct().all()
+
+            allVideos = db.session.query(Video)\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Trapgroup)\
+                            .filter(Trapgroup.survey==task.survey)\
+                            .distinct().all()
+        else:
+            wantedVideos = []
+            allVideos = []
+
         # Get total count
-        filesToDownload = len(wantedImages)
+        filesToDownload = len(wantedImages) + len(wantedVideos)	
+        if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
+
         redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
         unwantedImages = list(set(allImages) - set(wantedImages))
 
-        for chunk in chunker(unwantedImages,10000):
-            for image in chunk:
-                image.downloaded = True
+        # for chunk in chunker(unwantedImages,10000):
+        for image in unwantedImages:
+            image.downloaded = True
+        db.session.commit()
+
+        unwantedVideos = list(set(allVideos) - set(wantedVideos))
+
+        for chunk in chunker(unwantedVideos,10000):
+            for video in chunk:
+                video.downloaded = True
             db.session.commit()
 
         task.status = 'Ready'
         db.session.commit()
 
         test=db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Image.downloaded==False).distinct().count()
+        testVideo=db.session.query(Video).join(Camera).join(Image).join(Trapgroup).filter(Trapgroup.survey==task.survey).filter(Video.downloaded==False).distinct().count()
         if test==0:
-            resetImageDownloadStatus(task_id,False,None,None)
+            resetImageDownloadStatus(task_id,False,None,None,True)
+
+        if testVideo==0:
+            resetVideoDownloadStatus(task_id,False,None,None,True)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2247,7 +2425,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
+def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
     
     try:
         task = db.session.query(Task).get(task_id)
@@ -2262,13 +2440,55 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties):
                         .filter(Image.downloaded!=False)\
                         .all()
 
-        for chunk in chunker(images,10000):
-            for image in chunk:
-                image.downloaded = False
-            db.session.commit()
+        # for chunk in chunker(images,10000):
+        for image in images:
+            image.downloaded = False
+        db.session.commit()
 
         if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties)
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
+        else:
+            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
+            redisClient.delete(str(task.id)+'_filesToDownload')
+            task.status = 'Ready'
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
+
+        videos = db.session.query(Video)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Video.downloaded!=False)\
+                        .all()
+        
+        for video in videos:
+            video.downloaded = False
+        db.session.commit()
+
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
         else:
             redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
             redisClient.delete(str(task.id)+'_filesToDownload')
