@@ -68,7 +68,7 @@ services:
             - ./wildbook-ia/wbia:/code/wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
-            - GUNICORN_CMD_ARGS="--threads=3"
+            - GUNICORN_CMD_ARGS="--threads=7"
             - REDIS_IP=traptagger_redis
             - DATABASE_NAME=${DATABASE_NAME}
             - HOST_IP=${HOST_IP}
@@ -121,7 +121,7 @@ services:
             - ./wildbook-ia/wbia:/code/wbia
         environment:
             - FLASK_APP=/code/TrapTagger.py
-            - GUNICORN_CMD_ARGS="--threads=1"
+            - GUNICORN_CMD_ARGS="--threads=4"
             - REDIS_IP=traptagger_redis
             - DATABASE_NAME=${DATABASE_NAME}
             - HOST_IP=${HOST_IP}
