@@ -3170,7 +3170,7 @@ def getJobs():
             
             task_list.append(taskInfo)
 
-    if (page*5) >= len(tasks):
+    if (page*5) >= len(task_list):
         has_next = False
     else:
         has_next = True
