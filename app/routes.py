@@ -3137,46 +3137,50 @@ def getJobs():
     # digest the data
     task_list = []
     individual_id_names = []
+    covered_tasks = []
     for item in tasks:
-        taskInfo = {'id': item[0],
-                    'name': item[6],
-                    'tagging_level': item[1],
-                    'total': item[2],
-                    'remaining': item[3],
-                    'jobsAvailable': item[4],
-                    'jobsCompleted': item[5]}
+        if item[0] not in covered_tasks:
+            covered_tasks.append(item[0])
 
-        if taskInfo['total'] and taskInfo['remaining']:
-            taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
-        else:
-            taskInfo['completed'] = 0
+            taskInfo = {'id': item[0],
+                        'name': item[6],
+                        'tagging_level': item[1],
+                        'total': item[2],
+                        'remaining': item[3],
+                        'jobsAvailable': item[4],
+                        'jobsCompleted': item[5]}
 
-        if '-5' in taskInfo['tagging_level']:
-            dbTask = db.session.query(Task).get(taskInfo['id'])
-            if dbTask.sub_tasks:
-                species = re.split(',',taskInfo['tagging_level'])[1]
-                name = species+' Individual ID'
-
-                count = 1
-                while name in individual_id_names:
-                    count += 1
-                    name = species+' Individual ID '+str(count)
-                individual_id_names.append(name)
-
-                taskInfo['name'] = name
-
-            if taskInfo['remaining'] != None:
-                taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
+            if taskInfo['total'] and taskInfo['remaining']:
+                taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
             else:
-                taskInfo['remaining'] = '0 individuals remaining'
+                taskInfo['completed'] = 0
 
-        else:
-            if taskInfo['remaining'] != None:
-                taskInfo['remaining'] = str(taskInfo['remaining']) + ' clusters remaining'
+            if '-5' in taskInfo['tagging_level']:
+                dbTask = db.session.query(Task).get(taskInfo['id'])
+                if dbTask.sub_tasks:
+                    species = re.split(',',taskInfo['tagging_level'])[1]
+                    name = species+' Individual ID'
+
+                    count = 1
+                    while name in individual_id_names:
+                        count += 1
+                        name = species+' Individual ID '+str(count)
+                    individual_id_names.append(name)
+
+                    taskInfo['name'] = name
+
+                if taskInfo['remaining'] != None:
+                    taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
+                else:
+                    taskInfo['remaining'] = '0 individuals remaining'
+
             else:
-                taskInfo['remaining'] = '0 clusters remaining'
-        
-        task_list.append(taskInfo)
+                if taskInfo['remaining'] != None:
+                    taskInfo['remaining'] = str(taskInfo['remaining']) + ' clusters remaining'
+                else:
+                    taskInfo['remaining'] = '0 clusters remaining'
+            
+            task_list.append(taskInfo)
 
     next_url = url_for('getJobs', page=(page+1), order=order) if has_next else None
     prev_url = url_for('getJobs', page=(page-1), order=order) if has_prev else None
