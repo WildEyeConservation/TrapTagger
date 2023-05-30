@@ -3122,18 +3122,6 @@ def getJobs():
 
     tasks = task_base_query.all()
 
-    if (page*5) >= len(tasks):
-        has_next = False
-    else:
-        has_next = True
-
-    if (page-1)*5 > 0:
-        has_prev = True
-    else:
-        has_prev = False
-
-    tasks = tasks[(page-1)*5:page*5]
-
     # digest the data
     task_list = []
     individual_id_names = []
@@ -3181,6 +3169,18 @@ def getJobs():
                     taskInfo['remaining'] = '0 clusters remaining'
             
             task_list.append(taskInfo)
+
+    if (page*5) >= len(tasks):
+        has_next = False
+    else:
+        has_next = True
+
+    if (page-1)*5 > 0:
+        has_prev = True
+    else:
+        has_prev = False
+
+    task_list = task_list[(page-1)*5:page*5]
 
     next_url = url_for('getJobs', page=(page+1), order=order) if has_next else None
     prev_url = url_for('getJobs', page=(page-1), order=order) if has_prev else None
