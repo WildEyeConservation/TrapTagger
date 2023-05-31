@@ -1014,6 +1014,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                             Individual.id,
                             Video.id,
                             Video.filename,
+                            Detection.source,
+                            Detection.score,
+                            Detection.status,
                             IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
@@ -1086,6 +1089,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                             Individual.id,
                             classSQ.c.label,
                             classSQ.c.count/clusterDetCountSQ.c.count,
+                            Detection.source,
+                            Detection.score,
+                            Detection.status,
                             IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
@@ -1129,6 +1135,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                             Tag.id,
                             Tag.description,
                             Individual.id,
+                            Detection.source,
+                            Detection.score,
+                            Detection.status,
                             IndividualTask.c.id
                         )\
                         .join(Image, Cluster.images) \
@@ -1145,9 +1154,6 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         
         clusters = clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .filter(Detection.static==False)\
                         .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp))\
                         .distinct().all()
 
@@ -1185,17 +1191,18 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
-                    'id': row[9],
-                    'top': row[10],
-                    'bottom': row[11],
-                    'left': row[12],
-                    'right': row[13],
-                    'category': row[14],
-                    'individuals': [],
-                    'static': row[15],
-                    'labels': []
-                }
+                if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
+                        'id': row[9],
+                        'top': row[10],
+                        'bottom': row[11],
+                        'left': row[12],
+                        'right': row[13],
+                        'category': row[14],
+                        'individuals': [],
+                        'static': row[15],
+                        'labels': []
+                    }
 
             # Handle video
             if id and row[22] and (row[22] not in clusterInfo[row[0]]['videos'].keys()):
@@ -1212,17 +1219,19 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
             if ('-3' in taggingLevel) and row[22] and (row[22] not in clusterInfo[row[0]]['classification'].keys()):
                 clusterInfo[row[0]]['classification'][row[22]] = float(row[23])
 
-            # Handle individuals
-            if row[-1] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[-1]==task_id):
-                clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
-
             if row[17] and (row[17] not in clusterInfo[row[0]]['label']): clusterInfo[row[0]]['label'].append(row[17])
             if row[16] and (row[16] not in clusterInfo[row[0]]['label_ids']): clusterInfo[row[0]]['label_ids'].append(row[16])
             if row[18] and (row[18] not in clusterInfo[row[0]]['required']): clusterInfo[row[0]]['required'].append(row[18])
             if row[20] and (row[20] not in clusterInfo[row[0]]['tags']): clusterInfo[row[0]]['tags'].append(row[20])
             if row[19] and (row[19] not in clusterInfo[row[0]]['tag_ids']): clusterInfo[row[0]]['tag_ids'].append(row[19])
 
-            if row[17] and (row[17] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels']): clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels'].append(row[17])
+            if (row[9] in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
+                if row[17] and (row[17] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels']):
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['labels'].append(row[17])
+                
+                # Handle individuals
+                if row[-1] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[-1]==task_id):
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
     
         return clusterInfo
 
