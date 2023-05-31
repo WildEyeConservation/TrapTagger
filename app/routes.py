@@ -1133,7 +1133,7 @@ def checkSightingEditStatus():
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .filter(Detection.static==False)
 
-            if species not in ['All','None','']:
+            if species not in ['All','None','', '0', '-1']:
                 label = db.session.query(Label).filter(Label.task_id.in_(task_ids)).filter(Label.description==species).first()
                 test2 = test2.filter(Labelgroup.labels.contains(label))
             else:
@@ -1869,7 +1869,7 @@ def getPolarData():
         startDate = None
         endDate = None
 
-    app.logger.info('Polar data requested for {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,reqID,trapgroup,startDate,endDate))
+    if Config.DEBUGGING: app.logger.info('Polar data requested for {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,reqID,trapgroup,startDate,endDate))
 
     reply = []
     if task_ids:
@@ -1879,9 +1879,6 @@ def getPolarData():
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
-
-        app.logger.info('Task IDs: {}'.format(task_ids))
-        app.logger.info('Survey IDs: {}'.format(survey_ids))
 
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
@@ -1896,18 +1893,17 @@ def getPolarData():
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if trapgroup == 'All':
+        if trapgroup == '0':
             baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
         else:
             baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
 
-        if species != 'All':
+        if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
             label_list = []
             for label in labels:
                 label_list.append(label.id)
                 label_list.extend(getChildList(label,int(label.task_id)))
-            app.logger.info('Label IDs: {}'.format(label_list))
             baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
         else:
             vhl = db.session.query(Label).get(GLOBALS.vhl_id)
@@ -1997,6 +1993,8 @@ def getBarData():
     else:
         startDate = None
         endDate = None
+
+    if Config.DEBUGGING: app.logger.info('Bar data requested for {} {} {} {} {} {}'.format(task_ids,species,baseUnit,axis,startDate,endDate))
 
     data = []
     labels = []
@@ -5445,7 +5443,7 @@ def getTrapgroupCounts():
     else:
         startDate = None
         endDate = None
-    app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, startDate: {}, endDate: {}'.format(task_ids,species,baseUnit,startDate,endDate))
+    if Config.DEBUGGING: app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, startDate: {}, endDate: {}'.format(task_ids,species,baseUnit,startDate,endDate))
     data = []
     maxVal = 0
     if task_ids:
@@ -5454,7 +5452,7 @@ def getTrapgroupCounts():
         else:
             tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r.id for r in tasks]
-        app.logger.info(tasks)
+
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
         elif int(baseUnit) == 2:
@@ -5469,7 +5467,6 @@ def getTrapgroupCounts():
             for label in labels:
                 label_list.append(label.id)
                 label_list.extend(getChildList(label,int(label.task_id)))
-            app.logger.info('The following labels were found: {}'.format(label_list))
             baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
         else:
             # Check checkboxes
@@ -5490,7 +5487,6 @@ def getTrapgroupCounts():
                 for task_id in task_ids:
                     label_list.extend(getChildList(label,int(task_id)))
 
-            app.logger.info('Exclude the following labels: {}'.format(label_list))
             if len(label_list) != 0:
                 baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
 

@@ -77,7 +77,15 @@ limitations under the License. -->
                 <div id="generateDiv"></div>
                 
             </div>
-            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);"></div>          
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+                <div class="row">
+                    <div class="col-lg-4"></div>
+                    <div class="col-lg-4">
+                        <button type='button' class='btn btn-primary btn-block' id='btnClearResults' onclick=clearResults()>Clear</button>  
+                    </div>
+                    <div class="col-lg-4"></div>
+                </div>
+            </div>          
         </div>
     </div>
     <div class='col-lg-9' style="padding-right: 30px;">
@@ -107,7 +115,7 @@ limitations under the License. -->
 {% block page_scripts %}
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <script src="js/camtrap.results.v{{ version }}.js"></script>
-<script src="js/camtrap.results.statistics.v{{ version }}.js"></script>
+<script src="js/camtrap.statistics.common.v{{ version }}.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
    integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="

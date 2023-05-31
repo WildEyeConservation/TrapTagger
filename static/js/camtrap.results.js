@@ -76,6 +76,7 @@ var mapHeight
 var activeRequest = {}
 var markers = []
 var species_count_warning = false
+var selectedTask = null
 
 
 function addSurveys(){
@@ -158,8 +159,8 @@ function buildSurveySelect(){
         }
         else{
             optionTexts = ['None']
-            optionValues = ['-99999'] 
-            fillSelect(idTaskSelect, [''], ['-99999'])
+            optionValues = ['-1'] 
+            fillSelect(idTaskSelect, [''], ['-1'])
         }
 
         for (let i=0;i<surveys.length;i++) {
@@ -192,11 +193,10 @@ function buildSurveySelect(){
             idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
             
             survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
-            if (survey=="0" || survey=="-99999") {
+            if (survey=="0" || survey=="-1") {
                 clearSelect(idTaskSelect)
                 fillSelect(idTaskSelect, [''], ['0'])
                 checkSurvey()
-                // getLabelsAndSites()
                 updateResults(true)
             } else {
                 var xhttp = new XMLHttpRequest();
@@ -215,7 +215,6 @@ function buildSurveySelect(){
                             fillSelect(wrapidTaskSelect, optionTexts, optionValues)
  
                             checkSurvey()
-                            // getLabelsAndSites()
                             updateResults(true)
                         }
                     }
@@ -228,7 +227,6 @@ function buildSurveySelect(){
 
     $("#"+idTaskSelect.id).change( function() {
         checkSurvey()
-        // getLabelsAndSites()
         updateResults(true)
     })
     
@@ -269,7 +267,7 @@ function checkSurvey(){
         surveyAll = false
     }
     else if(allSurveys.length == 1 && !surveyAll && modalActive){
-        if(allSurveys[0].value == '-99999'){
+        if(allSurveys[0].value == '-1'){
             noneSurvey = true
         }
     }
@@ -304,25 +302,8 @@ function checkSurvey(){
 
 function getLabelsAndSites(){
     /** Builds the selectors for generating results*/
-
-    // var allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
-    // var tasks = []
-    // for (let i=0;i<allTasks.length;i++) {
-    //     if (allTasks[i].value != '-99999' && allTasks[i].value != '0'){
-    //         tasks.push(allTasks[i].value)
-    //     } 
-    // }
-
-    // if (tasks.length==0) {
-    //     globalLabels = []
-    //     globalSites = []
-    //     updateLabelsAndSites()
-    //     return
-    // }
-
     tasks = ['0']
 
-    console.log(tasks)
     var formData = new FormData()
     formData.append('task_ids', JSON.stringify(tasks))
 
@@ -332,7 +313,6 @@ function getLabelsAndSites(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
             globalLabels = reply.labels
             globalSites = reply.sites            
 
@@ -353,7 +333,7 @@ function updateLabelsAndSites(){
         speciesSelector = document.getElementById('speciesSelect')
         if (speciesSelector) {
             clearSelect(speciesSelector)
-            var optionValues = ['-99999', '0']
+            var optionValues = ['-1', '0']
             var optionTexts = ['None', 'All']
             optionValues = optionValues.concat(globalLabels)
             optionTexts = optionTexts.concat(globalLabels)
@@ -363,7 +343,7 @@ function updateLabelsAndSites(){
         siteSelector = document.getElementById('trapgroupSelect')
         if (siteSelector) {
             clearSelect(siteSelector)
-            optionValues = ['-99999', '0']
+            optionValues = ['-1', '0']
             optionTexts = ['None', 'All']
             optionValues = optionValues.concat(globalSites)
             optionTexts = optionTexts.concat(globalSites)
@@ -373,7 +353,7 @@ function updateLabelsAndSites(){
     else{
         for (let i=0;i<allSpeciesSelector.length;i++) {
             clearSelect(allSpeciesSelector[i])
-            var optionValues = ['-99999', '0']
+            var optionValues = ['-1', '0']
             var optionTexts = ['None', 'All']
             optionValues = optionValues.concat(globalLabels)
             optionTexts = optionTexts.concat(globalLabels)
@@ -382,7 +362,7 @@ function updateLabelsAndSites(){
 
         for (let i=0;i<allSiteSelector.length;i++) {
             clearSelect(allSiteSelector[i])
-            var optionValues = ['-99999', '0']
+            var optionValues = ['-1', '0']
             var optionTexts = ['None', 'All']
             optionValues = optionValues.concat(globalSites)
             optionTexts = optionTexts.concat(globalSites)
@@ -631,7 +611,7 @@ function generateSpatial(){
     select.setAttribute('id','speciesSelect')
     col1.appendChild(select)
 
-    fillSelect(select, ['None', 'All'], ['-99999','0'])
+    fillSelect(select, ['None', 'All'], ['-1','0'])
 
     $("#speciesSelect").change( function() {
         mapSpeciesSelector = document.getElementById('speciesSelect')
@@ -1317,7 +1297,7 @@ function buildSpeciesAndSiteSelectorRow(){
     siteSelector.id = 'trapgroupSelect-'+String(IDNum)
     col1.appendChild(siteSelector)
     var siteOptionTexts = ['None', 'All']
-    var siteOptionValues = ['-99999','0']
+    var siteOptionValues = ['-1','0']
     siteOptionTexts.push(...globalSites)
     siteOptionValues.push(...globalSites)
     fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
@@ -1335,7 +1315,7 @@ function buildSpeciesAndSiteSelectorRow(){
     speciesSelector.id = 'speciesSelect-'+String(IDNum)
     col1.appendChild(speciesSelector)
     var speciesOptionTexts = ['None', 'All']
-    var speciesOptionValues = ['-99999','0']
+    var speciesOptionValues = ['-1','0']
     speciesOptionTexts.push(...globalLabels) 
     speciesOptionValues.push(...globalLabels)
 
@@ -1403,7 +1383,7 @@ function buildSpeciesSelectorRow(){
     speciesSelector.id = 'speciesSelect-'+String(IDNum)
     col1.appendChild(speciesSelector)
     var speciesOptionTexts = ['None', 'All']
-    var speciesOptionValues = ['-99999','0']
+    var speciesOptionValues = ['-1','0']
     speciesOptionTexts.push(...globalLabels) 
     speciesOptionValues.push(...globalLabels)
 
@@ -1546,7 +1526,7 @@ function getTrapgroups(){
             reply = JSON.parse(this.responseText);
             trapgroupNames = reply.names 
             trapgroupValues = reply.values
-            console.log(reply)
+
             var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
             if (analysisSelection == '3') {
                 var xAxisSelection = document.getElementById('xAxisSelector').options[document.getElementById('xAxisSelector').selectedIndex].value
@@ -1567,7 +1547,7 @@ function getSelectedTasks(){
     var tasks = []
     var allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
     for (let i=0;i<allTasks.length;i++) {
-        if (allTasks[i].value != '-99999' && allTasks[i].value != '0'){
+        if (allTasks[i].value != '-1' && allTasks[i].value != '0'){
             tasks.push(allTasks[i].value)
         }
     }
@@ -1601,12 +1581,59 @@ $('#baseUnitSelector').on('change', function() {
 });
 
 $('#startDate').on('change', function() {
-    updateResults()
+    var vaild = checkDates()
+    if (vaild) {
+        updateResults()
+    }
+    else{
+        document.getElementById('dateErrors').innerHTML = 'Start date must be before end date.'
+    }
 });
 
 $('#endDate').on('change', function() {
-    updateResults()
+    var vaild = checkDates()
+    if (vaild) {
+        updateResults()
+    }
+    else{
+        document.getElementById('dateErrors').innerHTML = 'Start date must be before end date.'
+    }
 });
+
+function clearResults(){
+    /** Clears the results div */
+    var resultsDiv = document.getElementById('resultsDiv')
+    while(resultsDiv.firstChild){
+        resultsDiv.removeChild(resultsDiv.firstChild);
+    }
+
+    var generateDiv = document.getElementById('generateDiv')
+    while(generateDiv.firstChild){
+        generateDiv.removeChild(generateDiv.firstChild);
+    }
+
+    surveySelect = document.getElementById('surveySelect')
+    while(surveySelect.firstChild){
+        surveySelect.removeChild(surveySelect.firstChild);
+    }
+    addSurveyTask = document.getElementById('addSurveyTask')
+    while(addSurveyTask.firstChild){
+        addSurveyTask.removeChild(addSurveyTask.firstChild);
+    }
+
+    addSurveys()
+
+    document.getElementById('dateErrors').innerHTML = ''
+    document.getElementById('statisticsErrors').innerHTML = ''
+
+    document.getElementById('analysisSelector').value = '-1'
+    document.getElementById('baseUnitSelector').value = '2'
+    document.getElementById('startDate').value = ''
+    document.getElementById('endDate').value = ''
+
+    clearBarColours()
+    clearPolarColours()
+}
 
 function onload(){
     /**Function for initialising the page on load.*/
