@@ -1075,36 +1075,6 @@ function updatePolarDisplay(IDNum) {
     }
 }
 
-// function updatePolarErrors() {
-//     /** Checks for sighting counts in the current polar chart, and displays a warning if a species has not had its sightings checked. */
-
-//     baseUnitSelector = document.getElementById('baseUnitSelector')
-//     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-
-//     document.getElementById('statisticsErrors').innerHTML = ''
-
-//     if (baseUnitSelection == '3') {
-//         species_count_warning = false
-//         for (let IDNum in polarData) {
-//             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
-//             species = speciesSelector.options[speciesSelector.selectedIndex].text
-//             var xhttp = new XMLHttpRequest();
-//             xhttp.open("GET", '/checkSightingEditStatus/'+selectedTask+'/'+species);
-//             xhttp.onreadystatechange =
-//             function(){
-//                 if (this.readyState == 4 && this.status == 200) {
-//                     reply = JSON.parse(this.responseText);  
-//                     if ((reply.status=='warning')&&(species_count_warning==false)) {
-//                         species_count_warning = true
-//                         document.getElementById('statisticsErrors').innerHTML = reply.message
-//                     }
-//                 }
-//             }
-//             xhttp.send();
-//         }
-//     }
-// }
-
 function updateBaseUnitPolar() {
     /** Updates the base unit of the active polar chart */
 
@@ -1112,24 +1082,6 @@ function updateBaseUnitPolar() {
     species_count_warning = false
     for (let IDNum in polarData) {
         updatePolarData(IDNum)
-
-        // if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
-        //     speciesSelector = document.getElementById('speciesSelect-'+IDNum)
-        //     species = speciesSelector.options[speciesSelector.selectedIndex].text
-        //     var xhttp = new XMLHttpRequest();
-        //     xhttp.open("GET", '/checkSightingEditStatus/'+selectedTask+'/'+species);
-        //     xhttp.onreadystatechange =
-        //     function(){
-        //         if (this.readyState == 4 && this.status == 200) {
-        //             reply = JSON.parse(this.responseText);  
-        //             if ((reply.status=='warning')&&(species_count_warning==false)) {
-        //                 species_count_warning = true
-        //                 document.getElementById('statisticsErrors').innerHTML = reply.message
-        //             }
-        //         }
-        //     }
-        //     xhttp.send();
-        // }
     }
 }
 

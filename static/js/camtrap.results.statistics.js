@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 function addPolarData(data,colour) {
     /**
      * Adds new data to a polar chart.
@@ -260,8 +261,10 @@ function updatePolarErrors() {
             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
             species = speciesSelector.options[speciesSelector.selectedIndex].text
 
+            var tasks = getSelectedTasks()
+
             var formData = new FormData()
-            formData.append("task_ids", JSON.stringify([selectedTask]))
+            formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
 
             var xhttp = new XMLHttpRequest();
@@ -295,9 +298,9 @@ function updateBarErrors() {
         for (let IDNum in barData) {
             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
             species = speciesSelector.options[speciesSelector.selectedIndex].text
-
+            var tasks = getSelectedTasks()
             var formData = new FormData()
-            formData.append("task_ids", JSON.stringify([selectedTask]))
+            formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
 
             var xhttp = new XMLHttpRequest();
@@ -326,17 +329,37 @@ function updatePolarData(IDNum) {
     species = speciesSelector.options[speciesSelector.selectedIndex].text
     baseUnitSelector = document.getElementById('baseUnitSelector')
     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    startDate = document.getElementById('startDate').value
+    endDate = document.getElementById('endDate').value
 
+    if(startDate != ''){
+        startDate = startDate + ' 00:00:00'
+    }
+    else{
+        startDate = ''
+    }
+
+    if(endDate != ''){
+        endDate = endDate + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+    var tasks = getSelectedTasks()
+    
     if (trapgroup!='-1') {
         var reqID = Math.floor(Math.random() * 100000) + 1;
         activeRequest[IDNum.toString()] = reqID
 
         var formData = new FormData();
-        formData.append('task_ids', JSON.stringify([selectedTask]));
+        formData.append('task_ids', JSON.stringify(tasks));
         formData.append('species', JSON.stringify(species));
         formData.append('baseUnit', JSON.stringify(baseUnitSelection));
         formData.append('trapgroup', JSON.stringify(trapgroup));
         formData.append('reqID', JSON.stringify(reqID));
+        formData.append('startDate', JSON.stringify(startDate));
+        formData.append('endDate', JSON.stringify(endDate));
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -402,12 +425,36 @@ function updateBarData(IDNum) {
     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
     xAxisSelector = document.getElementById('xAxisSelector')
     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+    startDate = document.getElementById('startDate').value
+    endDate = document.getElementById('endDate').value
+
+    if(startDate != ''){
+        startDate = startDate + ' 00:00:00'
+    }
+    else{
+        startDate = ''
+    }
+
+    if(endDate != ''){
+        endDate = endDate + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+    var tasks = getSelectedTasks()
+
+    if(species == 'All'){
+        species = '0'
+    }
 
     var formData = new FormData();
-    formData.append('task_ids', JSON.stringify([selectedTask]));
+    formData.append('task_ids', JSON.stringify(tasks));
     formData.append('species', JSON.stringify(species));
     formData.append('baseUnit', JSON.stringify(baseUnitSelection));
     formData.append('axis', JSON.stringify(xAxisSelection));
+    formData.append('startDate', JSON.stringify(startDate));
+    formData.append('endDate', JSON.stringify(endDate));
 
     if (species!='-1') {
         var xhttp = new XMLHttpRequest();
@@ -416,7 +463,11 @@ function updateBarData(IDNum) {
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
+                    console.log(reply)
                     IDkey = wrapIDNum.toString()
+
+                    trapgroupNames = reply.labels
+                    chart.data.labels = trapgroupNames
     
                     if (!barData.hasOwnProperty(IDkey)) {
                         colour = null
@@ -483,12 +534,14 @@ function updateBaseUnitPolar() {
             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
             species = speciesSelector.options[speciesSelector.selectedIndex].text
 
+            var tasks = getSelectedTasks()
+
             var formData = new FormData()
-            formData.append("task_ids", JSON.stringify([selectedTask]))
+            formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
 
             var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus/'+selectedTask+'/'+species);
+            xhttp.open("POST", '/checkSightingEditStatus');
             xhttp.onreadystatechange =
             function(){
                 if (this.readyState == 4 && this.status == 200) {
@@ -515,9 +568,9 @@ function updateBaseUnitBar() {
         if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
             speciesSelector = document.getElementById('speciesSelect-'+IDNum)
             species = speciesSelector.options[speciesSelector.selectedIndex].text
-            
+            var tasks = getSelectedTasks()
             var formData = new FormData()
-            formData.append("task_ids", JSON.stringify([selectedTask]))
+            formData.append("task_ids", JSON.stringify(tasks))
             formData.append("species", JSON.stringify(species))
 
             var xhttp = new XMLHttpRequest();
@@ -670,489 +723,6 @@ function buildBarSelectorRow() {
     containingDiv.appendChild(document.createElement('br'))
 }
 
-function createPolarChart() {
-    /** Initialises a temporal analysis polar chart. */
-
-    polarData = {}
-
-    var formData = new FormData();
-    formData.append('task_ids', JSON.stringify([selectedTask]));
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            trapgroupNames = reply.names
-            trapgroupValues = reply.values
-            
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    speciesNames = reply.names
-                    speciesValues = reply.ids
-                    
-                    mainDiv = document.getElementById('statisticsDiv')
-
-                    div = document.createElement('div')
-                    div.classList.add('row')
-                    mainDiv.appendChild(div)
-
-                    colDiv1 = document.createElement('div')
-                    colDiv1.classList.add('col-lg-1')
-                    div.appendChild(colDiv1)
-
-                    aDiv2 = document.createElement('div')
-                    aDiv2.classList.add('col-lg-8')
-                    aDiv2.setAttribute('align','center')
-                    div.appendChild(aDiv2)
-
-                    colDiv2 = document.createElement('div')
-                    colDiv2.classList.add('row')
-                    aDiv2.appendChild(colDiv2)
-
-                    secCol1 = document.createElement('div')
-                    secCol1.classList.add('col-lg-1')
-                    secCol1.setAttribute('style','padding-right:4px;margin-right:0px;display:flex;justify-content:center;align-items:center')
-                    colDiv2.appendChild(secCol1)
-
-                    secCol2 = document.createElement('div')
-                    secCol2.classList.add('col-lg-10')
-                    secCol2.setAttribute('style','margin:0px;margin:0px')
-                    colDiv2.appendChild(secCol2)
-
-                    secCol3 = document.createElement('div')
-                    secCol3.classList.add('col-lg-1')
-                    secCol3.setAttribute('style','padding-left:4px;margin-left:0px;display:flex;justify-content:center;align-items:center')
-                    colDiv2.appendChild(secCol3)
-
-                    colDiv3 = document.createElement('div')
-                    colDiv3.classList.add('col-lg-1')
-                    div.appendChild(colDiv3)
-
-                    h5 = document.createElement('h5')
-                    h5.setAttribute('style','padding-right:4px;margin-right:0px')
-                    h5.setAttribute('align','right')
-                    h5.innerHTML = '18:00'
-                    secCol1.appendChild(h5)
-
-                    h5 = document.createElement('h5')
-                    h5.setAttribute('style','padding-bottom:15px;margin-bottom:0px')
-                    h5.setAttribute('align','center')
-                    h5.innerHTML = '00:00'
-                    secCol2.appendChild(h5)
-
-                    canvasDiv = document.createElement('div')
-                    canvasDiv.setAttribute('style','height: 850px')
-                    secCol2.appendChild(canvasDiv)
-
-                    canvas = document.createElement('canvas')
-                    canvas.setAttribute('id','statisticsChart')
-                    canvas.setAttribute('height','850')
-                    canvasDiv.appendChild(canvas)
-
-                    h5 = document.createElement('h5')
-                    h5.setAttribute('style','padding-top:15px;margin-top:0px')
-                    h5.setAttribute('align','center')
-                    h5.innerHTML = '12:00'
-                    secCol2.appendChild(h5)
-
-                    h5 = document.createElement('h5')
-                    h5.setAttribute('style','padding-left:4px;margin-left:0px')
-                    h5.setAttribute('align','left')
-                    h5.innerHTML = '06:00'
-                    secCol3.appendChild(h5)
-                
-                    selectorDiv = document.createElement('div')
-                    selectorDiv.classList.add('col-lg-2')
-                    div.appendChild(selectorDiv)
-                
-                    h5 = document.createElement('h5')
-                    h5.innerHTML = 'Normalisation'
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Normalise the counts using the total count for each item to make comparison easier between species with vastly different sighting numbers.</i>'
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-                
-                    select = document.createElement('select')
-                    select.classList.add('form-control')
-                    select.setAttribute('id','normalisationSelector')
-                    selectorDiv.appendChild(select)
-                
-                    fillSelect(select, ['Raw Count', 'Normalised'], ['1','2'])
-                    $("#normalisationSelector").change( function() {
-                        normalisePolar()
-                    });
-
-                    selectorDiv.appendChild(document.createElement('br'))
-
-                    h5 = document.createElement('h5')
-                    h5.innerHTML = 'Data Unit'
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Select which unit of data to count.</i>'
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    select = document.createElement('select')
-                    select.classList.add('form-control')
-                    select.setAttribute('id','baseUnitSelector')
-                    selectorDiv.appendChild(select)
-                
-                    fillSelect(select, ['Clusters','Sightings','Images'], ['2','3','1'])
-                    $("#baseUnitSelector").change( function() {
-                        updateBaseUnitPolar()
-                    });
-
-                    selectorDiv.appendChild(document.createElement('br'))
-
-                    h5 = document.createElement('h5')
-                    h5.innerHTML = 'Data'
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Select which site and species combinations you would like to see.</i>'
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-                
-                    selectorColumn = document.createElement('div')
-                    selectorColumn.setAttribute('id','selectorColumn')
-                    selectorDiv.appendChild(selectorColumn)
-                
-                    buildPolarSelectorRow()
-
-                    button1 = document.createElement('button')
-                    button1.classList.add('btn')
-                    button1.classList.add('btn-info')
-                    button1.setAttribute('type','button')
-                    button1.setAttribute('id','btnAddPolar')
-                    button1.innerHTML = '+'
-                    selectorDiv.appendChild(button1)
-
-                    button1.addEventListener('click', ()=>{
-                        if (document.querySelectorAll('[id^=trapgroupSelect]').length < Object.keys(polarColours).length) {
-                            buildPolarSelectorRow()
-                        }
-                    });
-                
-                    var ctx = document.getElementById('statisticsChart').getContext('2d');
-                
-                    var data = {
-                        datasets: [],
-                        labels: ['00:00','01:00','02:00','03:00','04:00','05:00','06:00','07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00']
-                    };
-                
-                    var options = {
-                        maintainAspectRatio: false,
-                        legend: {
-                            display: false
-                        },
-                        tooltips: {
-                            displayColors: false,
-                            callbacks: {
-                                title: function(tooltipItems, data) {
-                                    return '';
-                                },
-                                label: function(tooltipItem, data) {
-                                    var datasetLabel = '';
-                                    var label = data.labels[tooltipItem.index];
-                                    return data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                                }           
-                            }
-                        },
-                        scale: {
-                            ticks: {
-                                display: false
-                            }
-                        }
-                    }
-                
-                    chart = new Chart(ctx, {
-                        data: data,
-                        type: 'polarArea',
-                        options: options
-                    });
-                }
-            }
-            xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
-            xhttp.send();
-        }
-    }
-    xhttp.open("POST", '/getTrapgroups');
-    xhttp.send(formData);
-}
-
-function createBar() {
-    /** Initialises a numerical-analysis bar chart. */
-
-    barData = {}
-    activeRequest = {}
-
-    var formData = new FormData();
-    formData.append('task_ids', JSON.stringify([selectedTask]));
-
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            trapgroupNames = reply.names
-            trapgroupValues = reply.values
-            
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    speciesNames = reply.names
-                    speciesNames.unshift('None')
-                    speciesValues = reply.ids
-                    speciesValues.unshift('-1')
-                    
-                    mainDiv = document.getElementById('statisticsDiv')
-
-                    div = document.createElement('div')
-                    div.classList.add('row')
-                    mainDiv.appendChild(div)
-                
-                    col1 = document.createElement('div')
-                    col1.classList.add('col-lg-10')
-                    div.appendChild(col1)
-                
-                    selectorDiv = document.createElement('div')
-                    selectorDiv.classList.add('col-lg-2')
-                    div.appendChild(selectorDiv)
-
-                    h5 = document.createElement('h5')
-                    h5.innerHTML = 'Comparison'
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Select what type of comparison you would like to do.</i>'
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-                
-                    select = document.createElement('select')
-                    select.classList.add('form-control')
-                    select.setAttribute('id','xAxisSelector')
-                    selectorDiv.appendChild(select)
-                
-                    fillSelect(select, ['Survey Counts','Site Counts'], ['1','2'])
-                    $("#xAxisSelector").change( function() {
-                        xAxisSelector = document.getElementById('xAxisSelector')
-                        xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-
-                        normalDiv = document.getElementById('normalDiv')
-                        while(normalDiv.firstChild){
-                            normalDiv.removeChild(normalDiv.firstChild);
-                        }
-
-                        if (xAxisSelection == '1') {
-                            chart.data.labels = ['Survey Count']
-                        } else if (xAxisSelection == '2') {
-                            chart.data.labels = trapgroupNames.slice(2)
-
-                            normalDiv.appendChild(document.createElement('br'))
-
-                            h5 = document.createElement('h5')
-                            h5.innerHTML = 'Normalisation'
-                            h5.setAttribute('style','margin-bottom: 2px')
-                            normalDiv.appendChild(h5)
-        
-                            h5 = document.createElement('div')
-                            h5.innerHTML = '<i>Normalise the counts using the total count for each item to make comparison easier between species with vastly different sighting numbers.</i>'
-                            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                            normalDiv.appendChild(h5)
-                        
-                            select = document.createElement('select')
-                            select.classList.add('form-control')
-                            select.setAttribute('id','normalisationSelector')
-                            normalDiv.appendChild(select)
-                        
-                            fillSelect(select, ['Raw Count', 'Normalised'], ['1','2'])
-                            $("#normalisationSelector").change( function() {
-                                normaliseBar()
-                            });
-                        }
-
-                        document.getElementById('statisticsErrors').innerHTML = ''
-                    
-                        species_count_warning = false
-                        for (let IDNum in barData) {
-                            updateBarData(IDNum)
-                    
-                            if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
-                                speciesSelector = document.getElementById('speciesSelect-'+IDNum)
-                                species = speciesSelector.options[speciesSelector.selectedIndex].text
-
-                                var formData = new FormData()
-                                formData.append("task_ids", JSON.stringify([selectedTask]))
-                                formData.append("species", JSON.stringify(species))
-
-                                var xhttp = new XMLHttpRequest();
-                                xhttp.open("POST", '/checkSightingEditStatus');
-                                xhttp.onreadystatechange =
-                                function(){
-                                    if (this.readyState == 4 && this.status == 200) {
-                                        reply = JSON.parse(this.responseText);  
-                                        if ((reply.status=='warning')&&(species_count_warning==false)) {
-                                            species_count_warning = true
-                                            document.getElementById('statisticsErrors').innerHTML = reply.message
-                                        }
-                                    }
-                                }
-                                xhttp.send(formData);
-                            }
-                        }
-                    });
-
-                    selectorDiv.appendChild(document.createElement('br'))
-
-                    h5 = document.createElement('h5')
-                    h5.innerHTML = 'Data Unit'
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Select which unit of data to count.</i>'
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    select = document.createElement('select')
-                    select.classList.add('form-control')
-                    select.setAttribute('id','baseUnitSelector')
-                    selectorDiv.appendChild(select)
-                
-                    fillSelect(select, ['Clusters','Sightings','Images'], ['2','3','1'])
-                    $("#baseUnitSelector").change( function() {
-                        updateBaseUnitBar()
-                    });
-
-                    normalDiv = document.createElement('div')
-                    normalDiv.setAttribute('id','normalDiv')
-                    selectorDiv.appendChild(normalDiv)
-
-                    selectorDiv.appendChild(document.createElement('br'))
-
-                    h5 = document.createElement('h5')
-                    h5.innerHTML = 'Species'
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-
-                    h5 = document.createElement('div')
-                    h5.innerHTML = '<i>Select the species you would like to see.</i>'
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    selectorDiv.appendChild(h5)
-                
-                    selectorColumn = document.createElement('div')
-                    selectorColumn.setAttribute('id','selectorColumn')
-                    selectorDiv.appendChild(selectorColumn)
-                
-                    buildBarSelectorRow()
-
-                    button1 = document.createElement('button')
-                    button1.classList.add('btn')
-                    button1.classList.add('btn-info')
-                    button1.setAttribute('type','button')
-                    button1.setAttribute('id','btnAddPolar')
-                    button1.innerHTML = '+'
-                    selectorDiv.appendChild(button1)
-
-                    button1.addEventListener('click', ()=>{
-                        if (document.querySelectorAll('[id^=speciesSelect]').length < Object.keys(barColours).length) {
-                            buildBarSelectorRow()
-                        }
-                    });
-                
-                    div = document.createElement('div')
-                    div.classList.add('row')
-                    col1.appendChild(div)
-                
-                    colDiv2 = document.createElement('div')
-                    colDiv2.setAttribute('style','padding:4px;margin:0px')
-                    colDiv2.classList.add('col-lg-12')
-                    div.appendChild(colDiv2)
-                
-                    canvas = document.createElement('canvas')
-                    canvas.setAttribute('id','statisticsChart')
-                    canvas.setAttribute('height','650')
-                    colDiv2.appendChild(canvas)
-                
-                    var ctx = document.getElementById('statisticsChart').getContext('2d');
-                
-                    var data = {
-                        datasets: [],
-                        labels: ['Survey Count']
-                    };
-                
-                    var options = {
-                        maintainAspectRatio: false,
-                        legend: {
-                            display: false
-                        },
-                        tooltips: {
-                            displayColors: false,
-                            callbacks: {
-                                title: function(tooltipItems, data) {
-                                    return '';
-                                },
-                                label: function(tooltipItem, data) {
-                                    xAxisSelector = document.getElementById('xAxisSelector')
-                                    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-                                    var datasetLabel = '';
-                                    var label = data.labels[tooltipItem.index];
-                                    if (xAxisSelection=='1') {
-                                        selector = document.querySelectorAll('[id^=speciesSelect-]')[tooltipItem.datasetIndex]
-                                        speciesName = selector.options[selector.selectedIndex].text
-                                        return speciesName+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                                    } else {
-                                        return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                                    }
-                                }           
-                            }
-                        },
-                        ticks: {
-                            min: 0
-                        },
-                        scales: {
-                            yAxes: [{
-                                ticks: {
-                                    fontColor: "white",
-                                    beginAtZero: true
-                                }
-                            }],
-                            xAxes: [{
-                                ticks: {
-                                    fontColor: "white"
-                                }
-                            }]
-                        }
-                    }
-                
-                    chart = new Chart(ctx, {
-                        data: data,
-                        type: 'bar',
-                        options: options
-                    });
-                }
-            }
-            xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
-            xhttp.send();
-        }
-    }
-    xhttp.open("POST", '/getTrapgroups');
-    xhttp.send(formData);
-}
-
 function logslider(position) {
     /** Converts a position value from a linear slider into a logorithmic value between 0.01 and 2. */
     
@@ -1207,21 +777,35 @@ function reScaleNormalisation(newScale) {
 function updateHeatMap() {
     /** Updates the species heatmap. */
 
-    var mapSpeciesSelector = document.getElementById('mapSpeciesSelector')
+    var mapSpeciesSelector = document.getElementById('speciesSelect')
     var selection = mapSpeciesSelector.options[mapSpeciesSelector.selectedIndex].value
     var species = mapSpeciesSelector.options[mapSpeciesSelector.selectedIndex].text
     var baseUnitSelector = document.getElementById('baseUnitSelector')
     var baseUnit = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    var startDate = document.getElementById('startDate').value
+    var endDate = document.getElementById('endDate').value
 
-    if (species == 'All'){
-        species = '0'
+    if(startDate != ''){
+        startDate = startDate + ' 00:00:00'
     }
+    else{
+        startDate = ''
+    }
+
+    if(endDate != ''){
+        endDate = endDate + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+    var tasks = getSelectedTasks()
 
     document.getElementById('statisticsErrors').innerHTML = ''
 
     if (baseUnit=='3') {
         var formData = new FormData()
-        formData.append("task_ids", JSON.stringify([selectedTask]))
+        formData.append("task_ids", JSON.stringify(tasks))
         formData.append("species", JSON.stringify(species))
 
         var xhttp = new XMLHttpRequest();
@@ -1253,10 +837,11 @@ function updateHeatMap() {
         }
 
         var formData = new FormData();
-        formData.append('task_ids', JSON.stringify([selectedTask]));
-        formData.append('species', JSON.stringify(species));
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('species', JSON.stringify(selection));
         formData.append('baseUnit', JSON.stringify(baseUnit));
-
+        formData.append('startDate', JSON.stringify(startDate));
+        formData.append('endDate', JSON.stringify(endDate));
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -1264,6 +849,7 @@ function updateHeatMap() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
+
                 heatMapData = JSON.parse(JSON.stringify(reply))
 
                 if (document.getElementById('normalisationCheckBox').checked) {
@@ -1739,12 +1325,6 @@ function createMap() {
     xhttp.send(formData);
 }
 
-btnOpenStatistics.addEventListener('click', ()=>{
-    /** Event listener that opens the statistics modal. */
-    modalResults.modal('hide')
-    modalStatistics.modal({keyboard: true});
-});
-
 function clearStatistics() {
     /** Clears the statistics modal. */
     statisticsDiv = document.getElementById('statisticsDiv')
@@ -1756,28 +1336,5 @@ function clearStatistics() {
     document.getElementById('statisticsErrors').innerHTML = ''
 }
 
-analysisSelector.addEventListener('change', ()=>{
-    /** Event listener on the analysis selector that selects what type of analysis the user would like to see. */
-    selection = analysisSelector.options[analysisSelector.selectedIndex].value
-    clearStatistics()
-    if (selection == '1') {
-        createPolarChart()
-    } else if (selection == '2') {
-        createMap()
-    } else if (selection == '3') {
-        createBar()
-    }
-});
 
-modalStatistics.on('hidden.bs.modal', function(){
-    /** Clears the statistics modal when it is closed, unless it is being closed to open the help modal. */
-    if (!helpReturn) {
-        clearPolarColours()
-        clearBarColours()
-        clearStatistics()
-        analysisSelector.selectedIndex = 0
-        modalResults.modal({keyboard: true});
-    } else {
-        helpReturn = false
-    }
-});
+

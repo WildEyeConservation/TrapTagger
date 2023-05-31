@@ -1083,20 +1083,28 @@ def updateSurveyStatus(surveyName, status):
     
     return json.dumps('')
 
-@app.route('/checkSightingEditStatus/<task_id>/<species>')
+@app.route('/checkSightingEditStatus', methods=['POST'])
 @login_required
-def checkSightingEditStatus(task_id, species):
+def checkSightingEditStatus():
     '''Checks if a species has had its bounding boxes checked/edited for the specified task. Returns a warning status and associated message if it hasn't.'''
 
-    task_id = int(task_id)
-    task = db.session.query(Task).get(task_id)
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+
     status = 'success'
     message = ''
 
-    if task and task.survey.user==current_user:
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+        else:
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+
+        task_ids = [r[0] for r in tasks]
+    
         subq = db.session.query(labelstable.c.cluster_id.label('clusterID'), func.count(distinct(labelstable.c.label_id)).label('labelCount')) \
                         .join(Cluster,Cluster.id==labelstable.c.cluster_id) \
-                        .filter(Cluster.task_id==task_id) \
+                        .filter(Cluster.task_id.in_(task_ids)) \
                         .group_by(labelstable.c.cluster_id) \
                         .subquery()
 
@@ -1105,8 +1113,8 @@ def checkSightingEditStatus(task_id, species):
                         .join(Image) \
                         .join(Cluster, Image.clusters) \
                         .join(subq, subq.c.clusterID==Cluster.id) \
-                        .filter(Labelgroup.task_id==task_id) \
-                        .filter(Cluster.task_id==task_id) \
+                        .filter(Labelgroup.task_id.in_(task_ids)) \
+                        .filter(Cluster.task_id.in_(task_ids)) \
                         .filter(Labelgroup.checked==False) \
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static==False) \
@@ -1119,14 +1127,14 @@ def checkSightingEditStatus(task_id, species):
         else:
             test2 = db.session.query(Labelgroup) \
                             .join(Detection) \
-                            .filter(Labelgroup.task_id==task_id) \
+                            .filter(Labelgroup.task_id.in_(task_ids)) \
                             .filter(Labelgroup.checked==False) \
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(~Detection.status.in_(['deleted','hidden'])) \
                             .filter(Detection.static==False)
 
             if species not in ['All','None','']:
-                label = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.description==species).first()
+                label = db.session.query(Label).filter(Label.task_id.in_(task_ids)).filter(Label.description==species).first()
                 test2 = test2.filter(Labelgroup.labels.contains(label))
             else:
                 test2 = test2.filter(Labelgroup.labels.any()).filter(~Labelgroup.labels.any(Label.id.in_([GLOBALS.vhl_id,GLOBALS.knocked_id,GLOBALS.nothing_id])))
@@ -1834,9 +1842,9 @@ def redir():
     else:
         return redirect(url_for('login_page'))
 
-@app.route('/getPolarData/<task_id>/<trapgroup_id>/<species_id>/<baseUnit>/<reqID>')
+@app.route('/getPolarData', methods=['POST'])
 @login_required
-def getPolarData(task_id, trapgroup_id, species_id, baseUnit, reqID):
+def getPolarData():
     '''
     Returns the time-of-day activity data for the requested species and task.
     
@@ -1848,37 +1856,69 @@ def getPolarData(task_id, trapgroup_id, species_id, baseUnit, reqID):
             reqID (int): The request identifier
     '''
 
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    reqID = ast.literal_eval(request.form['reqID'])
+    trapgroup = ast.literal_eval(request.form['trapgroup'])
+
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        startDate = None
+        endDate = None
+
+    app.logger.info('Polar data requested for {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,reqID,trapgroup,startDate,endDate))
+
     reply = []
-    task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user):
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+        else:
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+        task_ids = [r[0] for r in tasks]
+        survey_ids = list(set([r[1] for r in tasks]))
+
+        app.logger.info('Task IDs: {}'.format(task_ids))
+        app.logger.info('Survey IDs: {}'.format(survey_ids))
+
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
         elif baseUnit == '2':
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup)
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup).filter(Cluster.task_id.in_(task_ids))
         elif baseUnit == '3':
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
         baseQuery = baseQuery.join(Camera)\
                             .join(Trapgroup)\
-                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if trapgroup_id == '0':
-            baseQuery = baseQuery.filter(Trapgroup.survey_id==task.survey_id)
+        if trapgroup == 'All':
+            baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
         else:
-            baseQuery = baseQuery.filter(Trapgroup.id==int(trapgroup_id))
+            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
 
-        if species_id != '0':
-            label = db.session.query(Label).get(int(species_id))
-            label_list = [label.id]
-            label_list.extend(getChildList(label,int(task_id)))
+        if species != 'All':
+            labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
+            app.logger.info('Label IDs: {}'.format(label_list))
             baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
         else:
             vhl = db.session.query(Label).get(GLOBALS.vhl_id)
             label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
-            label_list.extend(getChildList(vhl,int(task_id)))
+            for task_id in task_ids:
+                label_list.extend(getChildList(vhl,int(task_id)))
             baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+        if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+
+        if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
         for n in range(24):
             count = baseQuery.filter(extract('hour',Image.corrected_timestamp)==n).distinct().count()
@@ -1933,56 +1973,93 @@ def getPolarDataIndividual(individual_id, baseUnit):
 
     return json.dumps({'data':reply})
 
-@app.route('/getBarData/<task_id>/<species_id>/<baseUnit>/<axis>')
+@app.route('/getBarData', methods=['POST'])
 @login_required
-def getBarData(task_id, species_id, baseUnit, axis):
+def getBarData():
     '''
     Returns the bar graph data for the requested species and task.
 
         Parameters:
-            task_id (int): The task for which the data is required
-            species_id (int): The species fow which data is required
+            task_ids (int): The tasks for which the data is required
+            species (str): The species for which data is required
             baseUnit (str): The desired base unit (image, cluster, or labelgroup)
             axis (str): The type of count - either a survey or trapgroup count
+            startDate (str): The start date for the data
+            endDate (str): The end date for the data
     '''
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    axis = ast.literal_eval(request.form['axis'])
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        startDate = None
+        endDate = None
 
-    reply = []
-    task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user):
+    data = []
+    labels = []
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+        else:
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+        task_ids = [r[0] for r in tasks]
+        survey_ids = list(set([r[1] for r in tasks]))
+   
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
         elif baseUnit == '2':
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup).filter(Cluster.task_id==int(task_id))
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup).filter(Cluster.task_id.in_(task_ids))
         elif baseUnit == '3':
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
         baseQuery = baseQuery.join(Camera)\
                             .join(Trapgroup)\
-                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if species_id != '0':
-            label = db.session.query(Label).get(int(species_id))
-            label_list = [label.id]
-            label_list.extend(getChildList(label,int(task_id)))
+        if species != '0':
+            labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
             baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
         else:
             vhl = db.session.query(Label).get(GLOBALS.vhl_id)
             label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
-            label_list.extend(getChildList(vhl,int(task_id)))
+            for task_id in task_ids:
+                label_list.extend(getChildList(vhl,int(task_id)))
             baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+        if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+
+        if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
         if axis == '1': #survey count
             count = baseQuery.distinct().count()
-            reply = [count]
+            data = [count]
+            labels = ['Surveys Count']
 
         elif axis == '2': #Trapgroup count
-            for trapgroup in db.session.query(Task).get(int(task_id)).survey.trapgroups[:]:
-                count = baseQuery.filter(Trapgroup.id==trapgroup.id).distinct().count()
-                reply.append(count)
+            trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
+            check_data = {}
+            for trapgroup in trapgroups:
+                count = baseQuery.filter(Trapgroup.tag==trapgroup.tag).distinct().count()
 
-    return json.dumps(reply)
+                key = (trapgroup.latitude,trapgroup.longitude,trapgroup.tag)
+                if key not in check_data:
+                    check_data[key] = count
+                else:
+                    check_data[key] += count
+
+            data = list(check_data.values())
+            labels = [str(x[2]) for x in check_data.keys()]
+
+    return json.dumps({'data' :data, 'labels': labels})
 
 
 @app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_tag>', methods=['POST'])
@@ -5239,16 +5316,22 @@ def getClustersBySpecies(task_id, species, tag_id):
 
     return json.dumps(list(set(clusters)))
 
-@app.route('/getTrapgroups/<task_id>')
+@app.route('/getTrapgroups', methods=['POST'])
 @login_required
-def getTrapgroups(task_id):
-    '''Returns the names and IDs of the trapgroups for the specified task.'''
+def getTrapgroups():
+    '''Returns the names and IDs of the trapgroups for the specified tasks.'''
+
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    if task_ids:
+        if task_ids[0] == '0':
+            surveys = db.session.query(Survey.id).filter(Survey.user==current_user).all()
+        else:
+            surveys = db.session.query(Survey.id).filter(Survey.user==current_user).filter(Survey.tasks.any(Task.id.in_(task_ids))).all()
+        survey_ids = [r[0] for r in surveys]
     
-    task = db.session.query(Task).get(int(task_id))
-    names = ['None','All']
-    ids = [-1,0]
-    if task and (task.survey.user==current_user):
-        trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).order_by(Trapgroup.tag).all()
+        names = ['None','All']
+        ids = [-1,0]
+        trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).order_by(Trapgroup.tag).distinct().all()
         for trapgroup in trapgroups:
             names.append(trapgroup.tag)
             ids.append(trapgroup.id)
@@ -5293,19 +5376,30 @@ def getSurveyClassifications(survey_id):
         
     return json.dumps(classList)
 
-@app.route('/getCoords/<task_id>')
+@app.route('/getCoords', methods=['POST'])
 @login_required
-def getCoords(task_id):
+def getCoords():
     '''Returns a list of trapgroup latitudes, longitudes and altitudes for the specified task.'''
 
+    task_ids = ast.literal_eval(request.form['task_ids'])
     trapgroups = []
-    task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user == current_user):
-        for trapgroup in task.survey.trapgroups[:]:
-            item = {'name':trapgroup.tag,'latitude':trapgroup.latitude,'longitude':trapgroup.longitude,'altitude':trapgroup.altitude}
-            trapgroups.append(item)
+    trapgroups_data = []
 
-    return json.dumps({'trapgroups':trapgroups})
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).all()
+        else:
+            tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+
+        for task in tasks:
+            trapgroups.extend(task.survey.trapgroups)
+
+        for trapgroup in trapgroups:
+            item = {'tag':trapgroup.tag,'latitude':trapgroup.latitude,'longitude':trapgroup.longitude,'altitude':trapgroup.altitude}
+            if item not in trapgroups_data:
+                trapgroups_data.append(item)    
+
+    return json.dumps({'trapgroups':trapgroups_data})
 
 @app.route('/getCoordsIndividual/<individual_id>')
 @login_required
@@ -5326,9 +5420,9 @@ def getCoordsIndividual(individual_id):
 
     return json.dumps({'trapgroups':trapgroups_data})
 
-@app.route('/getTrapgroupCounts/<task_id>/<species>/<baseUnit>')
+@app.route('/getTrapgroupCounts', methods=['POST'])
 @login_required
-def getTrapgroupCounts(task_id,species,baseUnit):
+def getTrapgroupCounts():
     '''
     Returns the counts of the given species base units for each trapgroup of the specified task.
     
@@ -5337,23 +5431,41 @@ def getTrapgroupCounts(task_id,species,baseUnit):
             species (str): The species ID. 0 returns all species.
             baseUnit (int): The base unit to be counted - images (1), clusters (2), or labelgroups (3)
     '''
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
 
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        startDate = None
+        endDate = None
+    app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, startDate: {}, endDate: {}'.format(task_ids,species,baseUnit,startDate,endDate))
     data = []
     maxVal = 0
-    task = db.session.query(Task).get(task_id)
-    if task and (current_user == task.survey.user):
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).all()
+        else:
+            tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+        task_ids = [r.id for r in tasks]
+        app.logger.info(tasks)
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
         elif int(baseUnit) == 2:
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup)
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup).filter(Cluster.task_id.in_(task_ids))
         elif int(baseUnit) == 3:
             baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
-        baseQuery = baseQuery.join(Camera).filter(Labelgroup.task_id==task_id).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden']))
+        baseQuery = baseQuery.join(Camera).filter(Labelgroup.task_id.in_(task_ids)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(Detection.static==False).filter(~Detection.status.in_(['deleted','hidden']))
 
         if species != '0':
-            label = db.session.query(Label).get(int(species))
-            label_list = [label.id]
-            label_list.extend(getChildList(label,int(task_id)))
+            labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
+            app.logger.info('The following labels were found: {}'.format(label_list))
             baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
         else:
             # Check checkboxes
@@ -5371,16 +5483,33 @@ def getTrapgroupCounts(task_id,species,baseUnit):
             if excludeVHL == 'true':
                 label = db.session.query(Label).get(GLOBALS.vhl_id)
                 label_list.append(label.id)
-                label_list.extend(getChildList(label,int(task_id)))
+                for task_id in task_ids:
+                    label_list.extend(getChildList(label,int(task_id)))
 
+            app.logger.info('Exclude the following labels: {}'.format(label_list))
             if len(label_list) != 0:
                 baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
 
-        for trapgroup in task.survey.trapgroups[:]:
+        if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+
+        if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+
+        trapgroups = [trapgroup for task in tasks for trapgroup in task.survey.trapgroups]
+
+        data_check = {}
+
+        for trapgroup in trapgroups:
             item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
-            if item['count'] > maxVal:
-                maxVal = item['count']
-            data.append(item)
+
+            key = (item['lat'],item['lng'], item['tag'])
+            if key not in data_check:
+                data_check[key] = item.copy()
+                maxVal = max(maxVal,item['count'])
+            else:
+                data_check[key]['count'] += item['count']
+                maxVal = max(maxVal,data_check[key]['count'])
+
+        data = list(data_check.values())
 
     return json.dumps({'max':maxVal,'data':data})
 
@@ -5418,24 +5547,22 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
-        trapgroups = []
-        for task in individual.tasks:
-            trapgroups.extend(task.survey.trapgroups[:])
+        trapgroups = [trapgroup for task in tasks for trapgroup in task.survey.trapgroups]
+
+        data_check = {}
 
         for trapgroup in trapgroups:
             item = {'lat':trapgroup.latitude,'lng':trapgroup.longitude,'count': baseQuery.filter(Camera.trapgroup_id==trapgroup.id).distinct().count(),'tag':trapgroup.tag}
-            if item['count'] > maxVal:
-                maxVal = item['count']
-            data.append(item)
 
-        if len(individual.tasks) > 1:           
-            for item in data:
-                for item2 in data:
-                    if item['tag'] == item2['tag'] and item['lat'] == item2['lat'] and item['lng'] == item2['lng'] and item != item2:
-                        item['count'] = item['count'] + item2['count']
-                        data.remove(item2)
-                        if item['count'] > maxVal:
-                            maxVal = item['count']
+            key = (item['lat'],item['lng'], item['tag'])
+            if key not in data_check:
+                data_check[key] = item.copy()
+                maxVal = max(maxVal,item['count'])
+            else:
+                data_check[key]['count'] += item['count']
+                maxVal = max(maxVal,data_check[key]['count'])
+
+        data = list(data_check.values())
 
     return json.dumps({'max':maxVal,'data':data})
 
@@ -7895,3 +8022,19 @@ def results():
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
         return render_template('html/results.html', title='Results', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
 
+
+@app.route('/getAllLabelsAndSites', methods=['POST'])
+@login_required
+def getAllLabelsAndSites():
+    '''Returns all the labels and sites for the specified tasks.'''
+    task_ids = ast.literal_eval(request.form['task_ids'])
+
+    if task_ids:
+        if task_ids[0] == '0':
+            labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+            sites = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+        else:
+            labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
+            sites = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
+
+    return json.dumps({'labels': labels, 'sites': sites})

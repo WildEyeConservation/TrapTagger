@@ -296,8 +296,12 @@ function checkCSV() {
                 columns.push(column)
             }
 
+            var formData = new FormData()
+            formData.append("task_ids", JSON.stringify([selectedTask]))
+            formData.append("species", JSON.stringify(species))
+
             var xhttp = new XMLHttpRequest();
-            xhttp.open("GET", '/checkSightingEditStatus/'+selectedTask+'/'+species);
+            xhttp.open("POST", '/checkSightingEditStatus');
             xhttp.onreadystatechange =
             function(){
                 if (this.readyState == 4 && this.status == 200) {
@@ -310,7 +314,7 @@ function checkCSV() {
                     }
                 }
             }
-            xhttp.send();
+            xhttp.send(formData);
 
         } else {
             column = level+'_'+data

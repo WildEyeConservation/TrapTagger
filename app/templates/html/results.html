@@ -19,35 +19,27 @@ limitations under the License. -->
     <div class="col-lg-3" style="padding-left: 30px;">
         <div class="card" style='min-height:400px' id="filterCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
-                <h3>Generate</h3>
+                <h3>Generate Results</h3>
             </div>
             <div class="card-body" id="filterCardDiv">
                 <div id="baseGenerateDiv">
-                    <h5 style="margin-bottom: 2px">Analysis</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which analysis you want to apply.</i></div>
-                    <div class="row">
-                        <div class='col-lg-8'>
-                            <select id="analysisSelector" class='form-control'>
-                                <option value="0">Test 1</option>
-                                <option value="1">Test 2</option>
-                                <option value="2">Test 3</option>
-                            </select>
-                        </div>
-                    </div>
-                    <br>
-
                     <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to see results for.</i></div>
                     <div id="surveySelect"></div>
                     <div id="addSurveyTask"></div>
                     <div id="surveysErrors" style="font-size: 80%; color: #DF691A"></div>
                     <br>
-                    
-                    <h5 style="margin-bottom: 2px">Species</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species you would like to see results for.</i></div>
+
+                    <h5 style="margin-bottom: 2px">Analysis</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which analysis you want to apply.</i></div>
                     <div class="row">
                         <div class='col-lg-8'>
-                            <select id="resultsSpeciesSelector" class='form-control'>
+                            <select id="analysisSelector" class='form-control'>
+                                <option value="-1">None</option>
+                                <option value="1">Temporal Analysis</option>
+                                <option value="2">Spatial Analysis</option>
+                                <option value="3">Numerical Analysis</option>
+                                <option value="4">Time Analysis</option>
                             </select>
                         </div>
                     </div>
@@ -57,10 +49,10 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which data unit you would like to see results for.</i></div>
                     <div class="row">
                         <div class='col-lg-8'>
-                            <select id="resultsDataUnit" class='form-control'>
-                                <option value="1">Images</option>
+                            <select id="baseUnitSelector" class='form-control'>
                                 <option value="2">Clusters</option>
                                 <option value="3">Sightings</option>
+                                <option value="1">Images</option>
                             </select>
                         </div>
                     </div>
@@ -75,14 +67,14 @@ limitations under the License. -->
                         </div>
                         <div class='col-lg-5'>
                             <label for="endDate">End date:</label><br>
-                            <input type="date" id="endDateCSV" name="endDate">
+                            <input type="date" id="endDate" name="endDate">
                         </div>
                     </div>
-                    <div id="dateErrorsCSV" style="font-size: 80%; color: #DF691A"></div>
+                    <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
                 </div>
                 <br>
 
-                <div id="genrateDiv"></div>
+                <div id="generateDiv"></div>
                 
             </div>
             <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);"></div>          
@@ -93,12 +85,13 @@ limitations under the License. -->
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
             <div class='row' style="margin-top: 0px; margin-bottom: 0px">
                 <div class='col-lg-4'>
-                    <h3>Results</h3>
+                    <h3>Your Results</h3>
                 </div>
             </div>
             </div>
 
             <div class="card-body" id="resultsCard">
+                <div id="statisticsErrors" ></div>
                 <div id="resultsDiv" ></div>   
             </div>
     
@@ -114,4 +107,16 @@ limitations under the License. -->
 {% block page_scripts %}
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <script src="js/camtrap.results.v{{ version }}.js"></script>
+<script src="js/camtrap.results.statistics.v{{ version }}.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+   integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+   integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+   crossorigin=""></script>
+<script src="js/heatmap.min.js"></script>
+<script src="js/leaflet-heatmap.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ" defer></script>
+<script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
 {% endblock %}
