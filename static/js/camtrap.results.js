@@ -388,19 +388,26 @@ function generateResults(){
 
     if (analysisType=='1') {
         //Builds the selectors for the temporal analysis
+        document.getElementById('btnExportResults').disabled = false
         generateTemporal()
     }
     else if (analysisType=='2') {
         //Builds the selectors for the spatial analysis
+        document.getElementById('btnExportResults').disabled = true
         generateSpatial()
     }
     else if (analysisType=='3') {
         //Builds the selectors for the numerical analysis
+        document.getElementById('btnExportResults').disabled = false
         generateNumerical()
     }
     else if (analysisType=='4') {
         //Builds the selectors for the time series analysis
+        document.getElementById('btnExportResults').disabled = false
         generateTime()
+    }
+    else{
+        document.getElementById('btnExportResults').disabled = true
     }
 
 }
@@ -1612,11 +1619,11 @@ function clearResults(){
         generateDiv.removeChild(generateDiv.firstChild);
     }
 
-    surveySelect = document.getElementById('surveySelect')
+    var surveySelect = document.getElementById('surveySelect')
     while(surveySelect.firstChild){
         surveySelect.removeChild(surveySelect.firstChild);
     }
-    addSurveyTask = document.getElementById('addSurveyTask')
+    var addSurveyTask = document.getElementById('addSurveyTask')
     while(addSurveyTask.firstChild){
         addSurveyTask.removeChild(addSurveyTask.firstChild);
     }
@@ -1633,6 +1640,21 @@ function clearResults(){
 
     clearBarColours()
     clearPolarColours()
+}
+
+function exportResults(){
+    /** Exports the charts to an image */
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+    if (analysisSelection != '2'){
+        var canvas = document.getElementById('statisticsChart')
+        var image = canvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+        var link = document.createElement('a');
+        link.download = 'chart.png';
+        link.href = image;
+        link.click();
+    }
+
 }
 
 function onload(){

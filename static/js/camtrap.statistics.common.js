@@ -330,7 +330,8 @@ function updatePolarData(IDNum) {
     /** Requests the dataset associated with the specified ID number, for the active polar chart. */
 
     trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
-    trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
+    trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
+    site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
     speciesSelector = document.getElementById('speciesSelect-'+IDNum)
     species = speciesSelector.options[speciesSelector.selectedIndex].text
     baseUnitSelector = document.getElementById('baseUnitSelector')
@@ -361,6 +362,11 @@ function updatePolarData(IDNum) {
     if (species == 'All') {
         species = '0'
     }
+
+    if (site == 'All') {	
+        site = '0'
+    }
+
     
     if (trapgroup!='-1') {
         var reqID = Math.floor(Math.random() * 100000) + 1;
@@ -370,7 +376,7 @@ function updatePolarData(IDNum) {
         formData.append('task_ids', JSON.stringify(tasks));
         formData.append('species', JSON.stringify(species));
         formData.append('baseUnit', JSON.stringify(baseUnitSelection));
-        formData.append('trapgroup', JSON.stringify(trapgroup));
+        formData.append('trapgroup', JSON.stringify(site));
         formData.append('reqID', JSON.stringify(reqID));
         formData.append('startDate', JSON.stringify(startDate));
         formData.append('endDate', JSON.stringify(endDate));
