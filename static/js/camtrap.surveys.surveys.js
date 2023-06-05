@@ -93,7 +93,6 @@ var surveyClassifications = null
 var tgCheckID = null
 var tgCheckFolder = null
 var tgCheckCode = null
-var tgCheckTimer = null
 var hierarchicalLabels=null
 var detailledStatusCount = 0
 var next_camera_url = null
@@ -104,6 +103,7 @@ var next_classifier_url
 var prev_classifier_url
 var currentDownloads = []
 var currentDownloadTasks = []
+var checkingTGC = false
 
 var s3 = null
 var stopFlag = true
@@ -831,7 +831,6 @@ function pingTgCheck() {
 
             if ((tgCode=='')||(folder=='')) {
                 infoDiv.innerHTML = ''
-                clearInterval(tgCheckTimer)
 
                 var formData = new FormData()
                 formData.append("revoke_id", tgCheckID)
@@ -839,9 +838,9 @@ function pingTgCheck() {
                 xhttp.open("POST", '/checkTrapgroupCode');
                 xhttp.send(formData);
 
-                tgCheckTimer=null
                 tgCheckFolder = null
                 tgCheckCode = null
+                checkingTGC = false
                 checkingTrapgroupCode = false
                 
             } else {
@@ -885,16 +884,16 @@ function pingTgCheck() {
                         if ((tgCheckFolder==folder)&&(tgCheckCode==tgCode)) {
                             if (response.status=='SUCCESS') {
                                 infoDiv.innerHTML = response.data
-                                clearInterval(tgCheckTimer)
-                                tgCheckTimer=null
                                 tgCheckFolder = null
                                 tgCheckCode = null
+                                checkingTGC = false
                             } else if (response.status=='FAILURE') {
                                 infoDiv.innerHTML = 'Check failed.'
-                                clearInterval(tgCheckTimer)
-                                tgCheckTimer=null
                                 tgCheckFolder = null
                                 tgCheckCode = null
+                                checkingTGC = false
+                            } else {
+                                setTimeout(function() { pingTgCheck(); }, 3000)
                             }
                         }
                         checkingTrapgroupCode = false
@@ -905,17 +904,15 @@ function pingTgCheck() {
             }
         }
     } else {
-        clearInterval(tgCheckTimer)
-
         var formData = new FormData()
         formData.append("revoke_id", tgCheckID)
         var xhttp = new XMLHttpRequest();
         xhttp.open("POST", '/checkTrapgroupCode');
         xhttp.send(formData);
 
-        tgCheckTimer=null
         tgCheckFolder = null
         tgCheckCode = null
+        checkingTGC = false
         checkingTrapgroupCode = false
     }
 }
@@ -972,9 +969,10 @@ function checkTrapgroupCode() {
         if ((tgCode!='')&&(folder!='')) {
             infoDiv.innerHTML = 'Checking...'
 
-            if (tgCheckTimer == null) {
+            if (!checkingTGC) {
+                checkingTGC = true
                 pingTgCheck()
-                tgCheckTimer = setTimeout(function() { pingTgCheck(); }, 3000)
+                // tgCheckTimer = setTimeout(function() { pingTgCheck(); }, 3000)
             }
             
             // checkingTrapgroupCode = true
