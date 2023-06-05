@@ -57,6 +57,25 @@ var barColours = {
     'rgba(189,218,138,0.4)': false
 }
 
+var lineColours = {
+        'rgba(89,228,170,0.4)': false,
+        'rgba(42,173,206,0.9)': false,
+        'rgba(176,41,169,0.9)': false,
+        'rgba(60,144,52,0.9)': false,
+        'rgba(32,81,110,0.9)': false,
+        'rgba(195,26,68,0.9)': false,
+        'rgba(86,124,179,0.9)': false,
+        'rgba(137,23,166,0.9)': false,
+        'rgba(98,185,64,0.9)': false,
+        'rgba(215,43,156,0.9)': false,
+        'rgba(114,72,153,0.9)': false,
+        'rgba(173,22,56,0.9)': false,
+        'rgba(53,98,206,0.9)': false,
+        'rgba(96,173,93,0.9)': false,
+        'rgba(194,66,154,0.9)': false,
+        'rgba(79,193,25,0.9)': false
+        }
+
 var globalLabels = []
 var globalSites = []
 var chart = null
@@ -64,6 +83,7 @@ var trapgroupNames
 var trapgroupValues
 var polarData = {}
 var barData = {}
+var lineData = {}
 var map = null
 var trapgroupInfo
 var heatmapLayer = null
@@ -77,6 +97,7 @@ var activeRequest = {}
 var markers = []
 var species_count_warning = false
 var selectedTask = null
+var timeLabels = []
 
 
 function addSurveys(){
@@ -1263,9 +1284,155 @@ function generateNumerical(){
 
 }
 
-function genrateTime(){
+function generateTime(){
     /** Updates the generate results div for time series analysis */
     var generateDiv = document.getElementById('generateDiv')
+
+    lineData = {}
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Time Unit'
+    h5.setAttribute('style','margin-bottom: 2px')
+    generateDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select the time unit you would like to see your results in.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    generateDiv.appendChild(h5)
+    
+    var row = document.createElement('div')
+    row.classList.add('row')
+    generateDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-8')
+    row.appendChild(col1)
+
+    var select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','timeUnitSelector')
+    col1.appendChild(select)
+
+    fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
+    $("#timeUnitSelector").change( function() {
+        updateLine()
+    });
+    select.value = '2'
+
+    generateDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Data'
+    h5.setAttribute('style','margin-bottom: 2px')
+    generateDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select which site and species combinations you would like to see.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    generateDiv.appendChild(h5)
+
+    var selectorColumn = document.createElement('div')
+    selectorColumn.setAttribute('id','selectorColumn')
+    generateDiv.appendChild(selectorColumn)
+
+    buildSpeciesAndSiteSelectorRow()
+
+    var buttonAdd = document.createElement('button')
+    buttonAdd.classList.add('btn')
+    buttonAdd.classList.add('btn-info')
+    buttonAdd.setAttribute('type','button')
+    buttonAdd.setAttribute('id','btnAddSpeciesAndSite')
+    buttonAdd.innerHTML = '+'
+    generateDiv.appendChild(buttonAdd)
+
+    buttonAdd.addEventListener('click', ()=>{
+        buildSpeciesAndSiteSelectorRow()  
+    });
+
+    generateDiv.appendChild(document.createElement('br'))
+    // Line chart
+    var mainDiv = document.getElementById('resultsDiv')
+
+    var div = document.createElement('div')
+    div.classList.add('row')
+    mainDiv.appendChild(div)
+
+    var col = document.createElement('div')
+    col.classList.add('col-lg-1')
+    div.appendChild(col)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    div.appendChild(col1)
+
+    col = document.createElement('div')
+    col.classList.add('col-lg-1')
+    div.appendChild(col)
+
+    div = document.createElement('div')
+    div.classList.add('row')
+    col1.appendChild(div)
+
+    colDiv2 = document.createElement('div')
+    colDiv2.setAttribute('style','padding:4px;margin:0px')
+    colDiv2.classList.add('col-lg-12')
+    div.appendChild(colDiv2)
+
+    canvas = document.createElement('canvas')
+    canvas.setAttribute('id','statisticsChart')
+    canvas.setAttribute('height','650')
+    colDiv2.appendChild(canvas)
+
+    var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+    var data = {
+        datasets: [],
+        labels: []
+    };
+
+    var options = {
+        maintainAspectRatio: false,
+        legend: {
+            display: false
+        },
+        tooltips: {
+            displayColors: false,
+            callbacks: {
+                title: function(tooltipItems, data) {
+                    return '';
+                },
+                label: function(tooltipItem, data) {
+                    var label = data.labels[tooltipItem.index];
+                    return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                }           
+            }
+        },
+        ticks: {
+            min: 0
+        },
+        scales: {
+            yAxes: [{
+                ticks: {
+                    fontColor: "white",
+                    beginAtZero: true
+                }
+            }],
+            xAxes: [{
+                ticks: {
+                    fontColor: "white"
+                }
+            }]
+        }
+    }
+
+    chart = new Chart(ctx, {
+        data: data,
+        type: 'line',
+        options: options
+    });
+
+
+    updateLineData(0)
 
 }
 
@@ -1311,8 +1478,17 @@ function buildSpeciesAndSiteSelectorRow(){
 
     $("#"+siteSelector.id).change( function(wrapIDNum) {
         return function() {
-            updatePolarData(wrapIDNum)
-            updatePolarErrors()
+            var analysisSelector = document.getElementById('analysisSelector')
+            var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+            if (analysisSelection == '1') {
+                updatePolarData(wrapIDNum)
+                updatePolarErrors()
+            }
+            else if (analysisSelection == '4') {
+                updateLineData(wrapIDNum)
+                updateLineErrors()
+            }
+            
         }
     }(IDNum));
     
@@ -1329,9 +1505,17 @@ function buildSpeciesAndSiteSelectorRow(){
     fillSelect(speciesSelector, speciesOptionTexts, speciesOptionValues)
 
     $("#"+speciesSelector.id).change( function(wrapIDNum) {
+        var analysisSelector = document.getElementById('analysisSelector')
+        var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
         return function() {
-            updatePolarData(wrapIDNum)
-            updatePolarErrors()
+            if (analysisSelection == '1') {
+                updatePolarData(wrapIDNum)
+                updatePolarErrors()
+            }
+            else if (analysisSelection == '4') {
+                updateLineData(wrapIDNum)
+                updateLineErrors()
+            }
         }
     }(IDNum));
 
@@ -1343,14 +1527,28 @@ function buildSpeciesAndSiteSelectorRow(){
     col3.appendChild(btnRemove);
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
-            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-            colour = btnRemove.style.backgroundColor
-            removePolarData(colour)
-            btnRemove.parentNode.parentNode.remove();
-            if (polarData.hasOwnProperty(wrapIDNum.toString())) {
-                delete polarData[wrapIDNum.toString()]
+            var analysisSelector = document.getElementById('analysisSelector')
+            var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+            if (analysisSelection == '1') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                colour = btnRemove.style.backgroundColor
+                removePolarData(colour)
+                btnRemove.parentNode.parentNode.remove();
+                if (polarData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete polarData[wrapIDNum.toString()]
+                }
+                updatePolarErrors()
             }
-            updatePolarErrors()
+            else if (analysisSelection == '4') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                colour = btnRemove.style.backgroundColor
+                removeLineData(colour)
+                btnRemove.parentNode.parentNode.remove();
+                if (lineData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete lineData[wrapIDNum.toString()]
+                }
+                updateLineErrors()
+            }
         }
     }(IDNum));
     
@@ -1444,6 +1642,10 @@ function updateResults(tasksChanged=false){
         }
         updateBar()
     }
+    else if (analysisSelection == '4') {
+        timeLabels = []
+        updateLine()
+    }
 }
 
 function updatePolar(){
@@ -1466,6 +1668,18 @@ function updateBar(){
     else{
         for (let IDNum in barData) {
             updateBarData(IDNum)
+        }
+    }
+}
+
+function updateLine(){
+    /** Updates the line chart  */
+    if (lineData.length == 0) {
+        updateLineData(0)
+    }
+    else{
+        for (let IDNum in lineData) {
+            updateLineData(IDNum)
         }
     }
 }
@@ -1585,6 +1799,9 @@ $('#baseUnitSelector').on('change', function() {
     else if (analysisSelection == '3') {
         updateBaseUnitBar()
     }
+    else if (analysisSelection == '4') {
+        updateBaseUnitLine()
+    }
 });
 
 $('#startDate').on('change', function() {
@@ -1640,6 +1857,9 @@ function clearResults(){
 
     clearBarColours()
     clearPolarColours()
+    removeLineColours()
+
+    timeLabels = []
 }
 
 function exportResults(){

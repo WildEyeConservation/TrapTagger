@@ -792,6 +792,7 @@ function updateHeatMap() {
 }
 
 function checkDates(){
+    /** Checks that the start date is before the end date. */
     var valid = true
     var startDate = document.getElementById('startDate').value
     var endDate = document.getElementById('endDate').value
@@ -805,4 +806,342 @@ function checkDates(){
     }
 
     return valid
+}
+
+function updateLineData(IDNum){
+    /** Updates the line chart data. */
+    trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
+    trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
+    site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
+    speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+    species = speciesSelector.options[speciesSelector.selectedIndex].text
+    selection = speciesSelector.options[speciesSelector.selectedIndex].value
+    baseUnitSelector = document.getElementById('baseUnitSelector')
+    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    timeUnitSelector = document.getElementById('timeUnitSelector')
+    timeUnitSelection = timeUnitSelector.options[timeUnitSelector.selectedIndex].value
+    startDate = document.getElementById('startDate').value
+    endDate = document.getElementById('endDate').value
+
+    if(startDate != ''){
+        startDate = startDate + ' 00:00:00'
+    }
+    else{
+        startDate = ''
+    }
+
+    if(endDate != ''){
+        endDate = endDate + ' 23:59:59'
+    }
+    else{
+        endDate = ''
+    }
+
+    if(selectedTask){
+        var tasks = [selectedTask]
+    }else{
+        var tasks = getSelectedTasks()
+    }
+
+    if (species == 'All') {
+        species = '0'
+    }
+
+    if (site == 'All') {	
+        site = '0'
+    }
+
+    var formData = new FormData();
+    formData.append('task_ids', JSON.stringify(tasks));
+    formData.append('species', JSON.stringify(species));
+    formData.append('baseUnit', JSON.stringify(baseUnitSelection));
+    formData.append('trapgroup', JSON.stringify(site));
+    formData.append('timeUnit', JSON.stringify(timeUnitSelection));
+    formData.append('startDate', JSON.stringify(startDate));
+    formData.append('endDate', JSON.stringify(endDate));
+
+    if (trapgroup!='-1' && selection != '-1') {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(wrapIDNum){
+            return function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    response = JSON.parse(this.responseText);
+
+                    IDkey = wrapIDNum.toString()
+
+                    if (startDate != '' && endDate != '') {
+                        timeLabels = response.labels
+                    } else {
+                        updateTimeLabels(response.labels)
+                    }
+                    chart.data.labels = timeLabels
+
+                    if (!lineData.hasOwnProperty(IDkey)) {
+                        colour = null
+                        for (let key in lineColours) {
+                            if (lineColours[key]==false) {
+                                lineColours[key] = true
+                                colour = key
+                                break
+                            }
+                        }
+                        if (colour != null) {
+                            btnColour = colour
+                            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                            btnRemove.setAttribute('style','background-color: '+btnColour)
+                            lineData[IDkey] = {}
+                            lineData[IDkey]['colour'] = colour
+                            lineData[IDkey]['new'] = true
+                        }
+                    }
+
+                    lineData[IDkey]['data'] = response.data
+                    lineData[IDkey]['labels'] = response.labels
+
+                    if (startDate != '' && endDate != '') {
+                        updateLineDisplay(wrapIDNum)
+                    } else {
+                        updatLineDataAndLabels()
+
+                        for (let IDNum in lineData) {
+                            updateLineDisplay(IDNum)
+                        }
+                    }
+                }
+            }
+        }(IDNum);
+        xhttp.open("POST", 'getLineData');
+        xhttp.send(formData);
+    } else {
+        IDkey = IDNum.toString()
+        if (lineData.hasOwnProperty(IDkey)) {
+            lineData[IDkey]['data'] = []
+            lineData[IDkey]['labels'] = []
+            updateLineDisplay(IDNum)
+        }
+    }
+}
+
+function updateLineDisplay(IDNum){
+    /** Updates the line chart display. */
+    IDkey = IDNum.toString()
+    data = lineData[IDkey]['data']
+    colour = lineData[IDkey]['colour']
+
+    if (lineData[IDkey]['new']) {
+        addLineData(data,colour)
+        lineData[IDkey]['new'] = false
+    } else {
+        editLineData(data,colour)
+    }
+}
+
+function addLineData(data,colour) {
+    /**
+     * Adds the stipulated data to an active line chart.
+     * @param {arr} data The data points
+     * @param {str} colour The colour with which to display the data
+     */
+    
+    dataset = {
+        data: data,
+        hoverBackgroundColor: colour,
+        borderColor: colour,
+        borderWidth: 2,
+        fill: false,
+        tension : 0.1
+    }
+    chart.data.datasets.push(dataset)
+    chart.update()
+}
+
+function editLineData(data,colour) {
+    /** Edits the stipulated data in an active line chart. */
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].borderColor==colour) {
+            chart.data.datasets[i].data=data
+            break
+        }
+    }
+    chart.update()
+}
+
+function updateLineErrors() {
+    /** Checks for sighting counts in the current polar chart, and displays a warning if a species has not had its sightings checked. */
+
+    baseUnitSelector = document.getElementById('baseUnitSelector')
+    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+
+    document.getElementById('statisticsErrors').innerHTML = ''
+
+    if (baseUnitSelection == '3') {
+        species_count_warning = false
+        for (let IDNum in polarData) {
+            speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+            species = speciesSelector.options[speciesSelector.selectedIndex].text
+
+            if(selectedTask){
+                var tasks = [selectedTask]
+            }else{
+                var tasks = getSelectedTasks()
+            }
+
+            var formData = new FormData()
+            formData.append("task_ids", JSON.stringify(tasks))
+            formData.append("species", JSON.stringify(species))
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", '/checkSightingEditStatus');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    if ((reply.status=='warning')&&(species_count_warning==false)) {
+                        species_count_warning = true
+                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                    }
+                }
+            }
+            xhttp.send(formData);
+        }
+    }
+}
+
+function updateBaseUnitLine() {
+    /** Updates the base unit of the active polar chart */
+
+    document.getElementById('statisticsErrors').innerHTML = ''
+    species_count_warning = false
+    for (let IDNum in lineData) {
+        updateLineData(IDNum)
+
+        if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
+            speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+            species = speciesSelector.options[speciesSelector.selectedIndex].text
+
+            if(selectedTask){
+                var tasks = [selectedTask]
+            }else{
+                var tasks = getSelectedTasks()
+            }
+
+            var formData = new FormData()
+            formData.append("task_ids", JSON.stringify(tasks))
+            formData.append("species", JSON.stringify(species))
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", '/checkSightingEditStatus');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    if ((reply.status=='warning')&&(species_count_warning==false)) {
+                        species_count_warning = true
+                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                    }
+                }
+            }
+            xhttp.send(formData);
+        }
+    }
+}
+
+function removeLineData(colour) {
+
+    /**
+     * Removes a dataset from the active line chart based on colour.
+     * @param {str} colour The colour dataset to remove
+     */
+
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].borderColor==colour) {
+            chart.data.datasets.splice(i, 1);
+            break
+        }
+    }
+    lineColours[colour] = false
+    chart.update()
+
+
+}
+
+function removeLineColours(){
+    /** Clears the lineColours object */
+    for (let key in lineColours) {
+        lineColours[key] = false
+    }
+}
+
+function updateTimeLabels(labels) {
+    /** Updates the line chart's labels*/
+    var timeUnitSelector = document.getElementById('timeUnitSelector');
+    var timeUnitSelection = timeUnitSelector.options[timeUnitSelector.selectedIndex].value;
+
+    var dTimeLabels = timeLabels.map(date => new Date(date));
+    var dLabels = labels.map(date => new Date(date));
+
+    var min_date = new Date(Math.min(...dTimeLabels, ...dLabels));
+    var max_date = new Date(Math.max(...dTimeLabels, ...dLabels));
+
+    while (min_date <= max_date) {
+        if (timeUnitSelection === '1') {
+            if (!dTimeLabels.some(d => d.getDate() === min_date.getDate() && d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
+                dTimeLabels.push(new Date(min_date));
+            }
+            min_date.setDate(min_date.getDate() + 1);
+        } else if (timeUnitSelection === '2') {
+            if (!dTimeLabels.some(d => d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
+                dTimeLabels.push(new Date(min_date));
+            }
+            min_date.setMonth(min_date.getMonth() + 1);
+        } else if (timeUnitSelection === '3') {
+            if (!dTimeLabels.some(d => d.getFullYear() === min_date.getFullYear())) {
+                dTimeLabels.push(new Date(min_date));
+            }
+            min_date.setFullYear(min_date.getFullYear() + 1);
+        }
+    }
+
+    dTimeLabels.sort((a, b) => a.getTime() - b.getTime());
+
+    if (timeUnitSelection === '1') {
+        timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }));
+    } else if (timeUnitSelection === '2') {
+        timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }));
+    } else if (timeUnitSelection === '3') {
+        timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric' }));
+    }
+
+}
+
+
+function updatLineDataAndLabels(){
+    /** Updates the line data to correspond to the correct labels */
+
+    for (let IDNum in lineData) {
+        if (lineData[IDNum]['data'].length != timeLabels.length || lineData[IDNum]['labels'][0] != timeLabels[0]) {
+            temp_data = lineData[IDNum]['data']
+            temp_labels = lineData[IDNum]['labels']
+            lineData[IDNum]['data'] = []
+            lineData[IDNum]['labels'] = []
+            for (let i=0;i<timeLabels.length;i++) {
+                if (temp_labels.includes(timeLabels[i])) {
+                    lineData[IDNum]['data'].push(temp_data[temp_labels.indexOf(timeLabels[i])])
+                    lineData[IDNum]['labels'].push(timeLabels[i])
+                } else {
+                    lineData[IDNum]['data'].push(0)
+                    lineData[IDNum]['labels'].push(timeLabels[i])
+                }
+            }
+        }
+    }
 }

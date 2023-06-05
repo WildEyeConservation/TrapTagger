@@ -277,17 +277,28 @@ limitations under the License. -->
                 <br>
                 <div class="row">
                     <div class="col-lg-1"></div>
-                    <div class="col-lg-2">
-                        <h5 style="margin-bottom: 2px">Individual Statistics:</h5>
-
-                        <select name='statsSelect' id='statsSelect' class='form-control'>
-                            <option value="0">None</option>
-                            <option value="1">Temporal Analysis</option>
-                            <option value="2" selected>Spatial Analysis</option>
-                            <option value="3">Time Analysis</option>
-                        </select>
-
+                    <div class="col-lg-10">
+                        <div class="row">
+                            <div class="col-lg-2">
+                                <h5 style="margin-bottom: 2px">Individual Statistics:</h5>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-lg-2">
+                                <select name='statsSelect' id='statsSelect' class='form-control'>
+                                    <option value="0">None</option>
+                                    <option value="1">Temporal Analysis</option>
+                                    <option value="2" selected>Spatial Analysis</option>
+                                    <option value="3">Numerical Analysis</option>
+                                    <option value="4">Time Analysis</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-2">
+                                <button type="button" class="btn btn-primary" id="btnExportIndivStats" onclick=exportIndivResults()>Export</button>
+                            </div>
+                        </div>
                     </div>
+                    <div class="col-lg-1"></div>
                 </div>
                 <div class="row">
                     <div class="col-lg-1"></div>

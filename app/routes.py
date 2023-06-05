@@ -54,6 +54,7 @@ import PIL
 from PIL import ImageDraw, ImageFont
 import io
 import tracemalloc
+import calendar
 
 tracemalloc.start(40)
 
@@ -2059,23 +2060,33 @@ def getBarData():
 
     return json.dumps({'data' :data, 'labels': labels})
 
-
-@app.route('/getBarDataIndividual/<individual_id>/<baseUnit>/<site_tag>', methods=['POST'])
+@app.route('/getBarDataIndividual', methods=['POST'])
 @login_required
-def getBarDataIndividual(individual_id, baseUnit, site_tag):
+def getBarDataIndividual():
     '''
     Returns the bar graph data for the requested species and task.
 
         Parameters:
-            individual_id (int): The indidvidual for which the data is required
-            baseUnit (str): The desired base unit (image, cluster, or sightning)
-            site_id (int): The site for which data is required
+            individual_id (int): The individual id for which data is required
+            baseUnit (str): The desired base unit (image, cluster, or labelgroup)
+            axis (str): The type of count - either a survey or trapgroup count
+            startDate (str): The start date for the data
+            endDate (str): The end date for the data
     '''
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    axis = ast.literal_eval(request.form['axis'])
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        startDate = None
+        endDate = None
 
-    reply = []
-    start_date = ast.literal_eval(request.form['start_date'])
-    end_date = ast.literal_eval(request.form['end_date'])
+    if Config.DEBUGGING: app.logger.info('Bar data requested for Individual {} {} {} {} {}'.format(individual_id,baseUnit,axis,startDate,endDate))
 
+    data = []
+    labels = []
     individual = db.session.query(Individual).get(int(individual_id))
     if individual and (individual.tasks[0].survey.user==current_user):
         if baseUnit == '1':
@@ -2091,32 +2102,32 @@ def getBarDataIndividual(individual_id, baseUnit, site_tag):
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if site_tag != '0':
-            baseQuery = baseQuery.filter(Trapgroup.tag == site_tag)
+        if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
 
-        if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
+        if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
-        if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
+        if axis == '1': #survey count
+            count = baseQuery.distinct().count()
+            app.logger.info(count)
+            data = [count]
+            labels = ['Surveys Count']
 
-        if start_date and end_date:
-            reply = [0]
-            startDate = datetime.strptime(start_date, '%Y/%m/%d %H:%M:%S')
-            endDate = datetime.strptime(end_date, '%Y/%m/%d %H:%M:%S')
-            day_count = (endDate - startDate).days + 1
-            date_list = [startDate + timedelta(days=x) for x in range(day_count)]
-            
-            for n in range(day_count):
-                year = date_list[n].year
-                month = date_list[n].month
-                day = date_list[n].day
-                count = baseQuery.filter(extract('year',Image.corrected_timestamp)==year).filter(extract('month',Image.corrected_timestamp)==month).filter(extract('day',Image.corrected_timestamp)==day).distinct().count()
-                reply.append(count)       
+        elif axis == '2': #Trapgroup count
+            trapgroups = [trapgroup for task in individual.tasks for trapgroup in task.survey.trapgroups]
+            check_data = {}
+            for trapgroup in trapgroups:
+                count = baseQuery.filter(Trapgroup.tag==trapgroup.tag).distinct().count()
 
-            reply.append(0)
-            date_list.insert(0, startDate - timedelta(days=1))
-            date_list.append(endDate + timedelta(days=1))
+                key = (trapgroup.latitude,trapgroup.longitude,trapgroup.tag)
+                if key not in check_data:
+                    check_data[key] = count
+                else:
+                    check_data[key] += count
 
-    return json.dumps({'data' :reply, 'labels': [date.strftime('%Y/%m/%d') for date in date_list]})
+            data = list(check_data.values())
+            labels = [str(x[2]) for x in check_data.keys()]
+
+    return json.dumps({'data' :data, 'labels': labels})
 
 @app.route('/setAdminTask/<task>')
 @login_required
@@ -5547,7 +5558,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 
         if end_date: baseQuery = baseQuery.filter(Image.corrected_timestamp <= end_date)
 
-        trapgroups = [trapgroup for task in tasks for trapgroup in task.survey.trapgroups]
+        trapgroups = [trapgroup for task in individual.tasks for trapgroup in task.survey.trapgroups]
 
         data_check = {}
 
@@ -8038,3 +8049,272 @@ def getAllLabelsAndSites():
             sites = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
 
     return json.dumps({'labels': labels, 'sites': sites})
+
+@app.route('/getLineData', methods=['POST'])
+@login_required
+def getLineData():
+    '''
+    Returns the time activity data for the requested species and task.
+    
+        Parameters:
+            task_id (int): The task for which the data is required
+            trapgroup (str): The trapgroup for which data is required
+            species (str): The species fow which data is required
+            baseUnit (str): The desired base unit (image, cluster, or labelgroup)
+            timeUnit (str): The desired time unit  day, week, month, or year)
+            startDate (str): The start date for the data
+            endDate (str): The end date for the data
+    '''
+
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    species = ast.literal_eval(request.form['species'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    trapgroup = ast.literal_eval(request.form['trapgroup'])
+    timeUnit = ast.literal_eval(request.form['timeUnit'])
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        startDate = None
+        endDate = None
+
+    if Config.DEBUGGING: app.logger.info('Line data requested for {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,timeUnit,trapgroup,startDate,endDate))
+
+    data = []
+    data_labels = []
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+        else:
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+        task_ids = [r[0] for r in tasks]
+        survey_ids = list(set([r[1] for r in tasks]))
+
+        if baseUnit == '1': # Image
+            baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
+        elif baseUnit == '2': # Cluster
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).join(Labelgroup).filter(Cluster.task_id.in_(task_ids))
+        elif baseUnit == '3':  # Detection
+            baseQuery = db.session.query(Labelgroup).join(Detection).join(Image)
+        baseQuery = baseQuery.join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Labelgroup.task_id.in_(task_ids))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+        if trapgroup == '0':
+            baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
+        else:
+            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
+
+        if species != '0':
+            labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
+            baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
+        else:
+            vhl = db.session.query(Label).get(GLOBALS.vhl_id)
+            label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
+            for task_id in task_ids:
+                label_list.extend(getChildList(vhl,int(task_id)))
+            baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+        if startDate: 
+            baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+            first_date = startDate
+        else:
+            first_date = baseQuery.filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).first()
+            if first_date:
+                if baseUnit == '1':
+                    first_date = first_date.corrected_timestamp
+                elif baseUnit == '2':
+                    first_date = first_date.images[0].corrected_timestamp
+                elif baseUnit == '3':
+                    first_date = first_date.detection.image.corrected_timestamp
+
+        if endDate: 
+            baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+            last_date = endDate
+        else:
+            last_date = baseQuery.filter(Image.corrected_timestamp!=None).order_by(desc(Image.corrected_timestamp)).first()
+            if last_date:
+                if baseUnit == '1':
+                    last_date = last_date.corrected_timestamp
+                elif baseUnit == '2':
+                    last_date = last_date.images[0].corrected_timestamp
+                elif baseUnit == '3':
+                    last_date = last_date.detection.image.corrected_timestamp
+                
+        if first_date and last_date:
+            first_date = str(first_date).split(' ')[0]
+            last_date = str(last_date).split(' ')[0]
+            if timeUnit == '1': # Day
+                date_range = pd.date_range(first_date, last_date, freq='D')
+                if date_range.size == 0:
+                    date_range = [pd.to_datetime(first_date)]
+                elif date_range.size <= 100:
+                    for date in date_range:
+                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
+                                        .filter(extract('day',Image.corrected_timestamp)==date.day)\
+                                        .distinct().count()
+                        data.append(count)
+                        data_labels.append(date.strftime('%d %b %Y'))
+                else:
+                    timeUnit = '2'
+
+            if timeUnit == '2': # Month
+                first_date = first_date.split('-')[0] + '-' + first_date.split('-')[1]	
+                last_date = last_date.split('-')[0] + '-' + last_date.split('-')[1]
+                date_range = pd.date_range(first_date, last_date, freq='MS')
+                if date_range.size == 0:
+                    date_range = [pd.to_datetime(first_date)]
+                elif date_range.size <= 100:
+                    for date in date_range:
+                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
+                                        .distinct().count()
+                        data.append(count)
+                        data_labels.append(calendar.month_abbr[date.month] + ' ' + str(date.year))
+                else:
+                    timeUnit = '3'
+
+            if timeUnit == '3': # Year
+                first_date = first_date.split('-')[0]
+                last_date = last_date.split('-')[0]
+                date_range = pd.date_range(first_date, last_date, freq='AS')
+                if date_range.size == 0:
+                    date_range = [pd.to_datetime(first_date)]
+                elif date_range.size > 100:
+                    date_range = date_range[0:100]
+                for date in date_range:
+                    count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+                                    .distinct().count()
+                    data.append(count)
+                    data_labels.append(str(date.year))
+
+    return json.dumps({'data': data, 'labels': data_labels})
+
+
+@app.route('/getLineDataIndividual', methods=['POST'])
+@login_required
+def getLineDataIndividual():
+    '''
+    Returns the time activity data for the requested individual.
+    
+        Parameters:
+            individual_id (int): The individual for which the data is required
+            trapgroup (str): The trapgroup for which data is required
+            baseUnit (str): The desired base unit (image, cluster, or labelgroup)
+            timeUnit (str): The desired time unit  day, week, month, or year)
+            startDate (str): The start date for the data
+            endDate (str): The end date for the data
+    '''
+
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    trapgroup = ast.literal_eval(request.form['trapgroup'])
+    timeUnit = ast.literal_eval(request.form['timeUnit'])
+    startDate = ast.literal_eval(request.form['startDate'])
+    endDate = ast.literal_eval(request.form['endDate'])
+
+    if Config.DEBUGGING: app.logger.info('Line data requested for individual {} {} {} {} {} {}'.format(individual_id,baseUnit,timeUnit,trapgroup,startDate,endDate))
+
+    data = []
+    data_labels = []
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and (individual.tasks[0].survey.user==current_user):
+        if baseUnit == '1': # Image
+            baseQuery = db.session.query(Image).join(Detection)
+        elif baseUnit == '2': # Cluster
+            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id.in_([r.id for r in individual.tasks]))
+        elif baseUnit == '3':  # Detection
+            baseQuery = db.session.query(Detection).join(Image)
+        baseQuery = baseQuery.join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+        if trapgroup != '0':
+            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup)
+
+        if startDate: 
+            baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+            first_date = startDate
+        else:
+            first_date = baseQuery.filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).first()
+            if first_date:
+                if baseUnit == '1':
+                    first_date = first_date.corrected_timestamp
+                elif baseUnit == '2':
+                    first_date = first_date.images[0].corrected_timestamp
+                elif baseUnit == '3':
+                    first_date = first_date.detection.image.corrected_timestamp
+
+        if endDate: 
+            baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+            last_date = endDate
+        else:
+            last_date = baseQuery.filter(Image.corrected_timestamp!=None).order_by(desc(Image.corrected_timestamp)).first()
+            if last_date:
+                if baseUnit == '1':
+                    last_date = last_date.corrected_timestamp
+                elif baseUnit == '2':
+                    last_date = last_date.images[0].corrected_timestamp
+                elif baseUnit == '3':
+                    last_date = last_date.detection.image.corrected_timestamp
+                
+        if first_date and last_date:
+            first_date = str(first_date).split(' ')[0]
+            last_date = str(last_date).split(' ')[0]
+            if timeUnit == '1': # Day
+                date_range = pd.date_range(first_date, last_date, freq='D')
+                if date_range.size == 0:
+                    date_range = [pd.to_datetime(first_date)]
+                elif date_range.size <= 100:
+                    for date in date_range:
+                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
+                                        .filter(extract('day',Image.corrected_timestamp)==date.day)\
+                                        .distinct().count()
+                        data.append(count)
+                        data_labels.append(date.strftime('%d %b %Y'))
+                else:
+                    timeUnit = '2'
+
+            if timeUnit == '2': # Month
+                first_date = first_date.split('-')[0] + '-' + first_date.split('-')[1]	
+                last_date = last_date.split('-')[0] + '-' + last_date.split('-')[1]
+                date_range = pd.date_range(first_date, last_date, freq='MS')
+                if date_range.size == 0:
+                    date_range = [pd.to_datetime(first_date)]
+                elif date_range.size <= 100:
+                    for date in date_range:
+                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
+                                        .distinct().count()
+                        data.append(count)
+                        data_labels.append(calendar.month_abbr[date.month] + ' ' + str(date.year))
+                else:
+                    timeUnit = '3'
+
+            if timeUnit == '3': # Year
+                first_date = first_date.split('-')[0]
+                last_date = last_date.split('-')[0]
+                date_range = pd.date_range(first_date, last_date, freq='AS')
+                if date_range.size == 0:
+                    date_range = [pd.to_datetime(first_date)]
+                elif date_range.size > 100:
+                    date_range = date_range[0:100]
+                for date in date_range:
+                    count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+                                    .distinct().count()
+                    data.append(count)
+                    data_labels.append(str(date.year))
+
+    return json.dumps({'data': data, 'labels': data_labels})

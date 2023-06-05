@@ -13,6 +13,10 @@
 // limitations under the License.
 
 var mapStats = null
+var timeLabels = []
+var polarData = {}
+var barData = {}
+var lineData = {}
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
                     'rgba(223,105,26,0.2)':false,
@@ -26,37 +30,33 @@ var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(140,26,234,0.2)':false
                 }
 
-var barColours = [
-    'rgba(67,115,98,0.4)',
-    'rgba(89,228,170,0.4)',
-    'rgba(97,167,152,0.4)',
-    'rgba(57,159,113,0.4)',
-    'rgba(35,108,144,0.4)',
-    'rgba(20,48,55,0.4)',
-    'rgba(61,105,121,0.4)',
-    'rgba(104,38,137,0.4)',
-    'rgba(88,63,124,0.4)',
-    'rgba(78,46,176,0.4)',
-    'rgba(182,92,88,0.4)',
-    'rgba(149,88,63,0.4)',
-    'rgba(225,158,139,0.4)',
-    'rgba(214,131,97,0.4)',
-    'rgba(222,156,183,0.4)',
-    'rgba(202,90,156,0.4)',
-    'rgba(215,61,113,0.4)',
-    'rgba(150,90,115,0.4)',
-    'rgba(229,177,54,0.4)',
-    'rgba(157,110,35,0.4)',
-    'rgba(220,173,105,0.4)',
-    'rgba(143,115,79,0.4)',
-    'rgba(223,138,46,0.4)',
-    'rgba(220,191,155,0.4)',
-    'rgba(203,218,69,0.4)',
-    'rgba(85,159,58,0.4)',
-    'rgba(111,129,54,0.4)',
-    'rgba(117,223,84,0.4)',
-    'rgba(189,218,138,0.4)'
-    ]
+var barColours = {
+    'rgba(67,115,98,0.4)': false,
+    'rgba(89,228,170,0.4)': false,
+    'rgba(97,167,152,0.4)': false,
+    'rgba(57,159,113,0.4)': false,
+    'rgba(35,108,144,0.4)': false,
+    'rgba(20,48,55,0.4)': false,
+}
+
+var lineColours = {
+    'rgba(89,228,170,0.4)': false,
+    'rgba(42,173,206,0.9)': false,
+    'rgba(176,41,169,0.9)': false,
+    'rgba(60,144,52,0.9)': false,
+    'rgba(32,81,110,0.9)': false,
+    'rgba(195,26,68,0.9)': false,
+    'rgba(86,124,179,0.9)': false,
+    'rgba(137,23,166,0.9)': false,
+    'rgba(98,185,64,0.9)': false,
+    'rgba(215,43,156,0.9)': false,
+    'rgba(114,72,153,0.9)': false,
+    'rgba(173,22,56,0.9)': false,
+    'rgba(53,98,206,0.9)': false,
+    'rgba(96,173,93,0.9)': false,
+    'rgba(194,66,154,0.9)': false,
+    'rgba(79,193,25,0.9)': false
+    }
 
 function createIndivMap() {
     /** Initialises the individual heat map. */
@@ -822,7 +822,7 @@ function createIndivPolarChart() {
     selectorColumn.setAttribute('id','selectorColumn')
     selectorDiv.appendChild(selectorColumn)
 
-    buildPolarSelectorRow()
+    buildSiteSelectorRow()
 
     button1 = document.createElement('button')
     button1.classList.add('btn')
@@ -834,7 +834,7 @@ function createIndivPolarChart() {
 
     button1.addEventListener('click', ()=>{
         if (document.querySelectorAll('[id^=trapgroupSelect]').length < Object.keys(polarColours).length) {
-            buildPolarSelectorRow()
+            buildSiteSelectorRow()
         }
     });
 
@@ -879,7 +879,7 @@ function createIndivPolarChart() {
 
 }
 
-function buildPolarSelectorRow() {
+function buildSiteSelectorRow() {
     /** Builds a new site selector row for the temporal analysis polar chart. */
     sites = []
     sites_id = []
@@ -918,8 +918,14 @@ function buildPolarSelectorRow() {
 
     $("#"+trapgroupSelect.id).change( function(wrapIDNum) {
         return function() {
-            updatePolarData(wrapIDNum)
-            // updatePolarErrors()
+            var selection = document.getElementById('statsSelect').value
+            if (selection == '1') {
+                updatePolarData(wrapIDNum)
+            }
+            else if (selection == '4') {
+                updateLineData(wrapIDNum)
+            }
+            
         }
     }(IDNum));
 
@@ -934,17 +940,27 @@ function buildPolarSelectorRow() {
 
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
-            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-            colour = btnRemove.style.backgroundColor
-            removePolarData(colour)
-            btnRemove.parentNode.parentNode.parentNode.remove();
-            if (polarData.hasOwnProperty(wrapIDNum.toString())) {
-                delete polarData[wrapIDNum.toString()]
+            var selection = document.getElementById('statsSelect').value
+            if (selection == '1') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                colour = btnRemove.style.backgroundColor
+                removePolarData(colour)
+                btnRemove.parentNode.parentNode.parentNode.remove();
+                if (polarData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete polarData[wrapIDNum.toString()]
+                }
             }
-            // updatePolarErrors()
+            else if (selection == '4') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                colour = btnRemove.style.backgroundColor
+                removeLineData(colour)
+                btnRemove.parentNode.parentNode.parentNode.remove();
+                if (lineData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete lineData[wrapIDNum.toString()]
+                }
+            }
         }
     }(IDNum));
-
 
 }
 
@@ -1191,13 +1207,173 @@ function editPolarData(data,colour) {
     chart.update()
 }
 
+function removeBarData(colour) {
+    /** 
+     * Removes a dataset from the active bar chart based on colour.
+     * @param {str} colour The colour dataset to remove
+     */
+    
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets.splice(i, 1);
+            break
+        }
+    }
+    barColours[colour] = false
+    chart.update()
+}
+
+function clearBarColours() {
+    /** Clears the barColours object */
+    for (let key in barColours) {
+        barColours[key] = false
+    }
+}
+
+function updateBarDisplay() {
+    /**
+     * Updates the dispay of a dataset on the active bar chart.
+     * @param {int} IDNum The ID number of the item to be updated
+     */
+
+    removeBarData(barData['colour'])
+    
+    data = barData['data']
+    colour = barData['colour']
+    xAxisSelector = document.getElementById('xAxisSelector')
+    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+
+    newData = data
+
+    addBarData(newData,colour)
+}
+
+
+function addBarData(data,colour) {
+    /**
+     * Adds the stipulated data to an active bar chart.
+     * @param {arr} data The data points
+     * @param {str} colour The colour with which to display the data
+     */
+    
+    xAxisSelector = document.getElementById('xAxisSelector')
+    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+    if (xAxisSelection=='1') {
+        dataset = {
+            data: data,
+            hoverBackgroundColor: colour,
+            borderColor: 'rgba(255,255,255,1)',
+            borderWidth: 1,
+            barPercentage: 1.0,
+            categoryPercentage: 1.0,
+            backgroundColor: colour
+        }
+    } else {
+        if (colour=='rgba(255,255,255,0.2)') {
+            background = 'rgba(0,0,0,0.2)'
+        } else {
+            background = 'rgba(255,255,255,0.2)'
+        }
+
+        dataset = {
+            data: data,
+            hoverBackgroundColor: background,
+            borderColor: 'rgba(255,255,255,1)',
+            borderWidth: 1,
+            barPercentage: 1.0,
+            categoryPercentage: 1.0,
+            backgroundColor: colour
+        }
+    }
+    chart.data.datasets.push(dataset)
+    chart.update()
+}
+
+function updateBarData() {
+    /** Requests the dataset for the active bar chart. */
+
+    baseUnitSelector = document.getElementById('baseUnitSelector')
+    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    // siteSelector = document.getElementById('barSiteSelector')
+    // siteSelection = siteSelector.options[siteSelector.selectedIndex].value
+    xAxisSelector = document.getElementById('xAxisSelector')
+    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+
+
+
+    var formData = new FormData();
+    startDateNum = document.getElementById('startDateNum').value
+    endDateNum = document.getElementById('endDateNum').value
+    if(startDateNum != '' ){
+        startDateNum = startDateNum.replace(/-/g, '/') + ' 00:00:00'
+    }
+    else{
+        startDateNum = individualFirstSeen.split(' ')[0] +' 00:00:00'
+    }
+
+    if(endDateNum != '' ){
+        endDateNum = endDateNum.replace(/-/g, '/') + ' 23:59:59'
+    }   
+    else{
+        endDateNum = individualLastSeen.split(' ')[0] +' 23:59:59'
+    }
+
+    formData.append('startDate',JSON.stringify(startDateNum))
+    formData.append('endDate',JSON.stringify(endDateNum))
+    formData.append('individual_id',JSON.stringify(selectedIndividual))
+    formData.append('baseUnit',JSON.stringify(baseUnitSelection))
+    formData.append('axis',JSON.stringify(xAxisSelection))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            // console.log(reply)
+
+            chart.data.labels = reply.labels
+
+
+            colour = null
+            for (let key in barColours) {
+                if (barColours[key]==false) {
+                    barColours[key] = true
+                    colour = key
+                    break
+                }
+            }
+            if (colour != null) {
+                btnColour = colour
+                barData = {}
+                barData['colour'] = colour
+                barData['new'] = true
+            }
+            
+            barData['data'] = reply.data
+
+            total = 0
+            for (let i=0;i<reply.data.length;i++) {
+                total += reply.data[i]
+            }
+            barData['total'] = total
+
+            updateBarDisplay()
+        }
+        
+    }
+    xhttp.open("POST", 'getBarDataIndividual');
+    xhttp.send(formData);
+    
+}
+
 function createIndivBar() {
     /** Initialises a numerical-analysis bar chart. */
 
-    barData = {
-        'labels': [],
-        'data': [],
-    }
+    barData = {}
               
     mainDiv = document.getElementById('statisticsDiv')
 
@@ -1349,6 +1525,273 @@ function createIndivBar() {
 
     selectorDiv.appendChild(document.createElement('br'))
 
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Comparison'
+    h5.setAttribute('style','margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+    
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select what type of comparison you would like to do.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','xAxisSelector')
+    selectorDiv.appendChild(select)
+    fillSelect(select, ['Survey Counts','Site Counts'], ['1','2'])
+    select.value = '2'
+
+    $("#xAxisSelector").change( function() {
+        updateBarData()
+    });
+
+    selectorDiv.appendChild(document.createElement('br'))
+
+    div = document.createElement('div')
+    div.classList.add('row')
+    col1.appendChild(div)
+
+    colDiv2 = document.createElement('div')
+    colDiv2.setAttribute('style','padding:4px;margin:0px')
+    colDiv2.classList.add('col-lg-12')
+    div.appendChild(colDiv2)
+
+    canvas = document.createElement('canvas')
+    canvas.setAttribute('id','statisticsChart')
+    canvas.setAttribute('height','650')
+    colDiv2.appendChild(canvas)
+
+    var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+    var data = {
+        datasets: [],
+        labels: ['Survey Count']
+    };
+
+    var options = {
+        maintainAspectRatio: false,
+        legend: {
+            display: false
+        },
+        tooltips: {
+            displayColors: false,
+            callbacks: {
+                title: function(tooltipItems, data) {
+                    return '';
+                },
+                label: function(tooltipItem, data) {
+                    var label = data.labels[tooltipItem.index];
+                    return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                }           
+            }
+        },
+        ticks: {
+            min: 0
+        },
+        scales: {
+            yAxes: [{
+                ticks: {
+                    fontColor: "white",
+                    beginAtZero: true
+                }
+            }],
+            xAxes: [{
+                ticks: {
+                    fontColor: "white"
+                }
+            }]
+        }
+    }
+
+    chart = new Chart(ctx, {
+        data: data,
+        type: 'bar',
+        options: options
+    });   
+    
+    updateBarData()
+
+}
+
+function createIndivLine() {
+    /** Initialises a numerical-analysis bar chart. */
+
+    lineData = {}
+              
+    mainDiv = document.getElementById('statisticsDiv')
+
+    div = document.createElement('div')
+    div.classList.add('row')
+    mainDiv.appendChild(div)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    div.appendChild(col1)
+
+    selectorDiv = document.createElement('div')
+    selectorDiv.classList.add('col-lg-2')
+    div.appendChild(selectorDiv)
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Date'
+    h5.setAttribute('style','margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = "<i>Select the date range for which you would like to view the individual's sightings.</i>"
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    dateRange = document.createElement('div')
+    selectorDiv.appendChild(dateRange)
+
+    startDateLabel = document.createElement('label');
+    startDateLabel.textContent = 'Start date:';
+    startDateLabel.setAttribute('for', 'startDateTime');
+    dateRange.appendChild(startDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
+
+    startDateInput = document.createElement('input');
+    startDateInput.setAttribute('type', 'date');
+    startDateInput.setAttribute('id', 'startDateTime');
+    dateRange.appendChild(startDateInput)
+
+    dateRange.appendChild(document.createElement('br'));
+
+    endDateLabel = document.createElement('label');
+    endDateLabel.textContent = 'End date:';
+    endDateLabel.setAttribute('for', 'endDateTime');
+    dateRange.appendChild(endDateLabel)
+
+    dateRange.appendChild(document.createElement('br'));
+
+    endDateInput = document.createElement('input');
+    endDateInput.setAttribute('type', 'date');
+    endDateInput.setAttribute('id', 'endDateTime');
+    dateRange.appendChild(endDateInput)
+
+    dateError = document.createElement('div')
+    dateError.setAttribute('id', 'dateErrorTime')
+    dateError.setAttribute('style', 'color: #DF691A; font-size: 80%')
+    dateError.innerHTML = ''
+    dateRange.appendChild(dateError)
+
+    startDateInput.setAttribute('min', minDate)
+    startDateInput.setAttribute('max', maxDate)
+    endDateInput.setAttribute('min', minDate)
+    endDateInput.setAttribute('max', maxDate)
+    
+    $("#startDateTime").change( function() {
+        /** Listener for the date selector */
+        valid = false
+        document.getElementById('dateErrorTime').innerHTML = ''
+        errorMessage = ''
+
+        if(startDateInput.value == '' && endDateInput.value == ''){
+            valid = true
+        }
+        else if(startDateInput.value == '' || endDateInput.value == ''){
+            valid = true
+        }
+        else{
+            if(startDateInput.value > endDateInput.value){
+                valid = false
+                errorMessage = 'The start date must be before the end date.'
+            }
+            else{
+                valid = true
+            }
+        }    
+
+        if (valid) {
+            updateLine()
+        }
+        else{
+            document.getElementById('dateErrorTime').innerHTML = errorMessage
+        }
+
+    })
+
+    $("#endDateTime").change( function() {
+        /** Listener for the date selector*/
+        valid = false
+        document.getElementById('dateErrorTime').innerHTML = ''
+        errorMessage = ''
+
+        if(startDateInput.value == '' && endDateInput.value == ''){
+            valid = true
+        }
+        else if(startDateInput.value == '' || endDateInput.value == ''){
+            valid = true
+        }
+        else{
+            if(startDateInput.value > endDateInput.value){
+                valid = false
+                errorMessage = 'The start date must be before the end date.'
+            }
+            else{
+                valid = true
+            }
+        }    
+
+        if (valid) {
+            updateLine()
+        }
+        else{
+            document.getElementById('dateErrorNum').innerHTML = errorMessage
+        }
+    })
+
+    selectorDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = 'Data Unit'
+    h5.setAttribute('style','margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select which unit of data to count.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','baseUnitSelector')
+    selectorDiv.appendChild(select)
+
+    fillSelect(select, ['Sightings', 'Clusters' ,'Images'], ['3','2','1'])
+    $("#baseUnitSelector").change( function() {
+        updateLine()
+    });
+
+
+    selectorDiv.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Time Unit'
+    h5.setAttribute('style','margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select the time unit you would like to see your results in.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    selectorDiv.appendChild(h5)
+
+    var select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id','timeUnitSelector')
+    selectorDiv.appendChild(select)
+
+    fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
+    $("#timeUnitSelector").change( function() {
+        updateLine()
+    });
+    select.value = '2'
+
+    selectorDiv.appendChild(document.createElement('br'))
+    
     h5 = document.createElement('h5')
     h5.innerHTML = 'Site'
     h5.setAttribute('style','margin-bottom: 2px')
@@ -1359,25 +1802,27 @@ function createIndivBar() {
     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     selectorDiv.appendChild(h5)
 
-    select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','barSiteSelector')
-    selectorDiv.appendChild(select)
+    selectorColumn = document.createElement('div')
+    selectorColumn.setAttribute('id','selectorColumn')
+    selectorDiv.appendChild(selectorColumn)
 
-    sites = []
-    sites_id = []
-    for (let i=0;i<allSites.length;i++) {
-        sites.push(allSites[i].tag)
-        sites_id.push(allSites[i].id)
-    }
+    buildSiteSelectorRow()
 
-    trapgroupNames = ['None', 'All', ...sites]
-    trapgroupValues = ['-1', '0', ...sites]
+    button1 = document.createElement('button')
+    button1.classList.add('btn')
+    button1.classList.add('btn-info')
+    button1.setAttribute('type','button')
+    button1.setAttribute('id','btnAddPolar')
+    button1.innerHTML = '+'
+    selectorDiv.appendChild(button1)
 
-    fillSelect(select, trapgroupNames, trapgroupValues)
-    $("#barSiteSelector").change( function() {
-        updateBarData()
+    button1.addEventListener('click', ()=>{
+        if (document.querySelectorAll('[id^=trapgroupSelect]').length < Object.keys(polarColours).length) {
+            buildSiteSelectorRow()
+        }
     });
+
+    selectorDiv.appendChild(document.createElement('br'))
 
     div = document.createElement('div')
     div.classList.add('row')
@@ -1407,6 +1852,15 @@ function createIndivBar() {
         },
         tooltips: {
             displayColors: false,
+            callbacks: {
+                title: function(tooltipItems, data) {
+                    return '';
+                },
+                label: function(tooltipItem, data) {
+                    var label = data.labels[tooltipItem.index];
+                    return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                }           
+            }
         },
         ticks: {
             min: 0
@@ -1416,31 +1870,11 @@ function createIndivBar() {
                 ticks: {
                     fontColor: "white",
                     beginAtZero: true
-                },
-                scaleLabel: {
-                    display: true,
-                    labelString: 'Count',
-                    fontColor: "white"
                 }
             }],
             xAxes: [{
-                type: 'time',
-                time: {
-                    unit: 'day',
-                    displayFormats: {
-                        day: 'YYYY/MM/DD'
-                    },
-                    tooltipFormat: 'YYYY/MM/DD'
-                },
                 ticks: {
                     fontColor: "white"
-                },
-                scaleLabel: {
-                    display: true,
-                    labelString: 'Date range',
-                    fontColor: "white"
-                    
-
                 }
             }]
         }
@@ -1448,108 +1882,181 @@ function createIndivBar() {
 
     chart = new Chart(ctx, {
         data: data,
-        type: 'bar',
+        type: 'line',
         options: options
     });
-                
+
+    updateLineData()
 
 }
 
-function updateBarData() {
-    /** Requests the dataset for the active bar chart. */
+function updateLineData(IDNum=0) {
+    /** Updates the line chart with the current data. */
+    var startDateTime = document.getElementById('startDateTime').value
+    var endDateTime = document.getElementById('endDateTime').value
+    var baseUnit = document.getElementById('baseUnitSelector').value
+    var timeUnit = document.getElementById('timeUnitSelector').value
+    var trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
+    var trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
 
-    baseUnitSelector = document.getElementById('baseUnitSelector')
-    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-    siteSelector = document.getElementById('barSiteSelector')
-    siteSelection = siteSelector.options[siteSelector.selectedIndex].value
+    var formData = new FormData();
+    if(startDateTime != '' ){
+        startDateTime = startDateTime + ' 00:00:00'
+    }
+    else{
+        startDateTime = individualFirstSeen.replace(/\//g, '-').split(' ')[0] +' 00:00:00'
+    }
 
-    if (siteSelection!='-1') {
+    if(endDateTime != '' ){
+        endDateTime = endDateTime + ' 23:59:59'
+    }   
+    else{
+        endDateTime = individualLastSeen.replace(/\//g, '-').split(' ')[0] +' 23:59:59'
+    }
 
-        var formData = new FormData();
-        startDateNum = document.getElementById('startDateNum').value
-        endDateNum = document.getElementById('endDateNum').value
-        if(startDateNum != '' ){
-            startDateNum = startDateNum.replace(/-/g, '/') + ' 00:00:00'
-        }
-        else{
-            startDateNum = individualFirstSeen.split(' ')[0] +' 00:00:00'
-        }
+    formData.append('startDate',JSON.stringify(startDateTime))
+    formData.append('endDate',JSON.stringify(endDateTime))
+    formData.append('individual_id',JSON.stringify(selectedIndividual))
+    formData.append('baseUnit',JSON.stringify(baseUnit))
+    formData.append('timeUnit',JSON.stringify(timeUnit))
+    formData.append('trapgroup',JSON.stringify(trapgroup))
 
-        if(endDateNum != '' ){
-            endDateNum = endDateNum.replace(/-/g, '/') + ' 23:59:59'
-        }   
-        else{
-            endDateNum = individualLastSeen.split(' ')[0] +' 23:59:59'
-        }
-
-        formData.append('start_date',JSON.stringify(startDateNum))
-        formData.append('end_date',JSON.stringify(endDateNum))
-
+    if (trapgroup!='-1') {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
-        function(){
+        function(wrapIDNum){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    barData.data = []
-                    barData.labels = []
+                    response = JSON.parse(this.responseText);
+                    // console.log(response)
 
-                    var nr_data = reply.data.length
-                    for (let i=0;i<nr_data;i++) {
-                        barData.data.push(reply.data[i])
-                        barData.labels.push(reply.labels[i])
+                    IDkey = wrapIDNum.toString()
+
+                    timeLabels = response.labels
+                    chart.data.labels = timeLabels
+
+                    if (!lineData.hasOwnProperty(IDkey)) {
+                        colour = null
+                        for (let key in lineColours) {
+                            if (lineColours[key]==false) {
+                                lineColours[key] = true
+                                colour = key
+                                break
+                            }
+                        }
+                        if (colour != null) {
+                            btnColour = colour
+                            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                            btnRemove.setAttribute('style','background-color: '+btnColour)
+                            lineData[IDkey] = {}
+                            lineData[IDkey]['colour'] = colour
+                            lineData[IDkey]['new'] = true
+                        }
                     }
+
+                    lineData[IDkey]['data'] = response.data
+                    lineData[IDkey]['labels'] = response.labels
+
+                    updateLineDisplay(IDkey)
                     
-                    updateBarDisplay()
                 }
             }
-        }();
-        xhttp.open("POST", 'getBarDataIndividual/'+selectedIndividual+'/'+baseUnitSelection+'/'+siteSelection);
+        }(IDNum);
+        xhttp.open("POST", 'getLineDataIndividual');
         xhttp.send(formData);
     } else {
-        barData.data = [0]
-        updateBarDisplay()
-    }
-}
-
-function updateBarDisplay() {
-    /** Updates the dispay of a dataset on the active bar chart.*/
-
-    data = barData.data
-    labels = barData.labels
-    color = "rgba(255,255,255,0.2)"
-    addBarData(data, labels, color) 
-
-}
-
-function addBarData(data,labels, colour) {
-    /** Adds a dataset to the active bar chart. */ 
-    chart.data.datasets = []
-    chart.data.labels = []
-    var backgroundColours = []
-
-    var count_bc = 0
-    while(backgroundColours.length < data.length){
-        if (count_bc >= barColours.length) {
-            count_bc = 0
+        IDkey = IDNum.toString()
+        if (lineData.hasOwnProperty(IDkey)) {
+            lineData[IDkey]['data'] = []
+            lineData[IDkey]['labels'] = []
+            updateLineDisplay(IDNum)
         }
-        backgroundColours.push(barColours[count_bc])
-        count_bc += 1
     }
+}
+    
+function updateLineDisplay(IDNum){
+    /** Updates the line chart with the current data. */
+    IDkey = IDNum.toString()
+    data = lineData[IDkey]['data']
+    colour = lineData[IDkey]['colour']
 
-    chart.data.datasets.push({
+    if (lineData[IDkey]['new']) {
+        addLineData(data,colour)
+        lineData[IDkey]['new'] = false
+    } else {
+        editLineData(data,colour)
+    }
+}
+
+function addLineData(data,colour) {
+    /**
+     * Adds the stipulated data to an active line chart.
+     * @param {arr} data The data points
+     * @param {str} colour The colour with which to display the data
+     */
+    
+    dataset = {
         data: data,
         hoverBackgroundColor: colour,
-        borderColor: 'rgba(255,255,255,1)',
-        borderWidth: 1,
-        backgroundColor: backgroundColours
-    })
-
-    chart.data.labels = labels
-
+        borderColor: colour,
+        borderWidth: 2,
+        fill: false,
+        tension : 0.2
+    }
+    chart.data.datasets.push(dataset)
     chart.update()
 }
 
+function editLineData(data,colour) {
+    /** Edits the stipulated data in an active line chart.*/	
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].borderColor==colour) {
+            chart.data.datasets[i].data=data
+            break
+        }
+    }
+    chart.update()
+}
+
+function updateLine(){
+    /** Updates all the line data */
+    timeLabels = []
+    for (let IDNum in lineData) {
+        updateLineData(IDNum)
+    }
+}
+
+function removeLineData(colour) {
+    /**
+     * Removes a dataset from the active line chart based on colour.
+     * @param {str} colour The colour dataset to remove
+     */
+
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].borderColor==colour) {
+            chart.data.datasets.splice(i, 1);
+            break
+        }
+    }
+    lineColours[colour] = false
+    chart.update()
+
+}
+
+function clearLineColours(){
+    /** Clears the lineColours object */
+    for (let key in lineColours) {
+        lineColours[key] = false
+    }
+}
 
 function clearStatistics() {
     /** Clears the statistics modal. */
@@ -1558,11 +2065,23 @@ function clearStatistics() {
         statisticsDiv.removeChild(statisticsDiv.firstChild);
     }
     clearPolarColours()
+    clearLineColours()
+    clearBarColours()
     document.getElementById('statisticsErrors').innerHTML = ''
 }
 
-
-
+function exportIndivResults(){
+    /** Exports the results of the individual statistics to a PNG file. */
+    var statsSelect = document.getElementById('statsSelect')
+    if (statsSelect.value != '2'){
+        var canvas = document.getElementById('statisticsChart')
+        var image = canvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+        var link = document.createElement('a');
+        link.download = 'chart.png';
+        link.href = image;
+        link.click();
+    }    
+}
 
 
 

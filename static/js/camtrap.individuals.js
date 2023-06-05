@@ -1303,15 +1303,23 @@ function initialiseStats(){
     statsSelect = document.getElementById('statsSelect')
     if(statsSelect.value == '1'){
         statisticsDiv.appendChild(document.createElement('br'))
+        document.getElementById('btnExportIndivStats').disabled = false
         createIndivPolarChart()
     }
     else if(statsSelect.value == '2'){
         statisticsDiv.appendChild(document.createElement('br'))
+        document.getElementById('btnExportIndivStats').disabled = true
         createIndivMap()
     }
     else if(statsSelect.value == '3'){
         statisticsDiv.appendChild(document.createElement('br'))
+        document.getElementById('btnExportIndivStats').disabled = false
         createIndivBar()
+    }
+    else if(statsSelect.value == '4'){
+        statisticsDiv.appendChild(document.createElement('br'))
+        document.getElementById('btnExportIndivStats').disabled = false
+        createIndivLine()
     }
     
 }
