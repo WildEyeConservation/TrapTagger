@@ -8155,7 +8155,7 @@ def getLineData():
                 date_range = pd.date_range(first_date, last_date, freq='D')
                 if date_range.size == 0:
                     date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 100:
+                elif date_range.size <= 60:
                     for date in date_range:
                         count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
                                         .filter(extract('month',Image.corrected_timestamp)==date.month)\
@@ -8172,7 +8172,7 @@ def getLineData():
                 date_range = pd.date_range(first_date, last_date, freq='MS')
                 if date_range.size == 0:
                     date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 100:
+                elif date_range.size <= 60:
                     for date in date_range:
                         count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
                                         .filter(extract('month',Image.corrected_timestamp)==date.month)\
@@ -8188,8 +8188,8 @@ def getLineData():
                 date_range = pd.date_range(first_date, last_date, freq='AS')
                 if date_range.size == 0:
                     date_range = [pd.to_datetime(first_date)]
-                elif date_range.size > 100:
-                    date_range = date_range[0:100]
+                elif date_range.size > 60:
+                    date_range = date_range[0:60]
                 for date in date_range:
                     count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
                                     .distinct().count()
@@ -8276,7 +8276,7 @@ def getLineDataIndividual():
                 date_range = pd.date_range(first_date, last_date, freq='D')
                 if date_range.size == 0:
                     date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 100:
+                elif date_range.size <= 60:
                     for date in date_range:
                         count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
                                         .filter(extract('month',Image.corrected_timestamp)==date.month)\
@@ -8293,7 +8293,7 @@ def getLineDataIndividual():
                 date_range = pd.date_range(first_date, last_date, freq='MS')
                 if date_range.size == 0:
                     date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 100:
+                elif date_range.size <= 60:
                     for date in date_range:
                         count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
                                         .filter(extract('month',Image.corrected_timestamp)==date.month)\
@@ -8309,8 +8309,8 @@ def getLineDataIndividual():
                 date_range = pd.date_range(first_date, last_date, freq='AS')
                 if date_range.size == 0:
                     date_range = [pd.to_datetime(first_date)]
-                elif date_range.size > 100:
-                    date_range = date_range[0:100]
+                elif date_range.size > 60:
+                    date_range = date_range[0:60]
                 for date in date_range:
                     count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
                                     .distinct().count()
