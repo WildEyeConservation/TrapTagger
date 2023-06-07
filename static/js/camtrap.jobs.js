@@ -112,7 +112,7 @@ function buildJob(job) {
         }
     }(job.id));
 
-    if (job.jobsAvailable==0) {
+    if (job.jobsAvailable==0 || job.jobsAvailable==null) {
         takeJobBtn.disabled = true
     } else {
         takeJobBtn.disabled = false
