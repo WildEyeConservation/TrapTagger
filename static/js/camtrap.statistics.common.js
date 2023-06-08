@@ -873,7 +873,7 @@ function updateLineData(IDNum){
                     if (startDate != '' && endDate != '') {
                         timeLabels = response.labels
                     } else {
-                        updateTimeLabels(response.labels)
+                        updateTimeLabels(response.labels, response.timeUnit)
                     }
                     chart.data.labels = timeLabels
 
@@ -1081,11 +1081,8 @@ function removeLineColours(){
     }
 }
 
-function updateTimeLabels(labels) {
+function updateTimeLabels(labels, timeUnit) {
     /** Updates the line chart's labels*/
-    var timeUnitSelector = document.getElementById('timeUnitSelector');
-    var timeUnitSelection = timeUnitSelector.options[timeUnitSelector.selectedIndex].value;
-
     var dTimeLabels = timeLabels.map(date => new Date(date));
     var dLabels = labels.map(date => new Date(date));
 
@@ -1093,17 +1090,17 @@ function updateTimeLabels(labels) {
     var max_date = new Date(Math.max(...dTimeLabels, ...dLabels));
 
     while (min_date <= max_date) {
-        if (timeUnitSelection === '1') {
+        if (timeUnit === '1') {
             if (!dTimeLabels.some(d => d.getDate() === min_date.getDate() && d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
                 dTimeLabels.push(new Date(min_date));
             }
             min_date.setDate(min_date.getDate() + 1);
-        } else if (timeUnitSelection === '2') {
+        } else if (timeUnit === '2') {
             if (!dTimeLabels.some(d => d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
                 dTimeLabels.push(new Date(min_date));
             }
             min_date.setMonth(min_date.getMonth() + 1);
-        } else if (timeUnitSelection === '3') {
+        } else if (timeUnit === '3') {
             if (!dTimeLabels.some(d => d.getFullYear() === min_date.getFullYear())) {
                 dTimeLabels.push(new Date(min_date));
             }
@@ -1113,11 +1110,11 @@ function updateTimeLabels(labels) {
 
     dTimeLabels.sort((a, b) => a.getTime() - b.getTime());
 
-    if (timeUnitSelection === '1') {
+    if (timeUnit === '1') {
         timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }));
-    } else if (timeUnitSelection === '2') {
+    } else if (timeUnit === '2') {
         timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }));
-    } else if (timeUnitSelection === '3') {
+    } else if (timeUnit === '3') {
         timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric' }));
     }
 

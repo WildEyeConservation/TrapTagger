@@ -8196,7 +8196,7 @@ def getLineData():
                     data.append(count)
                     data_labels.append(str(date.year))
 
-    return json.dumps({'data': data, 'labels': data_labels})
+    return json.dumps({'data': data, 'labels': data_labels, 'timeUnit': timeUnit})
 
 
 @app.route('/getLineDataIndividual', methods=['POST'])
