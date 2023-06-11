@@ -188,7 +188,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
         print('Queues flushed.')
 
-        importMonitor.apply_async(queue='priority', priority=0)
+        # importMonitor.apply_async(queue='priority', priority=0)
         manageTasks.apply_async(queue='priority', priority=0)
         manageDownloads.apply_async(queue='priority', priority=0)
         print('Periodic functions initialised.')

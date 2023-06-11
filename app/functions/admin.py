@@ -31,6 +31,7 @@ import traceback
 from config import Config
 import json
 import boto3
+import os
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def delete_task(self,task_id):
@@ -1303,7 +1304,8 @@ def findTrapgroupTags(self,tgCode,folder,user_id,surveyName):
         try:
             tgCode = re.compile(tgCode)
             allTags = []
-            for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder+'/'+folder):
+            # for dirpath, folders, filenames in s3traverse(Config.BUCKET, db.session.query(User).get(user_id).folder+'/'+folder):
+            for dirpath, folders, filenames in os.walk('/code/static/images/'+db.session.query(User).get(user_id).folder+'/'+folder):
                 # jpegs = list(filter(isjpeg.search, filenames))
                 # if len(jpegs):
                 tags = tgCode.findall(dirpath.replace(surveyName+'/',''))

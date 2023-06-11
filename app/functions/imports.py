@@ -1994,7 +1994,8 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
 
     # Handle videos first so that their frames can be imported like normal images
     results = []
-    for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+    # for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+    for dirpath, folders, filenames in os.walk('/code/static/images/'+s3Folder):
         videos = list(filter(isVideo.search, filenames))
         jpegs = list(filter(isjpeg.search, filenames))
         if (len(jpegs) or len(videos)) and not any(exclusion in dirpath for exclusion in exclusions):
@@ -2047,7 +2048,8 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     batch_count = 0
     batch = []
     chunk_size = round(Config.QUEUES['parallel']['rate']/4)
-    for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+    # for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+    for dirpath, folders, filenames in os.walk('/code/static/images/'+s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
         if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
