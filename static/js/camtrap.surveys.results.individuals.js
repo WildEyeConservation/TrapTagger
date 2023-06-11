@@ -101,7 +101,7 @@ function getIndividuals(page = null) {
 
                 image = document.createElement('img')
                 image.setAttribute('width','100%')
-                image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
+                image.src = "https://"+host_ip+"/images" + modifyToCompURL(newIndividual.url)
                 col.appendChild(image)
 
                 h5 = document.createElement('h5')

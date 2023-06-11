@@ -1245,7 +1245,7 @@ def imageViewer():
 
         result = json.dumps([{'id': '-444','classification': ['None'],'required': [], 'images': images, 'label': ['None'], 'tags': ['None'], 'groundTruth': [], 'trapGroup': 'None'}])
 
-        return render_template('html/imageViewer.html', title='Image Viewer', clusters=result, helpFile='image_viewer', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/imageViewer.html', title='Image Viewer', clusters=result, helpFile='image_viewer', host_ip=Config.HOST_IP, version=Config.VERSION)
 
     except:
         return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
@@ -2458,7 +2458,7 @@ def tutorial():
     elif current_user.admin and (current_user.username=='Dashboard'):
         return redirect(url_for('dashboard'))
     else:
-        return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/tutorial.html', helpFile='tutorial', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 @app.route('/individuals')
 def individuals():
@@ -2477,7 +2477,7 @@ def individuals():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
-        return render_template('html/individuals.html', title='Individuals', helpFile='individuals_page', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/individuals.html', title='Individuals', helpFile='individuals_page', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 @app.route('/index')
 def index():
@@ -2501,7 +2501,7 @@ def index():
     else:
         if current_user.passed in ['cTrue', 'cFalse', 'true', 'false']:
                 return redirect(url_for('done'))
-        return render_template('html/index.html', title='TrapTagger', helpFile='annotation', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/index.html', title='TrapTagger', helpFile='annotation', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 @app.route('/jobs')
 def jobs():
@@ -2644,7 +2644,7 @@ def surveys():
 
         newSurveyForm = NewSurveyForm()
 
-        return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/surveys.html', title='Home', newSurveyForm=newSurveyForm, helpFile='surveys_home', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 @app.route('/sightings', methods=['GET', 'POST'])
 @login_required
@@ -2667,7 +2667,7 @@ def sightings():
     elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 @app.route('/individualID', methods=['GET', 'POST'])
 @login_required
@@ -2688,7 +2688,7 @@ def individualID():
     elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('clusterID'))
     else:
-        return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 @app.route('/clusterID', methods=['GET', 'POST'])
 @login_required
@@ -2709,7 +2709,7 @@ def clusterID():
     elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id', host_ip=Config.HOST_IP, version=Config.VERSION)
 
 # @app.route('/workerStats')
 # @login_required
@@ -3607,7 +3607,7 @@ def explore():
                 if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
                     task.tagging_level = '-1'
                     db.session.commit()
-                    return render_template('html/explore.html', title='Explore', helpFile='explore', bucket=Config.BUCKET, version=Config.VERSION)
+                    return render_template('html/explore.html', title='Explore', helpFile='explore', host_ip=Config.HOST_IP, version=Config.VERSION)
             return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
@@ -3635,7 +3635,7 @@ def exploreKnockdowns():
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
             if task and (task.survey.user==current_user):
-                return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET, version=Config.VERSION)
+                return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', host_ip=Config.HOST_IP, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
         else:
@@ -6129,7 +6129,7 @@ def comparison():
                         unknown_percentage=unknown_percentage,species_names=species_names,species_recalls=species_recalls,
                         species_precisions=species_precisions,MegaDetectorFailures=MegaDetectorFailures,EmptyClustered=EmptyClustered,
                         MegaDetectorFailures_percentage=MegaDetectorFailures_percentage,EmptyClustered_percentage=EmptyClustered_percentage,
-                        image_count=image_count, helpFile='comparison_page', bucket=Config.BUCKET, version=Config.VERSION)
+                        image_count=image_count, helpFile='comparison_page', host_ip=Config.HOST_IP, version=Config.VERSION)
             else:
                 return render_template("html/block.html",text="Your comparison session has expired. Please request a new comparison.", helpFile='block', version=Config.VERSION)
     

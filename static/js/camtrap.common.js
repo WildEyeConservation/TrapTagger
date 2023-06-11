@@ -190,7 +190,7 @@ function preload(mapID = 'map1') {
                 for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
                     if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
                         im = new Image();
-                        im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+                        im.src = "https://"+host_ip+"/images" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
                     }
                 }
             }
@@ -200,12 +200,12 @@ function preload(mapID = 'map1') {
                     if ((clusters[mapID][clusterIndex[mapID] + i].id != '-99')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-101')&&(clusters[mapID][clusterIndex[mapID] + i].id != '-782')) {
                         if (clusters[mapID][clusterIndex[mapID] + i].required.length==0) {
                             im = new Image();
-                            im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[0].url)
+                            im.src = "https://"+host_ip+"/images" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[0].url)
                         } else {
                             for (let requiredIndex=0;requiredIndex<clusters[mapID][clusterIndex[mapID] + i].required.length;requiredIndex++) {
                                 im = new Image();
                                 req = clusters[mapID][clusterIndex[mapID] + i].required[requiredIndex]
-                                im.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[req].url)
+                                im.src = "https://"+host_ip+"/images" + modifyToCompURL(clusters[mapID][clusterIndex[mapID] + i].images[req].url)
                             }
                         }   
                     }                
@@ -744,14 +744,14 @@ function updateCanvas(mapID = 'map1') {
                         }
 
                         if (image_img != activeImage_img){
-                            updateMap(mapID, url = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                            updateMap(mapID, url = "https://"+host_ip+"/images" + modifyToCompURL(image.url))
                         }
                         else{
-                            activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                            activeImage[mapID].setUrl("https://"+host_ip+"/images" + modifyToCompURL(image.url))
                         }
                     }
                     else{
-                        activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                        activeImage[mapID].setUrl("https://"+host_ip+"/images" + modifyToCompURL(image.url))
                     }
                 }
 
@@ -1272,7 +1272,7 @@ function updateSlider(mapID = 'map1') {
             clusterPosition[mapID].removeChild(clusterPosition[mapID].firstChild);
         }
         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-            imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
+            imageUrl = "https://"+host_ip+"/images" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[i].url)
             img = document.createElement('img')
             img.setAttribute('src',imageUrl)
             imgli = document.createElement('li')
@@ -1904,7 +1904,7 @@ function prepMap(mapID = 'map1') {
             var isImage = checkImage(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
 
             if (!isImage) {
-                videoURL ="https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
+                videoURL ="https://"+host_ip+"/images" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
                 vid = document.createElement('video')
                 vid.setAttribute('controls',true)
                 vid.setAttribute('width', 500);
@@ -2032,7 +2032,7 @@ function prepMap(mapID = 'map1') {
                             if ((!fullRes[wrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapMapID][clusterIndex[wrapMapID]].id))) {
                                 var isImg = checkImage(clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
                                 if (isImg) {
-                                    activeImage[wrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
+                                    activeImage[wrapMapID].setUrl("https://"+host_ip+"/images" + clusters[wrapMapID][clusterIndex[wrapMapID]].images[imageIndex[wrapMapID]].url)
                                     fullRes[wrapMapID] = true
                                 }
                             }
@@ -2045,7 +2045,7 @@ function prepMap(mapID = 'map1') {
                 });                   
             }
             else{    
-                imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
+                imageUrl = "https://"+host_ip+"/images" + modifyToCompURL(clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url)
                 var img = new Image();
                 img.onload = function(wrapMapID){
                     return function() {
@@ -2137,7 +2137,7 @@ function prepMap(mapID = 'map1') {
                                 if ((!fullRes[wrapWrapMapID])&&(!['-101','-99','-782'].includes(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].id))) {
                                     var isImg = checkImage(clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
                                     if (isImg) {
-                                        activeImage[wrapWrapMapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
+                                        activeImage[wrapWrapMapID].setUrl("https://"+host_ip+"/images" + clusters[wrapWrapMapID][clusterIndex[wrapWrapMapID]].images[imageIndex[wrapWrapMapID]].url)
                                         fullRes[wrapWrapMapID] = true
                                     }
                                 }

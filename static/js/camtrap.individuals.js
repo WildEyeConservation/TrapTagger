@@ -159,7 +159,7 @@ function getIndividuals(page = null) {
 
                     image = document.createElement('img')
                     image.setAttribute('width','100%')
-                    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(newIndividual.url)
+                    image.src = "https://"+host_ip+"/images" + modifyToCompURL(newIndividual.url)
                     col.appendChild(image)
 
                     h5 = document.createElement('h5')
@@ -1971,7 +1971,7 @@ function buildAssociation(association){
     imageCell.setAttribute('style','width: 25%; border: 1px solid rgba(0,0,0,0.2); border-collapse: collapse; text-align: center; vertical-align: middle;')
     var image = document.createElement('img');
     image.setAttribute('width','100%')
-    image.src = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(association.url)
+    image.src = "https://"+host_ip+"/images" + modifyToCompURL(association.url)
     imageCell.appendChild(image);
     row.appendChild(imageCell);
 

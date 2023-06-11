@@ -58,7 +58,7 @@ function updateSlider() {
 
     for (let i=0;i<individualImages.length;i++) {
         img = document.createElement('img')
-        img.setAttribute('src',"https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(individualImages[i].url))
+        img.setAttribute('src',"https://"+host_ip+"/images" + modifyToCompURL(individualImages[i].url))
         imgli = document.createElement('li')
         imgli.classList.add('splide__slide')
         imgli.appendChild(img)
@@ -97,7 +97,7 @@ function updateSlider() {
                     updateMapIndividual(image.url)
                 }
                 updatePlayControlImage()
-                activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url))
+                activeImage.setUrl("https://"+host_ip+"/images" + modifyToCompURL(image.url))
             }
         });
 
@@ -138,7 +138,7 @@ function prepMapIndividual(image) {
 
     if (bucketName != null) {
         mapReady = false
-        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        imageUrl = "https://"+host_ip+"/images" + modifyToCompURL(image.url)
         videoUrl = image.video_url
         var img = new Image();
         img.onload = function(){
@@ -220,7 +220,7 @@ function prepMapIndividual(image) {
             map.on('zoomstart', function() {
                 if (!fullRes) {
                     if(checkIfImage(activeImage._url)){
-                        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + individualImages[individualSplide.index].url)
+                        activeImage.setUrl("https://"+host_ip+"/images" + individualImages[individualSplide.index].url)
                         fullRes = true
                     }
                 }
@@ -302,7 +302,7 @@ function updateMapIndividual( url){
     }
 
     if (isImage){
-        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(url)
+        imageUrl = "https://"+host_ip+"/images" + modifyToCompURL(url)
         var img = new Image();
         img.onload = function(){
             w = this.width
@@ -347,7 +347,7 @@ function updateMapIndividual( url){
         img.src = imageUrl
 
     } else {
-        videoURL = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(url)
+        videoURL = "https://"+host_ip+"/images" + modifyToCompURL(url)
         vid = document.createElement('video')
         vid.setAttribute('controls',true)
         vid.setAttribute('width', 500);

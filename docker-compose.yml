@@ -15,43 +15,63 @@
 version: '3.1'
 services:
 
-    nginx:
-        # This is the default approach, uses certbot generated certificates, and auto-renews
+    mysql:
+        image: mysql:5.7
+        container_name: mysql
         restart: always
-        build:
-            context: ./
-            dockerfile: Dockerfile.certbot
-        image: nginxcertbot
-        container_name: nginx
-        depends_on:
-            - flask
-        volumes:
-            - /etc/letsencrypt:/etc/letsencrypt
-            - ./nginx.conf:/etc/nginx/conf.d/default.conf
-            - ./static:/etc/nginx/html
-        entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
+        environment:
+            MYSQL_DATABASE: 'local_db'
+            MYSQL_USER: 'root'
+            MYSQL_PASSWORD: 'wildPass42'
+            MYSQL_ROOT_PASSWORD: 'wildPass42'
         ports:
-            - "80:80"
-            - "443:443"
+            - '3306:3306'
+        expose:
+            - '3306'
+        volumes:
+            - my-db:/var/lib/mysql
         networks:
-            - my-network
+            my-network:
+                aliases:
+                    - flask-app
 
     # nginx:
-    #     # Use this alternative setup if using self-signed certificates
+    #     # This is the default approach, uses certbot generated certificates, and auto-renews
     #     restart: always
-    #     image: nginx:1.13.7
+    #     build:
+    #         context: ./
+    #         dockerfile: Dockerfile.certbot
+    #     image: nginxcertbot
     #     container_name: nginx
     #     depends_on:
     #         - flask
     #     volumes:
+    #         - /etc/letsencrypt:/etc/letsencrypt
     #         - ./nginx.conf:/etc/nginx/conf.d/default.conf
     #         - ./static:/etc/nginx/html
-    #         - ./certs:/etc/nginx/certs
-    #     networks:
-    #         - my-network
+    #     entrypoint: "/bin/sh -c 'while :; do certbot renew; sleep 12h & wait $${!}; done & nginx -g \"daemon off;\"'"
     #     ports:
     #         - "80:80"
     #         - "443:443"
+    #     networks:
+    #         - my-network
+
+    nginx:
+        # Use this alternative setup if using self-signed certificates
+        restart: always
+        image: nginx:1.13.7
+        container_name: nginx
+        depends_on:
+            - flask
+        volumes:
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+            - ./static:/etc/nginx/html
+            - ./certs:/etc/nginx/certs
+        networks:
+            - my-network
+        ports:
+            - "80:80"
+            - "443:443"
 
     flask:
         # Main Flask app
@@ -62,6 +82,7 @@ services:
         image: traptagger:1.0.1
         container_name: flask
         depends_on:
+            - mysql
             - traptagger_redis
         volumes:
             - ./:/code/
@@ -430,3 +451,6 @@ services:
 
 networks:
     my-network:
+
+volumes:
+    my-db:
