@@ -1356,7 +1356,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         # bio=BytesIO(img.make_blob())
                         # b64blob=base64.b64encode(bio.getvalue()).decode()
                 except:
-                    app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+                    app.logger.info("Skipping {} because it appears to be corrupt".format(dirpath+'/'+filename))
                     continue
                 finally:
                     lock.release()
