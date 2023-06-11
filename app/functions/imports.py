@@ -50,6 +50,7 @@ import random
 import cv2
 import piexif
 import ffmpeg
+from pathlib import Path
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
@@ -1299,7 +1300,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         # warnings.filterwarnings('ignore',category=ResourceWarning)
 
         splits = dirpath.split('/')
-        splits[0] = splits[0]+'-comp'
+        splits[4] = splits[4]+'-comp'
         newpath = '/'.join(splits)
 
         batch = []
@@ -1349,6 +1350,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         # problems for MegaDetector which expects a 3 channel image as input.
                         img.metadata['colorspace:auto-grayscale'] = 'false'
                         img.transform(resize='800')
+                        Path(newpath).mkdir(parents=True, exist_ok=True)
                         img.save(filename=newpath + '/' + filename)
                         # if not pipeline:
                         #     print('Uploading {}'.format(filename))
