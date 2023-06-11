@@ -205,39 +205,39 @@ def importKML(survey_id):
     survey = db.session.query(Survey).get(survey_id)
     key = survey.user.folder + '-comp/kmlFiles/' + survey.name + '.kml'
     
-    try:
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
-            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=temp_file.name)
+    # try:
+    #     with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
+    #         GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=key, Filename=temp_file.name)
 
-            with open(temp_file.name) as f:
-                kmlData = kmlparser.parse(f).getroot()
+    #         with open(temp_file.name) as f:
+    #             kmlData = kmlparser.parse(f).getroot()
 
-            for trap in kmlData.Document.Folder.Placemark:
-                try:
-                    options = []
-                    for trapgroup in survey.trapgroups:
-                        if trapgroup.tag in trap.name.text:
-                            options.append(trapgroup)
-                    if len(options) == 1:
-                        trapgroup = options[0]
-                    else:
-                        trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==trap.name.text).first()
-                    if trapgroup != None:
-                        try:
-                            coords = trap.Point.coordinates.text.split(',')
-                            trapgroup.longitude = float(coords[0])
-                            trapgroup.latitude = float(coords[1])
-                            if len(coords) > 2:
-                                trapgroup.altitude = float(coords[2])
-                            else:
-                                trapgroup.altitude = 0
-                        except:
-                            pass
-                except:
-                    pass
-            db.session.commit()
-    except:
-        pass
+    #         for trap in kmlData.Document.Folder.Placemark:
+    #             try:
+    #                 options = []
+    #                 for trapgroup in survey.trapgroups:
+    #                     if trapgroup.tag in trap.name.text:
+    #                         options.append(trapgroup)
+    #                 if len(options) == 1:
+    #                     trapgroup = options[0]
+    #                 else:
+    #                     trapgroup = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag==trap.name.text).first()
+    #                 if trapgroup != None:
+    #                     try:
+    #                         coords = trap.Point.coordinates.text.split(',')
+    #                         trapgroup.longitude = float(coords[0])
+    #                         trapgroup.latitude = float(coords[1])
+    #                         if len(coords) > 2:
+    #                             trapgroup.altitude = float(coords[2])
+    #                         else:
+    #                             trapgroup.altitude = 0
+    #                     except:
+    #                         pass
+    #             except:
+    #                 pass
+    #         db.session.commit()
+    # except:
+    #     pass
 
     return True
 
@@ -1307,75 +1307,76 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
         for filename in filenames:
             hash = None
             etag = None
-            if not pipeline: etag = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                if not pipeline:
-                    print('Downloading {}'.format(filename))
-                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
+            # if not pipeline: etag = GLOBALS.s3client.head_object(Bucket=sourceBucket,Key=os.path.join(dirpath, filename))['ETag'][1:-1]
+            # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+            if not pipeline:
+                # print('Downloading {}'.format(filename))
+                # GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=os.path.join(dirpath, filename), Filename=temp_file.name)
 
-                    try:
-                        hash = generate_raw_image_hash(temp_file.name)
-                        assert hash
-                    except:
-                        app.logger.info("Skipping {} could not generate hash...".format(dirpath+'/'+filename))
-                        continue
-                    
-                    try:
-                        if Config.DEBUGGING: print('Extracting time stamp from {}'.format(filename))
-                        t = pyexifinfo.get_json(temp_file.name)[0]
-                        timestamp = None
-                        for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
-                            if field in t.keys():
-                                timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
-                                break
-                        # assert timestamp
-                    except:
-                        if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
-                        continue
-                else:
-                    # don't need to download the image or even extract a timestamp if pipelining
-                    timestamp = None
+                try:
+                    hash = generate_raw_image_hash(dirpath+'/'+filename)
+                    assert hash
+                except:
+                    app.logger.info("Skipping {} could not generate hash...".format(dirpath+'/'+filename))
+                    continue
                 
-                if not pipeline:
-                    # don't compress and upload the image if its a training-data pipeline
-                    if Config.DEBUGGING: print('Compressing {}'.format(filename))
-                    
-                    # Wand does not appear to be thread safe
-                    lock.acquire()
-                    try:
-                        with wandImage(filename=temp_file.name).convert('jpeg') as img:
-                            # This is required, because if we don't have it ImageMagick gets too clever for it's own good
-                            # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
-                            # problems for MegaDetector which expects a 3 channel image as input.
-                            img.metadata['colorspace:auto-grayscale'] = 'false'
-                            img.transform(resize='800')
-                            if not pipeline:
-                                print('Uploading {}'.format(filename))
-                                GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
-                            # bio=BytesIO(img.make_blob())
-                            # b64blob=base64.b64encode(bio.getvalue()).decode()
-                    except:
-                        app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
-                        continue
-                    finally:
-                        lock.release()
+                try:
+                    if Config.DEBUGGING: print('Extracting time stamp from {}'.format(filename))
+                    t = pyexifinfo.get_json(dirpath+'/'+filename)[0]
+                    timestamp = None
+                    for field in ['EXIF:DateTimeOriginal','MakerNotes:DateTimeOriginal']:
+                        if field in t.keys():
+                            timestamp = datetime.strptime(t[field], '%Y:%m:%d %H:%M:%S')
+                            break
+                    # assert timestamp
+                except:
+                    if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
+                    continue
+            else:
+                # don't need to download the image or even extract a timestamp if pipelining
+                timestamp = None
+            
+            if not pipeline:
+                # don't compress and upload the image if its a training-data pipeline
+                if Config.DEBUGGING: print('Compressing {}'.format(filename))
+                
+                # Wand does not appear to be thread safe
+                lock.acquire()
+                try:
+                    with wandImage(filename=dirpath+'/'+filename).convert('jpeg') as img:
+                        # This is required, because if we don't have it ImageMagick gets too clever for it's own good
+                        # and saves images with no color content (i.e. fully black image) as grayscale. But this causes
+                        # problems for MegaDetector which expects a 3 channel image as input.
+                        img.metadata['colorspace:auto-grayscale'] = 'false'
+                        img.transform(resize='800')
+                        img.save(filename=newpath + '/' + filename)
+                        # if not pipeline:
+                        #     print('Uploading {}'.format(filename))
+                        #     GLOBALS.s3client.upload_fileobj(BytesIO(img.make_blob()),destBucket, newpath + '/' + filename)
+                        # bio=BytesIO(img.make_blob())
+                        # b64blob=base64.b64encode(bio.getvalue()).decode()
+                except:
+                    app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+                    continue
+                finally:
+                    lock.release()
 
-                ########Blob Approach
-                #The wandImage approach seems lossy, and the double resize seems dangerous
-                # try:
-                #     with open(temp_file.name, "rb") as f:
-                #         bio = BytesIO(f.read())
-                #     b64blob=base64.b64encode(bio.getvalue()).decode()
-                #     batch.append(b64blob)
-                # except:
-                #     app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
-                #     continue
+            ########Blob Approach
+            #The wandImage approach seems lossy, and the double resize seems dangerous
+            # try:
+            #     with open(temp_file.name, "rb") as f:
+            #         bio = BytesIO(f.read())
+            #     b64blob=base64.b64encode(bio.getvalue()).decode()
+            #     batch.append(b64blob)
+            # except:
+            #     app.logger.info("Skipping {} because it appears to be corrupt".format(filename))
+            #     continue
 
-                #########Local Download
-                batch.append(dirpath + '/' + filename)
+            #########Local Download
+            batch.append(dirpath + '/' + filename)
 
-                image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
-                images.append(image)
+            image = {'filename':filename, 'timestamp':timestamp, 'corrected_timestamp':timestamp, 'camera_id':camera_id, 'hash':hash, 'etag':etag}
+            images.append(image)
         
         if batch:
             if Config.DEBUGGING: print('Acquiring lock')

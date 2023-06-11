@@ -1308,8 +1308,10 @@ def createNewSurvey():
         else:
             if newSurveyS3Folder=='none':
                 # Browser upload - check that folder doesn't already exist
-                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=current_user.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
-                if 'CommonPrefixes' in response:
+                # response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=current_user.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
+                for dirpath, folders, filenames in os.walk('/code/static/images/'+current_user.folder): break
+                # if 'CommonPrefixes' in response:
+                if surveyName in folders:
                     status = 'error'
                     message = 'That folder name is already in use in your storage. Please try another name for your survey.' 
 

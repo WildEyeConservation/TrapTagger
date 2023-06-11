@@ -67,34 +67,35 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
             results = []
             for image in batch:
                 try:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                        if external:
-                            print('Downloading {} from external source.'.format(image))
-                            attempts = 0
-                            retry = True
-                            while retry and (attempts < 10):
-                                attempts += 1
-                                try:
-                                    if sourceBucket!='':
-                                        url = sourceBucket+'/'+image
-                                    else:
-                                        url = image
-                                    response = requests.get(url, timeout=30)
-                                    assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
-                                    retry = False
-                                except:
-                                    retry = True
-                            with open(temp_file.name, 'wb') as handler:
-                                handler.write(response.content)
+                    # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    #     if external:
+                    #         print('Downloading {} from external source.'.format(image))
+                    #         attempts = 0
+                    #         retry = True
+                    #         while retry and (attempts < 10):
+                    #             attempts += 1
+                    #             try:
+                    #                 if sourceBucket!='':
+                    #                     url = sourceBucket+'/'+image
+                    #                 else:
+                    #                     url = image
+                    #                 response = requests.get(url, timeout=30)
+                    #                 assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
+                    #                 retry = False
+                    #             except:
+                    #                 retry = True
+                    #         with open(temp_file.name, 'wb') as handler:
+                    #             handler.write(response.content)
 
-                        else:
-                            print('Downloading {} from S3'.format(image))
-                            url = image
-                            s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
+                    #     else:
+                    #         print('Downloading {} from S3'.format(image))
+                    #         url = image
+                    #         s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
 
-                        print('Done')
-                        img = Image.open(temp_file.name)
-                        if pass_images: images[url] = img
+                    #     print('Done')
+                    img = Image.open(image)
+                    url = image
+                    if pass_images: images[url] = img
 
                     print('Generating detections...')
                     result = detector.generate_detections_one_image(img, image, detection_threshold=threshold)
@@ -142,35 +143,36 @@ def infer(batch,sourceBucket,external,model,threshold=0.05,pass_images=False):
             imstack = []
             for image in batch:
                 try:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
-                        if external:
-                            print('Downloading {} from external source.'.format(image))
-                            attempts = 0
-                            retry = True
-                            while retry and (attempts < 10):
-                                attempts += 1
-                                try:
-                                    if sourceBucket!='':
-                                        url = sourceBucket+'/'+image
-                                    else:
-                                        url = image
-                                    response = requests.get(url, timeout=30)
-                                    assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
-                                    retry = False
-                                except:
-                                    retry = True
-                            with open(temp_file.name, 'wb') as handler:
-                                handler.write(response.content)
+                    # with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    #     if external:
+                    #         print('Downloading {} from external source.'.format(image))
+                    #         attempts = 0
+                    #         retry = True
+                    #         while retry and (attempts < 10):
+                    #             attempts += 1
+                    #             try:
+                    #                 if sourceBucket!='':
+                    #                     url = sourceBucket+'/'+image
+                    #                 else:
+                    #                     url = image
+                    #                 response = requests.get(url, timeout=30)
+                    #                 assert (response.status_code==200) and ('image' in response.headers['content-type'].lower())
+                    #                 retry = False
+                    #             except:
+                    #                 retry = True
+                    #         with open(temp_file.name, 'wb') as handler:
+                    #             handler.write(response.content)
 
-                        else:
-                            print('Downloading {} from S3'.format(image))
-                            url = image
-                            s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
+                    #     else:
+                    #         print('Downloading {} from S3'.format(image))
+                    #         url = image
+                    #         s3client.download_file(Bucket=sourceBucket, Key=image, Filename=temp_file.name)
 
-                        print('Done')
-                        img = Image.open(temp_file.name)
-                        if pass_images: images[url] = img
-                        imstack.append(np.asarray(img.resize((1024, 600)),np.uint8))
+                    #     print('Done')
+                    img = Image.open(image)
+                    url = image
+                    if pass_images: images[url] = img
+                    imstack.append(np.asarray(img.resize((1024, 600)),np.uint8))
                     
                     print('Added to batch')
                 
