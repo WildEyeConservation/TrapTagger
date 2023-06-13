@@ -56,6 +56,9 @@ var chart = null
 var trapgroupNames
 var trapgroupValues
 var polarData = {}
+var barData = {}
+var lineData = {}
+var timeLabels = []
 var map = null
 var trapgroupInfo
 var heatmapLayer = null

@@ -1894,13 +1894,12 @@ def getPolarData():
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if trapgroup == '0':
-            baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
-        if type(trapgroup) == list:
-            trap_ids = [int(t) for t in trapgroup]
-            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
-        else:
-            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
+        if trapgroup != '0':
+            if type(trapgroup) == list:
+                trap_ids = [int(t) for t in trapgroup]
+                baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
+            else:
+                baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
 
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
@@ -8127,13 +8126,12 @@ def getLineData():
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
-        if trapgroup == '0':
-            baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
-        if type(trapgroup) == list:
-            trap_ids = [int(t) for t in trapgroup]
-            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
-        else:
-            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
+        if trapgroup != '0':
+            if type(trapgroup) == list:
+                trap_ids = [int(t) for t in trapgroup]
+                baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
+            else:
+                baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
 
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()

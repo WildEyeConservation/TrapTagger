@@ -893,7 +893,12 @@ function updateLineData(IDNum){
         traps = trapgroup.split(',')
     }
     else {
-        traps = trapgroup
+        if (isNaN(trapgroup) || trapgroup == '0') {
+            traps = trapgroup
+        }
+        else {
+            traps = [trapgroup]
+        }
     }
 
     var formData = new FormData();
@@ -912,7 +917,7 @@ function updateLineData(IDNum){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     response = JSON.parse(this.responseText);
-
+                    console.log(response)
                     IDkey = wrapIDNum.toString()
 
                     if (startDate != '' && endDate != '') {

@@ -62,14 +62,26 @@ function buildPolarSelectorRow() {
 
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
-            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-            colour = btnRemove.style.backgroundColor
-            removePolarData(colour)
-            btnRemove.parentNode.parentNode.parentNode.remove();
-            if (polarData.hasOwnProperty(wrapIDNum.toString())) {
-                delete polarData[wrapIDNum.toString()]
+            var analysisSelection = document.getElementById('analysisSelector').value
+            if (analysisSelection == '1') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                colour = btnRemove.style.backgroundColor
+                removePolarData(colour)
+                btnRemove.parentNode.parentNode.parentNode.remove();
+                if (polarData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete polarData[wrapIDNum.toString()]
+                }
+                updatePolarErrors()
+            } else if (analysisSelection == '4') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                colour = btnRemove.style.backgroundColor
+                removeLineData(colour)
+                btnRemove.parentNode.parentNode.parentNode.remove();
+                if (lineData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete lineData[wrapIDNum.toString()]
+                }
+                updateLineErrors()
             }
-            updatePolarErrors()
         }
     }(IDNum));
 
@@ -82,8 +94,14 @@ function buildPolarSelectorRow() {
 
     $("#"+trapgroupSelect.id).change( function(wrapIDNum) {
         return function() {
-            updatePolarData(wrapIDNum)
-            updatePolarErrors()
+            var analysisSelection = document.getElementById('analysisSelector').value
+            if (analysisSelection == '1') {
+                updatePolarData(wrapIDNum)
+                updatePolarErrors()
+            } else if (analysisSelection == '4') {
+                updateLineData(wrapIDNum)
+                updateLineErrors()
+            }
         }
     }(IDNum));
 
@@ -96,8 +114,14 @@ function buildPolarSelectorRow() {
 
     $("#"+speciesSelect.id).change( function(wrapIDNum) {
         return function() {
-            updatePolarData(wrapIDNum)
-            updatePolarErrors()
+            var analysisSelection = document.getElementById('analysisSelector').value
+            if (analysisSelection == '1') {
+                updatePolarData(wrapIDNum)
+                updatePolarErrors()
+            } else if (analysisSelection == '4') {
+                updateLineData(wrapIDNum)
+                updateLineErrors()
+            }
         }
     }(IDNum));
 
@@ -1309,6 +1333,277 @@ function clearStatistics() {
     document.getElementById('statisticsErrors').innerHTML = ''
 }
 
+function createLine(){
+    /** Creates the line chart for time analysis */
+    lineData = {}
+
+    var formData = new FormData();
+    formData.append('task_ids', JSON.stringify([selectedTask]));
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            trapgroupNames = reply.names
+            trapgroupValues = reply.values
+            
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    speciesNames = reply.names
+                    speciesValues = reply.ids
+                    
+                    mainDiv = document.getElementById('statisticsDiv')
+
+                    div = document.createElement('div')
+                    div.classList.add('row')
+                    mainDiv.appendChild(div)
+
+                    colDiv1 = document.createElement('div')
+                    colDiv1.classList.add('col-lg-1')
+                    div.appendChild(colDiv1)
+
+                    aDiv2 = document.createElement('div')
+                    aDiv2.classList.add('col-lg-8')
+                    aDiv2.setAttribute('align','center')
+                    div.appendChild(aDiv2)
+
+                    colDiv3 = document.createElement('div')
+                    colDiv3.classList.add('col-lg-1')
+                    div.appendChild(colDiv3)
+
+                    canvasDiv = document.createElement('div')
+                    canvasDiv.setAttribute('style','height: 650px')
+                    aDiv2.appendChild(canvasDiv)
+
+                    canvas = document.createElement('canvas')
+                    canvas.setAttribute('id','statisticsChart')
+                    canvas.setAttribute('height','650')
+                    canvasDiv.appendChild(canvas)
+                
+                    selectorDiv = document.createElement('div')
+                    selectorDiv.classList.add('col-lg-2')
+                    div.appendChild(selectorDiv)
+
+                    h5 = document.createElement('h5')
+                    h5.innerHTML = 'Data Unit'
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+
+                    h5 = document.createElement('div')
+                    h5.innerHTML = '<i>Select which unit of data to count.</i>'
+                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+
+                    select = document.createElement('select')
+                    select.classList.add('form-control')
+                    select.setAttribute('id','baseUnitSelector')
+                    selectorDiv.appendChild(select)
+                
+                    fillSelect(select, ['Clusters','Sightings','Images'], ['2','3','1'])
+                    $("#baseUnitSelector").change( function() {
+                        updateBaseUnitLine()
+                    });
+
+                    selectorDiv.appendChild(document.createElement('br'))
+
+                    var h5 = document.createElement('h5')
+                    h5.innerHTML = 'Time Unit'
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+                
+                    h5 = document.createElement('div')
+                    h5.innerHTML = '<i>Select the time unit you would like to see your results in.</i>'
+                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+                    
+                    var row = document.createElement('div')
+                    row.classList.add('row')
+                    selectorDiv.appendChild(row)
+                
+                    var col1 = document.createElement('div')
+                    col1.classList.add('col-lg-10')
+                    row.appendChild(col1)
+                
+                    var select = document.createElement('select')
+                    select.classList.add('form-control')
+                    select.setAttribute('id','timeUnitSelector')
+                    col1.appendChild(select)
+                
+                    fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
+                    $("#timeUnitSelector").change( function() {
+                        for (let IDNum in lineData) {
+                            updateLineData(IDNum)
+                        }
+                    });
+                    select.value = '2'
+
+                    selectorDiv.appendChild(document.createElement('br'))
+
+                    h5 = document.createElement('h5')
+                    h5.innerHTML = 'Date'
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+        
+                    h5 = document.createElement('div')
+                    h5.innerHTML = "<i>Select the date range for which you would like to view results for.</i>"
+                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+        
+                    dateRange = document.createElement('div')
+                    selectorDiv.appendChild(dateRange)
+        
+                    startDateLabel = document.createElement('label');
+                    startDateLabel.textContent = 'Start date:';
+                    startDateLabel.setAttribute('for', 'startDate');
+                    dateRange.appendChild(startDateLabel)
+        
+                    dateRange.appendChild(document.createElement('br'));
+        
+                    startDateInput = document.createElement('input');
+                    startDateInput.setAttribute('type', 'date');
+                    startDateInput.setAttribute('id', 'startDate');
+                    dateRange.appendChild(startDateInput)
+        
+                    dateRange.appendChild(document.createElement('br'));
+        
+                    endDateLabel = document.createElement('label');
+                    endDateLabel.textContent = 'End date:';
+                    endDateLabel.setAttribute('for', 'endDate');
+                    dateRange.appendChild(endDateLabel)
+        
+                    dateRange.appendChild(document.createElement('br'));
+        
+                    endDateInput = document.createElement('input');
+                    endDateInput.setAttribute('type', 'date');
+                    endDateInput.setAttribute('id', 'endDate');
+                    dateRange.appendChild(endDateInput)
+        
+                    dateError = document.createElement('div')
+                    dateError.setAttribute('id', 'dateErrors')
+                    dateError.setAttribute('style', 'color: #DF691A; font-size: 80%')
+                    dateError.innerHTML = ''
+                    dateRange.appendChild(dateError)
+
+                    $("#startDate").change( function() {
+                        var valid = checkDates()
+                        if (valid) {
+                            for (let IDNum in polarData) {
+                                updateLineData(IDNum)
+                            }
+                        }
+                        else{
+                            document.getElementById('dateErrors').innerHTML = 'Start date must be before end date.'
+                        }
+                    });
+
+                    $("#endDate").change( function() {
+                        var valid = checkDates()
+                        if (valid) {
+                            for (let IDNum in polarData) {
+                                updateLineData(IDNum)
+                            }
+                        }
+                        else{
+                            document.getElementById('dateErrors').innerHTML = 'Start date must be before end date.'
+                        }
+                    });
+
+                    selectorDiv.appendChild(document.createElement('br'))
+
+                    h5 = document.createElement('h5')
+                    h5.innerHTML = 'Data'
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+
+                    h5 = document.createElement('div')
+                    h5.innerHTML = '<i>Select which site and species combinations you would like to see.</i>'
+                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    selectorDiv.appendChild(h5)
+                
+                    selectorColumn = document.createElement('div')
+                    selectorColumn.setAttribute('id','selectorColumn')
+                    selectorDiv.appendChild(selectorColumn)
+                
+                    buildPolarSelectorRow()
+
+                    button1 = document.createElement('button')
+                    button1.classList.add('btn')
+                    button1.classList.add('btn-info')
+                    button1.setAttribute('type','button')
+                    button1.setAttribute('id','btnAddPolar')
+                    button1.innerHTML = '+'
+                    selectorDiv.appendChild(button1)
+
+                    button1.addEventListener('click', ()=>{
+                        if (document.querySelectorAll('[id^=trapgroupSelect]').length < Object.keys(chartColours).length) {
+                            buildPolarSelectorRow()
+                        }
+                    });
+
+                    var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+                    var data = {
+                        datasets: [],
+                        labels: []
+                    };
+                
+                    var options = {
+                        maintainAspectRatio: false,
+                        legend: {
+                            display: false
+                        },
+                        tooltips: {
+                            displayColors: false,
+                            callbacks: {
+                                title: function(tooltipItems, data) {
+                                    return '';
+                                },
+                                label: function(tooltipItem, data) {
+                                    var label = data.labels[tooltipItem.index];
+                                    return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                                }           
+                            }
+                        },
+                        ticks: {
+                            min: 0
+                        },
+                        scales: {
+                            yAxes: [{
+                                ticks: {
+                                    fontColor: "white",
+                                    beginAtZero: true
+                                }
+                            }],
+                            xAxes: [{
+                                ticks: {
+                                    fontColor: "white"
+                                }
+                            }]
+                        }
+                    }
+                
+                    chart = new Chart(ctx, {
+                        data: data,
+                        type: 'line',
+                        options: options
+                    });
+                
+                
+                }
+            }
+            xhttp.open("GET", '/getSpeciesandIDs/'+selectedTask);
+            xhttp.send();
+        }
+    }
+    xhttp.open("POST", '/getTrapgroups');
+    xhttp.send(formData);
+
+}
+
 analysisSelector.addEventListener('change', ()=>{
     /** Event listener on the analysis selector that selects what type of analysis the user would like to see. */
     selection = analysisSelector.options[analysisSelector.selectedIndex].value
@@ -1319,6 +1614,9 @@ analysisSelector.addEventListener('change', ()=>{
         createMap()
     } else if (selection == '3') {
         createBar()
+    }
+    else if (selection == '4') {
+        createLine()
     }
 });
 
