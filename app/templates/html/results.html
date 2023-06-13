@@ -16,24 +16,24 @@ limitations under the License. -->
 {% block app_content %}
 <br>
 <div class='row'>
-    <div class="col-lg-3" style="padding-left: 30px;">
+    <div class="col-lg-2" style="padding-left: 30px;">
         <div class="card" style='min-height:400px' id="filterCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
                 <h3>Generate Results</h3>
             </div>
             <div class="card-body" id="filterCardDiv">
                 <div id="baseGenerateDiv">
-                    <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
+                    <!-- <h5 style="margin-bottom: 2px">Surveys and annotation sets</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys and annotation sets you would like to see results for.</i></div>
                     <div id="surveySelect"></div>
                     <div id="addSurveyTask"></div>
                     <div id="surveysErrors" style="font-size: 80%; color: #DF691A"></div>
-                    <br>
+                    <br> -->
 
                     <h5 style="margin-bottom: 2px">Analysis</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which analysis you want to apply.</i></div>
                     <div class="row">
-                        <div class='col-lg-8'>
+                        <div class='col-lg-10'>
                             <select id="analysisSelector" class='form-control'>
                                 <option value="-1">None</option>
                                 <option value="1">Temporal Analysis</option>
@@ -45,10 +45,25 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Chart</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the chart type you would like to see your results in.</i></div>
+                    <div class="row">
+                        <div class='col-lg-10'>
+                            <select id="chartTypeSelector" class='form-control'>
+                                <option value="line">Line Chart</option>
+                                <option value="bar">Bar Chart</option>
+                                <option value="polarArea">Polar Chart</option>
+                                <option value="scatter">Scatter Chart</option>
+                                <option value="radar">Radar Chart</option>
+                            </select>
+                        </div>
+                    </div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Data Unit</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which data unit you would like to see results for.</i></div>
                     <div class="row">
-                        <div class='col-lg-8'>
+                        <div class='col-lg-10'>
                             <select id="baseUnitSelector" class='form-control'>
                                 <option value="2">Clusters</option>
                                 <option value="3">Sightings</option>
@@ -61,11 +76,13 @@ limitations under the License. -->
                     <h5 style="margin-bottom: 2px">Date range</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see results for.</i></div>
                     <div class="row">
-                        <div class='col-lg-5'>
+                        <div class='col-lg-10'>
                             <label for="startDate">Start date:</label><br>
                             <input type="date" id="startDate" name="startDate">
                         </div>
-                        <div class='col-lg-5'>
+                    </div>
+                    <div class="row">
+                        <div class='col-lg-10'>
                             <label for="endDate">End date:</label><br>
                             <input type="date" id="endDate" name="endDate">
                         </div>
@@ -79,16 +96,16 @@ limitations under the License. -->
             </div>
             <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
                 <div class="row">
-                    <div class="col-lg-4"></div>
-                    <div class="col-lg-4">
+                    <div class="col-lg-2"></div>
+                    <div class="col-lg-8">
                         <button type='button' class='btn btn-primary btn-block' id='btnClearResults' onclick=clearResults()>Clear</button>  
                     </div>
-                    <div class="col-lg-4"></div>
+                    <div class="col-lg-2"></div>
                 </div>
             </div>          
         </div>
     </div>
-    <div class='col-lg-9' style="padding-right: 30px;">
+    <div class='col-lg-8'>
         <div class="card" style='min-height:400px' id="mainCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
             <div class='row' style="margin-top: 0px; margin-bottom: 0px">
@@ -113,6 +130,31 @@ limitations under the License. -->
                 </div>
             </div>  
         </div>
+    </div>
+    <div class="col-lg-2" style="padding-right: 30px;">
+        <div class="card" style='min-height:400px' id="groupsCard">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
+                <div class="row">
+                    <div class="col-lg-9">
+                        <h3>Groups</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body" id="tasksDiv" style="padding: 0px;">
+                    <div id="groupsDiv"></div>
+            </div>
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+                <div class="row">
+                    <div class="col-lg-2"></div>
+                    <div class="col-lg-8">
+                        <button type='button' class='btn btn-primary btn-block' id='btnSaveGroups'>Save</button>  
+                    </div>
+                    <div class="col-lg-2"></div>
+                </div>
+            </div>  
+                    
+        </div>
+
     </div>
 </div>
 <br>

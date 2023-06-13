@@ -41,19 +41,19 @@ function addBarData(data,colour) {
      * @param {str} colour The colour with which to display the data
      */
     
-    xAxisSelector = document.getElementById('xAxisSelector')
-    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-    if (xAxisSelection=='1') {
-        dataset = {
-            data: data,
-            hoverBackgroundColor: colour,
-            borderColor: 'rgba(255,255,255,1)',
-            borderWidth: 1,
-            barPercentage: 1.0,
-            categoryPercentage: 1.0,
-            backgroundColor: colour
-        }
-    } else {
+    // xAxisSelector = document.getElementById('xAxisSelector')
+    // xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+    // if (xAxisSelection=='1') {
+    //     dataset = {
+    //         data: data,
+    //         hoverBackgroundColor: colour,
+    //         borderColor: 'rgba(255,255,255,1)',
+    //         borderWidth: 1,
+    //         barPercentage: 1.0,
+    //         categoryPercentage: 1.0,
+    //         backgroundColor: colour
+    //     }
+    // } else {
         if (colour=='rgba(255,255,255,0.2)') {
             background = 'rgba(0,0,0,0.2)'
         } else {
@@ -68,7 +68,7 @@ function addBarData(data,colour) {
             categoryPercentage: 1.0,
             backgroundColor: colour
         }
-    }
+    // }
     chart.data.datasets.push(dataset)
     chart.update()
 }
@@ -89,7 +89,7 @@ function removePolarData(colour) {
             break
         }
     }
-    polarColours[colour] = false
+    chartColours[colour] = false
     chart.update()
 }
 
@@ -109,7 +109,7 @@ function removeBarData(colour) {
             break
         }
     }
-    barColours[colour] = false
+    chartColours[colour] = false
     chart.update()
 }
 
@@ -154,19 +154,20 @@ function editBarData(data,colour) {
      * @param {str} colour The colour to edit
      */
 
-    xAxisSelector = document.getElementById('xAxisSelector')
-    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+    // xAxisSelector = document.getElementById('xAxisSelector')
+    // xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
     pieces = colour.split(', ')
     if (pieces.length>1) {
         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
     }
     for (let i=0;i<chart.data.datasets.length;i++) {
         if (chart.data.datasets[i].backgroundColor==colour) {
-            if (xAxisSelection=='1') {
-                chart.data.datasets[i].hoverBackgroundColor = chart.data.datasets[i].backgroundColor
-            } else {
-                chart.data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
-            }
+            // if (xAxisSelection=='1') {
+            //     chart.data.datasets[i].hoverBackgroundColor = chart.data.datasets[i].backgroundColor
+            // } else {
+            //     chart.data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
+            // }
+            chart.data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
             chart.data.datasets[i].data=data
             break
         }
@@ -198,11 +199,17 @@ function updatePolarDisplay(IDNum) {
         newData = data
     }
 
+    if (document.getElementById('chartTypeSelector')){     
+        chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+    } else {
+        chartType = 'polarArea'
+    }
+
     if (polarData[IDkey]['new']) {
-        addPolarData(newData,colour)
+        addData(newData,colour, chartType)
         polarData[IDkey]['new'] = false
     } else {
-        editPolarData(newData,colour)
+        editData(newData,colour, chartType)
     }
 }
 
@@ -236,12 +243,17 @@ function updateBarDisplay(IDNum) {
             newData = data
         }
     }
+    if (document.getElementById('chartTypeSelector')){     
+        chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+    } else {
+        chartType = 'bar'
+    }
 
     if (barData[IDkey]['new']) {
-        addBarData(newData,colour)
+        addData(newData,colour,chartType)
         barData[IDkey]['new'] = false
     } else {
-        editBarData(newData,colour)
+        editData(newData,colour,chartType)
     }
 }
 
@@ -366,8 +378,24 @@ function updatePolarData(IDNum) {
     if (site == 'All') {	
         site = '0'
     }
+    else if (site.includes('(')) {
+        var split = site.split(' ')
+        site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+    }
 
-    
+    var traps = null
+    if (trapgroup.includes(',')) {
+        traps = trapgroup.split(',')
+    }
+    else {
+        if (isNaN(trapgroup) || trapgroup == '0') {
+            traps = trapgroup
+        }
+        else {
+            traps = [trapgroup]
+        }
+    }
+
     if (trapgroup!='-1') {
         var reqID = Math.floor(Math.random() * 100000) + 1;
         activeRequest[IDNum.toString()] = reqID
@@ -376,7 +404,7 @@ function updatePolarData(IDNum) {
         formData.append('task_ids', JSON.stringify(tasks));
         formData.append('species', JSON.stringify(species));
         formData.append('baseUnit', JSON.stringify(baseUnitSelection));
-        formData.append('trapgroup', JSON.stringify(site));
+        formData.append('trapgroup', JSON.stringify(traps));
         formData.append('reqID', JSON.stringify(reqID));
         formData.append('startDate', JSON.stringify(startDate));
         formData.append('endDate', JSON.stringify(endDate));
@@ -387,16 +415,16 @@ function updatePolarData(IDNum) {
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     response = JSON.parse(this.responseText);
-
+                    console.log(response)
                     IDkey = wrapIDNum.toString()
                     if (parseInt(response.reqID)==activeRequest[IDkey]) {
                         reply = response.data
                         
                         if (!polarData.hasOwnProperty(IDkey)) {
                             colour = null
-                            for (let key in polarColours) {
-                                if (polarColours[key]==false) {
-                                    polarColours[key] = true
+                            for (let key in chartColours) {
+                                if (chartColours[key]==false) {
+                                    chartColours[key] = true
                                     colour = key
                                     break
                                 }
@@ -495,9 +523,9 @@ function updateBarData(IDNum) {
     
                     if (!barData.hasOwnProperty(IDkey)) {
                         colour = null
-                        for (let key in barColours) {
-                            if (barColours[key]==false) {
-                                barColours[key] = true
+                        for (let key in chartColours) {
+                            if (chartColours[key]==false) {
+                                chartColours[key] = true
                                 colour = key
                                 break
                             }
@@ -703,6 +731,7 @@ function updateHeatMap() {
         var tasks = [selectedTask]
     }else{
         var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
     }
 
     if(species == 'All'){
@@ -750,6 +779,10 @@ function updateHeatMap() {
         formData.append('baseUnit', JSON.stringify(baseUnit));
         formData.append('startDate', JSON.stringify(startDate));
         formData.append('endDate', JSON.stringify(endDate));
+        if (!selectedTask) {
+            console.log(sites)
+            formData.append('sites', JSON.stringify(sites));
+        }
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -850,12 +883,24 @@ function updateLineData(IDNum){
     if (site == 'All') {	
         site = '0'
     }
+    else if (site.includes('(')) {
+        var split = site.split(' ')
+        site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+    }
+
+    var traps = null
+    if (trapgroup.includes(',')) {
+        traps = trapgroup.split(',')
+    }
+    else {
+        traps = trapgroup
+    }
 
     var formData = new FormData();
     formData.append('task_ids', JSON.stringify(tasks));
     formData.append('species', JSON.stringify(species));
     formData.append('baseUnit', JSON.stringify(baseUnitSelection));
-    formData.append('trapgroup', JSON.stringify(site));
+    formData.append('trapgroup', JSON.stringify(traps));
     formData.append('timeUnit', JSON.stringify(timeUnitSelection));
     formData.append('startDate', JSON.stringify(startDate));
     formData.append('endDate', JSON.stringify(endDate));
@@ -879,9 +924,9 @@ function updateLineData(IDNum){
 
                     if (!lineData.hasOwnProperty(IDkey)) {
                         colour = null
-                        for (let key in lineColours) {
-                            if (lineColours[key]==false) {
-                                lineColours[key] = true
+                        for (let key in chartColours) {
+                            if (chartColours[key]==false) {
+                                chartColours[key] = true
                                 colour = key
                                 break
                             }
@@ -929,11 +974,17 @@ function updateLineDisplay(IDNum){
     data = lineData[IDkey]['data']
     colour = lineData[IDkey]['colour']
 
+    if (document.getElementById('chartTypeSelector')){     
+        chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+    } else {
+        chartType = 'line'
+    }
+
     if (lineData[IDkey]['new']) {
-        addLineData(data,colour)
+        addData(data,colour,chartType)
         lineData[IDkey]['new'] = false
     } else {
-        editLineData(data,colour)
+        editData(data,colour,chartType)
     }
 }
 
@@ -947,6 +998,7 @@ function addLineData(data,colour) {
     dataset = {
         data: data,
         hoverBackgroundColor: colour,
+        backgroundColor: colour,
         borderColor: colour,
         borderWidth: 2,
         fill: false,
@@ -1052,7 +1104,6 @@ function updateBaseUnitLine() {
 }
 
 function removeLineData(colour) {
-
     /**
      * Removes a dataset from the active line chart based on colour.
      * @param {str} colour The colour dataset to remove
@@ -1068,13 +1119,12 @@ function removeLineData(colour) {
             break
         }
     }
-    lineColours[colour] = false
+    chartColours[colour] = false
     chart.update()
-
 
 }
 
-function removeLineColours(){
+function clearLineColours(){
     /** Clears the lineColours object */
     for (let key in lineColours) {
         lineColours[key] = false
@@ -1142,3 +1192,167 @@ function updatLineDataAndLabels(){
         }
     }
 }
+
+function addScatterData(data, colour){
+    /** Adds data to the active scatter chart */
+    console.log('Add scatter data')
+    dataset = {
+        data: data,
+        hoverBackgroundColor: colour,
+        backgroundColor: colour,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,1)'
+    }
+    chart.data.datasets.push(dataset)
+    chart.update()
+
+}
+
+function editScatterData(data, colour){
+    /** Edits the active scatter chart's data */
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets[i].data=data
+            break
+        }
+    }
+    chart.update()
+
+}
+
+function addRadarData(data, colour){
+    /** Adds data to the active radar chart */
+    if (colour=='rgba(255,255,255,0.2)') {
+        background = 'rgba(0,0,0,0.2)'
+    } else {
+        background = 'rgba(255,255,255,0.2)'
+    }
+    dataset = {
+        data: data,
+        hoverBackgroundColor: background,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,1)',
+        backgroundColor: colour
+    }
+    chart.data.datasets.push(dataset)
+    chart.update()
+
+}
+
+function editRadarData(data, colour){
+    /** Edits the active radar chart's data */
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets[i].data=data
+            break
+        }
+    }
+    chart.update()
+
+}
+
+function removeRadarData(colour){
+    /** Removes data from the active radar chart */
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].backgroundColor==colour) {
+            chart.data.datasets.splice(i, 1);
+            break
+        }
+    }
+    chartColours[colour] = false
+    chart.update()
+}
+
+function removeScatterData(colour){
+    /** Removes data from the active radar chart */
+    pieces = colour.split(', ')
+    if (pieces.length>1) {
+        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    }
+    for (let i=0;i<chart.data.datasets.length;i++) {
+        if (chart.data.datasets[i].borderColor==colour) {
+            chart.data.datasets.splice(i, 1);
+            break
+        }
+    }
+    chartColours[colour] = false
+    chart.update()
+}
+
+function addData(data, colour, chartType){
+    /** Adds data to the active chart */
+    if (chartType=='line'){
+        addLineData(data, colour)
+    }
+    else if (chartType=='polarArea'){
+        addPolarData(data, colour)
+    }
+    else if (chartType=='bar'){
+        addBarData(data, colour)
+    }
+    else if (chartType=='scatter'){
+        addScatterData(data, colour)
+    }
+    else if (chartType=='radar'){
+        addRadarData(data, colour)
+    }
+}
+
+function editData(data, colour, chartType){
+    /** Edits the active chart's data */
+    if (chartType=='line'){
+        editLineData(data, colour)
+    }
+    else if (chartType=='polarArea'){
+        editPolarData(data, colour)
+    }
+    else if (chartType=='bar'){
+        editBarData(data, colour)
+    }
+    else if (chartType=='scatter'){
+        editScatterData(data, colour)
+    }
+    else if (chartType=='radar'){
+        editRadarData(data, colour)
+    }
+}
+
+function removeData(colour, chartType){
+    /** Removes data from the active chart */
+    if (chartType=='line'){
+        removeLineData(colour)
+    }
+    else if (chartType=='polarArea'){
+        removePolarData(colour)
+    }
+    else if (chartType=='bar'){
+        removeBarData(colour)
+    }
+    else if (chartType=='scatter'){
+        removeScatterData(colour)
+    }
+    else if (chartType=='radar'){
+        removeRadarData(colour)
+    }
+}
+
+function clearChartColours(){
+    /** Clears the chartColours object */
+    for (let key in chartColours) {
+        chartColours[key] = false
+    }
+}
+

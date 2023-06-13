@@ -1896,6 +1896,9 @@ def getPolarData():
 
         if trapgroup == '0':
             baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
+        if type(trapgroup) == list:
+            trap_ids = [int(t) for t in trapgroup]
+            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
         else:
             baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
 
@@ -2047,7 +2050,7 @@ def getBarData():
             trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
             check_data = {}
             for trapgroup in trapgroups:
-                count = baseQuery.filter(Trapgroup.tag==trapgroup.tag).distinct().count()
+                count = baseQuery.filter(Trapgroup.id==trapgroup.id).distinct().count()
 
                 key = (trapgroup.latitude,trapgroup.longitude,trapgroup.tag)
                 if key not in check_data:
@@ -5447,14 +5450,18 @@ def getTrapgroupCounts():
     task_ids = ast.literal_eval(request.form['task_ids'])
     species = ast.literal_eval(request.form['species'])
     baseUnit = ast.literal_eval(request.form['baseUnit'])
-
     if 'startDate' in request.form:
         startDate = ast.literal_eval(request.form['startDate'])
         endDate = ast.literal_eval(request.form['endDate'])
     else:
         startDate = None
         endDate = None
-    if Config.DEBUGGING: app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, startDate: {}, endDate: {}'.format(task_ids,species,baseUnit,startDate,endDate))
+    if 'sites' in request.form:
+        sites = ast.literal_eval(request.form['sites'])
+    else:
+        sites = None
+
+    if Config.DEBUGGING: app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, startDate: {}, endDate: {}, sites {}'.format(task_ids,species,baseUnit,startDate,endDate, sites))
     data = []
     maxVal = 0
     if task_ids:
@@ -5505,7 +5512,11 @@ def getTrapgroupCounts():
 
         if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
-        trapgroups = [trapgroup for task in tasks for trapgroup in task.survey.trapgroups]
+        if sites and sites[0] != '0':
+            trap_ids = [int(s) for s in sites]
+            trapgroups = db.session.query(Trapgroup).filter(Trapgroup.id.in_(trap_ids)).all()
+        else:
+            trapgroups = [trapgroup for task in tasks for trapgroup in task.survey.trapgroups]
 
         data_check = {}
 
@@ -8039,16 +8050,29 @@ def results():
 def getAllLabelsAndSites():
     '''Returns all the labels and sites for the specified tasks.'''
     task_ids = ast.literal_eval(request.form['task_ids'])
-
+    sites_data = []
+    sites_ids = []
+    unique_sites = {}
     if task_ids:
         if task_ids[0] == '0':
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
-            sites = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+            sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id).all()
+            for site in sites:
+                site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
+                combination = (site_info['tag'], site_info['latitude'], site_info['longitude'])
+                
+                if combination in unique_sites.keys():
+                    unique_sites[combination]['ids'].append(site.id)
+                else:
+                    unique_sites[combination] = {'info': site_info, 'ids': [site.id]}
+            for item in unique_sites.values():
+                sites_data.append(item['info'])
+                sites_ids.append(item['ids'])
         else:
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
-            sites = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
+            sites_data = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
 
-    return json.dumps({'labels': labels, 'sites': sites})
+    return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids})
 
 @app.route('/getLineData', methods=['POST'])
 @login_required
@@ -8105,6 +8129,9 @@ def getLineData():
 
         if trapgroup == '0':
             baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
+        if type(trapgroup) == list:
+            trap_ids = [int(t) for t in trapgroup]
+            baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
         else:
             baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
 

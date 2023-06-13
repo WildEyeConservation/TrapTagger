@@ -12,6 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+var chartColours = {
+    'rgba(89,228,170,0.6)': false,
+    'rgba(42,173,206,0.6)': false,
+    'rgba(176,41,169,0.6)': false,
+    'rgba(60,144,52,0.6)': false,
+    'rgba(32,81,110,0.6)': false,
+    'rgba(195,26,68,0.6)': false,
+    'rgba(86,124,179,0.6)': false,
+    'rgba(137,23,166,0.6)': false,
+    'rgba(98,185,64,0.6)': false,
+    'rgba(215,43,156,0.6)': false,
+    'rgba(114,72,153,0.6)': false,
+    'rgba(173,22,56,0.6)': false,
+    'rgba(53,98,206,0.6)': false,
+    'rgba(96,173,93,0.6)': false,
+    'rgba(194,66,154,0.6)': false,
+    'rgba(79,193,25,0.6)': false
+}
+
 function buildPolarSelectorRow() {
     /** Builds a new species selector row for the temporal analysis polar chart. */
 
@@ -384,7 +403,7 @@ function createPolarChart() {
                     selectorDiv.appendChild(button1)
 
                     button1.addEventListener('click', ()=>{
-                        if (document.querySelectorAll('[id^=trapgroupSelect]').length < Object.keys(polarColours).length) {
+                        if (document.querySelectorAll('[id^=trapgroupSelect]').length < Object.keys(chartColours).length) {
                             buildPolarSelectorRow()
                         }
                     });
@@ -683,7 +702,7 @@ function createBar() {
                     selectorDiv.appendChild(button1)
 
                     button1.addEventListener('click', ()=>{
-                        if (document.querySelectorAll('[id^=speciesSelect]').length < Object.keys(barColours).length) {
+                        if (document.querySelectorAll('[id^=speciesSelect]').length < Object.keys(chartColours).length) {
                             buildBarSelectorRow()
                         }
                     });
@@ -1286,8 +1305,7 @@ function clearStatistics() {
     while(statisticsDiv.firstChild){
         statisticsDiv.removeChild(statisticsDiv.firstChild);
     }
-    clearPolarColours()
-    clearBarColours()
+    clearChartColours()
     document.getElementById('statisticsErrors').innerHTML = ''
 }
 
@@ -1307,8 +1325,7 @@ analysisSelector.addEventListener('change', ()=>{
 modalStatistics.on('hidden.bs.modal', function(){
     /** Clears the statistics modal when it is closed, unless it is being closed to open the help modal. */
     if (!helpReturn) {
-        clearPolarColours()
-        clearBarColours()
+        clearChartColours()
         clearStatistics()
         analysisSelector.selectedIndex = 0
         modalResults.modal({keyboard: true});

@@ -58,7 +58,7 @@ var barColours = {
 }
 
 var lineColours = {
-        'rgba(89,228,170,0.4)': false,
+        'rgba(89,228,170,0.9)': false,
         'rgba(42,173,206,0.9)': false,
         'rgba(176,41,169,0.9)': false,
         'rgba(60,144,52,0.9)': false,
@@ -76,8 +76,28 @@ var lineColours = {
         'rgba(79,193,25,0.9)': false
         }
 
+var chartColours = {
+    'rgba(89,228,170,0.6)': false,
+    'rgba(42,173,206,0.6)': false,
+    'rgba(176,41,169,0.6)': false,
+    'rgba(60,144,52,0.6)': false,
+    'rgba(32,81,110,0.6)': false,
+    'rgba(195,26,68,0.6)': false,
+    'rgba(86,124,179,0.6)': false,
+    'rgba(137,23,166,0.6)': false,
+    'rgba(98,185,64,0.6)': false,
+    'rgba(215,43,156,0.6)': false,
+    'rgba(114,72,153,0.6)': false,
+    'rgba(173,22,56,0.6)': false,
+    'rgba(53,98,206,0.6)': false,
+    'rgba(96,173,93,0.6)': false,
+    'rgba(194,66,154,0.6)': false,
+    'rgba(79,193,25,0.6)': false
+}
+
 var globalLabels = []
 var globalSites = []
+var globalSitesIDs = []
 var chart = null
 var trapgroupNames
 var trapgroupValues
@@ -100,226 +120,226 @@ var selectedTask = null
 var timeLabels = []
 
 
-function addSurveys(){
-    /** Adds the survey and annotation set selectors to the page */
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            surveys = JSON.parse(this.responseText);  
-            buildSurveySelect()
-        }
-    }
-    xhttp.open("GET", '/getSurveys');
-    xhttp.send();
+// function addSurveys(){
+//     /** Adds the survey and annotation set selectors to the page */
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             surveys = JSON.parse(this.responseText);  
+//             buildSurveySelect()
+//         }
+//     }
+//     xhttp.open("GET", '/getSurveys');
+//     xhttp.send();
 
-    var addSurveyTask = document.getElementById('addSurveyTask')
+//     var addSurveyTask = document.getElementById('addSurveyTask')
     
-    row = document.createElement('div')
-    row.classList.add('row')
-    addSurveyTask.appendChild(row)
+//     row = document.createElement('div')
+//     row.classList.add('row')
+//     addSurveyTask.appendChild(row)
 
-    col = document.createElement('div')
-    col.classList.add('col-lg-3')
-    row.appendChild(col)
+//     col = document.createElement('div')
+//     col.classList.add('col-lg-3')
+//     row.appendChild(col)
 
-    btnAdd = document.createElement('button');
-    btnAdd.setAttribute("class",'btn btn-info');
-    btnAdd.innerHTML = '&plus;';
-    btnAdd.addEventListener('click', ()=>{
-        buildSurveySelect()
-        checkSurvey()
-    });
-    col.appendChild(btnAdd);
-}
+//     btnAdd = document.createElement('button');
+//     btnAdd.setAttribute("class",'btn btn-info');
+//     btnAdd.innerHTML = '&plus;';
+//     btnAdd.addEventListener('click', ()=>{
+//         buildSurveySelect()
+//         checkSurvey()
+//     });
+//     col.appendChild(btnAdd);
+// }
 
-function buildSurveySelect(){
-    /** Builds the selectors for the surveys and annotation sets */
+// function buildSurveySelect(){
+//     /** Builds the selectors for the surveys and annotation sets */
 
-    IDNum = getIdNumforNext('idSurveySelect-')
-    surveySelect = document.getElementById('surveySelect')
+//     IDNum = getIdNumforNext('idSurveySelect-')
+//     surveySelect = document.getElementById('surveySelect')
 
-    row = document.createElement('div')
-    row.classList.add('row')
-    surveySelect.appendChild(row)
+//     row = document.createElement('div')
+//     row.classList.add('row')
+//     surveySelect.appendChild(row)
 
-    col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
-    row.appendChild(col1)
+//     col1 = document.createElement('div')
+//     col1.classList.add('col-lg-8')
+//     row.appendChild(col1)
 
-    col3 = document.createElement('div')
-    col3.classList.add('col-lg-2')
-    col3.setAttribute('style','padding: 0px;')
-    row.appendChild(col3)
-    
-
-    if (IDNum > 0) {
-        col1.appendChild(document.createElement('br'))
-        col3.appendChild(document.createElement('br'))
-    }
-    
-    idSurveySelect = document.createElement('select')
-    idSurveySelect.classList.add('form-control')
-    idSurveySelect.id = 'idSurveySelect-'+String(IDNum)
-    idSurveySelect.name = idSurveySelect.id
-    col1.appendChild(idSurveySelect)
-
-    idTaskSelect = document.createElement('select')
-    idTaskSelect.classList.add('form-control')
-    idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
-    idTaskSelect.name = idTaskSelect.id
-    col1.appendChild(idTaskSelect)
+//     col3 = document.createElement('div')
+//     col3.classList.add('col-lg-2')
+//     col3.setAttribute('style','padding: 0px;')
+//     row.appendChild(col3)
     
 
-    if (surveys != null) {
+//     if (IDNum > 0) {
+//         col1.appendChild(document.createElement('br'))
+//         col3.appendChild(document.createElement('br'))
+//     }
+    
+//     idSurveySelect = document.createElement('select')
+//     idSurveySelect.classList.add('form-control')
+//     idSurveySelect.id = 'idSurveySelect-'+String(IDNum)
+//     idSurveySelect.name = idSurveySelect.id
+//     col1.appendChild(idSurveySelect)
+
+//     idTaskSelect = document.createElement('select')
+//     idTaskSelect.classList.add('form-control')
+//     idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
+//     idTaskSelect.name = idTaskSelect.id
+//     col1.appendChild(idTaskSelect)
+    
+
+//     if (surveys != null) {
         
-        if(IDNum==0){
-            optionTexts = ['All']
-            optionValues = ["0"]  
-            fillSelect(idTaskSelect, [''], ['0'])
-        }
-        else{
-            optionTexts = ['None']
-            optionValues = ['-1'] 
-            fillSelect(idTaskSelect, [''], ['-1'])
-        }
+//         if(IDNum==0){
+//             optionTexts = ['All']
+//             optionValues = ["0"]  
+//             fillSelect(idTaskSelect, [''], ['0'])
+//         }
+//         else{
+//             optionTexts = ['None']
+//             optionValues = ['-1'] 
+//             fillSelect(idTaskSelect, [''], ['-1'])
+//         }
 
-        for (let i=0;i<surveys.length;i++) {
-            optionTexts.push(surveys[i][1])
-            optionValues.push(surveys[i][0])
-        }
-        clearSelect(idSurveySelect)
-        fillSelect(idSurveySelect, optionTexts, optionValues)
+//         for (let i=0;i<surveys.length;i++) {
+//             optionTexts.push(surveys[i][1])
+//             optionValues.push(surveys[i][0])
+//         }
+//         clearSelect(idSurveySelect)
+//         fillSelect(idSurveySelect, optionTexts, optionValues)
         
         
-    }
+//     }
 
-    if (IDNum!=0) {
-        btnRemove = document.createElement('button');
-        btnRemove.setAttribute("class",'btn btn-info');
-        btnRemove.innerHTML = '&times;';
-        btnRemove.addEventListener('click', (evt)=>{
-            evt.target.parentNode.parentNode.remove();
-            checkSurvey()
-            updateResults(true)
+//     if (IDNum!=0) {
+//         btnRemove = document.createElement('button');
+//         btnRemove.setAttribute("class",'btn btn-info');
+//         btnRemove.innerHTML = '&times;';
+//         btnRemove.addEventListener('click', (evt)=>{
+//             evt.target.parentNode.parentNode.remove();
+//             checkSurvey()
+//             updateResults(true)
 
-        });
-        col3.appendChild(btnRemove);
-    }
+//         });
+//         col3.appendChild(btnRemove);
+//     }
 
-    $("#"+idSurveySelect.id).change( function(wrapIDNum) {
-        return function() {
+//     $("#"+idSurveySelect.id).change( function(wrapIDNum) {
+//         return function() {
 
-            idSurveySelect = document.getElementById('idSurveySelect-'+String(wrapIDNum))
-            idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
+//             idSurveySelect = document.getElementById('idSurveySelect-'+String(wrapIDNum))
+//             idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
             
-            survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
-            if (survey=="0" || survey=="-1") {
-                clearSelect(idTaskSelect)
-                fillSelect(idTaskSelect, [''], ['0'])
-                checkSurvey()
-                updateResults(true)
-            } else {
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange =
-                function(wrapidTaskSelect){
-                    return function() {
-                        if (this.readyState == 4 && this.status == 200) {
-                            tasks = JSON.parse(this.responseText);  
-                            optionTexts = []      
-                            optionValues = []
-                            for (let i=0;i<tasks.length;i++) {
-                                optionTexts.push(tasks[i][1])
-                                optionValues.push(tasks[i][0])
-                            }
-                            clearSelect(wrapidTaskSelect)
-                            fillSelect(wrapidTaskSelect, optionTexts, optionValues)
+//             survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
+//             if (survey=="0" || survey=="-1") {
+//                 clearSelect(idTaskSelect)
+//                 fillSelect(idTaskSelect, [''], ['0'])
+//                 checkSurvey()
+//                 updateResults(true)
+//             } else {
+//                 var xhttp = new XMLHttpRequest();
+//                 xhttp.onreadystatechange =
+//                 function(wrapidTaskSelect){
+//                     return function() {
+//                         if (this.readyState == 4 && this.status == 200) {
+//                             tasks = JSON.parse(this.responseText);  
+//                             optionTexts = []      
+//                             optionValues = []
+//                             for (let i=0;i<tasks.length;i++) {
+//                                 optionTexts.push(tasks[i][1])
+//                                 optionValues.push(tasks[i][0])
+//                             }
+//                             clearSelect(wrapidTaskSelect)
+//                             fillSelect(wrapidTaskSelect, optionTexts, optionValues)
  
-                            checkSurvey()
-                            updateResults(true)
-                        }
-                    }
-                }(idTaskSelect)
-                xhttp.open("GET", '/getTasks/'+survey);
-                xhttp.send();
-            }
-        }
-    }(IDNum));
+//                             checkSurvey()
+//                             updateResults(true)
+//                         }
+//                     }
+//                 }(idTaskSelect)
+//                 xhttp.open("GET", '/getTasks/'+survey);
+//                 xhttp.send();
+//             }
+//         }
+//     }(IDNum));
 
-    $("#"+idTaskSelect.id).change( function() {
-        checkSurvey()
-        updateResults(true)
-    })
+//     $("#"+idTaskSelect.id).change( function() {
+//         checkSurvey()
+//         updateResults(true)
+//     })
     
-}
+// }
 
-function checkSurvey(){
-    /** Checks that the slected surveys and annotation sets are valid */
+// function checkSurvey(){
+//     /** Checks that the slected surveys and annotation sets are valid */
 
-    var duplicateTask = false
-    var surveyAll = false
-    var noneSurvey = false
-    legalSurvey = false
-    
-    
-    surveyErrors = document.getElementById('surveysErrors')
-    allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
-    allSurveys = document.querySelectorAll('[id^=idSurveySelect-]') 
+//     var duplicateTask = false
+//     var surveyAll = false
+//     var noneSurvey = false
+//     legalSurvey = false
     
     
-    while(surveyErrors.firstChild){
-        surveyErrors.removeChild(surveyErrors.firstChild)
-    }    
+//     surveyErrors = document.getElementById('surveysErrors')
+//     allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
+//     allSurveys = document.querySelectorAll('[id^=idSurveySelect-]') 
+    
+    
+//     while(surveyErrors.firstChild){
+//         surveyErrors.removeChild(surveyErrors.firstChild)
+//     }    
 
-    for (let i=0;i<allTasks.length;i++) {
-        currTaskVal = allTasks[i].value
-        for (let j=0;j<allTasks.length;j++) {
-            if(allTasks[j].value == currTaskVal && j!=i){
-                duplicateTask = true
-            }
-        }
-        if (currTaskVal=='0'){
-            surveyAll = true
-        }
-    }
+//     for (let i=0;i<allTasks.length;i++) {
+//         currTaskVal = allTasks[i].value
+//         for (let j=0;j<allTasks.length;j++) {
+//             if(allTasks[j].value == currTaskVal && j!=i){
+//                 duplicateTask = true
+//             }
+//         }
+//         if (currTaskVal=='0'){
+//             surveyAll = true
+//         }
+//     }
 
     
-    if(allSurveys.length == 1 && surveyAll){
-        surveyAll = false
-    }
-    else if(allSurveys.length == 1 && !surveyAll && modalActive){
-        if(allSurveys[0].value == '-1'){
-            noneSurvey = true
-        }
-    }
+//     if(allSurveys.length == 1 && surveyAll){
+//         surveyAll = false
+//     }
+//     else if(allSurveys.length == 1 && !surveyAll && modalActive){
+//         if(allSurveys[0].value == '-1'){
+//             noneSurvey = true
+//         }
+//     }
     
 
-    if (duplicateTask) {
-        newdiv = document.createElement('div')
-        newdiv.innerHTML =  'You have duplicate annotation sets, please remove the duplicate.'
-        surveyErrors.appendChild(newdiv)
-    }
+//     if (duplicateTask) {
+//         newdiv = document.createElement('div')
+//         newdiv.innerHTML =  'You have duplicate annotation sets, please remove the duplicate.'
+//         surveyErrors.appendChild(newdiv)
+//     }
     
 
-    if(surveyAll){
-        newdiv = document.createElement('div')
-        newdiv.innerHTML =  'You cannot select all surveys and add additional surveys. Please remove additional surveys or "All" surveys.'
-        surveyErrors.appendChild(newdiv)
-    }
+//     if(surveyAll){
+//         newdiv = document.createElement('div')
+//         newdiv.innerHTML =  'You cannot select all surveys and add additional surveys. Please remove additional surveys or "All" surveys.'
+//         surveyErrors.appendChild(newdiv)
+//     }
 
 
-    if(noneSurvey){
-        newdiv = document.createElement('div')
-        newdiv.innerHTML =  'You have not selected any surveys. Please select a survey.'
-        surveyErrors.appendChild(newdiv)
-    }
+//     if(noneSurvey){
+//         newdiv = document.createElement('div')
+//         newdiv.innerHTML =  'You have not selected any surveys. Please select a survey.'
+//         surveyErrors.appendChild(newdiv)
+//     }
 
-    if (duplicateTask||surveyAll||noneSurvey) {
-        legalSurvey = false
-    } else {
-        legalSurvey = true
-    }
-}
+//     if (duplicateTask||surveyAll||noneSurvey) {
+//         legalSurvey = false
+//     } else {
+//         legalSurvey = true
+//     }
+// }
 
 function getLabelsAndSites(){
     /** Builds the selectors for generating results*/
@@ -334,8 +354,18 @@ function getLabelsAndSites(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
+            console.log(reply)
             globalLabels = reply.labels
-            globalSites = reply.sites            
+            globalSites = []
+            for (let i=0;i<reply.sites.length;i++) {
+                let site = reply.sites[i].tag + ' (' + reply.sites[i].latitude + ', ' +  reply.sites[i].longitude + ')'
+                globalSites.push(site)   
+
+
+                let siteIds = reply.sites_ids[i].join(',')
+                globalSitesIDs.push(siteIds)
+
+            }
 
             updateLabelsAndSites()
 
@@ -366,7 +396,7 @@ function updateLabelsAndSites(){
             clearSelect(siteSelector)
             optionValues = ['-1', '0']
             optionTexts = ['None', 'All']
-            optionValues = optionValues.concat(globalSites)
+            optionValues = optionValues.concat(globalSitesIDs)
             optionTexts = optionTexts.concat(globalSites)
             fillSelect(siteSelector, optionTexts, optionValues)
         }
@@ -385,7 +415,7 @@ function updateLabelsAndSites(){
             clearSelect(allSiteSelector[i])
             var optionValues = ['-1', '0']
             var optionTexts = ['None', 'All']
-            optionValues = optionValues.concat(globalSites)
+            optionValues = optionValues.concat(globalSitesIDs)
             optionTexts = optionTexts.concat(globalSites)
             fillSelect(allSiteSelector[i], optionTexts, optionValues)
         }
@@ -410,25 +440,33 @@ function generateResults(){
     if (analysisType=='1') {
         //Builds the selectors for the temporal analysis
         document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeSelector').value = 'polarArea'
         generateTemporal()
     }
     else if (analysisType=='2') {
         //Builds the selectors for the spatial analysis
         document.getElementById('btnExportResults').disabled = true
+        document.getElementById('chartTypeSelector').disabled = true
         generateSpatial()
     }
     else if (analysisType=='3') {
         //Builds the selectors for the numerical analysis
         document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeSelector').value = 'bar'
         generateNumerical()
     }
     else if (analysisType=='4') {
         //Builds the selectors for the time series analysis
         document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeSelector').value = 'line'
         generateTime()
     }
     else{
         document.getElementById('btnExportResults').disabled = true
+        document.getElementById('chartTypeSelector').disabled = false
     }
 
 }
@@ -454,7 +492,7 @@ function generateTemporal(){
     generateDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     var select = document.createElement('select')
@@ -519,36 +557,14 @@ function generateTemporal(){
     colDiv2.classList.add('row')
     aDiv2.appendChild(colDiv2)
 
-    secCol1 = document.createElement('div')
-    secCol1.classList.add('col-lg-1')
-    secCol1.setAttribute('style','padding-right:4px;margin-right:0px;display:flex;justify-content:center;align-items:center')
-    colDiv2.appendChild(secCol1)
-
     secCol2 = document.createElement('div')
-    secCol2.classList.add('col-lg-10')
+    secCol2.classList.add('col-lg-12')
     secCol2.setAttribute('style','margin:0px;margin:0px')
     colDiv2.appendChild(secCol2)
-
-    secCol3 = document.createElement('div')
-    secCol3.classList.add('col-lg-1')
-    secCol3.setAttribute('style','padding-left:4px;margin-left:0px;display:flex;justify-content:center;align-items:center')
-    colDiv2.appendChild(secCol3)
 
     colDiv3 = document.createElement('div')
     colDiv3.classList.add('col-lg-1')
     div.appendChild(colDiv3)
-
-    h5 = document.createElement('h5')
-    h5.setAttribute('style','padding-right:4px;margin-right:0px')
-    h5.setAttribute('align','right')
-    h5.innerHTML = '18:00'
-    secCol1.appendChild(h5)
-
-    h5 = document.createElement('h5')
-    h5.setAttribute('style','padding-bottom:15px;margin-bottom:0px')
-    h5.setAttribute('align','center')
-    h5.innerHTML = '00:00'
-    secCol2.appendChild(h5)
 
     canvasDiv = document.createElement('div')
     canvasDiv.setAttribute('style','height: 850px')
@@ -558,18 +574,6 @@ function generateTemporal(){
     canvas.setAttribute('id','statisticsChart')
     canvas.setAttribute('height','850')
     canvasDiv.appendChild(canvas)
-
-    h5 = document.createElement('h5')
-    h5.setAttribute('style','padding-top:15px;margin-top:0px')
-    h5.setAttribute('align','center')
-    h5.innerHTML = '12:00'
-    secCol2.appendChild(h5)
-
-    h5 = document.createElement('h5')
-    h5.setAttribute('style','padding-left:4px;margin-left:0px')
-    h5.setAttribute('align','left')
-    h5.innerHTML = '06:00'
-    secCol3.appendChild(h5)
 
     // Polar chart 
     var ctx = document.getElementById('statisticsChart').getContext('2d');
@@ -600,6 +604,10 @@ function generateTemporal(){
         scale: {
             ticks: {
                 display: false
+            },
+            pointLabels: {
+                display: true,
+                fontColor: 'white'
             }
         }
     }
@@ -617,6 +625,37 @@ function generateSpatial(){
     var generateDiv = document.getElementById('generateDiv')
 
     var h5 = document.createElement('h5')
+    h5.innerHTML = 'Sites'
+    h5.setAttribute('style','margin-bottom: 2px')
+    generateDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.innerHTML = '<i>Select the sites you would like to see results for.</i>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    generateDiv.appendChild(h5)
+
+    selectorColumn = document.createElement('div')
+    selectorColumn.setAttribute('id','selectorColumn')
+    generateDiv.appendChild(selectorColumn)
+
+    buildSiteSelectorRow()
+
+    var buttonAdd = document.createElement('button')
+    buttonAdd.classList.add('btn')
+    buttonAdd.classList.add('btn-info')
+    buttonAdd.setAttribute('type','button')
+    buttonAdd.setAttribute('id','btnAddSites')
+    buttonAdd.innerHTML = '+'
+    generateDiv.appendChild(buttonAdd)
+
+    buttonAdd.addEventListener('click', ()=>{
+        buildSiteSelectorRow()
+    });
+
+    generateDiv.appendChild(document.createElement('br'))
+    generateDiv.appendChild(document.createElement('br'))
+
+    h5 = document.createElement('h5')
     h5.innerHTML = 'Species'
     h5.setAttribute('style','margin-bottom: 2px')
     generateDiv.appendChild(h5)
@@ -631,7 +670,7 @@ function generateSpatial(){
     generateDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     var select = document.createElement('select')
@@ -753,7 +792,7 @@ function generateSpatial(){
     generateDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     slideRow = document.createElement('div')
@@ -1066,7 +1105,7 @@ function generateNumerical(){
     generateDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
     
     select = document.createElement('select')
@@ -1106,7 +1145,7 @@ function generateNumerical(){
             normalDiv.appendChild(row)
 
             col1 = document.createElement('div')
-            col1.classList.add('col-lg-8')
+            col1.classList.add('col-lg-10')
             row.appendChild(col1)
         
             select = document.createElement('select')
@@ -1305,7 +1344,7 @@ function generateTime(){
     generateDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     var select = document.createElement('select')
@@ -1315,7 +1354,7 @@ function generateTime(){
 
     fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
     $("#timeUnitSelector").change( function() {
-        updateLine()
+        updateResults()
     });
     select.value = '2'
 
@@ -1451,11 +1490,12 @@ function buildSpeciesAndSiteSelectorRow(){
     containingDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
     row.appendChild(col3)
 
     if (IDNum > 0) {
@@ -1473,7 +1513,7 @@ function buildSpeciesAndSiteSelectorRow(){
     var siteOptionTexts = ['None', 'All']
     var siteOptionValues = ['-1','0']
     siteOptionTexts.push(...globalSites)
-    siteOptionValues.push(...globalSites)
+    siteOptionValues.push(...globalSitesIDs)
     fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
 
     $("#"+siteSelector.id).change( function(wrapIDNum) {
@@ -1532,7 +1572,12 @@ function buildSpeciesAndSiteSelectorRow(){
             if (analysisSelection == '1') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
                 colour = btnRemove.style.backgroundColor
-                removePolarData(colour)
+                if (document.getElementById('chartTypeSelector')){     
+                    chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+                } else {
+                    chartType = 'polarArea'
+                }
+                removeData(colour, chartType)
                 btnRemove.parentNode.parentNode.remove();
                 if (polarData.hasOwnProperty(wrapIDNum.toString())) {
                     delete polarData[wrapIDNum.toString()]
@@ -1542,7 +1587,12 @@ function buildSpeciesAndSiteSelectorRow(){
             else if (analysisSelection == '4') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
                 colour = btnRemove.style.backgroundColor
-                removeLineData(colour)
+                if (document.getElementById('chartTypeSelector')){     
+                    chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+                } else {
+                    chartType = 'line'
+                }
+                removeData(colour, chartType)
                 btnRemove.parentNode.parentNode.remove();
                 if (lineData.hasOwnProperty(wrapIDNum.toString())) {
                     delete lineData[wrapIDNum.toString()]
@@ -1569,17 +1619,13 @@ function buildSpeciesSelectorRow(){
     containingDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-8')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
     row.appendChild(col3)
-
-    if (IDNum > 0) {
-        col1.appendChild(document.createElement('br'))
-        col3.appendChild(document.createElement('br'))
-    }
 
     selectorColumn.appendChild(row)
     
@@ -1611,7 +1657,12 @@ function buildSpeciesSelectorRow(){
         return function() {
             btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
             colour = btnRemove.style.backgroundColor
-            removeBarData(colour)
+            if (document.getElementById('chartTypeSelector')){     
+                chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+            } else {
+                chartType = 'bar'
+            }
+            removeData(colour, chartType)
             btnRemove.parentNode.parentNode.remove();
             if (barData.hasOwnProperty(wrapIDNum.toString())) {
                 delete barData[wrapIDNum.toString()]
@@ -1622,7 +1673,72 @@ function buildSpeciesSelectorRow(){
     
 }
 
-function updateResults(tasksChanged=false){
+function buildSiteSelectorRow(){
+    /** Builds a row for the species and site selectors */
+
+    var selectorColumn = document.getElementById('selectorColumn')
+    var IDNum = getIdNumforNext('trapgroupSelect-')
+
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','siteSelectDiv-'+String(IDNum))
+    selectorColumn.appendChild(containingDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    containingDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
+    row.appendChild(col3)
+
+    selectorColumn.appendChild(row)
+    
+    var siteSelector = document.createElement('select')
+    siteSelector.classList.add('form-control')
+    siteSelector.id = 'trapgroupSelect-'+String(IDNum)
+    col1.appendChild(siteSelector)
+    if (IDNum == 0) {
+        var siteOptionTexts = ['All']
+        var siteOptionValues = ['0']
+    }
+    else{
+        var siteOptionTexts = ['None', 'All']
+        var siteOptionValues = ['-1','0']
+    }
+    siteOptionTexts.push(...globalSites) 
+    siteOptionValues.push(...globalSitesIDs)
+
+    fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
+
+    $("#"+siteSelector.id).change( function(wrapIDNum) {
+        return function() {
+            updateResults(true)
+        }
+    }(IDNum));
+
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.id = 'btnRemove-'+IDNum;
+        btnRemove.setAttribute("class",'btn btn-info');
+        btnRemove.innerHTML = '&times;';
+        col3.appendChild(btnRemove);
+        btnRemove.addEventListener('click', function(wrapIDNum) {
+            return function() {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                btnRemove.parentNode.parentNode.remove();
+                updateHeatMap()
+            }
+        }(IDNum));
+    }
+    
+}
+
+function updateResults(update=false){
     /** Updates the results div based on the selected analysis type */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
@@ -1631,13 +1747,13 @@ function updateResults(tasksChanged=false){
         updatePolar()
     }
     else if (analysisSelection == '2') {
-        if(tasksChanged){
+        if(update){
             updateMap()
         }
         updateHeatMap()
     }
     else if (analysisSelection == '3') {
-        if (tasksChanged) {
+        if (update) {
             getTrapgroups()
         }
         updateBar()
@@ -1686,51 +1802,90 @@ function updateLine(){
 
 function updateMap(){
     /** Updates the map */
+
+    var validSites = checkSites()
     var tasks = getSelectedTasks()
-    
-    var formData = new FormData();
-    formData.append('task_ids', JSON.stringify(tasks));
+    var sites = getSelectedSites(true)
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            info = JSON.parse(this.responseText);
-            trapgroupInfo = info.trapgroups
+    if (sites == '0' && validSites) {
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
 
-            for (let i=0;i<markers.length;i++) {
-                if (map.hasLayer(markers[i])) {
-                    map.removeLayer(markers[i])
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                info = JSON.parse(this.responseText);
+                trapgroupInfo = info.trapgroups
+
+                for (let i=0;i<markers.length;i++) {
+                    if (map.hasLayer(markers[i])) {
+                        map.removeLayer(markers[i])
+                    }
+                }
+
+                markers = []
+                refMarkers = []
+                for (let i=0;i<trapgroupInfo.length;i++) {
+                    marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+                    markers.push(marker)
+                    map.addLayer(marker)
+                    marker.bindPopup(trapgroupInfo[i].tag);
+                    marker.on('mouseover', function (e) {
+                        this.openPopup();
+                    });
+                    marker.on('mouseout', function (e) {
+                        this.closePopup();
+                    });
+                    refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+                }
+                refData = {max:2000,data:refMarkers}
+                invHeatmapLayer.setData(refData)
+
+                var group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1))
+                if(markers.length == 1) {
+                    map.setZoom(10)
                 }
             }
+        }
+        xhttp.open("POST", '/getCoords');
+        xhttp.send(formData);
+    }
+    else if (validSites) {
 
-            markers = []
-            refMarkers = []
-            for (let i=0;i<trapgroupInfo.length;i++) {
-                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
-                markers.push(marker)
-                map.addLayer(marker)
-                marker.bindPopup(trapgroupInfo[i].tag);
-                marker.on('mouseover', function (e) {
-                    this.openPopup();
-                });
-                marker.on('mouseout', function (e) {
-                    this.closePopup();
-                });
-                refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
-            }
-            refData = {max:2000,data:refMarkers}
-            invHeatmapLayer.setData(refData)
-
-            var group = new L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.1))
-            if(markers.length == 1) {
-                map.setZoom(10)
+        for (let i=0;i<markers.length;i++) {
+            if (map.hasLayer(markers[i])) {
+                map.removeLayer(markers[i])
             }
         }
+
+        markers = []
+        refMarkers = []
+        for (let i=0;i<sites.length;i++) {
+            let split = sites[i].split(',')
+            marker = L.marker([split[1], split[2]]).addTo(map)
+            markers.push(marker)
+            map.addLayer(marker)
+            marker.bindPopup(split[0]);
+            marker.on('mouseover', function (e) {
+                this.openPopup();
+            });
+            marker.on('mouseout', function (e) {
+                this.closePopup();
+            });
+            refMarkers.push({lat:split[1],lng:split[2],count:1000,tag:split[0]})
+        }
+        refData = {max:2000,data:refMarkers}
+        invHeatmapLayer.setData(refData)
+
+        var group = new L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.1))
+        if(markers.length == 1) {
+            map.setZoom(10)
+        }
     }
-    xhttp.open("POST", '/getCoords');
-    xhttp.send(formData);
 }
 
 function getTrapgroups(){
@@ -1765,23 +1920,304 @@ function getTrapgroups(){
 
 function getSelectedTasks(){
     //* Gets all the selected tasks from the task selectors*/
-    var tasks = []
-    var allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
-    for (let i=0;i<allTasks.length;i++) {
-        if (allTasks[i].value != '-1' && allTasks[i].value != '0'){
-            tasks.push(allTasks[i].value)
+    // var tasks = []
+    // var allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
+    // for (let i=0;i<allTasks.length;i++) {
+    //     if (allTasks[i].value != '-1' && allTasks[i].value != '0'){
+    //         tasks.push(allTasks[i].value)
+    //     }
+    // }
+
+    // if (tasks.length==0) {
+    //     tasks.push('0')
+    // }
+
+    // return tasks
+
+    return ['0']
+}
+
+function getSelectedSites(text=false){
+    //* Gets all the selected sites from the site selectors*/
+    var sites = []
+    var allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    console.log(allSites)
+    if (text) {
+        for (let i=0;i<allSites.length;i++) {
+            if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
+                let split = allSites[i].options[allSites[i].selectedIndex].text.split(' ')
+                console.log(split)  
+                let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+                sites.push(site)
+            }
+        }
+    }
+    else{    
+        for (let i=0;i<allSites.length;i++) {
+            if (allSites[i].value.includes(',')){
+                let split = allSites[i].value.split(',')
+                sites.push(...split)
+            }
         }
     }
 
-    if (tasks.length==0) {
-        tasks.push('0')
-    }
 
-    return tasks
+    if (sites.length==0) {
+        sites = '0'
+    }
+    console.log(sites)
+    return sites
 }
 
+function checkSites(){
+    var valid = true
+    var allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    for (let i=0;i<allSites.length;i++) {
+        if (allSites[i].value.includes('-1')) {
+            valid = false
+        }
+    }
+
+    return valid
+}
+
+function updateChart(chartType){
+    /**Updates the chart to a different chart type*/
+    var data = chart.data
+    var labels = data.labels
+    var fillData = true
+    var options = {}
+
+    if (chartType == 'polarArea') {
+        options = {
+            maintainAspectRatio: false,
+            legend: {
+                display: false
+            },
+            tooltips: {
+                displayColors: false,
+                callbacks: {
+                    title: function(tooltipItems, data) {
+                        return '';
+                    },
+                    label: function(tooltipItem, data) {
+                        var datasetLabel = '';
+                        var label = data.labels[tooltipItem.index];
+                        return label + ': ' + data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                    }           
+                }
+            },
+            scale: {
+                ticks: {
+                    display: false
+                },
+                pointLabels: {
+                    display: true,
+                    fontColor: 'white'
+                }
+            }
+
+        }
+    } else if (chartType == 'bar') {
+        options = {
+            maintainAspectRatio: false,
+            legend: {
+                display: false
+            },
+            tooltips: {
+                displayColors: false,
+                callbacks: {
+                    title: function(tooltipItems, data) {
+                        return '';
+                    },
+                    label: function(tooltipItem, data) {
+                        var datasetLabel = '';
+                        var label = data.labels[tooltipItem.index];
+                        return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                    }           
+                }
+            },
+            ticks: {
+                min: 0
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        fontColor: "white",
+                        beginAtZero: true
+                    }
+                }],
+                xAxes: [{
+                    ticks: {
+                        fontColor: "white"
+                    }
+                }]
+            }
+        }
+    } else if (chartType == 'line') {
+        fillData = false
+        options = {
+            maintainAspectRatio: false,
+            legend: {
+                display: false
+            },
+            tooltips: {
+                displayColors: false,
+                callbacks: {
+                    title: function(tooltipItems, data) {
+                        return '';
+                    },
+                    label: function(tooltipItem, data) {
+                        var label = data.labels[tooltipItem.index];
+                        return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                    }           
+                }
+            },
+            ticks: {
+                min: 0
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        fontColor: "white",
+                        beginAtZero: true
+                    }
+                }],
+                xAxes: [{
+                    ticks: {
+                        fontColor: "white"
+                    }
+                }]
+            }
+        }
+
+    } else if (chartType == 'scatter') {
+        var options = {
+            maintainAspectRatio: false,
+            legend: {
+                display: false
+            },
+            tooltips: {
+                displayColors: false,
+                callbacks: {
+                    title: function(tooltipItems, data) {
+                        return '';
+                    },
+                    label: function(tooltipItem, data) {
+                        var label = data.labels[tooltipItem.index];
+                        return label + ': ' + data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index].y;
+                    }
+                }
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        fontColor: "white",
+                        beginAtZero: true
+                    }
+                }],
+                xAxes: [{
+                    ticks: {
+                        fontColor: "white",
+                    },
+                    type: 'category',
+                    labels: labels
+                    
+                }]
+            }
+        };
+
+    } else if (chartType == 'radar') {
+        options = {
+            maintainAspectRatio: false,
+            legend: {
+                display: false
+            },
+            tooltips: {
+                displayColors: false,
+                callbacks: {
+                    title: function(tooltipItems, data) {
+                        return '';
+                    },
+                    label: function(tooltipItem, data) {
+                        var datasetLabel = '';
+                        var label = data.labels[tooltipItem.index];
+                        return label + ': ' + data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                    }           
+                }
+            },
+            scale: {
+                ticks: {
+                    display: false
+                },
+                pointLabels: {
+                    display: true,
+                    fontColor: 'white'
+                }
+            }
+        }
+    }
+
+    data = updateChartData(chartType, data, fillData)
+
+    chart.destroy()
+
+    var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+    chart = new Chart(ctx, {
+        data: data,
+        type: chartType,
+        options: options
+    });
+
+}
+
+function updateChartData(chartType, data, fillData){
+    /**Updates the chart data to a different chart type*/
+
+    for (let i=0;i<data.datasets.length;i++) {
+        data.datasets[i].fill = fillData
+        if (chartType == 'line') {
+            data.datasets[i].borderColor = data.datasets[i].backgroundColor
+            data.datasets[i].borderWidth = 2
+            data.datasets[i].tension = 0.1
+
+        }
+        else{
+            data.datasets[i].borderColor = 'rgba(255,255,255,1)'
+            data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
+            data.datasets[i].borderWidth = 1
+            if (chartType == 'bar') {
+                data.datasets[i].barPercentage = 1.0
+                data.datasets[i].categoryPercentage = 1.0
+            }
+        }
+        
+
+        if (chartType == 'scatter') {
+            for (let j=0;j<data.datasets[i].data.length;j++) {
+                var dict = {
+                    x: j,
+                    y: data.datasets[i].data[j]
+                }
+                data.datasets[i].data[j] = dict
+            }
+        }
+        else{
+            if (data.datasets[i].data[0].x != undefined) {
+                for (let j=0;j<data.datasets[i].data.length;j++) {
+                    data.datasets[i].data[j] = data.datasets[i].data[j].y
+                }
+            }
+        }
+    }
+
+    return data
+
+}
 
 $('#analysisSelector').on('change', function() {
+    clearChartColours()
     generateResults()
     updateLabelsAndSites()
 });
@@ -1824,6 +2260,13 @@ $('#endDate').on('change', function() {
     }
 });
 
+$('#chartTypeSelector').on('change', function() {
+    var chartTypeSelector = document.getElementById('chartTypeSelector')
+    var chartTypeSelection = chartTypeSelector.options[chartTypeSelector.selectedIndex].value
+
+    updateChart(chartTypeSelection)
+});
+
 function clearResults(){
     /** Clears the results div */
     var resultsDiv = document.getElementById('resultsDiv')
@@ -1836,28 +2279,16 @@ function clearResults(){
         generateDiv.removeChild(generateDiv.firstChild);
     }
 
-    var surveySelect = document.getElementById('surveySelect')
-    while(surveySelect.firstChild){
-        surveySelect.removeChild(surveySelect.firstChild);
-    }
-    var addSurveyTask = document.getElementById('addSurveyTask')
-    while(addSurveyTask.firstChild){
-        addSurveyTask.removeChild(addSurveyTask.firstChild);
-    }
-
-    addSurveys()
-
     document.getElementById('dateErrors').innerHTML = ''
     document.getElementById('statisticsErrors').innerHTML = ''
-
     document.getElementById('analysisSelector').value = '-1'
     document.getElementById('baseUnitSelector').value = '2'
     document.getElementById('startDate').value = ''
     document.getElementById('endDate').value = ''
+    document.getElementById('chartTypeSelector').value = 'line'
+    document.getElementById('btnExportResults').disabled = true
 
-    clearBarColours()
-    clearPolarColours()
-    removeLineColours()
+    clearChartColours()
 
     timeLabels = []
 }
@@ -1879,7 +2310,7 @@ function exportResults(){
 
 function onload(){
     /**Function for initialising the page on load.*/
-    addSurveys()
+    // addSurveys()
     getLabelsAndSites()
 }
 
