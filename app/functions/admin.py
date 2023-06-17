@@ -797,6 +797,7 @@ def reclusterAfterTimestampChange(survey_id):
     trapgroup_ids = [r[0] for r in session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
     for trapgroup_id in trapgroup_ids:
         classifyTrapgroup(task_id,trapgroup_id)
+        session.commit()
     # pool.close()
     # pool.join()
 
@@ -805,7 +806,7 @@ def reclusterAfterTimestampChange(survey_id):
     OldGroup = alias(Labelgroup)
     OldCluster = alias(Cluster)
 
-    session.commit()
+    # session.commit()
     tasks=session.query(Task).filter(Task.survey_id==survey_id).all()
     for task in tasks:
         if ('_o_l_d_' not in task.name) and (task.name != 'default'):
