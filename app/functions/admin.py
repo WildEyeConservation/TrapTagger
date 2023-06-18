@@ -791,7 +791,7 @@ def reclusterAfterTimestampChange(survey_id):
     # create new default task
     task_id = cluster_survey(survey_id,'default')
     recluster_large_clusters(session.query(Task).get(task_id),True,session)
-    # session.commit()
+    session.commit()
     
     # pool = Pool(processes=4)
     trapgroup_ids = [r[0] for r in session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
