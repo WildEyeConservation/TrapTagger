@@ -1729,6 +1729,21 @@ function buildSiteSelectorRow(){
         col3.appendChild(btnRemove);
         btnRemove.addEventListener('click', function(wrapIDNum) {
             return function() {
+                var siteSelector = document.getElementById('trapgroupSelect-'+wrapIDNum)
+                console.log(siteSelector)
+                var siteText = siteSelector.options[siteSelector.selectedIndex].text.split(' ')
+                var lat = siteText[1].split('(')[1].split(',')[0]
+                var lng = siteText[2].split(')')[0]
+
+                for (let i=0;i<markers.length;i++) {
+                    if (markers[i].getLatLng().lat == lat && markers[i].getLatLng().lng == lng ){
+                        if (map.hasLayer(markers[i])) {
+                            map.removeLayer(markers[i])
+                        }
+                        markers.splice(i,1)
+                    }
+                }
+
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
                 btnRemove.parentNode.parentNode.remove();
                 updateHeatMap()
@@ -2263,8 +2278,12 @@ $('#endDate').on('change', function() {
 $('#chartTypeSelector').on('change', function() {
     var chartTypeSelector = document.getElementById('chartTypeSelector')
     var chartTypeSelection = chartTypeSelector.options[chartTypeSelector.selectedIndex].value
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
-    updateChart(chartTypeSelection)
+    if (analysisSelection != '-1') {
+        updateChart(chartTypeSelection)
+    }
 });
 
 function clearResults(){

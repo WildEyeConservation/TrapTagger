@@ -1209,6 +1209,7 @@ function addScatterData(data, colour){
         borderColor: 'rgba(255,255,255,1)'
     }
     chart.data.datasets.push(dataset)
+    chart.options.scales.xAxes[0].labels = chart.data.labels
     chart.update()
 
 }
@@ -1221,10 +1222,20 @@ function editScatterData(data, colour){
     }
     for (let i=0;i<chart.data.datasets.length;i++) {
         if (chart.data.datasets[i].backgroundColor==colour) {
-            chart.data.datasets[i].data=data
+            chart.data.datasets[i].data = []
+            let new_data = []
+            for (let j=0;j<data.length;j++) {
+                var dict = {
+                    x: j,
+                    y: data[j]
+                }
+                new_data.push(dict)
+            }
+            chart.data.datasets[i].data = new_data
             break
         }
     }
+    chart.options.scales.xAxes[0].labels = chart.data.labels
     chart.update()
 
 }
