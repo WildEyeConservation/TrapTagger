@@ -1435,6 +1435,7 @@ function createLine(){
                 
                     fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
                     $("#timeUnitSelector").change( function() {
+                        timeLabels = []
                         for (let IDNum in lineData) {
                             updateLineData(IDNum)
                         }
@@ -1491,7 +1492,8 @@ function createLine(){
                     $("#startDate").change( function() {
                         var valid = checkDates()
                         if (valid) {
-                            for (let IDNum in polarData) {
+                            timeLabels = []
+                            for (let IDNum in lineData) {
                                 updateLineData(IDNum)
                             }
                         }
@@ -1503,7 +1505,8 @@ function createLine(){
                     $("#endDate").change( function() {
                         var valid = checkDates()
                         if (valid) {
-                            for (let IDNum in polarData) {
+                            timeLabels = []
+                            for (let IDNum in lineData) {
                                 updateLineData(IDNum)
                             }
                         }
