@@ -50,7 +50,7 @@ limitations under the License. -->
                 {% if current_user.admin == true and current_user.username != 'Dashboard' %}
                     <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('surveys') }}">Surveys</a>
                     <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('individuals') }}">Individuals</a>
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('results') }}">Results</a>
+                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('results') }}">Analysis</a>
                     <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('jobs') }}">Jobs</a>
                     <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('workers') }}">Workers</a>
             {% endif %}

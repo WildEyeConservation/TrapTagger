@@ -16,10 +16,10 @@ limitations under the License. -->
 {% block app_content %}
 <br>
 <div class='row'>
-    <div class="col-lg-2" style="padding-left: 30px;">
+    <div class="col-lg-3" style="padding-left: 30px;">
         <div class="card" style='min-height:400px' id="filterCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
-                <h3>Generate Results</h3>
+                <h3>Generate Analysis</h3>
             </div>
             <div class="card-body" id="filterCardDiv">
                 <div id="baseGenerateDiv">
@@ -76,13 +76,11 @@ limitations under the License. -->
                     <h5 style="margin-bottom: 2px">Date range</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see results for.</i></div>
                     <div class="row">
-                        <div class='col-lg-10'>
+                        <div class='col-lg-5'>
                             <label for="startDate">Start date:</label><br>
                             <input type="date" id="startDate" name="startDate">
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class='col-lg-10'>
+                        <div class='col-lg-5'>
                             <label for="endDate">End date:</label><br>
                             <input type="date" id="endDate" name="endDate">
                         </div>
@@ -91,26 +89,33 @@ limitations under the License. -->
                 </div>
                 <br>
 
+                <div class="row">
+                <div class="col-lg-6">
+                    <button type='button' class='btn btn-primary btn-block' id='btnViewGroups' onclick=viewGroups()>View Groups</button>  
+                </div>
+                <div class="col-lg-6"></div>
+                </div>
+
                 <div id="generateDiv"></div>
                 
             </div>
             <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
                 <div class="row">
-                    <div class="col-lg-2"></div>
-                    <div class="col-lg-8">
+                    <div class="col-lg-3"></div>
+                    <div class="col-lg-6">
                         <button type='button' class='btn btn-primary btn-block' id='btnClearResults' onclick=clearResults()>Clear</button>  
                     </div>
-                    <div class="col-lg-2"></div>
+                    <div class="col-lg-3"></div>
                 </div>
             </div>          
         </div>
     </div>
-    <div class='col-lg-8'>
+    <div class='col-lg-9' style="padding-right: 30px;">
         <div class="card" style='min-height:400px' id="mainCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
             <div class='row' style="margin-top: 0px; margin-bottom: 0px">
                 <div class='col-lg-4'>
-                    <h3>Your Results</h3>
+                    <h3>Your Analysis</h3>
                 </div>
             </div>
             </div>
@@ -130,34 +135,204 @@ limitations under the License. -->
                 </div>
             </div>  
         </div>
-    </div>
-    <div class="col-lg-2" style="padding-right: 30px;">
-        <div class="card" style='min-height:400px' id="groupsCard">
-            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
-                <div class="row">
-                    <div class="col-lg-9">
-                        <h3>Groups</h3>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body" id="tasksDiv" style="padding: 0px;">
-                    <div id="groupsDiv"></div>
-            </div>
-            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
-                <div class="row">
-                    <div class="col-lg-2"></div>
-                    <div class="col-lg-8">
-                        <button type='button' class='btn btn-primary btn-block' id='btnSaveGroups'>Save</button>  
-                    </div>
-                    <div class="col-lg-2"></div>
-                </div>
-            </div>  
-                    
-        </div>
-
+        <br>
     </div>
 </div>
-<br>
+
+<!-- View Groups Modal -->
+<div id="modalViewGroups" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 75%;">
+
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header" style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89);">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 style="margin-bottom: 2px;">Groups</h4>                   
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right'>Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body" id="viewGroupsBody" style="padding: 0px;">
+
+                <div id="groupsDiv"></div>
+                
+            </div>
+            <div class="modal-footer">
+                <div class="col-lg-8"></div>
+                <div class="col-lg-2">
+                    <button type='button' class='btn btn-primary btn-block' id='btnCreateGroup'>Create Group</button>
+                </div>
+                <div class="col-lg-2">
+                    <button type='button' class='btn btn-info btn-block' id='btnCloseViewGroups' data-dismiss="modal">Close</button>  
+                </div>
+            </div>
+        </div>    
+    </div>
+</div>
+
+<!-- Groups Modal -->
+<div id="modalGroups" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 50%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                  <div class='col-lg-11' style="padding: 0px">
+                      <h4 id= 'groupHeader' style="margin-bottom: 2px;"></h4>                   
+                  </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right'>Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="createGroupsDiv">
+                    <h5 style="margin-bottom: 2px">Name</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>A unique identifying name for your group.</i></div>
+                    <div class="row">
+                        <div class='col-lg-6'>
+                            <input type="text" class="form-control" id="groupName"></input>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px">Description</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information associated with your group.</i></div>
+                    <div class="row">
+                        <div class='col-lg-6'>
+                            <textarea class="form-control" id="groupDescription" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px"> Add Sites</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the sites you would like to add to your group. Search the sites by name or select the sites on the map. </i></div>
+                    <div class="row">
+                        <div class='col-lg-6'>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="searchSitesRb" name="addSitesMethod" value='1' checked>
+                                <label class="custom-control-label" for="searchSitesRb">Search sites</label>
+                            </div>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="selectSitesRb" name="addSitesMethod" value='2'>
+                                <label class="custom-control-label" for="selectSitesRb">Select sites on map</label>
+                            </div> 
+                        </div>
+                    </div>
+                    <br>
+                    <div id='addSitesDiv'></div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px"> Sites</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>View the sites you have added to your group. </i></div>
+                    <div id="groupSitesDiv"></div>
+                    <br>
+
+                    <div id="groupErrors" style="font-size: 80%; color: #DF691A"></div>
+                </div>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-2'>
+                    <button id="btnSaveGroup" type='button' class='btn btn-primary btn-block'>Save</button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="groupsClose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sites Modal -->
+<div id="modalSitesMap" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 80%; min-height: 700px">
+    <!-- Modal content-->
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class='col-lg-11' style="padding: 0px">
+                <h4 style="margin-bottom: 2px;">Site Map</h4>                   
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <div class="row">
+                    <div class='col-lg-6' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right'>Help</button>
+                    </div>
+                    <div class='col-lg-5' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div id="drawSitesDiv">
+                <h5 style="margin-bottom: 2px">Instruction</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Draw an area around the sites on the map which you want to include in your group. </i></div>
+                <div id="mapSiteErrors" style="font-size: 80%; color: #DF691A"></div>
+                <br>
+                <div id="mapSitesDiv" style="min-height: 400px;"></div>
+            </div>
+        </div>   
+        <div class='modal-footer'>
+            <div class='col-lg-2'>
+                <button id="btnSaveSitesOnMap" type='button' class='btn btn-primary btn-block'>Save</button>
+            </div>
+            <div class='col-lg-2'>
+                <button id="groupsClose" type='button' class='btn btn-info btn-block' 
+                data-dismiss='modal'>Close</button>
+            </div>
+
+        </div>
+    </div>
+    </div>
+</div>
+
+<!-- Delete Group Confirmation Modal -->
+<div id="modalConfirmDelete" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id='modalConfirmHeader' class="modal-title">Confirmation Required</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id='modalConfirmBody' align="justify"></p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnConfirmDelete" type='button' class='btn btn-danger btn-block' 
+                    data-dismiss='modal'>Confirm</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id="confirmclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
 
 {% endblock %}
 
@@ -165,6 +340,7 @@ limitations under the License. -->
 <script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <script src="js/camtrap.results.v{{ version }}.js"></script>
 <script src="js/camtrap.statistics.common.v{{ version }}.js"></script>
+<script src="js/camtrap.groups.v{{ version }}.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
    integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
@@ -176,4 +352,9 @@ limitations under the License. -->
 <script src="js/leaflet-heatmap.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBHroBUjHugf-jw0m2Ajd5zYVcOMBegpUQ" defer></script>
 <script src='https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js'></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/@mapbox/leaflet-pip@latest/leaflet-pip.js"></script>
+<link rel="stylesheet" href="js/Leaflet.BigImage.css">
+<script src="js/Leaflet.BigImage.js"></script>
 {% endblock %}

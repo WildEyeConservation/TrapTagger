@@ -358,7 +358,7 @@ function getLabelsAndSites(){
             globalLabels = reply.labels
             globalSites = []
             for (let i=0;i<reply.sites.length;i++) {
-                let site = reply.sites[i].tag + ' (' + reply.sites[i].latitude + ', ' +  reply.sites[i].longitude + ')'
+                let site = reply.sites[i].tag + ' (' + (parseFloat(reply.sites[i].latitude).toFixed(4)).toString() + ', ' +  (parseFloat(reply.sites[i].longitude).toFixed(4)).toString() + ')'
                 globalSites.push(site)   
 
 
@@ -586,7 +586,11 @@ function generateTemporal(){
     var options = {
         maintainAspectRatio: false,
         legend: {
-            display: false
+            display: true,
+            labels: {
+                fontColor: 'white'
+            },
+            onClick: null
         },
         tooltips: {
             displayColors: false,
@@ -603,7 +607,9 @@ function generateTemporal(){
         },
         scale: {
             ticks: {
-                display: false
+                display: true,
+                fontColor: 'white',
+                showLabelBackdrop: false
             },
             pointLabels: {
                 display: true,
@@ -998,6 +1004,11 @@ function generateSpatial(){
                 accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
             })
 
+            var OpenTopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                maxZoom: 17,
+                attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+            });
+
             gSat = L.gridLayer.googleMutant({type: 'satellite'})
             // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
             // gTer = L.gridLayer.googleMutant({type: 'terrain'})
@@ -1036,7 +1047,8 @@ function generateSpatial(){
                 // "Google Terrain": gTer,
                 "Google Hybrid": gHyb,
                 "OpenStreetMaps Satellite": osmSat,
-                "OpenStreetMaps Roadmap": osmSt
+                "OpenStreetMaps Roadmap": osmSt,
+                "OpenTopoMap": OpenTopoMap
             };
 
             L.control.layers(baseMaps).addTo(map);
@@ -1074,6 +1086,9 @@ function generateSpatial(){
             if(markers.length == 1) {
                 map.setZoom(10)
             }
+
+            L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map);
+            document.getElementById('print-btn').style.color = 'black'
 
         }
     }
@@ -1271,7 +1286,11 @@ function generateNumerical(){
     var options = {
         maintainAspectRatio: false,
         legend: {
-            display: false
+            display: true,
+            labels: {
+                fontColor: 'white'
+            },
+            onClick: null
         },
         tooltips: {
             displayColors: false,
@@ -1302,13 +1321,18 @@ function generateNumerical(){
                 ticks: {
                     fontColor: "white",
                     beginAtZero: true
-                }
+                },
+                // scaleLabel: {
+                //     display: true,
+                //     labelString: 'Species Count',
+                //     fontColor: 'white'
+                // }
             }],
             xAxes: [{
                 ticks: {
                     fontColor: "white"
                 }
-            }]
+            }] 
         }
     }
 
@@ -1432,7 +1456,11 @@ function generateTime(){
     var options = {
         maintainAspectRatio: false,
         legend: {
-            display: false
+            display: true,
+            labels: {
+                fontColor: 'white'
+            },
+            onClick: null
         },
         tooltips: {
             displayColors: false,
@@ -1454,6 +1482,11 @@ function generateTime(){
                 ticks: {
                     fontColor: "white",
                     beginAtZero: true
+                },
+                title: {
+                    display: true,
+                    fontColor: 'white',
+                    text: 'Count'
                 }
             }],
             xAxes: [{
@@ -2007,7 +2040,29 @@ function updateChart(chartType){
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: false
+                display: true,
+                labels: {
+                    fontColor: 'white',
+                    generateLabels: function (chart) {
+                        var datasets = chart.data.datasets; // Move the declaration here
+                        var labels = [];
+    
+                        for (let i = 0; i < datasets.length; i++) {
+                            var dataset = datasets[i];
+                            var label = dataset.label;
+                            var fillStyle = dataset.backgroundColor;
+                            var borderColor = dataset.borderColor;
+                            labels.push({
+                                text: label,
+                                fillStyle: fillStyle,
+                                borderColor: borderColor
+                            });
+                        }
+    
+                        return labels;
+                    }
+                },
+                onClick: null
             },
             tooltips: {
                 displayColors: false,
@@ -2024,7 +2079,9 @@ function updateChart(chartType){
             },
             scale: {
                 ticks: {
-                    display: false
+                    display: true,
+                    fontColor: 'white',
+                    showLabelBackdrop: false
                 },
                 pointLabels: {
                     display: true,
@@ -2037,7 +2094,11 @@ function updateChart(chartType){
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: false
+                display: true,
+                labels: {
+                    fontColor: 'white'
+                },
+                onClick: null
             },
             tooltips: {
                 displayColors: false,
@@ -2060,6 +2121,11 @@ function updateChart(chartType){
                     ticks: {
                         fontColor: "white",
                         beginAtZero: true
+                    },
+                    title: {
+                        display: true,
+                        fontColor: 'white',
+                        text: 'Count'
                     }
                 }],
                 xAxes: [{
@@ -2074,7 +2140,11 @@ function updateChart(chartType){
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: false
+                display: true,
+                labels: {
+                    fontColor: 'white'
+                },
+                onClick: null
             },
             tooltips: {
                 displayColors: false,
@@ -2096,6 +2166,11 @@ function updateChart(chartType){
                     ticks: {
                         fontColor: "white",
                         beginAtZero: true
+                    },
+                    title: {
+                        display: true,
+                        fontColor: 'white',
+                        text: 'Count'
                     }
                 }],
                 xAxes: [{
@@ -2107,10 +2182,14 @@ function updateChart(chartType){
         }
 
     } else if (chartType == 'scatter') {
-        var options = {
+        options = {
             maintainAspectRatio: false,
             legend: {
-                display: false
+                display: true,
+                labels: {
+                    fontColor: 'white'
+                },
+                onClick: null
             },
             tooltips: {
                 displayColors: false,
@@ -2138,7 +2217,14 @@ function updateChart(chartType){
                     type: 'category',
                     labels: labels
                     
-                }]
+                }],
+                y : {
+                    title: {
+                        display: true,
+                        fontColor: 'white',
+                        text: 'Count'
+                    }
+                }
             }
         };
 
@@ -2146,7 +2232,11 @@ function updateChart(chartType){
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: false
+                display: true,
+                labels: {
+                    fontColor: 'white'
+                },
+                onClick: null
             },
             tooltips: {
                 displayColors: false,
@@ -2163,7 +2253,9 @@ function updateChart(chartType){
             },
             scale: {
                 ticks: {
-                    display: false
+                    display: true,
+                    fontColor: 'white',
+                    showLabelBackdrop: false
                 },
                 pointLabels: {
                     display: true,
@@ -2305,6 +2397,7 @@ function clearResults(){
     document.getElementById('startDate').value = ''
     document.getElementById('endDate').value = ''
     document.getElementById('chartTypeSelector').value = 'line'
+    document.getElementById('chartTypeSelector').disabled = false
     document.getElementById('btnExportResults').disabled = true
 
     clearChartColours()
@@ -2331,6 +2424,7 @@ function onload(){
     /**Function for initialising the page on load.*/
     // addSurveys()
     getLabelsAndSites()
+    // getGroups()
 }
 
 window.addEventListener('load', onload, false);

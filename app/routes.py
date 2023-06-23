@@ -8041,7 +8041,7 @@ def results():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
-        return render_template('html/results.html', title='Results', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
+        return render_template('html/results.html', title='Analysis', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 
 @app.route('/getAllLabelsAndSites', methods=['POST'])
@@ -8343,3 +8343,120 @@ def getLineDataIndividual():
                     data_labels.append(str(date.year))
 
     return json.dumps({'data': data, 'labels': data_labels})
+
+@app.route('/searchSites', methods=['POST'])
+@login_required
+def searchSites():
+    ''' Search for sites based on a search string and return a list of matching sites '''
+
+    sites_data = []
+    sites_ids = []
+    unique_sites = {}
+    search = ast.literal_eval(request.form['search'])
+
+    if Config.DEBUGGING: app.logger.info('Searching for sites matching {}'.format(search))
+    
+    searches = re.split('[ ,]',search)
+    for search in searches:
+        sites = db.session.query(Trapgroup).join(Survey)\
+                            .filter(Survey.user_id==current_user.id)\
+                            .filter(Trapgroup.tag.contains(search))\
+                            .distinct().all()
+
+
+    for site in sites:
+        site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
+        combination = (site_info['tag'], site_info['latitude'], site_info['longitude'])
+        
+        if combination in unique_sites.keys():
+            unique_sites[combination]['ids'].append(site.id)
+        else:
+            unique_sites[combination] = {'info': site_info, 'ids': [site.id]}
+    for item in unique_sites.values():
+        sites_data.append(item['info'])
+        sites_ids.append(item['ids'])
+
+    return json.dumps({'sites': sites_data, 'ids': sites_ids})
+
+@app.route('/saveGroup', methods=['POST'])
+@login_required
+def saveGroup():
+    ''' Save a group of sites '''
+    name = ast.literal_eval(request.form['name'])
+    description = ast.literal_eval(request.form['description'])
+    sites_ids = ast.literal_eval(request.form['sites_ids'])
+
+    # Save group 
+
+
+
+    return json.dumps({'status': 'success'})
+
+@app.route('/getGroups')
+@login_required
+def getGroups():
+    ''' Get a list of groups '''
+
+    groups = []
+
+    groups.append({
+        'id': 1,
+        'name': 'Group 1',
+        'description': 'This is a group',
+        'sites': [
+            {'tag': 'Site 1', 'latitude': 1, 'longitude': 1, 'ids': '1,2,3'},
+            {'tag': 'Site 2', 'latitude': 2, 'longitude': 2, 'ids': '4,5,6'},
+            {'tag': 'Site 3', 'latitude': 3, 'longitude': 3, 'ids': '1,5,3'},
+            {'tag': 'Site 4', 'latitude': 4, 'longitude': 4, 'ids': '6,2,3'},
+            {'tag': 'Site 5', 'latitude': 5, 'longitude': 5, 'ids': '1,2,6'}
+        ]
+    })
+
+    groups.append({
+        'id': 2,
+        'name': 'Group 2',
+        'description': 'This is another group',
+        'sites': [
+            {'tag': 'Site 6', 'latitude': 6, 'longitude': 6, 'ids': '9,2,3'},
+            {'tag': 'Site 7', 'latitude': 7, 'longitude': 7, 'ids': '1,9,3'},
+            {'tag': 'Site 8', 'latitude': 8, 'longitude': 8, 'ids': '1,2,9'},
+            {'tag': 'Site 9', 'latitude': 9, 'longitude': 9, 'ids': '8,2,3'},
+            {'tag': 'Site 10', 'latitude': 10, 'longitude': 10, 'ids': '1,51,5'}
+        ]
+    })
+
+    groups.append({
+        'id': 3,
+        'name': 'Group 3',
+        'description': 'This is a third group',
+        'sites': [
+            {'tag': 'Site 11', 'latitude': 11, 'longitude': 11, 'ids': '7,2,3'},
+            {'tag': 'Site 12', 'latitude': 12, 'longitude': 12, 'ids': '1,7,3'},
+            {'tag': 'Site 13', 'latitude': 13, 'longitude': 13, 'ids': '1,2,7'},
+        ]
+    })
+
+    return json.dumps({'groups': groups})
+
+@app.route('/editGroup', methods=['POST'])
+@login_required
+def editGroup():
+    ''' Edit a group of sites '''
+    group_id = ast.literal_eval(request.form['group_id'])
+    sites_ids = ast.literal_eval(request.form['sites_ids'])
+    group_name = ast.literal_eval(request.form['group_name'])
+    group_description = ast.literal_eval(request.form['group_description'])
+
+    # Edit group
+
+    return json.dumps({'status': 'success'})
+
+
+@app.route('/deleteGroup/<group_id>')
+@login_required
+def deleteGroup(group_id):
+    ''' Delete a group of sites '''
+
+    # Delete group
+
+    return json.dumps({'status': 'success'})
