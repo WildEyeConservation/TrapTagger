@@ -471,7 +471,7 @@ def freeUpWork(task,session):
                         .filter(Trapgroup.user_id == None)\
                         .filter(Cluster.examined==False)\
                         .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=2),clusterSQ.c.timestamp==None))\
-                        .all()
+                        .distinct().all()
 
         if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
 
@@ -720,7 +720,9 @@ def manageTasks():
                                 .filter(Turkcode.active==False)\
                                 .all()
 
-        if abandoned_jobs: resolve_abandoned_jobs(abandoned_jobs,session)
+        if abandoned_jobs:
+            resolve_abandoned_jobs(abandoned_jobs,session)
+            session.commit()
 
         # Ensure there are no locked-out individuals
         allocateds = session.query(IndSimilarity)\
@@ -749,6 +751,8 @@ def manageTasks():
 
         for trapgroup in trapgroups:
             trapgroup.user_id = None
+
+        session.commit()
 
         Owner = alias(User)
         Worker = alias(User)
@@ -835,6 +839,7 @@ def allocate_new_trapgroup(task_id,user_id,survey_id,session):
 
     if trapgroup:
         trapgroup.user_id = user_id
+        session.commit()
 
     return trapgroup
 

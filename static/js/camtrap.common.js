@@ -2310,7 +2310,7 @@ function updateMap(mapID = 'map1', url){
 
 function pingServer() {
     /** Pings the server to let it know that the user is still active. */
-    if (activity||modalWait.is(':visible')||modalWait2.is(':visible')) {
+    if ((activity||modalWait.is(':visible')||modalWait2.is(':visible'))&&(!waitingForClusters['map1'])) {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -2323,6 +2323,8 @@ function pingServer() {
         }
         xhttp.open("POST", '/ping');
         xhttp.send();
+    } else {
+        setTimeout(function() { pingServer(); }, 30000);
     }
     activity = false
 }

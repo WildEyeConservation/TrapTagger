@@ -3856,17 +3856,18 @@ def logout():
 @login_required
 def ping():
     '''Keeps the current user's annotation session active.'''
+    return json.dumps('success')
 
-    if current_user.is_authenticated:
-        if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-            return {'redirect': url_for('done')}, 278
-        else:
-            current_user.last_ping = datetime.utcnow()
-            db.session.commit()
-            if current_user.parent:
-                if Config.DEBUGGING: app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
-            return json.dumps('success')
-    return json.dumps('error')
+    # if current_user.is_authenticated:
+    #     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
+    #         return {'redirect': url_for('done')}, 278
+    #     else:
+    #         current_user.last_ping = datetime.utcnow()
+    #         db.session.commit()
+    #         if current_user.parent:
+    #             if Config.DEBUGGING: app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
+    #         return json.dumps('success')
+    # return json.dumps('error')
 
 @app.route('/skipSuggestion/<individual_1>/<individual_2>')
 @login_required
@@ -4847,6 +4848,8 @@ def get_clusters():
     limit = 1
     label_description = None
 
+    if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
         label_description = session.query(Label).get(int(taggingLevel)).description
 
@@ -4877,8 +4880,9 @@ def get_clusters():
                 individual.allocated = current_user.id
                 individual.allocation_timestamp = datetime.utcnow()
 
-            clusters_allocated = current_user.clusters_allocated + len(individuals)
-            current_user.clusters_allocated = clusters_allocated
+            clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(individuals)
+            GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+            current_user.last_ping = datetime.utcnow()
             session.commit()
             GLOBALS.mutex[task_id]['global'].release()
 
@@ -4897,16 +4901,18 @@ def get_clusters():
                 GLOBALS.mutex[task_id]['global'].release()
                 return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
-            limit = task_size - current_user.clusters_allocated
+            limit = task_size - GLOBALS.clusters_allocated[current_user.id]
             clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
             # if len(clusterInfo)==0: current_user.trapgroup = []
             if len(clusterInfo) <= limit:
-                clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(clusterInfo)
                 trapgroup.active = False
             else:
-                clusters_allocated = current_user.clusters_allocated + limit
-            current_user.clusters_allocated = clusters_allocated
+                clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
+            GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+
+            current_user.last_ping = datetime.utcnow()
             
             session.commit()
             session.close()
@@ -5818,6 +5824,7 @@ def assignLabel(clusterID):
                                                 .first()
 
                         if tgs_available and (not explore) and removable_detections:
+                            if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
                             reAllocated = True
                             trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
                             survey_id = task.survey_id
@@ -5825,7 +5832,7 @@ def assignLabel(clusterID):
                             trapgroup.processing = True
                             trapgroup.active = False
                             trapgroup.user_id = None
-                            current_user.clusters_allocated = num
+                            GLOBALS.clusters_allocated[current_user.id] = num
 
                             label_description = None
                             if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
@@ -5848,16 +5855,16 @@ def assignLabel(clusterID):
                                 GLOBALS.mutex[task_id]['global'].release()
                                 newClusters = []
                             else:
-                                limit = task_size - current_user.clusters_allocated
+                                limit = task_size - GLOBALS.clusters_allocated[current_user.id]
                                 clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if len(clusterInfo) <= limit:
-                                    clusters_allocated = current_user.clusters_allocated + len(clusterInfo)
+                                    clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(clusterInfo)
                                     trapgroup.active = False
                                 else:
-                                    clusters_allocated = current_user.clusters_allocated + limit
-                                current_user.clusters_allocated = clusters_allocated
+                                    clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
+                                GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
                                 
                                 session.commit()
                                 session.close()
@@ -6580,6 +6587,7 @@ def done():
     db.session.commit()
 
     # GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
+    GLOBALS.clusters_allocated.pop(current_user.id, None)
 
     if current_user.parent_id:
         admin_user = current_user.parent
@@ -7034,7 +7042,9 @@ def knockdown(imageId, clusterId):
                 if (check > 0):
                     return ""
 
-                current_user.clusters_allocated = num_cluster
+                if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+
+                GLOBALS.clusters_allocated[current_user.id] = num_cluster
                 db.session.commit()
 
                 if trapgroup.processing:

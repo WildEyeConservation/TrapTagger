@@ -1649,6 +1649,8 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         user.trapgroup = []
         user.passed = 'cFalse'
 
+        GLOBALS.clusters_allocated.pop(user.id, None)
+
         # if task.id in GLOBALS.mutex.keys():
         #     GLOBALS.mutex[task.id]['user'].pop(user.id, None)
             

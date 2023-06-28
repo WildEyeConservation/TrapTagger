@@ -478,6 +478,10 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         df3 = pd.read_sql(query.statement,db.session.bind)
         df = pd.merge(df, df3, on=['detection','label'], how='outer')
 
+    #If df is empty, return it
+    if len(df) == 0:
+        return df
+
     #Combine file paths
     df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
 
@@ -961,16 +965,6 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 requestedColumns = originalRequestedColumns.copy()
                 df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
 
-                # Generate custom columns
-                for custom_name in custom_columns[str(task_id)]:
-                    custom = custom_columns[str(task_id)][custom_name]
-                    custom_split = [r for r in re.split('%%%%',custom) if r != '']
-                    df[custom_name] = df.apply(lambda x: handle_custom_columns(df.columns,x,custom_split), axis=1)
-
-                df = df.drop_duplicates(subset=[selectedLevel], keep='first')
-
-                if selectedLevel=='detection': df = df[df['detection']!='None']
-
                 # if outputDF is not None:
                 #     outputDF = pd.concat([outputDF, df], ignore_index=True)
                 #     outputDF.fillna(0, inplace=True)
@@ -979,70 +973,81 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                 outputDF = df
 
-                for label_level in label_levels:
-                    if label_type=='column':
-                        count = outputDF[label_level+'_labels'].apply(len).max()
-                        outputDF[label_list[label_level][:count]] = pd.DataFrame(outputDF[label_level+'_labels'].tolist(), index=outputDF.index)
+                if len(outputDF)>0:
+                    # Generate custom columns
+                    for custom_name in custom_columns[str(task_id)]:
+                        custom = custom_columns[str(task_id)][custom_name]
+                        custom_split = [r for r in re.split('%%%%',custom) if r != '']
+                        df[custom_name] = df.apply(lambda x: handle_custom_columns(df.columns,x,custom_split), axis=1)
 
-                        for column in label_list[label_level][count:]:
-                            outputDF[column] = 'None'
+                    df = df.drop_duplicates(subset=[selectedLevel], keep='first')
+
+                    if selectedLevel=='detection': df = df[df['detection']!='None']
+
+                    for label_level in label_levels:
+                        if label_type=='column':
+                            count = outputDF[label_level+'_labels'].apply(len).max()
+                            outputDF[label_list[label_level][:count]] = pd.DataFrame(outputDF[label_level+'_labels'].tolist(), index=outputDF.index)
+
+                            for column in label_list[label_level][count:]:
+                                outputDF[column] = 'None'
+                            
+                            del outputDF[label_level+'_labels']
+
+                            if label_level in sighting_count_levels:
+                                for n in range(len(label_list2[label_level])):
+                                    outputDF[label_list2[label_level][n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[label_level][n]].lower().replace(' ','_')+'_count'] if (x[label_list[label_level][n]] not in [None, 'None','Knocked Down']) else 0, axis=1)
+
+                            outputDF.fillna('None', inplace=True)
                         
-                        del outputDF[label_level+'_labels']
+                        elif label_type=='row':
+                            outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
+                            outputDF = outputDF.explode(label_level+'_labels')
+                            if label_level in sighting_count_levels:
+                                outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'] if (x[label_level+'_labels'] not in [None, 'None','Knocked Down']) else 0, axis=1)
+                        
+                        elif label_type=='list':
+                            if label_level in sighting_count_levels:
+                                outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: [x[label_level+'_'+label.lower().replace(' ','_')+'_count'] for label in x[label_level+'_labels']], axis=1)
+                                outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: combine_list(x[label_level+'_sighting_count']), axis=1)
+                            outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
 
-                        if label_level in sighting_count_levels:
-                            for n in range(len(label_list2[label_level])):
-                                outputDF[label_list2[label_level][n]] = outputDF.apply(lambda x: x[label_level+'_'+x[label_list[label_level][n]].lower().replace(' ','_')+'_count'] if (x[label_list[label_level][n]] not in [None, 'None','Knocked Down']) else 0, axis=1)
+                    for tag_level in tag_levels:
+                        if label_type=='column':
+                            count = outputDF[tag_level+'_tags'].apply(len).max()
+                            outputDF[tag_list[tag_level][:count]] = pd.DataFrame(outputDF[tag_level+'_tags'].tolist(), index=outputDF.index)
 
-                        outputDF.fillna('None', inplace=True)
-                    
-                    elif label_type=='row':
-                        outputDF[label_level+'_labels'] = outputDF.apply(lambda x: list(x[label_level+'_labels']), axis=1)
-                        outputDF = outputDF.explode(label_level+'_labels')
-                        if label_level in sighting_count_levels:
-                            outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: x[label_level+'_'+x[label_level+'_labels'].lower().replace(' ','_')+'_count'] if (x[label_level+'_labels'] not in [None, 'None','Knocked Down']) else 0, axis=1)
-                    
-                    elif label_type=='list':
-                        if label_level in sighting_count_levels:
-                            outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: [x[label_level+'_'+label.lower().replace(' ','_')+'_count'] for label in x[label_level+'_labels']], axis=1)
-                            outputDF[label_level+'_sighting_count'] = outputDF.apply(lambda x: combine_list(x[label_level+'_sighting_count']), axis=1)
-                        outputDF[label_level+'_labels'] = outputDF.apply(lambda x: combine_list(x[label_level+'_labels']), axis=1)
+                            for column in tag_list[tag_level][count:]:
+                                outputDF[column] = 'None'
 
-                for tag_level in tag_levels:
-                    if label_type=='column':
-                        count = outputDF[tag_level+'_tags'].apply(len).max()
-                        outputDF[tag_list[tag_level][:count]] = pd.DataFrame(outputDF[tag_level+'_tags'].tolist(), index=outputDF.index)
+                            del outputDF[tag_level+'_tags']
+                            outputDF.fillna('None', inplace=True)
 
-                        for column in tag_list[tag_level][count:]:
+                        elif label_type=='row':
+                            outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: list(x[tag_level+'_tags']), axis=1)
+                            outputDF = outputDF.explode(tag_level+'_tags')
+                        elif label_type=='list':
+                            outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: combine_list(x[tag_level+'_tags']), axis=1)
+
+                    for individual_level in individual_levels:
+                        count = outputDF[individual_level+'_individuals'].apply(len).max()
+                        outputDF[individual_list[individual_level][:count]] = pd.DataFrame(outputDF[individual_level+'_individuals'].tolist(), index=outputDF.index)
+                        
+                        for column in individual_list[individual_level][count:]:
                             outputDF[column] = 'None'
 
-                        del outputDF[tag_level+'_tags']
+                        del outputDF[individual_level+'_individuals']
                         outputDF.fillna('None', inplace=True)
 
-                    elif label_type=='row':
-                        outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: list(x[tag_level+'_tags']), axis=1)
-                        outputDF = outputDF.explode(tag_level+'_tags')
-                    elif label_type=='list':
-                        outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: combine_list(x[tag_level+'_tags']), axis=1)
+                    outputDF = outputDF[requestedColumns]
 
-                for individual_level in individual_levels:
-                    count = outputDF[individual_level+'_individuals'].apply(len).max()
-                    outputDF[individual_list[individual_level][:count]] = pd.DataFrame(outputDF[individual_level+'_individuals'].tolist(), index=outputDF.index)
-                    
-                    for column in individual_list[individual_level][count:]:
-                        outputDF[column] = 'None'
-
-                    del outputDF[individual_level+'_individuals']
-                    outputDF.fillna('None', inplace=True)
-
-                outputDF = outputDF[requestedColumns]
-
-                # Trapgroups now called sites:
-                changes = {}
-                for column in outputDF.columns:
-                    if 'trapgroup' in column:
-                        changes[column] = column.replace('trapgroup','site')
-                if len(changes) != 0:
-                    outputDF.rename(columns=changes,inplace=True)
+                    # Trapgroups now called sites:
+                    changes = {}
+                    for column in outputDF.columns:
+                        if 'trapgroup' in column:
+                            changes[column] = column.replace('trapgroup','site')
+                    if len(changes) != 0:
+                        outputDF.rename(columns=changes,inplace=True)
 
                 # append to local file
                 # os.makedirs('docs', exist_ok=True)

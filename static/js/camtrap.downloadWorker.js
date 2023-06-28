@@ -21,6 +21,7 @@ importScripts('piexif.js')
 const limitAWS=pLimit(6)
 const limitTT=pLimit(6)
 const limitFiles=pLimit(6)
+const limitMarkDownloaded=pLimit(1)
 
 var max_processing = 50
 var globalTopLevelHandle
@@ -425,7 +426,7 @@ async function fetchRemainingImages() {
 async function confirmReceipt(image_ids,count=0) {
     /** Tells the server to mark the specified set of images as received */
     if (!wrappingUp) {
-        await limitTT(()=> fetch('/fileHandler/mark_images_downloaded', {
+        await limitMarkDownloaded(()=> fetch('/fileHandler/mark_images_downloaded', {
             method: 'post',
             headers: {
                 accept: 'application/json',
