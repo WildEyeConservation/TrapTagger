@@ -965,16 +965,6 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 requestedColumns = originalRequestedColumns.copy()
                 df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
 
-                # Generate custom columns
-                for custom_name in custom_columns[str(task_id)]:
-                    custom = custom_columns[str(task_id)][custom_name]
-                    custom_split = [r for r in re.split('%%%%',custom) if r != '']
-                    df[custom_name] = df.apply(lambda x: handle_custom_columns(df.columns,x,custom_split), axis=1)
-
-                df = df.drop_duplicates(subset=[selectedLevel], keep='first')
-
-                if selectedLevel=='detection': df = df[df['detection']!='None']
-
                 # if outputDF is not None:
                 #     outputDF = pd.concat([outputDF, df], ignore_index=True)
                 #     outputDF.fillna(0, inplace=True)
@@ -984,6 +974,16 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 outputDF = df
 
                 if len(outputDF)>0:
+                    # Generate custom columns
+                    for custom_name in custom_columns[str(task_id)]:
+                        custom = custom_columns[str(task_id)][custom_name]
+                        custom_split = [r for r in re.split('%%%%',custom) if r != '']
+                        df[custom_name] = df.apply(lambda x: handle_custom_columns(df.columns,x,custom_split), axis=1)
+
+                    df = df.drop_duplicates(subset=[selectedLevel], keep='first')
+
+                    if selectedLevel=='detection': df = df[df['detection']!='None']
+
                     for label_level in label_levels:
                         if label_type=='column':
                             count = outputDF[label_level+'_labels'].apply(len).max()
