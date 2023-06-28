@@ -33,7 +33,7 @@ from flask_mail import Mail
 from werkzeug.middleware.proxy_fix import ProxyFix
 from celery.signals import celeryd_after_setup
 import debugpy
-debugpy.listen(5678)
+debugpy.listen(5679)
 
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
 REDIS_ADDRESS = 'redis://'+REDIS_IP+':6379/0'
