@@ -6590,7 +6590,7 @@ def generateCSV():
             excludes = []
             start_date = None
             end_date = None
-            column_translations = None
+            column_translations = {}
         else:
             selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
             level = ast.literal_eval(request.form['level'])
