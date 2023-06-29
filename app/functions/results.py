@@ -660,7 +660,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -963,7 +963,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             
             for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
-                df = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
+                outputDF = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
 
                 # if outputDF is not None:
                 #     outputDF = pd.concat([outputDF, df], ignore_index=True)
@@ -971,18 +971,16 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                 # else:
                 #     outputDF = df
 
-                outputDF = df
-
                 if len(outputDF)>0:
                     # Generate custom columns
                     for custom_name in custom_columns[str(task_id)]:
                         custom = custom_columns[str(task_id)][custom_name]
                         custom_split = [r for r in re.split('%%%%',custom) if r != '']
-                        df[custom_name] = df.apply(lambda x: handle_custom_columns(df.columns,x,custom_split), axis=1)
+                        outputDF[custom_name] = outputDF.apply(lambda x: handle_custom_columns(outputDF.columns,x,custom_split), axis=1)
 
-                    df = df.drop_duplicates(subset=[selectedLevel], keep='first')
+                    outputDF = outputDF.drop_duplicates(subset=[selectedLevel], keep='first')
 
-                    if selectedLevel=='detection': df = df[df['detection']!='None']
+                    if selectedLevel=='detection': outputDF = outputDF[outputDF['detection']!='None']
 
                     for label_level in label_levels:
                         if label_type=='column':
@@ -1041,13 +1039,23 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                     outputDF = outputDF[requestedColumns]
 
-                    # Trapgroups now called sites:
-                    changes = {}
-                    for column in outputDF.columns:
-                        if 'trapgroup' in column:
-                            changes[column] = column.replace('trapgroup','site')
-                    if len(changes) != 0:
-                        outputDF.rename(columns=changes,inplace=True)
+                elif len(outputDF)==0:
+                    outputDF = pd.DataFrame(columns=requestedColumns)
+
+                # Trapgroups now called sites and allow for column translation:
+                levels = ['image', 'capture', 'cluster', 'camera', 'site', 'trapgroup', 'survey']
+                changes = {}
+                for column in outputDF.columns:
+                    if 'trapgroup' in column:
+                        changes[column] = column.replace('trapgroup','site')
+                    for translation in column_translations:
+                        if translation.lower() == column.lower():
+                            changes[column] = column.replace(translation,column_translations[translation])
+                        elif translation in column and column[-1].isdigit() and translation.lower() not in levels:
+                            changes[column] = column.replace(translation,column_translations[translation])
+
+                if len(changes) != 0:
+                    outputDF.rename(columns=changes,inplace=True)
 
                 # append to local file
                 # os.makedirs('docs', exist_ok=True)

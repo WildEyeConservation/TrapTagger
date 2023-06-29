@@ -224,6 +224,7 @@ function checkCSV() {
     excludeProblem = false
     duplicateTask = false
     invalidDate = false
+    invalidName = false
 
     // Handles the selection of duplicate annototation tasks
     allTasks = document.querySelectorAll('[id^=csvTaskSelect-]')
@@ -322,6 +323,14 @@ function checkCSV() {
         }
     }
 
+    allNames = document.querySelectorAll('[id^=csvColNameElement-]')
+    for (let i=0;i<allNames.length;i++) {
+        var name = allNames[i].value
+        if (name=='') {
+            invalidName = true
+        }
+    }
+
     if (surveyAll&&surveySpecies) {
         allClash = true
     } else if (trapAll&&trapSpecies) {
@@ -348,6 +357,12 @@ function checkCSV() {
         csvErrors.appendChild(newdiv)
     }
 
+    if (invalidName) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML = 'You have an empty column name, please fill it in.'
+        csvErrors.appendChild(newdiv)
+    }
+
     if (duplicateTask) {
         document.getElementById('taskError').innerHTML = 'You have duplicate annotation sets, please remove the duplicate.'
     } else {
@@ -360,7 +375,7 @@ function checkCSV() {
         document.getElementById('dateErrorsCSV').innerHTML = ''
     }
 
-    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||(duplicateTask)||(invalidDate)) {
+    if (excludeProblem||allClash||duplicateColumns||(allLevels.length==0)||duplicateTask||invalidDate||invalidName) {
         legalCSV = false
     } else {
         legalCSV = true
@@ -427,11 +442,13 @@ btnCsvDownload.addEventListener('click', ()=>{
         }
     
         columns = []
+        var column_translations = {}
         for (let i=0;i<allColumns.length;i++) {
             IDNum = allColumns[i].id.split("-")[allColumns[i].id.split("-").length-1]
             csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
             levelSelection = allColumns[i].options[allColumns[i].selectedIndex].text.toLowerCase()
             dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
+            csvColNameElement = document.getElementById('csvColNameElement-'+String(IDNum))
 
             if ((levelSelection=='')||(dataSelection=='')) {
                 noEmpties = false
@@ -440,29 +457,42 @@ btnCsvDownload.addEventListener('click', ()=>{
             translation = translateCsvInfo(levelSelection,dataSelection)
             levelSelection = translation['levelSelection']
             dataSelection = translation['dataSelection']
-    
+            var col_translation = ''
             if (levelSelection == 'custom') {
                 selection = dataSelection
+                col_translation = selection
             } else if (dataSelection == 'Species Count') {
                 csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
                 speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
                 selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
+                col_translation = selection
             } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
                 selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+                col_translation = selection
             } else if (dataSelection == 'Labels') {
                 selection = levelSelection+'_labels'
+                col_translation = levelSelection+'_label'
             } else if (dataSelection == 'Tags') {
                 selection = levelSelection+'_tags'
+                col_translation = levelSelection+'_tag'
             } else if (dataSelection == 'URL') {
                 selection = levelSelection+'_url'
+                col_translation = selection
             } else if (dataSelection == 'Individuals') {
                 selection = levelSelection+'_individuals'
+                col_translation = levelSelection+'_individual'
             } else if (dataSelection == 'Sighting Count') {
                 selection = levelSelection+'_sighting_count'
+                col_translation = selection
             } else {
                 selection = dataSelection.toLowerCase().replace(' ','_')
+                col_translation = selection
             }
             columns.push(selection)
+
+            if (csvColNameElement.value.toLowerCase() != selection.toLowerCase()) {
+                column_translations[col_translation] = csvColNameElement.value
+            }
         }
 
         selectedTasks = []
@@ -565,6 +595,7 @@ btnCsvDownload.addEventListener('click', ()=>{
             formData.append("excludes", JSON.stringify(excludes))
             formData.append("start_date", JSON.stringify(startDateCSV))
             formData.append("end_date", JSON.stringify(endDateCSV))
+            formData.append("column_translations", JSON.stringify(column_translations))
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/generateCSV');
@@ -690,9 +721,12 @@ function updateSpeciesElement(IDNum) {
         CSVCol3.appendChild(csvColSpeciesElement);
         clearSelect(csvColSpeciesElement)
         fillSelect(csvColSpeciesElement, speciesChoiceTexts, speciesChoiceValues)
-        $('#csvColSpeciesElement-'+String(IDNum)).change( function() {
-            checkCSV()
-        });
+        $('#csvColSpeciesElement-'+String(IDNum)).change( function(wrapIDNum) {
+            return function() {
+                updateNameElement(wrapIDNum)
+                checkCSV()
+            }
+        }(IDNum));
     } else {
         var check = document.getElementById('csvColSpeciesElement-'+String(IDNum));
         if (check) {
@@ -727,6 +761,49 @@ function updateDataElement(IDNum) {
     }
 }
 
+function updateNameElement(IDNum) {
+    /** Updates the name element with the specified ID number in the generate csv form, depending on the data selected. */
+
+    csvColLevelElement = document.getElementById('csvColLevelElement-'+String(IDNum))
+    csvColDataElement = document.getElementById('csvColDataElement-'+String(IDNum))
+    levelSelection = csvColLevelElement.options[csvColLevelElement.selectedIndex].text
+    dataSelection = csvColDataElement.options[csvColDataElement.selectedIndex].text
+
+    if ((levelSelection=='')||(dataSelection=='')) {
+        noEmpties = false
+    }
+
+    translation = translateCsvInfo(levelSelection,dataSelection)
+    levelSelection = translation['levelSelection']
+    dataSelection = translation['dataSelection']
+
+    if (levelSelection == 'custom') {
+        selection = dataSelection
+    } else if (dataSelection == 'Species Count') {
+        csvColSpeciesElement = document.getElementById('csvColSpeciesElement-'+String(IDNum))
+        speciesSelection = csvColSpeciesElement.options[csvColSpeciesElement.selectedIndex].text
+        selection = levelSelection+'_'+speciesSelection.toLowerCase().replace(' ','_')+'_count'
+    } else if (['Image Count', 'Animal Count'].includes(dataSelection)) {
+        selection = levelSelection+'_'+dataSelection.toLowerCase().replace(' ','_')
+    } else if (dataSelection == 'Labels') {
+        selection = levelSelection+'_labels'
+    } else if (dataSelection == 'Tags') {
+        selection = levelSelection+'_tags'
+    } else if (dataSelection == 'URL') {
+        selection = levelSelection+'_url'
+    } else if (dataSelection == 'Individuals') {
+        selection = levelSelection+'_individuals'
+    } else if (dataSelection == 'Sighting Count') {
+        selection = levelSelection+'_sighting_count'
+    } else {
+        selection = dataSelection.toLowerCase().replace(' ','_')
+    }
+
+    csvColNameElement = document.getElementById('csvColNameElement-'+String(IDNum))
+    csvColNameElement.value = selection
+
+}
+
 function buildCSVrow(IDNum) {
     /** Builds a row in the generate csv form. */
     
@@ -743,6 +820,10 @@ function buildCSVrow(IDNum) {
     CSVColRow.classList.add('row')
     CSVColParDiv.appendChild(CSVColRow);
 
+    CSVCol0 = document.createElement('div');
+    CSVCol0.classList.add('col-lg-3')
+    CSVColRow.appendChild(CSVCol0);
+
     CSVCol1 = document.createElement('div');
     CSVCol1.classList.add('col-lg-3')
     CSVColRow.appendChild(CSVCol1);
@@ -752,13 +833,19 @@ function buildCSVrow(IDNum) {
     CSVColRow.appendChild(CSVCol2);
 
     CSVCol3 = document.createElement('div');
-    CSVCol3.classList.add('col-lg-3')
+    CSVCol3.classList.add('col-lg-2')
     CSVCol3.id = 'CSVCol3-'+String(IDNum);
     CSVColRow.appendChild(CSVCol3);
 
     CSVCol4 = document.createElement('div');
-    CSVCol4.classList.add('col-lg-3')
+    CSVCol4.classList.add('col-lg-1')
     CSVColRow.appendChild(CSVCol4);
+
+    csvColNameElement = document.createElement('input');
+    csvColNameElement.classList.add('form-control');
+    csvColNameElement.id = 'csvColNameElement-'+String(IDNum);
+    csvColNameElement.name = csvColNameElement.id;
+    CSVCol0.appendChild(csvColNameElement);
 
     csvColLevelElement = document.createElement('select');
     csvColLevelElement.classList.add('form-control');
@@ -792,6 +879,7 @@ function buildCSVrow(IDNum) {
         return function() {
             updateDataElement(wrapIDNum)
             updateSpeciesElement(wrapIDNum)
+            updateNameElement(wrapIDNum)
             checkCSV()
         }
     }(IDNum));
@@ -799,6 +887,7 @@ function buildCSVrow(IDNum) {
     $("#"+csvColDataElement.id).change( function(wrapIDNum) {
         return function() {
             updateSpeciesElement(wrapIDNum)
+            updateNameElement(wrapIDNum)
             checkCSV()
         }
     }(IDNum));
