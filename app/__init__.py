@@ -14,13 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
+from config import Config
+if Config.MONKEY_PATCH:
+    from gevent import monkey
+    monkey.patch_all()
+
 from asyncio import queues
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_bootstrap import Bootstrap
-from config import Config
 import os
 import os.path
 from celery import Celery
@@ -175,14 +179,13 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         setupDatabase()
 
         # Flush all other (non-default) queues
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
         allQueues = ['default'] #default needs to be first
         allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
         allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
         for queue in allQueues:
             if queue not in ['default','ram_intensive']:
                 while True:
-                    task = redisClient.blpop(queue, timeout=1)
+                    task = GLOBALS.redisClient.blpop(queue, timeout=1)
                     if not task:
                         break
 

@@ -30,3 +30,4 @@ vhl_id = 6
 remove_false_detections_id = 7
 results_queue = []
 clusters_allocated = {}
+redisClient = None

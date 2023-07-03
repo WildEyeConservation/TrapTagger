@@ -2388,8 +2388,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
         filesToDownload = len(wantedImages) + len(wantedVideos)	
         if Config.DEBUGGING: app.logger.info('Files to download: '+str(filesToDownload))
 
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
+        GLOBALS.redisClient.set(str(task.id)+'_filesToDownload',filesToDownload)
 
         unwantedImages = list(set(allImages) - set(wantedImages))
 
@@ -2453,8 +2452,7 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
         if then_set:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
         else:
-            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-            redisClient.delete(str(task.id)+'_filesToDownload')
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
             task.status = 'Ready'
             db.session.commit()
 
@@ -2495,8 +2493,7 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
         if then_set:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
         else:
-            redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-            redisClient.delete(str(task.id)+'_filesToDownload')
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
             task.status = 'Ready'
             db.session.commit()
 

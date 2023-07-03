@@ -98,7 +98,8 @@ services:
             - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
-        command: gunicorn -b 0.0.0.0:8000 -w 1 -k gthread app:app
+            - MONKEY_PATCH=true
+        command: gunicorn -b 0.0.0.0:8000 -w 15 -k gevent app:app
         networks:
             my-network:
                 aliases:
@@ -151,7 +152,8 @@ services:
             - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
-        command: gunicorn -b 0.0.0.0:8000 -w 1 -k gthread app:app
+            - MONKEY_PATCH=true
+        command: gunicorn -b 0.0.0.0:8000 -w 3 -k gevent app:app
         networks:
             my-network:
                 aliases:
@@ -202,6 +204,7 @@ services:
             - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+            - MONKEY_PATCH=false
         command: celery -A app.celery worker -B -E -n priority_worker -Q priority -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -249,6 +252,7 @@ services:
             - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+            - MONKEY_PATCH=false
         command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -296,6 +300,7 @@ services:
             - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+            - MONKEY_PATCH=false
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
@@ -343,6 +348,7 @@ services:
     #         - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
     #         - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
     #         - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+    #         - MONKEY_PATCH=false
     #     command: nice -10 celery -A app.celery worker -E -n traptagger_worker2 -Q default -Ofair --concurrency=1 --loglevel=info
     #     networks:
     #         - my-network
@@ -390,6 +396,7 @@ services:
     #         - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
     #         - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
     #         - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+    #         - MONKEY_PATCH=false
     #     command: nice -10 celery -A app.celery worker -E -n traptagger_worker3 -Q default -Ofair --concurrency=1 --loglevel=info
     #     networks:
     #         - my-network

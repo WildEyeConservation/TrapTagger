@@ -284,6 +284,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
         app.logger.info("Hotspotter run completed in {}s".format(endTime - OverallStartTime))
 
         if len(task_ids)==1:
+            active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_ids[0]))]
             user_ids = [r[0] for r in db.session.query(User.id)\
                                                 .join(Individual, Individual.user_id==User.id)\
                                                 .join(Task,Individual.tasks)\
@@ -291,7 +292,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                                 .filter(Task.id.in_(task_ids))\
                                                 .filter(Individual.species==species)\
                                                 .filter(IndSimilarity.score==None)\
-                                                .filter(or_(User.passed=='cTrue',User.username=='Admin'))\
+                                                .filter(~User.username.in_(active_jobs))\
                                                 .distinct().all()]
         else:
             user_ids = None
