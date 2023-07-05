@@ -55,6 +55,7 @@ from PIL import ImageDraw, ImageFont
 import io
 import tracemalloc
 import calendar
+import pandas as pd
 
 tracemalloc.start(40)
 
@@ -1875,7 +1876,7 @@ def getPolarData():
     reply = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
         else:
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
@@ -1990,6 +1991,10 @@ def getBarData():
     species = ast.literal_eval(request.form['species'])
     baseUnit = ast.literal_eval(request.form['baseUnit'])
     axis = ast.literal_eval(request.form['axis'])
+    if 'sites_ids' in request.form:
+        sites_ids = ast.literal_eval(request.form['sites_ids'])
+    else:
+        sites_ids = None
     if 'startDate' in request.form:
         startDate = ast.literal_eval(request.form['startDate'])
         endDate = ast.literal_eval(request.form['endDate'])
@@ -2003,7 +2008,7 @@ def getBarData():
     labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
         else:
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
@@ -2040,13 +2045,17 @@ def getBarData():
 
         if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
+        data_labels = []
         if axis == '1': #survey count
             count = baseQuery.distinct().count()
             data = [count]
-            labels = ['Surveys Count']
+            data_labels = ['Surveys Count']
 
         elif axis == '2': #Trapgroup count
-            trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
+            if sites_ids:
+                trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).filter(Trapgroup.id.in_(sites_ids)).distinct().all()
+            else:
+                trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
             check_data = {}
             for trapgroup in trapgroups:
                 count = baseQuery.filter(Trapgroup.id==trapgroup.id).distinct().count()
@@ -2058,9 +2067,9 @@ def getBarData():
                     check_data[key] += count
 
             data = list(check_data.values())
-            labels = [str(x[2]) for x in check_data.keys()]
+            data_labels = [str(x[2]) for x in check_data.keys()]
 
-    return json.dumps({'data' :data, 'labels': labels})
+    return json.dumps({'data' :data, 'labels': data_labels})
 
 @app.route('/getBarDataIndividual', methods=['POST'])
 @login_required
@@ -5471,10 +5480,11 @@ def getTrapgroupCounts():
     maxVal = 0
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
         else:
-            tasks = db.session.query(Task).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
-        task_ids = [r.id for r in tasks]
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.id.in_(task_ids)).all()
+        task_ids = [t[0] for t in tasks]
+        survey_ids = list(set([t[1] for t in tasks]))
 
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection).join(Labelgroup)
@@ -5517,11 +5527,11 @@ def getTrapgroupCounts():
 
         if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
-        if sites and sites[0] != '0':
+        if sites and sites != '0':
             trap_ids = [int(s) for s in sites]
             trapgroups = db.session.query(Trapgroup).filter(Trapgroup.id.in_(trap_ids)).all()
         else:
-            trapgroups = [trapgroup for task in tasks for trapgroup in task.survey.trapgroups]
+            trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).all()
 
         data_check = {}
 
@@ -8104,6 +8114,7 @@ def getLineData():
     baseUnit = ast.literal_eval(request.form['baseUnit'])
     trapgroup = ast.literal_eval(request.form['trapgroup'])
     timeUnit = ast.literal_eval(request.form['timeUnit'])
+    timeUnitNumber = int(ast.literal_eval(request.form['timeUnitNumber']))
     if 'startDate' in request.form:
         startDate = ast.literal_eval(request.form['startDate'])
         endDate = ast.literal_eval(request.form['endDate'])
@@ -8117,7 +8128,7 @@ def getLineData():
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
         else:
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
@@ -8135,27 +8146,6 @@ def getLineData():
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
-
-        if trapgroup != '0':
-            if type(trapgroup) == list:
-                trap_ids = [int(t) for t in trapgroup]
-                baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
-            else:
-                baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
-
-        if species != '0':
-            labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
-            label_list = []
-            for label in labels:
-                label_list.append(label.id)
-                label_list.extend(getChildList(label,int(label.task_id)))
-            baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
-        else:
-            vhl = db.session.query(Label).get(GLOBALS.vhl_id)
-            label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
-            for task_id in task_ids:
-                label_list.extend(getChildList(vhl,int(task_id)))
-            baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
 
         if startDate: 
             baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
@@ -8182,54 +8172,145 @@ def getLineData():
                     last_date = last_date.images[0].corrected_timestamp
                 elif baseUnit == '3':
                     last_date = last_date.detection.image.corrected_timestamp
-                
+
+        if trapgroup != '0':
+            if type(trapgroup) == list:
+                trap_ids = [int(t) for t in trapgroup]
+                baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
+            else:
+                baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup).filter(Trapgroup.survey_id.in_(survey_ids))
+
+        if species != '0':
+            labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                label_list.extend(getChildList(label,int(label.task_id)))
+            baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
+        else:
+            vhl = db.session.query(Label).get(GLOBALS.vhl_id)
+            label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
+            for task_id in task_ids:
+                label_list.extend(getChildList(vhl,int(task_id)))
+            baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+
         if first_date and last_date:
-            first_date = str(first_date).split(' ')[0]
-            last_date = str(last_date).split(' ')[0]
+            baseQuery = baseQuery.order_by(Image.corrected_timestamp).distinct().all()
+            if baseUnit == '1':
+                df = pd.DataFrame({'date': [r.corrected_timestamp for r in baseQuery], 'id': [r.id for r in baseQuery]})
+            elif baseUnit == '2':
+                df = pd.DataFrame({'date': [r.images[i].corrected_timestamp for r in baseQuery for i in range(len(r.images))], 'id': [r.id for r in baseQuery for _ in range(len(r.images))]})
+            elif baseUnit == '3':
+                df = pd.DataFrame({'date': [r.detection.image.corrected_timestamp for r in baseQuery], 'id': [r.id for r in baseQuery]})
+            app.logger.info(df)
+
+            df['date'] = pd.to_datetime(df['date'])
+            first_date = pd.to_datetime(first_date)
+            last_date = pd.to_datetime(last_date)
+
             if timeUnit == '1': # Day
-                date_range = pd.date_range(first_date, last_date, freq='D')
-                if date_range.size == 0:
-                    date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 60:
-                    for date in date_range:
-                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
-                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
-                                        .filter(extract('day',Image.corrected_timestamp)==date.day)\
-                                        .distinct().count()
-                        data.append(count)
-                        data_labels.append(date.strftime('%d %b %Y'))
-                else:
-                    timeUnit = '2'
+                first_date = first_date.replace(hour=0, minute=0, second=0)
+                last_date = last_date.replace(hour=23, minute=59, second=59)
+                
+                window_counts = {}
+                current_date = first_date
+                while current_date <= last_date:
+                    window_counts[current_date] = 0
+                    window_end = current_date + pd.DateOffset(days=timeUnitNumber)
+                    window_counts[current_date] = df[(df['date'] >= current_date) & (df['date'] < window_end)].id.nunique()
+                    current_date = window_end
 
-            if timeUnit == '2': # Month
-                first_date = first_date.split('-')[0] + '-' + first_date.split('-')[1]	
-                last_date = last_date.split('-')[0] + '-' + last_date.split('-')[1]
-                date_range = pd.date_range(first_date, last_date, freq='MS')
-                if date_range.size == 0:
-                    date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 60:
-                    for date in date_range:
-                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
-                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
-                                        .distinct().count()
-                        data.append(count)
-                        data_labels.append(calendar.month_abbr[date.month] + ' ' + str(date.year))
-                else:
-                    timeUnit = '3'
+                data = list(window_counts.values())
+                data_labels = [d.strftime('%d %b %Y') for d in window_counts.keys()]
+                # data_labels = [d.strftime('%Y-%m-%d') for d in window_counts.keys()]
 
-            if timeUnit == '3': # Year
-                first_date = first_date.split('-')[0]
-                last_date = last_date.split('-')[0]
-                date_range = pd.date_range(first_date, last_date, freq='AS')
-                if date_range.size == 0:
-                    date_range = [pd.to_datetime(first_date)]
-                elif date_range.size > 60:
-                    date_range = date_range[0:60]
-                for date in date_range:
-                    count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
-                                    .distinct().count()
-                    data.append(count)
-                    data_labels.append(str(date.year))
+
+            elif timeUnit == '2': # Month
+                first_date = first_date.replace(day=1, hour=0, minute=0, second=0)
+                last_day = calendar.monthrange(last_date.year, last_date.month)[1]
+                last_date = last_date.replace(day=last_day, hour=23, minute=59, second=59)
+
+                window_counts = {}
+                current_date = first_date
+
+                while current_date <= last_date:
+                    window_counts[current_date] = 0
+                    window_end = current_date + pd.DateOffset(months=timeUnitNumber)
+                    window_counts[current_date] = df[(df['date'] >= current_date) & (df['date'] < window_end)].id.nunique()
+                    current_date = window_end
+
+                data = list(window_counts.values())
+                data_labels = [d.strftime('%b %Y') for d in window_counts.keys()]
+                # data_labels = [d.strftime('%Y-%m') for d in window_counts.keys()]
+
+
+            elif timeUnit == '3': # Year
+                first_date = first_date.replace(month=1, day=1, hour=0, minute=0, second=0)
+                last_date = last_date.replace(month=12, day=31, hour=23, minute=59, second=59)
+
+                window_counts = {}
+                current_date = first_date
+
+                while current_date <= last_date:
+                    first_date = first_date.replace(month=1, day=1)
+                    last_date = last_date.replace(month=12, day=31)
+                    window_counts[current_date] = 0
+                    window_end = current_date + pd.DateOffset(years=timeUnitNumber)
+                    window_counts[current_date] = df[(df['date'] >= current_date) & (df['date'] < window_end)].id.nunique()
+                    current_date = window_end
+
+                data = list(window_counts.values())
+                data_labels = [d.strftime('%Y') for d in window_counts.keys()]
+                # data_labels = [d.strftime('%Y-%m') for d in window_counts.keys()]
+
+
+            # first_date = str(first_date).split(' ')[0]
+            # last_date = str(last_date).split(' ')[0]
+            # if timeUnit == '1': # Day
+            #     date_range = pd.date_range(first_date, last_date, freq='D')
+            #     if date_range.size == 0:
+            #         date_range = [pd.to_datetime(first_date)]
+            #     elif date_range.size <= 60:
+            #         for date in date_range:
+            #             count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+            #                             .filter(extract('month',Image.corrected_timestamp)==date.month)\
+            #                             .filter(extract('day',Image.corrected_timestamp)==date.day)\
+            #                             .distinct().count()
+            #             data.append(count)
+            #             data_labels.append(date.strftime('%d %b %Y'))
+            #     else:
+            #         timeUnit = '2'
+
+            # if timeUnit == '2': # Month
+            #     first_date = first_date.split('-')[0] + '-' + first_date.split('-')[1]	
+            #     last_date = last_date.split('-')[0] + '-' + last_date.split('-')[1]
+            #     date_range = pd.date_range(first_date, last_date, freq='MS')
+            #     if date_range.size == 0:
+            #         date_range = [pd.to_datetime(first_date)]
+            #     elif date_range.size <= 60:
+            #         for date in date_range:
+            #             count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+            #                             .filter(extract('month',Image.corrected_timestamp)==date.month)\
+            #                             .distinct().count()
+            #             data.append(count)
+            #             data_labels.append(calendar.month_abbr[date.month] + ' ' + str(date.year))
+            #     else:
+            #         timeUnit = '3'
+
+            # if timeUnit == '3': # Year
+            #     first_date = first_date.split('-')[0]
+            #     last_date = last_date.split('-')[0]
+            #     date_range = pd.date_range(first_date, last_date, freq='AS')
+            #     if date_range.size == 0:
+            #         date_range = [pd.to_datetime(first_date)]
+            #     elif date_range.size > 60:
+            #         date_range = date_range[0:60]
+            #     for date in date_range:
+            #         count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
+            #                         .distinct().count()
+            #         data.append(count)
+            #         data_labels.append(str(date.year))
 
     return json.dumps({'data': data, 'labels': data_labels, 'timeUnit': timeUnit})
 
@@ -8363,25 +8444,34 @@ def searchSites():
     sites_ids = []
     unique_sites = {}
     search = ast.literal_eval(request.form['search'])
+    advanced = ast.literal_eval(request.form['advanced'])
 
-    if Config.DEBUGGING: app.logger.info('Searching for sites matching {}'.format(search))
-    
-    searches = re.split('[ ,]',search)
-    for search in searches:
-        sites = db.session.query(Trapgroup).join(Survey)\
-                            .filter(Survey.user_id==current_user.id)\
-                            .filter(Trapgroup.tag.contains(search))\
-                            .distinct().all()
+    if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {}'.format(search, advanced))
 
+    sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id)
+
+    if advanced == 'true':
+        # Regular expression search 
+        sites = sites.distinct().all()
+        matching_sites = []
+        for site in sites:
+            if re.search(search, site[1]):
+                matching_sites.append(site)
+        sites = matching_sites
+    else:
+        searches = re.split('[ ,]',search)
+        for search in searches:
+            sites = sites.filter(Trapgroup.tag.contains(search))               
+            sites = sites.distinct().all()
 
     for site in sites:
-        site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
+        site_info = {'tag': site[1], 'latitude': sites[2], 'longitude': site[3]}
         combination = (site_info['tag'], site_info['latitude'], site_info['longitude'])
         
         if combination in unique_sites.keys():
-            unique_sites[combination]['ids'].append(site.id)
+            unique_sites[combination]['ids'].append(site[0])
         else:
-            unique_sites[combination] = {'info': site_info, 'ids': [site.id]}
+            unique_sites[combination] = {'info': site_info, 'ids': [site[0]]}
     for item in unique_sites.values():
         sites_data.append(item['info'])
         sites_ids.append(item['ids'])
@@ -8470,3 +8560,63 @@ def deleteGroup(group_id):
     # Delete group
 
     return json.dumps({'status': 'success'})
+
+
+@app.route('/getSurveysAndTasksForResults', methods=['POST'])
+@login_required
+def getSurveysAndTasksForResults():
+    ''' Get a list of surveys and tasks for the results page '''
+
+    reply = []
+
+    sites_ids = ast.literal_eval(request.form['sites_ids'])
+    start_date = ast.literal_eval(request.form['start_date'])
+    end_date = ast.literal_eval(request.form['end_date'])
+
+    if Config.DEBUGGING: app.logger.info('Surveys for results page - sites_ids: {} start_date: {} end_date: {}'.format(sites_ids, start_date, end_date))
+
+    surveys = db.session.query(
+                                    Survey.id,
+                                    Survey.name,
+                                    Task.id,
+                                    Task.name,
+                                ).outerjoin(Trapgroup,Trapgroup.survey_id==Survey.id)\
+                                .outerjoin(Task,Task.survey_id==Survey.id)\
+                                .outerjoin(Cluster,Cluster.task_id==Task.id)\
+                                .outerjoin(Image, Cluster.images)\
+                                .filter(Survey.user_id==current_user.id)\
+                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))\
+                                .filter(Task.name != 'default')
+
+
+    if sites_ids != '0':
+        app.logger.info('sites_ids: {}'.format(sites_ids))
+        surveys = surveys.filter(Trapgroup.id.in_(sites_ids))
+
+    if start_date:
+        app.logger.info('start_date: {}'.format(start_date))
+        surveys = surveys.filter(Image.corrected_timestamp >= start_date)
+
+    if end_date:
+        app.logger.info('end_date: {}'.format(end_date))
+        surveys = surveys.filter(Image.corrected_timestamp <= end_date)
+
+    surveys = surveys.distinct().all()
+
+    survey_data = {}
+    for item in surveys:
+        if item[0] and (item[0] not in survey_data.keys()):
+            survey_data[item[0]] = {'id': item[0],
+                                    'name': item[1], 
+                                    'tasks': []}
+        if item[2]:
+            taskInfo = {'id': item[2],
+                        'name': item[3]}
+            survey_data[item[0]]['tasks'].append(taskInfo)   
+
+    reply = list(survey_data.values())
+
+    return json.dumps(reply)
+
+
+

@@ -1253,7 +1253,7 @@ function updateBarDisplay() {
 }
 
 
-function addBarData(data,colour) {
+function addBarData(data,colour,IDNum) {
     /**
      * Adds the stipulated data to an active bar chart.
      * @param {arr} data The data points
@@ -1264,6 +1264,7 @@ function addBarData(data,colour) {
     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
     if (xAxisSelection=='1') {
         dataset = {
+            id: 'data-'+IDNum,
             data: data,
             hoverBackgroundColor: colour,
             borderColor: 'rgba(255,255,255,1)',
@@ -1280,6 +1281,7 @@ function addBarData(data,colour) {
         }
 
         dataset = {
+            id: 'data-'+IDNum,
             data: data,
             hoverBackgroundColor: background,
             borderColor: 'rgba(255,255,255,1)',

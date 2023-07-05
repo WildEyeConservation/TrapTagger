@@ -118,228 +118,25 @@ var markers = []
 var species_count_warning = false
 var selectedTask = null
 var timeLabels = []
+var spatialExportControl = null
+var activeBaseLayer = null
+var exportCanvas = null
+var textColour = 'white'
+var axisColour = 'rgba(0,0,0,0.2)'
+var borderColour = 'rgba(255,255,255,1)'
+var includeBorders = true 
+var includeLegend = true
+var includeLabels = true
+var includeRadialAxisLabels = true
+var includeGridLines = true
+var backgroundColour = null 
+var tabActive = 'baseAnalysisDiv'
+var selectedAnnotationSets = {}
+var suveysAndSets = []
+var globalAnnotationSets = []
 
-
-// function addSurveys(){
-//     /** Adds the survey and annotation set selectors to the page */
-//     var xhttp = new XMLHttpRequest();
-//     xhttp.onreadystatechange =
-//     function(){
-//         if (this.readyState == 4 && this.status == 200) {
-//             surveys = JSON.parse(this.responseText);  
-//             buildSurveySelect()
-//         }
-//     }
-//     xhttp.open("GET", '/getSurveys');
-//     xhttp.send();
-
-//     var addSurveyTask = document.getElementById('addSurveyTask')
-    
-//     row = document.createElement('div')
-//     row.classList.add('row')
-//     addSurveyTask.appendChild(row)
-
-//     col = document.createElement('div')
-//     col.classList.add('col-lg-3')
-//     row.appendChild(col)
-
-//     btnAdd = document.createElement('button');
-//     btnAdd.setAttribute("class",'btn btn-info');
-//     btnAdd.innerHTML = '&plus;';
-//     btnAdd.addEventListener('click', ()=>{
-//         buildSurveySelect()
-//         checkSurvey()
-//     });
-//     col.appendChild(btnAdd);
-// }
-
-// function buildSurveySelect(){
-//     /** Builds the selectors for the surveys and annotation sets */
-
-//     IDNum = getIdNumforNext('idSurveySelect-')
-//     surveySelect = document.getElementById('surveySelect')
-
-//     row = document.createElement('div')
-//     row.classList.add('row')
-//     surveySelect.appendChild(row)
-
-//     col1 = document.createElement('div')
-//     col1.classList.add('col-lg-8')
-//     row.appendChild(col1)
-
-//     col3 = document.createElement('div')
-//     col3.classList.add('col-lg-2')
-//     col3.setAttribute('style','padding: 0px;')
-//     row.appendChild(col3)
-    
-
-//     if (IDNum > 0) {
-//         col1.appendChild(document.createElement('br'))
-//         col3.appendChild(document.createElement('br'))
-//     }
-    
-//     idSurveySelect = document.createElement('select')
-//     idSurveySelect.classList.add('form-control')
-//     idSurveySelect.id = 'idSurveySelect-'+String(IDNum)
-//     idSurveySelect.name = idSurveySelect.id
-//     col1.appendChild(idSurveySelect)
-
-//     idTaskSelect = document.createElement('select')
-//     idTaskSelect.classList.add('form-control')
-//     idTaskSelect.id = 'idTaskSelect-'+String(IDNum)
-//     idTaskSelect.name = idTaskSelect.id
-//     col1.appendChild(idTaskSelect)
-    
-
-//     if (surveys != null) {
-        
-//         if(IDNum==0){
-//             optionTexts = ['All']
-//             optionValues = ["0"]  
-//             fillSelect(idTaskSelect, [''], ['0'])
-//         }
-//         else{
-//             optionTexts = ['None']
-//             optionValues = ['-1'] 
-//             fillSelect(idTaskSelect, [''], ['-1'])
-//         }
-
-//         for (let i=0;i<surveys.length;i++) {
-//             optionTexts.push(surveys[i][1])
-//             optionValues.push(surveys[i][0])
-//         }
-//         clearSelect(idSurveySelect)
-//         fillSelect(idSurveySelect, optionTexts, optionValues)
-        
-        
-//     }
-
-//     if (IDNum!=0) {
-//         btnRemove = document.createElement('button');
-//         btnRemove.setAttribute("class",'btn btn-info');
-//         btnRemove.innerHTML = '&times;';
-//         btnRemove.addEventListener('click', (evt)=>{
-//             evt.target.parentNode.parentNode.remove();
-//             checkSurvey()
-//             updateResults(true)
-
-//         });
-//         col3.appendChild(btnRemove);
-//     }
-
-//     $("#"+idSurveySelect.id).change( function(wrapIDNum) {
-//         return function() {
-
-//             idSurveySelect = document.getElementById('idSurveySelect-'+String(wrapIDNum))
-//             idTaskSelect = document.getElementById('idTaskSelect-'+String(wrapIDNum))
-            
-//             survey = idSurveySelect.options[idSurveySelect.selectedIndex].value
-//             if (survey=="0" || survey=="-1") {
-//                 clearSelect(idTaskSelect)
-//                 fillSelect(idTaskSelect, [''], ['0'])
-//                 checkSurvey()
-//                 updateResults(true)
-//             } else {
-//                 var xhttp = new XMLHttpRequest();
-//                 xhttp.onreadystatechange =
-//                 function(wrapidTaskSelect){
-//                     return function() {
-//                         if (this.readyState == 4 && this.status == 200) {
-//                             tasks = JSON.parse(this.responseText);  
-//                             optionTexts = []      
-//                             optionValues = []
-//                             for (let i=0;i<tasks.length;i++) {
-//                                 optionTexts.push(tasks[i][1])
-//                                 optionValues.push(tasks[i][0])
-//                             }
-//                             clearSelect(wrapidTaskSelect)
-//                             fillSelect(wrapidTaskSelect, optionTexts, optionValues)
- 
-//                             checkSurvey()
-//                             updateResults(true)
-//                         }
-//                     }
-//                 }(idTaskSelect)
-//                 xhttp.open("GET", '/getTasks/'+survey);
-//                 xhttp.send();
-//             }
-//         }
-//     }(IDNum));
-
-//     $("#"+idTaskSelect.id).change( function() {
-//         checkSurvey()
-//         updateResults(true)
-//     })
-    
-// }
-
-// function checkSurvey(){
-//     /** Checks that the slected surveys and annotation sets are valid */
-
-//     var duplicateTask = false
-//     var surveyAll = false
-//     var noneSurvey = false
-//     legalSurvey = false
-    
-    
-//     surveyErrors = document.getElementById('surveysErrors')
-//     allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
-//     allSurveys = document.querySelectorAll('[id^=idSurveySelect-]') 
-    
-    
-//     while(surveyErrors.firstChild){
-//         surveyErrors.removeChild(surveyErrors.firstChild)
-//     }    
-
-//     for (let i=0;i<allTasks.length;i++) {
-//         currTaskVal = allTasks[i].value
-//         for (let j=0;j<allTasks.length;j++) {
-//             if(allTasks[j].value == currTaskVal && j!=i){
-//                 duplicateTask = true
-//             }
-//         }
-//         if (currTaskVal=='0'){
-//             surveyAll = true
-//         }
-//     }
-
-    
-//     if(allSurveys.length == 1 && surveyAll){
-//         surveyAll = false
-//     }
-//     else if(allSurveys.length == 1 && !surveyAll && modalActive){
-//         if(allSurveys[0].value == '-1'){
-//             noneSurvey = true
-//         }
-//     }
-    
-
-//     if (duplicateTask) {
-//         newdiv = document.createElement('div')
-//         newdiv.innerHTML =  'You have duplicate annotation sets, please remove the duplicate.'
-//         surveyErrors.appendChild(newdiv)
-//     }
-    
-
-//     if(surveyAll){
-//         newdiv = document.createElement('div')
-//         newdiv.innerHTML =  'You cannot select all surveys and add additional surveys. Please remove additional surveys or "All" surveys.'
-//         surveyErrors.appendChild(newdiv)
-//     }
-
-
-//     if(noneSurvey){
-//         newdiv = document.createElement('div')
-//         newdiv.innerHTML =  'You have not selected any surveys. Please select a survey.'
-//         surveyErrors.appendChild(newdiv)
-//     }
-
-//     if (duplicateTask||surveyAll||noneSurvey) {
-//         legalSurvey = false
-//     } else {
-//         legalSurvey = true
-//     }
-// }
+const modalExportAlert = $('#modalExportAlert')
+const modalAnnotationsSets = $('#modalAnnotationsSets')
 
 function getLabelsAndSites(){
     /** Builds the selectors for generating results*/
@@ -379,164 +176,166 @@ function updateLabelsAndSites(){
     /** Updates the labels and sites selectors based on the selected surveys and annotation sets */
     allSpeciesSelector = document.querySelectorAll('[id^=speciesSelect-]')
     allSiteSelector = document.querySelectorAll('[id^=trapgroupSelect-]')
+    speciesSelector = document.getElementById('speciesSelect')
+    siteSelector = document.getElementById('trapgroupSelect')
+    allSpeciesSelectorNum = document.querySelectorAll('[id^=speciesSelectNum-]')
+    allSiteSelectorSpat = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
 
-    if (allSpeciesSelector.length==0) {
-        speciesSelector = document.getElementById('speciesSelect')
-        if (speciesSelector) {
-            clearSelect(speciesSelector)
-            var optionValues = ['-1', '0']
-            var optionTexts = ['None', 'All']
-            optionValues = optionValues.concat(globalLabels)
-            optionTexts = optionTexts.concat(globalLabels)
-            fillSelect(speciesSelector, optionTexts, optionValues)
-        }
-
-        siteSelector = document.getElementById('trapgroupSelect')
-        if (siteSelector) {
-            clearSelect(siteSelector)
-            optionValues = ['-1', '0']
-            optionTexts = ['None', 'All']
-            optionValues = optionValues.concat(globalSitesIDs)
-            optionTexts = optionTexts.concat(globalSites)
-            fillSelect(siteSelector, optionTexts, optionValues)
-        }
+    if (speciesSelector) {
+        clearSelect(speciesSelector)
+        var optionValues = ['-1', '0']
+        var optionTexts = ['None', 'All']
+        optionValues = optionValues.concat(globalLabels)
+        optionTexts = optionTexts.concat(globalLabels)
+        fillSelect(speciesSelector, optionTexts, optionValues)
     }
-    else{
-        for (let i=0;i<allSpeciesSelector.length;i++) {
-            clearSelect(allSpeciesSelector[i])
-            var optionValues = ['-1', '0']
-            var optionTexts = ['None', 'All']
-            optionValues = optionValues.concat(globalLabels)
-            optionTexts = optionTexts.concat(globalLabels)
-            fillSelect(allSpeciesSelector[i], optionTexts, optionValues)
-        }
 
-        for (let i=0;i<allSiteSelector.length;i++) {
-            clearSelect(allSiteSelector[i])
-            var optionValues = ['-1', '0']
-            var optionTexts = ['None', 'All']
-            optionValues = optionValues.concat(globalSitesIDs)
-            optionTexts = optionTexts.concat(globalSites)
-            fillSelect(allSiteSelector[i], optionTexts, optionValues)
-        }
+
+    if (siteSelector) {
+        clearSelect(siteSelector)
+        optionValues = ['-1', '0']
+        optionTexts = ['None', 'All']
+        optionValues = optionValues.concat(globalSitesIDs)
+        optionTexts = optionTexts.concat(globalSites)
+        fillSelect(siteSelector, optionTexts, optionValues)
     }
+
+    for (let i=0;i<allSpeciesSelector.length;i++) {
+        clearSelect(allSpeciesSelector[i])
+        var optionValues = ['-1', '0']
+        var optionTexts = ['None', 'All']
+        optionValues = optionValues.concat(globalLabels)
+        optionTexts = optionTexts.concat(globalLabels)
+        fillSelect(allSpeciesSelector[i], optionTexts, optionValues)
+    }
+
+    for (let i=0;i<allSiteSelector.length;i++) {
+        clearSelect(allSiteSelector[i])
+        var optionValues = ['-1', '0']
+        var optionTexts = ['None', 'All']
+        optionValues = optionValues.concat(globalSitesIDs)
+        optionTexts = optionTexts.concat(globalSites)
+        fillSelect(allSiteSelector[i], optionTexts, optionValues)
+    }
+
+    for (let i=0;i<allSpeciesSelectorNum.length;i++) {
+        clearSelect(allSpeciesSelectorNum[i])
+        var optionValues = ['-1', '0']
+        var optionTexts = ['None', 'All']
+        optionValues = optionValues.concat(globalLabels)
+        optionTexts = optionTexts.concat(globalLabels)
+        fillSelect(allSpeciesSelectorNum[i], optionTexts, optionValues)
+    }
+
+    for (let i=0;i<allSiteSelectorSpat.length;i++) {
+        clearSelect(allSiteSelectorSpat[i])
+        var optionValues = ['0']
+        var optionTexts = ['All']
+        optionValues = optionValues.concat(globalSitesIDs)
+        optionTexts = optionTexts.concat(globalSites)
+        fillSelect(allSiteSelectorSpat[i], optionTexts, optionValues)
+    }
+
 }
 
 
 function generateResults(){
     /** Updates the generate results div based on the selected analysis type */
-    var generateDiv = document.getElementById('generateDiv')
     var analysisType = document.getElementById('analysisSelector').value
     var resultsDiv = document.getElementById('resultsDiv')
-
-    while(generateDiv.firstChild){
-        generateDiv.removeChild(generateDiv.firstChild)
-    }
 
     while(resultsDiv.firstChild){
         resultsDiv.removeChild(resultsDiv.firstChild)
     }    
 
+    barData = {}
+    polarData = {}
+    lineData = {}
+
+    clearChartColours()
+    clearButtonColours()
+
     if (analysisType=='1') {
         //Builds the selectors for the temporal analysis
         document.getElementById('btnExportResults').disabled = false
-        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeDiv').hidden = false
         document.getElementById('chartTypeSelector').value = 'polarArea'
+        document.getElementById('normalisationDiv').hidden = false
+        document.getElementById('timeUnitSelectionDiv').hidden = true 
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = false
+        // document.getElementById('comparisonDiv').hidden = true
+        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
+        document.getElementById('trendlineDiv').hidden = true
         generateTemporal()
     }
     else if (analysisType=='2') {
         //Builds the selectors for the spatial analysis
-        document.getElementById('btnExportResults').disabled = true
-        document.getElementById('chartTypeSelector').disabled = true
+        document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeDiv').hidden = true
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true 
+        document.getElementById('spatialOptionsDiv').hidden = false
+        document.getElementById('spatialDataDiv').hidden = false
+        document.getElementById('analysisDataDiv').hidden = true
+        // document.getElementById('comparisonDiv').hidden = true
+        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
+        document.getElementById('trendlineDiv').hidden = true
         generateSpatial()
     }
     else if (analysisType=='3') {
         //Builds the selectors for the numerical analysis
         document.getElementById('btnExportResults').disabled = false
-        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeDiv').hidden = false
         document.getElementById('chartTypeSelector').value = 'bar'
+        document.getElementById('normalisationDiv').hidden = false
+        document.getElementById('timeUnitSelectionDiv').hidden = true 
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = false
+        // document.getElementById('comparisonDiv').hidden = false
+        // document.getElementById('numericalDataDiv').hidden = false
+        document.getElementById('btnSaveGroupFromData').disabled = true
+        document.getElementById('trendlineDiv').hidden = false
         generateNumerical()
     }
     else if (analysisType=='4') {
         //Builds the selectors for the time series analysis
         document.getElementById('btnExportResults').disabled = false
-        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeDiv').hidden = false
         document.getElementById('chartTypeSelector').value = 'line'
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = false 
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = false
+        // document.getElementById('comparisonDiv').hidden = true
+        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
+        document.getElementById('trendlineDiv').hidden = false
         generateTime()
     }
     else{
         document.getElementById('btnExportResults').disabled = true
-        document.getElementById('chartTypeSelector').disabled = false
+        document.getElementById('chartTypeDiv').hidden = false
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true 
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = true
+        // document.getElementById('comparisonDiv').hidden = true
+        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = true
+        document.getElementById('trendlineDiv').hidden = true
     }
 
 }
 
 function generateTemporal(){
-    /** Updates the generate results div for temporal analysis */
-    var generateDiv = document.getElementById('generateDiv')
-
-    polarData = {}
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Normalisation'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Normalise the counts using the total count for each item.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-    
-    var row = document.createElement('div')
-    row.classList.add('row')
-    generateDiv.appendChild(row)
-
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    row.appendChild(col1)
-
-    var select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','normalisationSelector')
-    col1.appendChild(select)
-
-    fillSelect(select, ['Raw Count', 'Normalised'], ['1','2'])
-    $("#normalisationSelector").change( function() {
-        normalisePolar()
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Data'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select which site and species combinations you would like to see.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    var selectorColumn = document.createElement('div')
-    selectorColumn.setAttribute('id','selectorColumn')
-    generateDiv.appendChild(selectorColumn)
-
-    buildSpeciesAndSiteSelectorRow()
-
-    var buttonAdd = document.createElement('button')
-    buttonAdd.classList.add('btn')
-    buttonAdd.classList.add('btn-info')
-    buttonAdd.setAttribute('type','button')
-    buttonAdd.setAttribute('id','btnAddSpeciesAndSite')
-    buttonAdd.innerHTML = '+'
-    generateDiv.appendChild(buttonAdd)
-
-    buttonAdd.addEventListener('click', ()=>{
-        buildSpeciesAndSiteSelectorRow()  
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
-
+    /** Updates the results div for temporal analysis */
     // Polar map
     mainDiv = document.getElementById('resultsDiv')
 
@@ -586,9 +385,9 @@ function generateTemporal(){
     var options = {
         maintainAspectRatio: false,
         legend: {
-            display: true,
+            display: includeLegend,
             labels: {
-                fontColor: 'white'
+                fontColor : textColour
             },
             onClick: null
         },
@@ -607,13 +406,17 @@ function generateTemporal(){
         },
         scale: {
             ticks: {
-                display: true,
-                fontColor: 'white',
+                display: includeRadialAxisLabels,
+                fontColor : textColour,
                 showLabelBackdrop: false
             },
             pointLabels: {
-                display: true,
-                fontColor: 'white'
+                display: includeLabels,
+                fontColor : textColour
+            },
+            gridLines: {
+                display: includeGridLines,
+                color: axisColour
             }
         }
     }
@@ -624,326 +427,11 @@ function generateTemporal(){
         options: options
     });
 
+    updateResults()
 }
 
 function generateSpatial(){
     /** Updates the generate results div for spatial analysis */
-    var generateDiv = document.getElementById('generateDiv')
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Sites'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select the sites you would like to see results for.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    selectorColumn = document.createElement('div')
-    selectorColumn.setAttribute('id','selectorColumn')
-    generateDiv.appendChild(selectorColumn)
-
-    buildSiteSelectorRow()
-
-    var buttonAdd = document.createElement('button')
-    buttonAdd.classList.add('btn')
-    buttonAdd.classList.add('btn-info')
-    buttonAdd.setAttribute('type','button')
-    buttonAdd.setAttribute('id','btnAddSites')
-    buttonAdd.innerHTML = '+'
-    generateDiv.appendChild(buttonAdd)
-
-    buttonAdd.addEventListener('click', ()=>{
-        buildSiteSelectorRow()
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
-    generateDiv.appendChild(document.createElement('br'))
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Species'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select which species you would like to see results for.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    var row = document.createElement('div')
-    row.classList.add('row')
-    generateDiv.appendChild(row)
-
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    row.appendChild(col1)
-
-    var select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','speciesSelect')
-    col1.appendChild(select)
-
-    fillSelect(select, ['None', 'All'], ['-1','0'])
-
-    $("#speciesSelect").change( function() {
-        mapSpeciesSelector = document.getElementById('speciesSelect')
-        selection = mapSpeciesSelector.options[mapSpeciesSelector.selectedIndex].value
-        if (selection == '0') {
-            excludeDiv = document.getElementById('excludeDiv')
-            excludeDiv.appendChild(document.createElement('br'))
-
-            h5 = document.createElement('h5')
-            h5.innerHTML = 'Exclude'
-            h5.setAttribute('style','margin-bottom: 2px')
-            excludeDiv.appendChild(h5)
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>Choose which categories to exclude.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            excludeDiv.appendChild(h5)
-
-            // Nothing
-            checkBoxDiv = document.createElement('div')
-            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-            excludeDiv.appendChild(checkBoxDiv)
-
-            checkBox = document.createElement('input')
-            checkBox.setAttribute('type','checkbox')
-            checkBox.setAttribute('class','custom-control-input')
-            checkBox.setAttribute('id','excludeNothing')
-            checkBox.setAttribute('name','excludeNothing')
-            checkBox.checked = true
-            checkBoxDiv.appendChild(checkBox)
-
-            checkBoxLabel = document.createElement('label')
-            checkBoxLabel.setAttribute('class','custom-control-label')
-            checkBoxLabel.setAttribute('for','excludeNothing')
-            checkBoxLabel.innerHTML = 'Empty Images/Clusters'
-            checkBoxDiv.appendChild(checkBoxLabel)
-
-            $("#excludeNothing").change( function() {
-                updateHeatMap()
-            });
-
-            // Knocks
-            checkBoxDiv = document.createElement('div')
-            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-            excludeDiv.appendChild(checkBoxDiv)
-
-            checkBox = document.createElement('input')
-            checkBox.setAttribute('type','checkbox')
-            checkBox.setAttribute('class','custom-control-input')
-            checkBox.setAttribute('id','excludeKnocks')
-            checkBox.setAttribute('name','excludeKnocks')
-            checkBox.checked = true
-            checkBoxDiv.appendChild(checkBox)
-
-            checkBoxLabel = document.createElement('label')
-            checkBoxLabel.setAttribute('class','custom-control-label')
-            checkBoxLabel.setAttribute('for','excludeKnocks')
-            checkBoxLabel.innerHTML = 'Knocked-Down Cameras'
-            checkBoxDiv.appendChild(checkBoxLabel)
-
-            $("#excludeKnocks").change( function() {
-                updateHeatMap()
-            });
-
-            // VHL
-            checkBoxDiv = document.createElement('div')
-            checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-            excludeDiv.appendChild(checkBoxDiv)
-
-            checkBox = document.createElement('input')
-            checkBox.setAttribute('type','checkbox')
-            checkBox.setAttribute('class','custom-control-input')
-            checkBox.setAttribute('id','excludeVHL')
-            checkBox.setAttribute('name','excludeVHL')
-            checkBox.checked = true
-            checkBoxDiv.appendChild(checkBox)
-
-            checkBoxLabel = document.createElement('label')
-            checkBoxLabel.setAttribute('class','custom-control-label')
-            checkBoxLabel.setAttribute('for','excludeVHL')
-            checkBoxLabel.innerHTML = 'Vehicles/Humans/Livestock'
-            checkBoxDiv.appendChild(checkBoxLabel)
-
-            $("#excludeVHL").change( function() {
-                updateHeatMap()
-            });
-        } else {
-            excludeDiv = document.getElementById('excludeDiv')
-            while(excludeDiv.firstChild){
-                excludeDiv.removeChild(excludeDiv.firstChild);
-            }
-        }
-                        
-        updateResults()
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Radius'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Set the heatmap radius to help identify different trends.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    var row = document.createElement('div')
-    row.classList.add('row')
-    generateDiv.appendChild(row)
-
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    row.appendChild(col1)
-
-    slideRow = document.createElement('div')
-    slideRow.classList.add('row')
-    col1.appendChild(slideRow)
-
-    slidecol1 = document.createElement('div')
-    slidecol1.classList.add('col-lg-10')
-    slidecol1.setAttribute('style','padding: 0px')
-    slidecol1.setAttribute('align','center')
-    slideRow.appendChild(slidecol1)
-
-    slidecol2 = document.createElement('div')
-    slidecol2.classList.add('col-lg-2')
-    slidecol2.setAttribute('style','padding-left: 0px')
-    slideRow.appendChild(slidecol2)
-
-    radiusSliderdiv1 = document.createElement('div')
-    radiusSliderdiv1.setAttribute('class','justify-content-center')
-    slidecol1.appendChild(radiusSliderdiv1)
-
-    radiusSliderdiv2 = document.createElement('div')
-    radiusSliderdiv2.setAttribute('class','w-75')
-    radiusSliderdiv1.appendChild(radiusSliderdiv2)
-
-    radiusSliderspan = document.createElement('div')
-    radiusSliderspan.setAttribute('id','radiusSliderspan')
-    radiusSliderspan.setAttribute('align','right')
-    radiusSliderspan.setAttribute('style','font-size: 80%')
-    radiusSliderspan.innerHTML = '50'
-    slidecol2.appendChild(radiusSliderspan)
-
-    radiusSlider = document.createElement('input')
-    radiusSlider.setAttribute('type','range')
-    radiusSlider.setAttribute('class','custom-range')
-    radiusSlider.setAttribute('id','radiusSlider')
-    radiusSlider.setAttribute('min','0')
-    radiusSlider.setAttribute('max','100')
-    radiusSlider.value = 54
-    radiusSliderdiv2.appendChild(radiusSlider)
-
-    $("#radiusSlider").change( function() {
-        value = document.getElementById('radiusSlider').value
-        value = logslider(value)
-        document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
-        if (document.getElementById('normalisationCheckBox').checked) {
-            reScaleNormalisation(value)
-        } else {
-            heatmapLayer.cfg.radius = value
-            heatmapLayer._update()
-        }
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
-
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    generateDiv.appendChild(checkBoxDiv)
-
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','markerCheckBox')
-    checkBox.setAttribute('name','markerCheckBox')
-    checkBox.checked = true
-    checkBoxDiv.appendChild(checkBox)
-
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','markerCheckBox')
-    checkBoxLabel.innerHTML = 'Show Sites'
-    checkBoxDiv.appendChild(checkBoxLabel)
-
-    $("#markerCheckBox").change( function() {
-        if (document.getElementById('markerCheckBox').checked) {
-            for (let i=0;i<markers.length;i++) {
-                if (!map.hasLayer(markers[i])) {
-                    map.addLayer(markers[i])
-                }
-            }
-        } else {
-            for (let i=0;i<markers.length;i++) {
-                if (map.hasLayer(markers[i])) {
-                    map.removeLayer(markers[i])
-                }
-            }
-        }
-    });
-
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    generateDiv.appendChild(checkBoxDiv)
-
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','normalisationCheckBox')
-    checkBox.setAttribute('name','normalisationCheckBox')
-    checkBox.checked = false
-    checkBoxDiv.appendChild(checkBox)
-
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','normalisationCheckBox')
-    checkBoxLabel.innerHTML = 'Normalise for Site Density'
-    checkBoxDiv.appendChild(checkBoxLabel)
-
-    $("#normalisationCheckBox").change( function() {
-        updateHeatMap()
-    });
-
-    checkBoxDiv = document.createElement('div')
-    checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
-    generateDiv.appendChild(checkBoxDiv)
-
-    checkBox = document.createElement('input')
-    checkBox.setAttribute('type','checkbox')
-    checkBox.setAttribute('class','custom-control-input')
-    checkBox.setAttribute('id','heatMapCheckBox')
-    checkBox.setAttribute('name','heatMapCheckBox')
-    checkBox.checked = true
-    checkBoxDiv.appendChild(checkBox)
-
-    checkBoxLabel = document.createElement('label')
-    checkBoxLabel.setAttribute('class','custom-control-label')
-    checkBoxLabel.setAttribute('for','heatMapCheckBox')
-    checkBoxLabel.innerHTML = 'Show Heat Map'
-    checkBoxDiv.appendChild(checkBoxLabel)
-
-    $("#heatMapCheckBox").change( function() {
-        if (document.getElementById('heatMapCheckBox').checked) {
-            map.addLayer(heatmapLayer)
-        } else {
-            map.removeLayer(heatmapLayer)
-        }
-    });
-
-    excludeDiv = document.createElement('div')
-    excludeDiv.setAttribute('id','excludeDiv')
-    generateDiv.appendChild(excludeDiv)
-
-    if (document.getElementById('speciesSelect').value=='0') {
-        excludeDiv.setAttribute('style','display: none')
-    }
-
     // Map
 
     var tasks = getSelectedTasks()
@@ -1004,11 +492,6 @@ function generateSpatial(){
                 accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
             })
 
-            var OpenTopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-                maxZoom: 17,
-                attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
-            });
-
             gSat = L.gridLayer.googleMutant({type: 'satellite'})
             // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
             // gTer = L.gridLayer.googleMutant({type: 'terrain'})
@@ -1048,7 +531,6 @@ function generateSpatial(){
                 "Google Hybrid": gHyb,
                 "OpenStreetMaps Satellite": osmSat,
                 "OpenStreetMaps Roadmap": osmSt,
-                "OpenTopoMap": OpenTopoMap
             };
 
             L.control.layers(baseMaps).addTo(map);
@@ -1061,6 +543,7 @@ function generateSpatial(){
                     map._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
                     map._controlCorners['bottomright'].style.marginBottom = "14px";
                 }
+                activeBaseLayer = e;
             });
 
             markers = []
@@ -1087,161 +570,24 @@ function generateSpatial(){
                 map.setZoom(10)
             }
 
-            L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map);
-            document.getElementById('print-btn').style.color = 'black'
+            spatialExportControl = L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map);
+            // document.getElementById('print-btn').style.color = 'black'
 
+            updateResults(true)
         }
     }
     xhttp.open("POST", '/getCoords');
     xhttp.send(formData);
+
 }
 
 function generateNumerical(){
     /** Updates the generate results div for numerical analysis */
-    var generateDiv = document.getElementById('generateDiv')
+    // var generateDiv = document.getElementById('generateDiv')
 
-    barData = {}
+    // barData = {}
     activeRequest = {}
-
-    getTrapgroups()
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Comparison'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-    
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select what type of comparison you would like to do.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    var row = document.createElement('div')
-    row.classList.add('row')
-    generateDiv.appendChild(row)
-
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    row.appendChild(col1)
-    
-    select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','xAxisSelector')
-    col1.appendChild(select)
-
-    fillSelect(select, ['Survey Counts','Site Counts'], ['1','2'])
-    $("#xAxisSelector").change( function() {
-        xAxisSelector = document.getElementById('xAxisSelector')
-        xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-
-        normalDiv = document.getElementById('normalDiv')
-        while(normalDiv.firstChild){
-            normalDiv.removeChild(normalDiv.firstChild);
-        }
-
-        if (xAxisSelection == '1') {
-            chart.data.labels = ['Survey Count']
-        } else if (xAxisSelection == '2') {
-            chart.data.labels = trapgroupNames.slice(2)
-
-            normalDiv.appendChild(document.createElement('br'))
-
-            h5 = document.createElement('h5')
-            h5.innerHTML = 'Normalisation'
-            h5.setAttribute('style','margin-bottom: 2px')
-            normalDiv.appendChild(h5)
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>Normalise the counts using the total count for each item to make comparison easier between species with vastly different sighting numbers.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            normalDiv.appendChild(h5)
-
-            row = document.createElement('div')
-            row.classList.add('row')
-            normalDiv.appendChild(row)
-
-            col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            row.appendChild(col1)
-        
-            select = document.createElement('select')
-            select.classList.add('form-control')
-            select.setAttribute('id','normalisationSelector')
-            col1.appendChild(select)
-        
-            fillSelect(select, ['Raw Count', 'Normalised'], ['1','2'])
-            $("#normalisationSelector").change( function() {
-                normaliseBar()
-            });
-        }
-
-        document.getElementById('statisticsErrors').innerHTML = ''
-        
-        species_count_warning = false
-        for (let IDNum in barData) {
-            updateBarData(IDNum)
-    
-            if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
-                speciesSelector = document.getElementById('speciesSelect-'+IDNum)
-                species = speciesSelector.options[speciesSelector.selectedIndex].text
-
-                var tasks = getSelectedTasks()
-
-                var formData = new FormData()
-                formData.append("task_ids", JSON.stringify(tasks))
-                formData.append("species", JSON.stringify(species))
-
-                var xhttp = new XMLHttpRequest();
-                xhttp.open("POST", '/checkSightingEditStatus');
-                xhttp.onreadystatechange =
-                function(){
-                    if (this.readyState == 4 && this.status == 200) {
-                        reply = JSON.parse(this.responseText);  
-                        if ((reply.status=='warning')&&(species_count_warning==false)) {
-                            species_count_warning = true
-                            document.getElementById('statisticsErrors').innerHTML = reply.message
-                        }
-                    }
-                }
-                xhttp.send(formData);
-            }
-        }
-    });
-
-    var normalDiv = document.createElement('div')
-    normalDiv.setAttribute('id','normalDiv')
-    generateDiv.appendChild(normalDiv)
-
-    generateDiv.appendChild(document.createElement('br'))
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Species'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select the species you would like to see results for.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    selectorColumn = document.createElement('div')
-    selectorColumn.setAttribute('id','selectorColumn')
-    generateDiv.appendChild(selectorColumn)
-
-    buildSpeciesSelectorRow()
-
-    var buttonAdd = document.createElement('button')
-    buttonAdd.classList.add('btn')
-    buttonAdd.classList.add('btn-info')
-    buttonAdd.setAttribute('type','button')
-    buttonAdd.setAttribute('id','btnAddSpecies')
-    buttonAdd.innerHTML = '+'
-    generateDiv.appendChild(buttonAdd)
-
-    buttonAdd.addEventListener('click', ()=>{
-        buildSpeciesSelectorRow()
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
+    // getTrapgroups()
 
     // Bar chart
     mainDiv = document.getElementById('resultsDiv')
@@ -1286,9 +632,9 @@ function generateNumerical(){
     var options = {
         maintainAspectRatio: false,
         legend: {
-            display: true,
+            display: includeLegend,
             labels: {
-                fontColor: 'white'
+                fontColor : textColour
             },
             onClick: null
         },
@@ -1304,7 +650,7 @@ function generateNumerical(){
                     var datasetLabel = '';
                     var label = data.labels[tooltipItem.index];
                     if (xAxisSelection=='1') {
-                        selector = document.querySelectorAll('[id^=speciesSelect-]')[tooltipItem.datasetIndex]
+                        selector = document.querySelectorAll('[id^=speciesSelectNum-]')[tooltipItem.datasetIndex]
                         speciesName = selector.options[selector.selectedIndex].text
                         return speciesName+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
                     } else {
@@ -1319,18 +665,28 @@ function generateNumerical(){
         scales: {
             yAxes: [{
                 ticks: {
-                    fontColor: "white",
-                    beginAtZero: true
+                    fontColor : textColour,
+                    beginAtZero: true,
+                    display: includeLabels
                 },
+                gridLines: {
+                    drawOnChartArea: includeGridLines,
+                    color: axisColour
+                }
                 // scaleLabel: {
                 //     display: true,
                 //     labelString: 'Species Count',
-                //     fontColor: 'white'
+                //     fontColor : textColour
                 // }
             }],
             xAxes: [{
                 ticks: {
-                    fontColor: "white"
+                    fontColor : textColour,
+                    display: includeLabels
+                },
+                gridLines: {
+                    drawOnChartArea: includeGridLines,
+                    color: axisColour
                 }
             }] 
         }
@@ -1343,76 +699,12 @@ function generateNumerical(){
     });
 
 
-
+    updateResults()
 
 }
 
 function generateTime(){
     /** Updates the generate results div for time series analysis */
-    var generateDiv = document.getElementById('generateDiv')
-
-    lineData = {}
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Time Unit'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select the time unit you would like to see your results in.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-    
-    var row = document.createElement('div')
-    row.classList.add('row')
-    generateDiv.appendChild(row)
-
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
-    row.appendChild(col1)
-
-    var select = document.createElement('select')
-    select.classList.add('form-control')
-    select.setAttribute('id','timeUnitSelector')
-    col1.appendChild(select)
-
-    fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
-    $("#timeUnitSelector").change( function() {
-        updateResults()
-    });
-    select.value = '2'
-
-    generateDiv.appendChild(document.createElement('br'))
-
-    h5 = document.createElement('h5')
-    h5.innerHTML = 'Data'
-    h5.setAttribute('style','margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    h5 = document.createElement('div')
-    h5.innerHTML = '<i>Select which site and species combinations you would like to see.</i>'
-    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-    generateDiv.appendChild(h5)
-
-    var selectorColumn = document.createElement('div')
-    selectorColumn.setAttribute('id','selectorColumn')
-    generateDiv.appendChild(selectorColumn)
-
-    buildSpeciesAndSiteSelectorRow()
-
-    var buttonAdd = document.createElement('button')
-    buttonAdd.classList.add('btn')
-    buttonAdd.classList.add('btn-info')
-    buttonAdd.setAttribute('type','button')
-    buttonAdd.setAttribute('id','btnAddSpeciesAndSite')
-    buttonAdd.innerHTML = '+'
-    generateDiv.appendChild(buttonAdd)
-
-    buttonAdd.addEventListener('click', ()=>{
-        buildSpeciesAndSiteSelectorRow()  
-    });
-
-    generateDiv.appendChild(document.createElement('br'))
     // Line chart
     var mainDiv = document.getElementById('resultsDiv')
 
@@ -1456,9 +748,9 @@ function generateTime(){
     var options = {
         maintainAspectRatio: false,
         legend: {
-            display: true,
+            display: includeLegend,
             labels: {
-                fontColor: 'white'
+                fontColor : textColour
             },
             onClick: null
         },
@@ -1475,24 +767,47 @@ function generateTime(){
             }
         },
         ticks: {
-            min: 0
+            min: 0,
         },
         scales: {
             yAxes: [{
                 ticks: {
-                    fontColor: "white",
-                    beginAtZero: true
+                    fontColor : textColour,
+                    beginAtZero: true,
+                    display: includeLabels
                 },
                 title: {
                     display: true,
-                    fontColor: 'white',
+                    fontColor : textColour,
                     text: 'Count'
+                },
+                gridLines: {
+                    drawOnChartArea: includeGridLines,
+                    color: axisColour
                 }
             }],
             xAxes: [{
                 ticks: {
-                    fontColor: "white"
-                }
+                    fontColor : textColour,
+                    display: includeLabels,
+                    beginAtZero: true,
+                    // soure: 'labels',
+                    // maxTicksLimit: 32
+                },
+                gridLines: {
+                    drawOnChartArea: includeGridLines,
+                    color: axisColour
+                },
+                // type: 'time',
+                // time: {
+                //     minUnit: 'day',
+                //     maxUnit: 'year',
+                //     displayFormats: {
+                //         'day': 'DD  MMM YYYY',
+                //         'month': 'MMM YYYY',
+                //         'year': 'YYYY'
+                //     }
+                // },
             }]
         }
     }
@@ -1504,27 +819,33 @@ function generateTime(){
     });
 
 
-    updateLineData(0)
+    updateResults()
 
 }
 
 function buildSpeciesAndSiteSelectorRow(){
     /** Builds a row for the species and site selectors */
 
-    var selectorColumn = document.getElementById('selectorColumn')
+    var dataDiv = document.getElementById('dataDiv')
     var IDNum = getIdNumforNext('speciesSelect-')
 
     var containingDiv = document.createElement('div')
     containingDiv.setAttribute('id','speciesSelectDiv-'+String(IDNum))
-    selectorColumn.appendChild(containingDiv)
+    dataDiv.appendChild(containingDiv)
 
     var row = document.createElement('div')
     row.classList.add('row')
     containingDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
+    col1.classList.add('col-lg-8')
+    col1.style.paddingRight = '0px'
     row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-2')
+    col2.style.paddingLeft = '0px'
+    row.appendChild(col2)
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
@@ -1533,11 +854,9 @@ function buildSpeciesAndSiteSelectorRow(){
 
     if (IDNum > 0) {
         col1.appendChild(document.createElement('br'))
+        col2.appendChild(document.createElement('br'))
         col3.appendChild(document.createElement('br'))
     }
-
-    selectorColumn.appendChild(row)
-
 
     var siteSelector = document.createElement('select')
     siteSelector.classList.add('form-control')
@@ -1556,6 +875,10 @@ function buildSpeciesAndSiteSelectorRow(){
             if (analysisSelection == '1') {
                 updatePolarData(wrapIDNum)
                 updatePolarErrors()
+            }
+            else if (analysisSelection == '3') {
+                updateBarData(wrapIDNum)
+                updateBarErrors()
             }
             else if (analysisSelection == '4') {
                 updateLineData(wrapIDNum)
@@ -1578,12 +901,16 @@ function buildSpeciesAndSiteSelectorRow(){
     fillSelect(speciesSelector, speciesOptionTexts, speciesOptionValues)
 
     $("#"+speciesSelector.id).change( function(wrapIDNum) {
-        var analysisSelector = document.getElementById('analysisSelector')
-        var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
         return function() {
+            var analysisSelector = document.getElementById('analysisSelector')
+            var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
             if (analysisSelection == '1') {
                 updatePolarData(wrapIDNum)
                 updatePolarErrors()
+            }
+            else if (analysisSelection == '3') {
+                updateBarData(wrapIDNum)
+                updateBarErrors()
             }
             else if (analysisSelection == '4') {
                 updateLineData(wrapIDNum)
@@ -1592,40 +919,130 @@ function buildSpeciesAndSiteSelectorRow(){
         }
     }(IDNum));
 
+
+    var selectColour = document.createElement('select');
+    selectColour.classList.add('form-control');
+    selectColour.id = 'colourSelect-' + String(IDNum);
+    col2.appendChild(selectColour);
     
-    btnRemove = document.createElement('button');
+    var optionTexts = [];
+    var optionValues = [];
+    var optionColours = [];
+    for (colour in chartColours) {
+        optionValues.push(colour);
+        optionTexts.push(' ');
+        optionColours.push(colour);
+    }
+    optionValues.push('custom-' + String(IDNum));
+    optionTexts.push('Custom');
+    optionColours.push('white');
+    
+    fillSelect(selectColour, optionTexts, optionValues, null, optionColours);
+    
+    var colourPicker = document.createElement('input');
+    colourPicker.type = 'color';
+    colourPicker.id = 'colourPicker-' + IDNum;
+    colourPicker.value = '#000000';
+    colourPicker.style.width = '50%';
+    colourPicker.style.height = '50%';
+    colourPicker.style.padding = '0px';
+    colourPicker.hidden = true;
+    col2.appendChild(colourPicker);
+    
+    $("#" + selectColour.id).change(function(wrapIDNum) {
+        return function() {
+            var selectColour = document.getElementById('colourSelect-' + wrapIDNum);
+            var colourPicker = document.getElementById('colourPicker-' + wrapIDNum);
+    
+            if (selectColour.value === 'custom-' + wrapIDNum) {
+                colourPicker.hidden = false;
+                // colourPicker.click();
+            } else {
+                selectColour.style.backgroundColor = selectColour.value;
+                selectColour.value = selectColour.value;
+                updateDataColour(wrapIDNum, selectColour.value);
+            }
+        };
+    }(IDNum));
+
+    $("#" + selectColour.id).mousedown(function(wrapIDNum) {
+        return function() {
+            var selectColour = document.getElementById('colourSelect-' + wrapIDNum);
+            selectColour.style.backgroundColor = 'white';	
+        };
+    }(IDNum));
+
+    $("#" + colourPicker.id).change(function(wrapIDNum) {
+        return function() {
+            var selectColour = document.getElementById('colourSelect-' + wrapIDNum);
+            var colourPicker = document.getElementById('colourPicker-' + wrapIDNum);
+            var selectedColor = colourPicker.value;
+            var r = parseInt(selectedColor.slice(1,3), 16)
+            var g = parseInt(selectedColor.slice(3,5), 16)
+            var b = parseInt(selectedColor.slice(5,7), 16)
+            var a = 0.6
+            var rgba = 'rgba('+r+','+g+','+b+','+a+')'
+
+            selectColour.style.backgroundColor = rgba;
+
+            console.log(selectedColor, rgba)
+            colourPicker.hidden = true;
+            updateDataColour(wrapIDNum, rgba);
+        };
+    }(IDNum));
+    
+
+    var btnRemove = document.createElement('button');
     btnRemove.id = 'btnRemove-'+IDNum;
     btnRemove.setAttribute("class",'btn btn-default');
     btnRemove.innerHTML = '&times;';
     col3.appendChild(btnRemove);
+
+
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
             var analysisSelector = document.getElementById('analysisSelector')
             var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
             if (analysisSelection == '1') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                colour = btnRemove.style.backgroundColor
+                // colour = btnRemove.style.backgroundColor
                 if (document.getElementById('chartTypeSelector')){     
                     chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
                 } else {
                     chartType = 'polarArea'
                 }
-                removeData(colour, chartType)
+                removeData(wrapIDNum, chartType)
                 btnRemove.parentNode.parentNode.remove();
                 if (polarData.hasOwnProperty(wrapIDNum.toString())) {
                     delete polarData[wrapIDNum.toString()]
                 }
                 updatePolarErrors()
             }
+            else if (analysisSelection == '3') {
+                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                // colour = btnRemove.style.backgroundColor
+                if (document.getElementById('chartTypeSelector')){
+                    chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+                } else {
+                    chartType = 'bar'
+                }
+                removeData(wrapIDNum, chartType)
+                btnRemove.parentNode.parentNode.remove();
+                if (barData.hasOwnProperty(wrapIDNum.toString())) {
+                    delete barData[wrapIDNum.toString()]
+
+                }
+                updateBarErrors()
+            }
             else if (analysisSelection == '4') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                colour = btnRemove.style.backgroundColor
+                // colour = btnRemove.style.backgroundColor
                 if (document.getElementById('chartTypeSelector')){     
                     chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
                 } else {
                     chartType = 'line'
                 }
-                removeData(colour, chartType)
+                removeData(wrapIDNum, chartType)
                 btnRemove.parentNode.parentNode.remove();
                 if (lineData.hasOwnProperty(wrapIDNum.toString())) {
                     delete lineData[wrapIDNum.toString()]
@@ -1637,11 +1054,31 @@ function buildSpeciesAndSiteSelectorRow(){
     
 }
 
+function updateDataColour(IDNum, colour) {
+    /** Updates the colour of the data in the chart */
+    var chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
+    for (var i = 0; i < chart.data.datasets.length; i++) {
+        if (chart.data.datasets[i].id == 'data-' + IDNum) {
+            chart.data.datasets[i].backgroundColor = colour;
+            if (chartType == 'line') {
+                chart.data.datasets[i].borderColor = colour;
+            }
+        }
+
+        if (chart.data.datasets[i].id == 'trendline-' + IDNum) {
+            chart.data.datasets[i].borderColor = colour;
+            chart.data.datasets[i].backgroundColor = colour;
+        }
+    }
+
+    chart.update();
+}
+
 function buildSpeciesSelectorRow(){
     /** Builds a row for the species and site selectors */
 
-    var selectorColumn = document.getElementById('selectorColumn')
-    var IDNum = getIdNumforNext('speciesSelect-')
+    var selectorColumn = document.getElementById('speciesDiv')
+    var IDNum = getIdNumforNext('speciesSelectNum-')
 
     var containingDiv = document.createElement('div')
     containingDiv.setAttribute('id','speciesSelectDiv-'+String(IDNum))
@@ -1652,19 +1089,23 @@ function buildSpeciesSelectorRow(){
     containingDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-10')
+    col1.classList.add('col-lg-8')
+    col1.style.paddingRight = '0px'
     row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-2')
+    col2.style.paddingLeft = '0px'
+    row.appendChild(col2)
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
     col3.style.padding = '0px'
     row.appendChild(col3)
-
-    selectorColumn.appendChild(row)
     
     var speciesSelector = document.createElement('select')
     speciesSelector.classList.add('form-control')
-    speciesSelector.id = 'speciesSelect-'+String(IDNum)
+    speciesSelector.id = 'speciesSelectNum-'+String(IDNum)
     col1.appendChild(speciesSelector)
     var speciesOptionTexts = ['None', 'All']
     var speciesOptionValues = ['-1','0']
@@ -1680,22 +1121,93 @@ function buildSpeciesSelectorRow(){
         }
     }(IDNum));
 
+    var selectColour = document.createElement('select');
+    selectColour.classList.add('form-control');
+    selectColour.id = 'colourSelectSpecies-' + String(IDNum);
+    col2.appendChild(selectColour);
+    
+    var optionTexts = [];
+    var optionValues = [];
+    var optionColours = [];
+    for (colour in chartColours) {
+        optionValues.push(colour);
+        optionTexts.push(' ');
+        optionColours.push(colour);
+    }
+    optionValues.push('custom-' + String(IDNum));
+    optionTexts.push('Custom');
+    optionColours.push('white');
+    
+    fillSelect(selectColour, optionTexts, optionValues, null, optionColours);
+    
+    var colourPicker = document.createElement('input');
+    colourPicker.type = 'color';
+    colourPicker.id = 'colourPickerSpecies-' + IDNum;
+    colourPicker.value = '#000000';
+    colourPicker.style.width = '50%';
+    colourPicker.style.height = '50%';
+    colourPicker.style.padding = '0px';
+    colourPicker.hidden = true;
+    col2.appendChild(colourPicker);
+    
+    $("#" + selectColour.id).change(function(wrapIDNum) {
+        return function() {
+            var selectColour = document.getElementById('colourSelectSpecies-' + wrapIDNum);
+            var colourPicker = document.getElementById('colourPickerSpecies-' + wrapIDNum);
+    
+            if (selectColour.value === 'custom-' + wrapIDNum) {
+                colourPicker.hidden = false;
+                // colourPicker.click();
+            } else {
+                selectColour.style.backgroundColor = selectColour.value;
+                selectColour.value = selectColour.value;
+                updateDataColour(wrapIDNum, selectColour.value);
+            }
+        };
+    }(IDNum));
+
+    $("#" + selectColour.id).mousedown(function(wrapIDNum) {
+        return function() {
+            var selectColour = document.getElementById('colourSelectSpecies-' + wrapIDNum);
+            selectColour.style.backgroundColor = 'white';	
+        };
+    }(IDNum));
+
+    $("#" + colourPicker.id).change(function(wrapIDNum) {
+        return function() {
+            var selectColour = document.getElementById('colourSelectSpecies-' + wrapIDNum);
+            var colourPicker = document.getElementById('colourPickerSpecies-' + wrapIDNum);
+            var selectedColor = colourPicker.value;
+            var r = parseInt(selectedColor.slice(1,3), 16)
+            var g = parseInt(selectedColor.slice(3,5), 16)
+            var b = parseInt(selectedColor.slice(5,7), 16)
+            var a = 0.6
+            var rgba = 'rgba('+r+','+g+','+b+','+a+')'
+
+            selectColour.style.backgroundColor = rgba;
+
+            console.log(selectedColor, rgba)
+            colourPicker.hidden = true;
+            updateDataColour(wrapIDNum, rgba);
+        };
+    }(IDNum));
+
     
     btnRemove = document.createElement('button');
-    btnRemove.id = 'btnRemove-'+IDNum;
+    btnRemove.id = 'btnRemoveSpecies-'+IDNum;
     btnRemove.setAttribute("class",'btn btn-default');
     btnRemove.innerHTML = '&times;';
     col3.appendChild(btnRemove);
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
-            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-            colour = btnRemove.style.backgroundColor
+            btnRemove = document.getElementById('btnRemoveSpecies-'+wrapIDNum)
+            // colour = btnRemove.style.backgroundColor
             if (document.getElementById('chartTypeSelector')){     
                 chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
             } else {
                 chartType = 'bar'
             }
-            removeData(colour, chartType)
+            removeData(wrapIDNum, chartType)
             btnRemove.parentNode.parentNode.remove();
             if (barData.hasOwnProperty(wrapIDNum.toString())) {
                 delete barData[wrapIDNum.toString()]
@@ -1710,7 +1222,7 @@ function buildSiteSelectorRow(){
     /** Builds a row for the species and site selectors */
 
     var selectorColumn = document.getElementById('selectorColumn')
-    var IDNum = getIdNumforNext('trapgroupSelect-')
+    var IDNum = getIdNumforNext('trapgroupSelectSpat-')
 
     var containingDiv = document.createElement('div')
     containingDiv.setAttribute('id','siteSelectDiv-'+String(IDNum))
@@ -1733,15 +1245,15 @@ function buildSiteSelectorRow(){
     
     var siteSelector = document.createElement('select')
     siteSelector.classList.add('form-control')
-    siteSelector.id = 'trapgroupSelect-'+String(IDNum)
+    siteSelector.id = 'trapgroupSelectSpat-'+String(IDNum)
     col1.appendChild(siteSelector)
     if (IDNum == 0) {
         var siteOptionTexts = ['All']
         var siteOptionValues = ['0']
     }
     else{
-        var siteOptionTexts = ['None', 'All']
-        var siteOptionValues = ['-1','0']
+        var siteOptionTexts = []
+        var siteOptionValues = []
     }
     siteOptionTexts.push(...globalSites) 
     siteOptionValues.push(...globalSitesIDs)
@@ -1756,32 +1268,56 @@ function buildSiteSelectorRow(){
 
     if (IDNum > 0) {
         btnRemove = document.createElement('button');
-        btnRemove.id = 'btnRemove-'+IDNum;
+        btnRemove.id = 'btnRemoveSite-'+IDNum;
         btnRemove.setAttribute("class",'btn btn-info');
         btnRemove.innerHTML = '&times;';
         col3.appendChild(btnRemove);
         btnRemove.addEventListener('click', function(wrapIDNum) {
             return function() {
-                var siteSelector = document.getElementById('trapgroupSelect-'+wrapIDNum)
-                console.log(siteSelector)
-                var siteText = siteSelector.options[siteSelector.selectedIndex].text.split(' ')
-                var lat = siteText[1].split('(')[1].split(',')[0]
-                var lng = siteText[2].split(')')[0]
+                // var siteSelector = document.getElementById('trapgroupSelectSpat-'+wrapIDNum)
+                // var siteText = siteSelector.options[siteSelector.selectedIndex].text
+                // console.log(siteText)
+                // var validSites = checkSitesSpatial()
+                // if(siteText=='None'){
+                //     var sites = getSelectedSites(true)
+                //     console.log(sites)
+                //     for (let i=0;i<markers.length;i++) {
+                //         let marker_text = markers[i]._popup._content + ',' + parseFloat(markers[i].getLatLng().lat).toFixed(4).toString() + ',' + parseFloat(markers[i].getLatLng().lng).toFixed(4).toString()
+                //         console.log(marker_text)
+                //         if (!sites.includes(marker_text)){
+                //             if (map.hasLayer(markers[i])) {
+                //                 map.removeLayer(markers[i])
+                //             }
+                //             markers.splice(i,1)
+                //         }
+                //     }
+                // }
 
-                for (let i=0;i<markers.length;i++) {
-                    if (markers[i].getLatLng().lat == lat && markers[i].getLatLng().lng == lng ){
-                        if (map.hasLayer(markers[i])) {
-                            map.removeLayer(markers[i])
-                        }
-                        markers.splice(i,1)
-                    }
-                }
+                // if (validSites){
+                //     siteText = siteText.split(' ')
+                //     var lat = siteText[1].split('(')[1].split(',')[0]
+                //     var lng = siteText[2].split(')')[0]
 
-                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                //     for (let i=0;i<markers.length;i++) {
+                //         if (markers[i].getLatLng().lat == lat && markers[i].getLatLng().lng == lng ){
+                //             if (map.hasLayer(markers[i])) {
+                //                 map.removeLayer(markers[i])
+                //             }
+                //             markers.splice(i,1)
+                //         }
+                //     }
+                // }
+
+                btnRemove = document.getElementById('btnRemoveSite-'+wrapIDNum)
                 btnRemove.parentNode.parentNode.remove();
-                updateHeatMap()
+                updateMap()
+
             }
         }(IDNum));
+    }
+
+    if(IDNum > 0){
+        updateMap()
     }
     
 }
@@ -1798,11 +1334,13 @@ function updateResults(update=false){
         if(update){
             updateMap()
         }
-        updateHeatMap()
+        else{
+            updateHeatMap()
+        }
     }
     else if (analysisSelection == '3') {
         if (update) {
-            getTrapgroups()
+            // getTrapgroups()
         }
         updateBar()
     }
@@ -1814,8 +1352,13 @@ function updateResults(update=false){
 
 function updatePolar(){
     /** Updates the polar chart  */
-    if (polarData.length == 0) {
-        updatePolarData(0)
+    if (Object.keys(polarData).length == 0) {
+        var allData = document.querySelectorAll('[id^=speciesSelect-]')
+        if (allData.length != 0) {
+            for (let i=0;i<allData.length;i++) {
+                updatePolarData(i)
+            }
+        }
     }
     else{
         for (let IDNum in polarData) {
@@ -1826,8 +1369,13 @@ function updatePolar(){
 
 function updateBar(){
     /** Updates the bar chart  */
-    if (barData.length == 0) {
-        updateBarData(0)
+    if (Object.keys(barData).length == 0) {
+        var allData = document.querySelectorAll('[id^=speciesSelectNum-]')
+        if (allData.length != 0) {
+            for (let i=0;i<allData.length;i++) {
+                updateBarData(i)
+            }
+        }
     }
     else{
         for (let IDNum in barData) {
@@ -1838,8 +1386,13 @@ function updateBar(){
 
 function updateLine(){
     /** Updates the line chart  */
-    if (lineData.length == 0) {
-        updateLineData(0)
+    if (Object.keys(lineData).length == 0) {
+        var allData = document.querySelectorAll('[id^=speciesSelect-]')
+        if (allData.length != 0) {
+            for (let i=0;i<allData.length;i++) {
+                updateLineData(i)
+            }
+        }
     }
     else{
         for (let IDNum in lineData) {
@@ -1851,9 +1404,9 @@ function updateLine(){
 function updateMap(){
     /** Updates the map */
 
-    var validSites = checkSites()
     var tasks = getSelectedTasks()
     var sites = getSelectedSites(true)
+    var validSites = checkSitesSpatial()
 
     if (sites == '0' && validSites) {
         var formData = new FormData();
@@ -1900,9 +1453,10 @@ function updateMap(){
         }
         xhttp.open("POST", '/getCoords');
         xhttp.send(formData);
+
+        updateHeatMap()
     }
     else if (validSites) {
-
         for (let i=0;i<markers.length;i++) {
             if (map.hasLayer(markers[i])) {
                 map.removeLayer(markers[i])
@@ -1933,6 +1487,8 @@ function updateMap(){
         if(markers.length == 1) {
             map.setZoom(10)
         }
+
+        updateHeatMap()
     }
 }
 
@@ -1967,28 +1523,26 @@ function getTrapgroups(){
 }
 
 function getSelectedTasks(){
-    //* Gets all the selected tasks from the task selectors*/
-    // var tasks = []
-    // var allTasks = document.querySelectorAll('[id^=idTaskSelect-]')
-    // for (let i=0;i<allTasks.length;i++) {
-    //     if (allTasks[i].value != '-1' && allTasks[i].value != '0'){
-    //         tasks.push(allTasks[i].value)
-    //     }
-    // }
-
-    // if (tasks.length==0) {
-    //     tasks.push('0')
-    // }
-
-    // return tasks
-
-    return ['0']
+    //* Gets all the selected tasks *
+    if (globalAnnotationSets.length > 0) {
+        return globalAnnotationSets
+    }
+    else{
+        return ['0']
+    }
 }
 
 function getSelectedSites(text=false){
     //* Gets all the selected sites from the site selectors*/
     var sites = []
-    var allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    var analysis = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
+    var allSites = null
+    if (analysis == '2'){
+        allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    }
+    else {
+        allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    }
     console.log(allSites)
     if (text) {
         for (let i=0;i<allSites.length;i++) {
@@ -1996,7 +1550,9 @@ function getSelectedSites(text=false){
                 let split = allSites[i].options[allSites[i].selectedIndex].text.split(' ')
                 console.log(split)  
                 let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
-                sites.push(site)
+                if(sites.indexOf(site) == -1){
+                    sites.push(site)
+                }
             }
         }
     }
@@ -2004,7 +1560,12 @@ function getSelectedSites(text=false){
         for (let i=0;i<allSites.length;i++) {
             if (allSites[i].value.includes(',')){
                 let split = allSites[i].value.split(',')
-                sites.push(...split)
+                if (sites.indexOf(split[0]) == -1){
+                    sites.push(...split)
+                }
+            }
+            else if (allSites[i].value != '-1' && allSites[i].value != '0' && sites.indexOf(allSites[i].value) == -1){
+                sites.push(allSites[i].value)
             }
         }
     }
@@ -2013,17 +1574,49 @@ function getSelectedSites(text=false){
     if (sites.length==0) {
         sites = '0'
     }
+    // else if (sites.length > 1){
+    //     sites = sites.filter((value) => !value.includes('-1'))
+
+    // }
+
+
     console.log(sites)
     return sites
 }
 
-function checkSites(){
+function checkSitesSpatial(){
     var valid = true
-    var allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    var allCheck = false
+    var duplicateCheck = false
+    var allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    var sites_values = Array.from(allSites).map((element) => element.value)
+    var message = ''
     for (let i=0;i<allSites.length;i++) {
-        if (allSites[i].value.includes('-1')) {
-            valid = false
+        if (sites_values.filter((value) => value == allSites[i].value).length > 1) {
+            duplicateCheck = true
+            break
         }
+
+        if (allSites[i].value == '0') {
+            allCheck = true
+        }
+    }
+
+    if (allCheck && allSites.length > 1) {
+        valid = false
+        message = 'Invalid site selection. Cannot select all sites and other sites. '
+    }
+
+    if (duplicateCheck) {
+        valid = false
+        message += 'Invalid site selection. Cannot select the same site more than once.'
+    }
+    
+    if (!valid) {
+        document.getElementById('spatialDataErrors').innerHTML = message
+    }
+    else{
+        document.getElementById('spatialDataErrors').innerHTML = ''
     }
 
     return valid
@@ -2040,9 +1633,9 @@ function updateChart(chartType){
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: true,
+                display: includeLegend,
                 labels: {
-                    fontColor: 'white',
+                    fontColor: textColour,
                     generateLabels: function (chart) {
                         var datasets = chart.data.datasets; // Move the declaration here
                         var labels = [];
@@ -2051,11 +1644,12 @@ function updateChart(chartType){
                             var dataset = datasets[i];
                             var label = dataset.label;
                             var fillStyle = dataset.backgroundColor;
-                            var borderColor = dataset.borderColor;
+                            var borderColor = borderColour;
                             labels.push({
                                 text: label,
                                 fillStyle: fillStyle,
-                                borderColor: borderColor
+                                borderColor: borderColor,
+                                borderWidth: includeBorders ? 1 : 0
                             });
                         }
     
@@ -2079,24 +1673,31 @@ function updateChart(chartType){
             },
             scale: {
                 ticks: {
-                    display: true,
-                    fontColor: 'white',
+                    display: includeRadialAxisLabels,
+                    fontColor: textColour,
                     showLabelBackdrop: false
                 },
                 pointLabels: {
-                    display: true,
-                    fontColor: 'white'
+                    display: includeLabels,
+                    fontColor: textColour
+                },
+                gridLines: {
+                    display: includeGridLines,
+                    color: axisColour
                 }
             }
 
         }
+
+        document.getElementById('trendlineDiv').hidden = true
+
     } else if (chartType == 'bar') {
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: true,
+                display: includeLegend,
                 labels: {
-                    fontColor: 'white'
+                    fontColor : textColour
                 },
                 onClick: null
             },
@@ -2119,30 +1720,43 @@ function updateChart(chartType){
             scales: {
                 yAxes: [{
                     ticks: {
-                        fontColor: "white",
-                        beginAtZero: true
+                        fontColor : textColour,
+                        beginAtZero: true,
+                        display: includeLabels
                     },
                     title: {
                         display: true,
-                        fontColor: 'white',
+                        fontColor : textColour,
                         text: 'Count'
+                    },
+                    gridLines: {
+                        drawOnChartArea: includeGridLines,
+                        color: axisColour
                     }
                 }],
                 xAxes: [{
                     ticks: {
-                        fontColor: "white"
+                        fontColor : textColour,
+                        display: includeLabels
+                    },
+                    gridLines: {
+                        drawOnChartArea: includeGridLines,
+                        color: axisColour
                     }
                 }]
             }
         }
+
+        document.getElementById('trendlineDiv').hidden = false
+
     } else if (chartType == 'line') {
         fillData = false
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: true,
+                display: includeLegend,
                 labels: {
-                    fontColor: 'white'
+                    fontColor : textColour
                 },
                 onClick: null
             },
@@ -2164,30 +1778,42 @@ function updateChart(chartType){
             scales: {
                 yAxes: [{
                     ticks: {
-                        fontColor: "white",
-                        beginAtZero: true
+                        fontColor : textColour,
+                        beginAtZero: true,
+                        display: includeLabels
                     },
                     title: {
                         display: true,
-                        fontColor: 'white',
+                        fontColor : textColour,
                         text: 'Count'
+                    },
+                    gridLines: {
+                        drawOnChartArea: includeGridLines,
+                        color: axisColour
                     }
                 }],
                 xAxes: [{
                     ticks: {
-                        fontColor: "white"
+                        fontColor : textColour,
+                        display: includeLabels
+                    },
+                    gridLines: {
+                        drawOnChartArea: includeGridLines,
+                        color: axisColour
                     }
                 }]
             }
         }
 
+        document.getElementById('trendlineDiv').hidden = false
+
     } else if (chartType == 'scatter') {
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: true,
+                display: includeLegend,
                 labels: {
-                    fontColor: 'white'
+                    fontColor : textColour
                 },
                 onClick: null
             },
@@ -2206,35 +1832,39 @@ function updateChart(chartType){
             scales: {
                 yAxes: [{
                     ticks: {
-                        fontColor: "white",
-                        beginAtZero: true
+                        fontColor : textColour,
+                        beginAtZero: true,
+                        display: includeLabels
+                    },
+                    gridLines: {
+                        drawOnChartArea: includeGridLines,
+                        color: axisColour
                     }
                 }],
                 xAxes: [{
                     ticks: {
-                        fontColor: "white",
+                        fontColor : textColour,
+                        display: includeLabels
                     },
                     type: 'category',
-                    labels: labels
-                    
-                }],
-                y : {
-                    title: {
-                        display: true,
-                        fontColor: 'white',
-                        text: 'Count'
+                    labels: labels,
+                    gridLines: {
+                        drawOnChartArea: includeGridLines,
+                        color: axisColour
                     }
-                }
+                }]
             }
         };
+
+        document.getElementById('trendlineDiv').hidden = false
 
     } else if (chartType == 'radar') {
         options = {
             maintainAspectRatio: false,
             legend: {
-                display: true,
+                display: includeLegend,
                 labels: {
-                    fontColor: 'white'
+                    fontColor : textColour
                 },
                 onClick: null
             },
@@ -2253,16 +1883,22 @@ function updateChart(chartType){
             },
             scale: {
                 ticks: {
-                    display: true,
-                    fontColor: 'white',
+                    display: includeRadialAxisLabels,
+                    fontColor : textColour,
                     showLabelBackdrop: false
                 },
                 pointLabels: {
-                    display: true,
-                    fontColor: 'white'
+                    display: includeLabels,
+                    fontColor : textColour
+                },
+                gridLines: {
+                    display: includeGridLines,
+                    color: axisColour
                 }
             }
         }
+
+        document.getElementById('trendlineDiv').hidden = true
     }
 
     data = updateChartData(chartType, data, fillData)
@@ -2277,6 +1913,7 @@ function updateChart(chartType){
         options: options
     });
 
+    updateTrendline()
 }
 
 function updateChartData(chartType, data, fillData){
@@ -2287,13 +1924,15 @@ function updateChartData(chartType, data, fillData){
         if (chartType == 'line') {
             data.datasets[i].borderColor = data.datasets[i].backgroundColor
             data.datasets[i].borderWidth = 2
-            data.datasets[i].tension = 0.1
+            data.datasets[i].tension = 0
+            data.datasets[i].spanGaps = true
 
         }
         else{
-            data.datasets[i].borderColor = 'rgba(255,255,255,1)'
+            data.datasets[i].data = data.datasets[i].data.map((value) => (value === null ? 0 : value));
+            data.datasets[i].borderColor = borderColour
             data.datasets[i].hoverBackgroundColor = 'rgba(255,255,255,0.2)'
-            data.datasets[i].borderWidth = 1
+            data.datasets[i].borderWidth = includeBorders ? 1 : 0
             if (chartType == 'bar') {
                 data.datasets[i].barPercentage = 1.0
                 data.datasets[i].categoryPercentage = 1.0
@@ -2311,22 +1950,324 @@ function updateChartData(chartType, data, fillData){
             }
         }
         else{
-            if (data.datasets[i].data[0].x != undefined) {
+            if (data.datasets[i].data[0] != null  && data.datasets[i].data[0].x != undefined) {
                 for (let j=0;j<data.datasets[i].data.length;j++) {
                     data.datasets[i].data[j] = data.datasets[i].data[j].y
                 }
             }
+
+            if (chartType == 'line') {
+                data.datasets[i].data = data.datasets[i].data.map((value) => (value === 0 ? null : value));
+            }
         }
     }
+
+    data.datasets = data.datasets.filter((value) => !value.id.includes('trendline'));
 
     return data
 
 }
 
+function checkTimeUnit(){
+    // Checks if the time unit is valid for the selected analysis
+    var timeUnitNumber = document.getElementById('timeUnitNumber').value
+    var valid = true
+    var error = document.getElementById('timeUnitErrors')
+    var message = ''
+
+    if (timeUnitNumber == '') {
+        valid = false
+        message = 'Time unit cannot be empty. Please enter a number.'
+    }
+    else if (timeUnitNumber < 1) {
+        valid = false
+        message = 'Time unit must be greater than 0.'
+    }
+    else if (timeUnitNumber > 100) {
+        valid = false
+        message = 'Time unit must be less than 100. Change the time unit to a larger unit.'
+    }
+    // else if (timeUnitNumber.isDigit() == false) {
+    //     valid = false
+    //     message = 'Time unit must be a number.'
+    // }
+
+    if (valid) {
+        error.innerHTML = ''
+    }
+    else{
+        error.innerHTML = message
+    }
+
+    return valid
+}
+
+function updateChartStyle(){
+    // Updates the chart style based on the selected style
+
+    var chartData = chart.data
+    var chartOptions = chart.options
+    var chartType = chart.config.type
+    textColour = document.getElementById('textColourSelector').value
+    var axisColourSelector = document.getElementById('axisColourSelector').value
+    includeLegend = document.getElementById('includeLegend').checked
+    includeGridLines = document.getElementById('includeGridLines').checked
+    includeRadialAxisLabels = document.getElementById('includeRadialAxisLabels').checked
+    includeLabels = document.getElementById('includeLabels').checked
+    includeBorders = document.getElementById('includeBorders').checked
+    borderColour = document.getElementById('borderColourSelector').value
+    var backgroundValue = document.getElementById('backgroundSelector').value
+    backgroundColour = null
+    if (backgroundValue == '2') {
+        backgroundColour = 'white'
+    }
+    else if (backgroundValue == '3') {
+        backgroundColour = 'black'
+    }
+    else if (backgroundValue == '4') {
+        backgroundColour = '#4E5D6C'
+    }
+
+    chartOptions.legend.display = includeLegend
+    chartOptions.legend.labels.fontColor = textColour
+    chartOptions.legend.onClick = null
+
+    if (axisColourSelector == '1') {
+        axisColour = 'rgba(255,255,255,0.2)'
+    }
+    else {
+        axisColour = 'rgba(0,0,0,0.2)'
+    }
+
+    if (chartOptions.scale != undefined) {
+        if (chartOptions.scale.pointLabels != undefined) {
+            chartOptions.scale.pointLabels.display = includeLabels
+            chartOptions.scale.pointLabels.fontColor = textColour
+        }
+        if (chartOptions.scale.ticks != undefined) {
+            chartOptions.scale.ticks.display = includeRadialAxisLabels
+            chartOptions.scale.ticks.fontColor = textColour
+        }
+        if (chartOptions.scale.gridLines != undefined) {
+            chartOptions.scale.gridLines.display = includeGridLines
+            chartOptions.scale.gridLines.color = axisColour
+        }
+    }
+    else if (chartOptions.scales != undefined){
+    
+        if (chartOptions.scales.xAxes != undefined) {
+            chartOptions.scales.xAxes[0].ticks.display = includeLabels
+            chartOptions.scales.xAxes[0].ticks.fontColor = textColour
+            chartOptions.scales.xAxes[0].gridLines.drawOnChartArea = includeGridLines
+            chartOptions.scales.xAxes[0].gridLines.color = axisColour
+        }
+    
+        if (chartOptions.scales.yAxes != undefined) {
+            chartOptions.scales.yAxes[0].ticks.display = includeLabels
+            chartOptions.scales.yAxes[0].ticks.fontColor = textColour
+            chartOptions.scales.yAxes[0].gridLines.drawOnChartArea = includeGridLines
+            chartOptions.scales.yAxes[0].gridLines.color = axisColour
+        }
+    }
+
+    if (chartType != 'line') {
+        for (let i=0;i<chartData.datasets.length;i++) {
+            chartData.datasets[i].borderColor = borderColour
+            chartData.datasets[i].borderWidth = includeBorders ? 1 : 0
+        }
+    }
+
+    chart.destroy()
+
+    var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+    chart = new Chart(ctx, {
+        data: chartData,
+        type: chartType,
+        options: chartOptions
+    });
+
+    document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
+}
+
+function getSurveysAndAnnotationSets(){
+    // Gets the surveys with multiple annotation sets 
+
+    var formData = new FormData()
+    sites_ids = getSelectedSites()
+    start_date = document.getElementById('startDate').value
+    end_date = document.getElementById('endDate').value
+
+    if (start_date != '') {
+        start_date= start_date + ' 00:00:00'
+    }
+    if (end_date != '') {
+        end_date = end_date + ' 23:59:59'
+    }
+
+    formData.append('sites_ids', JSON.stringify(sites_ids))
+    formData.append('start_date', JSON.stringify(start_date))
+    formData.append('end_date', JSON.stringify(end_date))
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+
+            for (let i = 0; i < reply.length; i++) {
+                buildSurveysAndSets(reply)
+            }
+        }
+    }
+    xhttp.open("POST", '/getSurveysAndTasksForResults');
+    xhttp.send(formData);
+    
+}
+
+function buildSurveysAndSets(surveys){
+    // Builds the surveys and annotation sets for the annotation set modal
+
+    var annotationDiv = document.getElementById('annotationDiv')
+    while (annotationDiv.firstChild) {
+        annotationDiv.removeChild(annotationDiv.firstChild);
+    }
+
+    for (let i = 0 ; i < surveys.length; i++) {
+        survey = surveys[i]
+
+        var surveyDiv = document.createElement('div')
+        surveyDiv.classList.add('row')
+        annotationDiv.appendChild(surveyDiv)
+
+        var surveyName = document.createElement('div')
+        surveyName.classList.add('col-6')
+        surveyName.style = 'display: flex; align-items: center;'
+        surveyName.innerHTML = survey['name']
+        surveyDiv.appendChild(surveyName)
+
+        var surveySets = document.createElement('div')
+        surveySets.classList.add('col-6')
+        surveySets.style = 'display: flex; align-items: center;'
+        surveyDiv.appendChild(surveySets)
+
+        var surveySetSelect = document.createElement('select')
+        surveySetSelect.classList.add('form-control')
+        surveySetSelect.id = 'annotationSetSelect-' + survey['id']
+        surveySets.appendChild(surveySetSelect)
+
+        var optionTexts = []
+        var optionValues = []
+        for(let j = 0; j < survey['tasks'].length; j++) {
+            task = survey['tasks'][j]
+            optionTexts.push(task['name'])
+            optionValues.push(task['id'])
+        }
+        clearSelect(surveySetSelect)
+        fillSelect(surveySetSelect, optionTexts, optionValues)
+
+        annotationDiv.appendChild(document.createElement('br'))
+    }
+}
+
+function calculateTrendlines(x, y, type, order=2){
+    // Calculates the trendline for the data
+
+    var trendline = []
+    var data = x.map((xi, index) => [xi, y[index]])
+    if (type == 'linear') {
+        var linearResult = regression.linear(data);
+        var linearEquation = linearResult.equation;
+        trendline = x.map((xi) => linearEquation[0] * xi + linearEquation[1]);
+    }
+    else if (type == 'exponential') {
+        var exponentialResult = regression.exponential(data);
+        var exponentialEquation = exponentialResult.equation;
+        trendline = x.map((xi) => exponentialEquation[0] * Math.exp(exponentialEquation[1] * xi));
+    }
+    else if (type == 'logarithmic') {
+        var logarithmicResult = regression.logarithmic(data);
+        var logarithmicEquation = logarithmicResult.equation;
+        trendline = x.map((xi) => logarithmicEquation[0] + logarithmicEquation[1] * Math.log(xi));
+    }
+    else if (type == 'power') {
+        var powerResult = regression.power(data);
+        var powerEquation = powerResult.equation;
+        trendline = x.map((xi) => powerEquation[0] * Math.pow(xi, powerEquation[1]));
+    }
+    else if (type == 'polynomial') {
+        var polynomialResult = regression.polynomial(data, { order: parseInt(order) });
+        var polynomialEquation = polynomialResult.equation;
+        trendline = x.map((xi) => {
+            let trend = 0;
+            for (let i = 0; i < polynomialEquation.length; i++) {
+              trend += polynomialEquation[i] * Math.pow(xi, polynomialEquation.length - 1 - i);
+            }
+            return trend;
+          });
+
+    }
+
+    return trendline
+}
+
+function updateTrendline(){
+    // Updates the trendline when the trendline type is changed
+
+    var chartType = document.getElementById('chartTypeSelector').value
+    var trendlineType = document.getElementById('trendlineSelector').value
+    var trendlineOrder = document.getElementById('trendlineOrder').value
+    var trendline_datasets = []
+
+    chart.data.datasets = chart.data.datasets.filter((value) => !value.id.includes('trendline'));
+
+    if (trendlineType != '-1' && chartType != 'polarArea') {
+        var datasets = chart.data.datasets
+        for (let i = 0; i < datasets.length; i++) {
+            var data = datasets[i].data
+            var data_id = datasets[i].id.split('-')[1]
+            if (data.length > 0) {
+                var xValues = []
+                var yValues = []
+                for (let j = 1; j <= data.length; j++) {
+                    xValues.push(j)
+                    if (chartType == 'scatter'){
+                        yValues.push(data[j-1].y)
+                    } else {
+                        yValues.push(data[j-1])
+                    }
+                }
+                yValues = yValues.map((value) => value === 0 ? null : value)
+                var trendline = calculateTrendlines(xValues, yValues, trendlineType, trendlineOrder)
+                if (chartType == 'scatter') {
+                    trendline = trendline.map((value, index) => {return {x: index, y: value}})
+                }
+
+                trendline_datasets.push({
+                    id: 'trendline-' + data_id,
+                    label: 'Trendline ' + datasets[i].label,
+                    data: trendline,
+                    borderColor: chart.data.datasets[i].backgroundColor,
+                    backgroundColor: chart.data.datasets[i].backgroundColor,
+                    fill: false,
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    type: 'line'
+                })
+            }
+        }
+
+        for (let i = 0; i < trendline_datasets.length; i++) {
+            chart.data.datasets.push(trendline_datasets[i])
+        }
+    }
+    
+    chart.update()
+}
+
 $('#analysisSelector').on('change', function() {
-    clearChartColours()
     generateResults()
-    updateLabelsAndSites()
 });
 
 $('#baseUnitSelector').on('change', function() {
@@ -2378,31 +2319,352 @@ $('#chartTypeSelector').on('change', function() {
     }
 });
 
+$("#normalisationSelector").change( function() {
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+    if (analysisSelection == '1') {
+        normalisePolar()
+    }
+    else if (analysisSelection == '3') {
+        normaliseBar()
+    }
+    else if (analysisSelection == '4') {
+        normaliseLine()
+    }
+});
+
+$("#timeUnitSelector").change( function() {
+    var validUnit = checkTimeUnit()
+    if (validUnit) {
+        // chart.options.scales.xAxes[0].time.unit = document.getElementById('timeUnitSelector').options[document.getElementById('timeUnitSelector').selectedIndex].text.toLowerCase()
+        updateResults()
+    }
+});
+
+$('#timeUnitNumber').on('change', function() {
+    var validUnit = checkTimeUnit()
+    if (validUnit) {
+        updateResults()
+    }
+});
+
+$("#xAxisSelector").change( function() {
+    xAxisSelector = document.getElementById('xAxisSelector')
+    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+
+    if (xAxisSelection == '1') {
+        chart.data.labels = ['Survey Count']
+        document.getElementById('normalisationDiv').hidden = true
+    } else if (xAxisSelection == '2') {
+        chart.data.labels = []
+        document.getElementById('normalisationDiv').hidden = false 
+    }
+
+    document.getElementById('statisticsErrors').innerHTML = ''
+    
+    species_count_warning = false
+    for (let IDNum in barData) {
+        updateBarData(IDNum)
+
+        if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
+            speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+            species = speciesSelector.options[speciesSelector.selectedIndex].text
+
+            var tasks = getSelectedTasks()
+
+            var formData = new FormData()
+            formData.append("task_ids", JSON.stringify(tasks))
+            formData.append("species", JSON.stringify(species))
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", '/checkSightingEditStatus');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    if ((reply.status=='warning')&&(species_count_warning==false)) {
+                        species_count_warning = true
+                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                    }
+                }
+            }
+            xhttp.send(formData);
+        }
+    }
+});
+
+$("#radiusSlider").change( function() {
+    value = document.getElementById('radiusSlider').value
+    value = logslider(value)
+    document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
+    if (document.getElementById('normalisationCheckBox').checked) {
+        reScaleNormalisation(value)
+    } else {
+        heatmapLayer.cfg.radius = value
+        heatmapLayer._update()
+    }
+});
+
+$("#markerCheckBox").change( function() {
+    if (document.getElementById('markerCheckBox').checked) {
+        for (let i=0;i<markers.length;i++) {
+            if (!map.hasLayer(markers[i])) {
+                map.addLayer(markers[i])
+            }
+        }
+    } else {
+        for (let i=0;i<markers.length;i++) {
+            if (map.hasLayer(markers[i])) {
+                map.removeLayer(markers[i])
+            }
+        }
+    }
+});
+
+$("#normalisationCheckBox").change( function() {
+    updateHeatMap()
+});
+
+$("#heatMapCheckBox").change( function() {
+    if (document.getElementById('heatMapCheckBox').checked) {
+        map.addLayer(heatmapLayer)
+    } else {
+        map.removeLayer(heatmapLayer)
+    }
+});
+
+$("#speciesSelect").change( function() {
+    mapSpeciesSelector = document.getElementById('speciesSelect')
+    selection = mapSpeciesSelector.options[mapSpeciesSelector.selectedIndex].value
+    if (selection == '0') {
+        excludeDiv = document.getElementById('extraSpatOptionsDiv')
+        excludeDiv.appendChild(document.createElement('br'))
+
+        h5 = document.createElement('h5')
+        h5.innerHTML = 'Exclude'
+        h5.setAttribute('style','margin-bottom: 2px')
+        excludeDiv.appendChild(h5)
+
+        h5 = document.createElement('div')
+        h5.innerHTML = '<i>Choose which categories to exclude.</i>'
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        excludeDiv.appendChild(h5)
+
+        // Nothing
+        checkBoxDiv = document.createElement('div')
+        checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+        excludeDiv.appendChild(checkBoxDiv)
+
+        checkBox = document.createElement('input')
+        checkBox.setAttribute('type','checkbox')
+        checkBox.setAttribute('class','custom-control-input')
+        checkBox.setAttribute('id','excludeNothing')
+        checkBox.setAttribute('name','excludeNothing')
+        checkBox.checked = true
+        checkBoxDiv.appendChild(checkBox)
+
+        checkBoxLabel = document.createElement('label')
+        checkBoxLabel.setAttribute('class','custom-control-label')
+        checkBoxLabel.setAttribute('for','excludeNothing')
+        checkBoxLabel.innerHTML = 'Empty Images/Clusters'
+        checkBoxDiv.appendChild(checkBoxLabel)
+
+        $("#excludeNothing").change( function() {
+            updateHeatMap()
+        });
+
+        // Knocks
+        checkBoxDiv = document.createElement('div')
+        checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+        excludeDiv.appendChild(checkBoxDiv)
+
+        checkBox = document.createElement('input')
+        checkBox.setAttribute('type','checkbox')
+        checkBox.setAttribute('class','custom-control-input')
+        checkBox.setAttribute('id','excludeKnocks')
+        checkBox.setAttribute('name','excludeKnocks')
+        checkBox.checked = true
+        checkBoxDiv.appendChild(checkBox)
+
+        checkBoxLabel = document.createElement('label')
+        checkBoxLabel.setAttribute('class','custom-control-label')
+        checkBoxLabel.setAttribute('for','excludeKnocks')
+        checkBoxLabel.innerHTML = 'Knocked-Down Cameras'
+        checkBoxDiv.appendChild(checkBoxLabel)
+
+        $("#excludeKnocks").change( function() {
+            updateHeatMap()
+        });
+
+        // VHL
+        checkBoxDiv = document.createElement('div')
+        checkBoxDiv.setAttribute('class','custom-control custom-checkbox')
+        excludeDiv.appendChild(checkBoxDiv)
+
+        checkBox = document.createElement('input')
+        checkBox.setAttribute('type','checkbox')
+        checkBox.setAttribute('class','custom-control-input')
+        checkBox.setAttribute('id','excludeVHL')
+        checkBox.setAttribute('name','excludeVHL')
+        checkBox.checked = true
+        checkBoxDiv.appendChild(checkBox)
+
+        checkBoxLabel = document.createElement('label')
+        checkBoxLabel.setAttribute('class','custom-control-label')
+        checkBoxLabel.setAttribute('for','excludeVHL')
+        checkBoxLabel.innerHTML = 'Vehicles/Humans/Livestock'
+        checkBoxDiv.appendChild(checkBoxLabel)
+
+        $("#excludeVHL").change( function() {
+            updateHeatMap()
+        });
+    } else {
+        excludeDiv = document.getElementById('extraSpatOptionsDiv')
+        while(excludeDiv.firstChild){
+            excludeDiv.removeChild(excludeDiv.firstChild);
+        }
+    }
+                    
+    updateResults()
+});
+
+$("#btnManageAnnotationSets").click( function() {
+    getSurveysAndAnnotationSets()
+    modalAnnotationsSets.modal({keyboard: true})
+});
+
+$("#btnSaveSets").click( function() {
+    globalAnnotationSets = []
+    var allSets = document.querySelectorAll('[id^=annotationSetSelect-]')
+    for (let i=0;i<allSets.length;i++) {
+        globalAnnotationSets.push(allSets[i].value)
+    }
+
+    modalAnnotationsSets.modal('hide')
+
+    updateResults()
+});
+
+$('#trendlineSelector').change( function() {
+    if (document.getElementById('trendlineSelector').value == 'polynomial') {
+        document.getElementById('trendlineOrderDiv').hidden = false
+    }
+    else {
+        document.getElementById('trendlineOrderDiv').hidden = true
+    }
+
+    updateTrendline()
+});
+
+$('#trendlineOrder').change( function() {
+    updateTrendline()
+
+});
+
+$('#trendlineOnlyCheckbox').change( function() {
+    if (document.getElementById('trendlineOnlyCheckbox').checked) {
+        for (let i = 0; i < chart.data.datasets.length; i++) {
+            if (!chart.data.datasets[i].id.includes('trendline')) {
+                chart.data.datasets[i].hidden = true
+            }
+        }
+        chart.update()
+    } else {
+        for (let i = 0; i < chart.data.datasets.length; i++) {
+            if (!chart.data.datasets[i].id.includes('trendline')) {
+                chart.data.datasets[i].hidden = false
+            }
+        }
+        chart.update()
+    }
+});
+
 function clearResults(){
     /** Clears the results div */
-    var resultsDiv = document.getElementById('resultsDiv')
-    while(resultsDiv.firstChild){
-        resultsDiv.removeChild(resultsDiv.firstChild);
+    if (tabActive == 'baseAnalysisDiv') {
+        var resultsDiv = document.getElementById('resultsDiv')
+        while(resultsDiv.firstChild){
+            resultsDiv.removeChild(resultsDiv.firstChild);
+        }
+
+        var dataDiv = document.getElementById('dataDiv')
+        while(dataDiv.firstChild){
+            dataDiv.removeChild(dataDiv.firstChild);
+        }
+
+        var selectorColumn = document.getElementById('selectorColumn')
+        while(selectorColumn.firstChild){
+            selectorColumn.removeChild(selectorColumn.firstChild);
+        }
+
+        var extraSpatOptionsDiv = document.getElementById('extraSpatOptionsDiv')
+        while(extraSpatOptionsDiv.firstChild){
+            extraSpatOptionsDiv.removeChild(extraSpatOptionsDiv.firstChild);
+        }
+
+        var speciesDiv = document.getElementById('speciesDiv')
+        while(speciesDiv.firstChild){
+            speciesDiv.removeChild(speciesDiv.firstChild);
+        }
+        
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true 
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        // document.getElementById('comparisonDiv').hidden = true
+        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('trendlineOrderDiv').hidden = true
+        document.getElementById('dateErrors').innerHTML = ''
+        document.getElementById('statisticsErrors').innerHTML = ''
+        document.getElementById('analysisSelector').value = '-1'
+        document.getElementById('baseUnitSelector').value = '2'
+        document.getElementById('startDate').value = ''
+        document.getElementById('endDate').value = ''
+        document.getElementById('chartTypeSelector').value = 'line'
+        document.getElementById('chartTypeDiv').hidden = false
+        document.getElementById('btnExportResults').disabled = true
+        document.getElementById('btnSaveGroupFromData').disabled = true
+        document.getElementById('trendlineOnlyCheckbox').checked = false
+
+        clearChartColours()
+
+        timeLabels = []
+
+        barData = {}
+        polarData = {}
+        lineData = {}
+
+        buildSpeciesAndSiteSelectorRow()
+        buildSiteSelectorRow()
+        // buildSpeciesSelectorRow()
     }
+    else if (tabActive == 'baseChartDiv'){
+        document.getElementById('backgroundSelector').value = '1'
+        document.getElementById('textColourSelector').value = 'white'
+        document.getElementById('axisColourSelector').value = '2'
+        document.getElementById('borderColourSelector').value = 'white'
+        document.getElementById('includeGridLines').checked = true
+        document.getElementById('includeLegend').checked = true
+        document.getElementById('includeRadialAxisLabels').checked = true
+        document.getElementById('includeLabels').checked = true
+        document.getElementById('includeBorders').checked = true
 
-    var generateDiv = document.getElementById('generateDiv')
-    while(generateDiv.firstChild){
-        generateDiv.removeChild(generateDiv.firstChild);
+        textColour = 'white'
+        axisColour = 'rgba(0,0,0,0.1)'
+        borderColour = 'rgba(255,255,255,1)'
+        includeBorders = true 
+        includeLegend = true
+        includeLabels = true
+        includeRadialAxisLabels = true
+        includeGridLines = true
+        backgroundColour = null 
+        chartBorderWidth = 1
+
+        updateChartStyle()
+
     }
-
-    document.getElementById('dateErrors').innerHTML = ''
-    document.getElementById('statisticsErrors').innerHTML = ''
-    document.getElementById('analysisSelector').value = '-1'
-    document.getElementById('baseUnitSelector').value = '2'
-    document.getElementById('startDate').value = ''
-    document.getElementById('endDate').value = ''
-    document.getElementById('chartTypeSelector').value = 'line'
-    document.getElementById('chartTypeSelector').disabled = false
-    document.getElementById('btnExportResults').disabled = true
-
-    clearChartColours()
-
-    timeLabels = []
 }
 
 function exportResults(){
@@ -2410,21 +2672,69 @@ function exportResults(){
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
     if (analysisSelection != '2'){
-        var canvas = document.getElementById('statisticsChart')
-        var image = canvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+        var canvas = document.getElementById('statisticsChart');
+        var newCanvas = document.createElement('canvas');
+        newCanvas.width = canvas.width;
+        newCanvas.height = canvas.height;
+        var newContext = newCanvas.getContext('2d');
+        if (backgroundColour) {
+            newContext.fillStyle = backgroundColour;
+            newContext.fillRect(0, 0, newCanvas.width, newCanvas.height);
+        }
+        newContext.drawImage(canvas, 0, 0);
+
+        var image = newCanvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
         var link = document.createElement('a');
         link.download = 'chart.png';
         link.href = image;
         link.click();
+
+    }
+    else{
+        if (spatialExportControl){
+            if (activeBaseLayer.name.includes('Google')){
+                modalExportAlert.modal({keyboard: true})
+            }
+            else{
+                spatialExportControl._print();
+            }  
+        }
     }
 
 }
 
+function openAnalysisEdit(evt, editName) {
+    // Declare all variables
+    var i, tabcontent, tablinks;
+  
+    // Get all elements with class="tabcontent" and hide them
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+      tabcontent[i].style.display = "none";
+    }
+  
+    // Get all elements with class="tablinks" and remove the class "active"
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {
+      tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+  
+    // Show the current tab, and add an "active" class to the button that opened the tab
+    document.getElementById(editName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActive = editName
+  }
+
 function onload(){
     /**Function for initialising the page on load.*/
-    // addSurveys()
+    document.getElementById("openAnalysisTab").click();
+    barData = {}
+    polarData = {}
+    lineData = {}
     getLabelsAndSites()
-    // getGroups()
+    buildSpeciesAndSiteSelectorRow()
+    buildSiteSelectorRow()
+    // buildSpeciesSelectorRow()
 }
 
 window.addEventListener('load', onload, false);

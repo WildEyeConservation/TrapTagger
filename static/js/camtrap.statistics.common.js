@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function addPolarData(data,colour,legend) {
+function addPolarData(data,colour,legend,IDNum) {
     /**
      * Adds new data to a polar chart.
      * @param {arr} data The data points
@@ -25,6 +25,7 @@ function addPolarData(data,colour,legend) {
         background = 'rgba(255,255,255,0.2)'
     }
     dataset = {
+        id: 'data-'+IDNum,
         label: legend,
         data: data,
         hoverBackgroundColor: background,
@@ -76,6 +77,7 @@ function addBarData(data,colour,legend) {
             background = 'rgba(255,255,255,0.2)'
         }
         dataset = {
+            id: 'data-'+chart.data.datasets.length,
             label: legend,
             data: data,
             hoverBackgroundColor: background,
@@ -90,43 +92,49 @@ function addBarData(data,colour,legend) {
     chart.update()
 }
 
-function removePolarData(colour) {
+function removePolarData(IDNum) {
     /**
      * Removes a dataset from the active polar chart based on colour.
      * @param {str} colour The colour dataset to remove
      */
     
-    pieces = colour.split(', ')
-    if (pieces.length>1) {
-        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
-    }
+    // pieces = colour.split(', ')
+    // if (pieces.length>1) {
+    //     colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    // }
+    var datasets = []
     for (let i=0;i<chart.data.datasets.length;i++) {
-        if (chart.data.datasets[i].backgroundColor==colour) {
-            chart.data.datasets.splice(i, 1);
-            break
+        if (chart.data.datasets[i].id=='data-'+IDNum || chart.data.datasets[i].id=='trendline-'+IDNum) {
+            chartColours[chart.data.datasets[i].backgroundColor] = false
+        }
+        else{
+            datasets.push(chart.data.datasets[i])
         }
     }
-    chartColours[colour] = false
+    chart.data.datasets = datasets
     chart.update()
 }
 
-function removeBarData(colour) {
+function removeBarData(IDNum) {
     /** 
      * Removes a dataset from the active bar chart based on colour.
      * @param {str} colour The colour dataset to remove
      */
     
-    pieces = colour.split(', ')
-    if (pieces.length>1) {
-        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
-    }
+    // pieces = colour.split(', ')
+    // if (pieces.length>1) {
+    //     colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    // }
+    var datasets = []
     for (let i=0;i<chart.data.datasets.length;i++) {
-        if (chart.data.datasets[i].backgroundColor==colour) {
-            chart.data.datasets.splice(i, 1);
-            break
+        if (chart.data.datasets[i].id=='data-'+IDNum || chart.data.datasets[i].id=='trendline-'+IDNum) {
+            chartColours[chart.data.datasets[i].backgroundColor] = false
+        }
+        else{
+            datasets.push(chart.data.datasets[i])
         }
     }
-    chartColours[colour] = false
+    chart.data.datasets = datasets
     chart.update()
 }
 
@@ -226,10 +234,10 @@ function updatePolarDisplay(IDNum) {
     }
 
     if (polarData[IDkey]['new']) {
-        addData(newData,colour, chartType, legend)
+        addData(newData,colour, chartType, legend, IDkey)
         polarData[IDkey]['new'] = false
     } else {
-        editData(newData,colour, chartType, legend)
+        editData(newData,colour, chartType, legend, IDkey)
     }
 }
 
@@ -271,10 +279,10 @@ function updateBarDisplay(IDNum) {
     }
 
     if (barData[IDkey]['new']) {
-        addData(newData,colour,chartType, legend)
+        addData(newData,colour,chartType, legend, IDkey)
         barData[IDkey]['new'] = false
     } else {
-        editData(newData,colour,chartType,legend)
+        editData(newData,colour,chartType,legend, IDkey)
     }
 }
 
@@ -450,13 +458,32 @@ function updatePolarData(IDNum) {
                                     break
                                 }
                             }
-                            if (colour != null) {
-                                btnColour = colour
-                                btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                                btnRemove.setAttribute('style','background-color: '+btnColour)
+                            // if (colour != null) {
+                            //     btnColour = colour
+                            //     btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                            //     btnRemove.setAttribute('style','background-color: '+btnColour)
+                            //     polarData[IDkey] = {}
+                            //     polarData[IDkey]['colour'] = colour
+                            //     polarData[IDkey]['new'] = true
+                            // }
+
+                            var colourSelector = document.getElementById('colourSelect-'+wrapIDNum)
+                            console.log(colourSelector.value)
+                            if (colourSelector.style.backgroundColor != '') {
+                                colour = colourSelector.style.backgroundColor
                                 polarData[IDkey] = {}
                                 polarData[IDkey]['colour'] = colour
                                 polarData[IDkey]['new'] = true
+                            }
+                            else {
+                                if (colour != null) {
+                                    colourSelector.value = colour
+                                    colourSelector.style.backgroundColor = colour
+                                    console.log(colour)
+                                    polarData[IDkey] = {}
+                                    polarData[IDkey]['colour'] = colour
+                                    polarData[IDkey]['new'] = true
+                                }
                             }
                         }
                         polarData[IDkey]['data'] = reply
@@ -504,6 +531,145 @@ function updatePolarData(IDNum) {
     }
 }
 
+// function updateBarData(IDNum) {
+//     /** Requests the dataset associated with the specified ID number, for the active bar chart. */
+
+//     trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
+//     trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
+//     site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
+//     speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+//     species = speciesSelector.options[speciesSelector.selectedIndex].text
+//     baseUnitSelector = document.getElementById('baseUnitSelector')
+//     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+//     startDate = document.getElementById('startDate').value
+//     endDate = document.getElementById('endDate').value
+
+//     if(startDate != ''){
+//         startDate = startDate + ' 00:00:00'
+//     }
+//     else{
+//         startDate = ''
+//     }
+
+//     if(endDate != ''){
+//         endDate = endDate + ' 23:59:59'
+//     }
+//     else{
+//         endDate = ''
+//     }
+
+//     if(selectedTask){
+//         var tasks = [selectedTask]
+//     }else{
+//         var tasks = getSelectedTasks()
+//     }
+
+//     if (species == 'All') {
+//         species = '0'
+//     }
+
+//     if (site == 'All') {	
+//         site = '0'
+//     }
+//     else if (site.includes('(')) {
+//         var split = site.split(' ')
+//         site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+//     }
+
+//     var traps = null
+//     if (trapgroup.includes(',')) {
+//         traps = trapgroup.split(',')
+//     }
+//     else {
+//         if (isNaN(trapgroup) || trapgroup == '0') {
+//             traps = trapgroup
+//         }
+//         else {
+//             traps = [trapgroup]
+//         }
+//     }
+
+//     var formData = new FormData();
+//     formData.append('task_ids', JSON.stringify(tasks));
+//     formData.append('species', JSON.stringify(species));
+//     formData.append('baseUnit', JSON.stringify(baseUnitSelection));
+//     formData.append('sites_ids', JSON.stringify(traps));
+//     formData.append('startDate', JSON.stringify(startDate));
+//     formData.append('endDate', JSON.stringify(endDate));
+
+//     if (species!='-1' && species!='None' && traps!='None' && traps!='-1') {
+//         var xhttp = new XMLHttpRequest();
+//         xhttp.onreadystatechange =
+//         function(wrapIDNum, wrapSpecies, wrapSite){
+//             return function() {
+//                 if (this.readyState == 4 && this.status == 200) {
+//                     reply = JSON.parse(this.responseText);
+  
+//                     IDkey = wrapIDNum.toString()
+
+//                     // trapgroupNames = reply.labels
+//                     // chart.data.labels = trapgroupNames
+    
+//                     if (!barData.hasOwnProperty(IDkey)) {
+//                         colour = null
+//                         for (let key in chartColours) {
+//                             if (chartColours[key]==false) {
+//                                 chartColours[key] = true
+//                                 colour = key
+//                                 break
+//                             }
+//                         }
+//                         if (colour != null) {
+//                             btnColour = colour
+//                             btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+//                             btnRemove.setAttribute('style','background-color: '+btnColour)
+//                             barData[IDkey] = {}
+//                             barData[IDkey]['colour'] = colour
+//                             barData[IDkey]['new'] = true
+//                         }
+//                     }
+//                     barData[IDkey]['data'] = reply.data
+
+//                     var species_text = ''
+//                     var site_text = ''
+
+//                     if (wrapSpecies == '0') {
+//                         species_text = 'All'
+//                     }
+//                     else {
+//                         species_text = wrapSpecies
+//                     }
+
+//                     if (wrapSite.includes(',')) {
+//                         site_text = wrapSite.split(',')[0] + ' (' + wrapSite.split(',')[1] + ',' + wrapSite.split(',')[2] + ')'	
+//                     }
+//                     else {
+//                         site_text = 'All'
+//                     }
+                         
+//                     barData[IDkey]['legend'] = site_text + ' '+ species_text  
+    
+//                     total = 0
+//                     for (let i=0;i<reply.data.length;i++) {
+//                         total += reply.data[i]
+//                     }
+//                     barData[IDkey]['total'] = total
+    
+//                     updateBarDisplay(wrapIDNum)
+//                 }
+//             }
+//         }(IDNum, species, site);
+//         xhttp.open("POST", 'getBarData');
+//         xhttp.send(formData);
+//     } else {
+//         IDkey = IDNum.toString()
+//         if (barData.hasOwnProperty(IDkey)) {
+//             barData[IDkey]['data'] = [0]
+//             barData[IDkey]['total'] = 0
+//             updateBarDisplay(IDNum)
+//         }
+//     }
+// }
 
 function updateBarData(IDNum) {
     /** Requests the dataset associated with the specified ID number, for the active bar chart. */
@@ -512,10 +678,44 @@ function updateBarData(IDNum) {
     species = speciesSelector.options[speciesSelector.selectedIndex].text
     baseUnitSelector = document.getElementById('baseUnitSelector')
     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-    xAxisSelector = document.getElementById('xAxisSelector')
-    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
     startDate = document.getElementById('startDate').value
     endDate = document.getElementById('endDate').value
+
+    var sites_ids = []
+    if (document.getElementById('xAxisSelector')){
+        xAxisSelector = document.getElementById('xAxisSelector')
+        xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+        sites_ids = null
+    }
+
+    if (document.getElementById('trapgroupSelect-'+IDNum)){
+        trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
+        trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
+        site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
+        if (site == 'All') {	
+            site = '0'
+        }
+        else if (site.includes('(')) {
+            var split = site.split(' ')
+            site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+        }
+    
+        sites_ids = null
+        if (trapgroup.includes(',')) {
+            sites_ids = trapgroup.split(',')
+        }
+        else {
+            if (isNaN(trapgroup) || trapgroup == '0') {
+                sites_ids = null
+                xAxisSelection = 1
+            }
+            else {
+                sites_ids = [trapgroup]
+            }
+        }
+
+    }
+
 
     if(startDate != ''){
         startDate = startDate + ' 00:00:00'
@@ -548,8 +748,11 @@ function updateBarData(IDNum) {
     formData.append('axis', JSON.stringify(xAxisSelection));
     formData.append('startDate', JSON.stringify(startDate));
     formData.append('endDate', JSON.stringify(endDate));
+    if (sites_ids != null) {
+        formData.append('sites_ids', JSON.stringify(sites_ids));
+    }
 
-    if (species!='-1') {
+    if (species!='-1' && species!='None') {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapIDNum, wrapSpecies){
@@ -571,13 +774,31 @@ function updateBarData(IDNum) {
                                 break
                             }
                         }
-                        if (colour != null) {
-                            btnColour = colour
-                            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                            btnRemove.setAttribute('style','background-color: '+btnColour)
+                        // if (colour != null) {
+                        //     btnColour = colour
+                        //     btnRemove = document.getElementById('btnRemoveSpecies-'+wrapIDNum)
+                        //     btnRemove.setAttribute('style','background-color: '+btnColour)
+                        //     barData[IDkey] = {}
+                        //     barData[IDkey]['colour'] = colour
+                        //     barData[IDkey]['new'] = true
+                        // }
+                        var colourSelector = document.getElementById('colourSelectSpecies-'+wrapIDNum)
+                        console.log(colourSelector.value)
+                        if (colourSelector.style.backgroundColor != '') {
+                            colour = colourSelector.style.backgroundColor
                             barData[IDkey] = {}
                             barData[IDkey]['colour'] = colour
                             barData[IDkey]['new'] = true
+                        }
+                        else {
+                            if (colour != null) {
+                                colourSelector.value = colour
+                                colourSelector.style.backgroundColor = colour
+                                console.log(colour)
+                                barData[IDkey] = {}
+                                barData[IDkey]['colour'] = colour
+                                barData[IDkey]['new'] = true
+                            }
                         }
                     }
                     barData[IDkey]['data'] = reply.data
@@ -606,11 +827,142 @@ function updateBarData(IDNum) {
         xhttp.open("POST", 'getBarData');
         xhttp.send(formData);
     } else {
-        barData[IDkey]['data'] = [0]
-        barData[IDkey]['total'] = 0
-        updateBarDisplay(IDNum)
+        IDkey = IDNum.toString()
+        if (barData.hasOwnProperty(IDkey)) {
+            barData[IDkey]['data'] = [0]
+            barData[IDkey]['total'] = 0
+            updateBarDisplay(IDNum)
+        }
     }
 }
+
+// function updateBarData(IDNum) {
+//     /** Requests the dataset associated with the specified ID number, for the active bar chart. */
+
+//     speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+//     species = speciesSelector.options[speciesSelector.selectedIndex].text
+//     baseUnitSelector = document.getElementById('baseUnitSelector')
+//     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+//     xAxisSelector = document.getElementById('xAxisSelector')
+//     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+//     startDate = document.getElementById('startDate').value
+//     endDate = document.getElementById('endDate').value
+
+//     if(startDate != ''){
+//         startDate = startDate + ' 00:00:00'
+//     }
+//     else{
+//         startDate = ''
+//     }
+
+//     if(endDate != ''){
+//         endDate = endDate + ' 23:59:59'
+//     }
+//     else{
+//         endDate = ''
+//     }
+
+//     if(selectedTask){
+//         var tasks = [selectedTask]
+//     }else{
+//         var tasks = getSelectedTasks()
+//     }
+
+//     if(species == 'All'){
+//         species = '0'
+//     }
+
+//     var formData = new FormData();
+//     formData.append('task_ids', JSON.stringify(tasks));
+//     formData.append('species', JSON.stringify(species));
+//     formData.append('baseUnit', JSON.stringify(baseUnitSelection));
+//     formData.append('axis', JSON.stringify(xAxisSelection));
+//     formData.append('startDate', JSON.stringify(startDate));
+//     formData.append('endDate', JSON.stringify(endDate));
+
+//     if (species!='-1' && species!='None') {
+//         var xhttp = new XMLHttpRequest();
+//         xhttp.onreadystatechange =
+//         function(wrapIDNum, wrapSpecies){
+//             return function() {
+//                 if (this.readyState == 4 && this.status == 200) {
+//                     reply = JSON.parse(this.responseText);
+  
+//                     IDkey = wrapIDNum.toString()
+
+//                     trapgroupNames = reply.labels
+//                     chart.data.labels = trapgroupNames
+    
+//                     if (!barData.hasOwnProperty(IDkey)) {
+//                         colour = null
+//                         for (let key in chartColours) {
+//                             if (chartColours[key]==false) {
+//                                 chartColours[key] = true
+//                                 colour = key
+//                                 break
+//                             }
+//                         }
+//                         // if (colour != null) {
+//                         //     btnColour = colour
+//                         //     btnRemove = document.getElementById('btnRemoveSpecies-'+wrapIDNum)
+//                         //     btnRemove.setAttribute('style','background-color: '+btnColour)
+//                         //     barData[IDkey] = {}
+//                         //     barData[IDkey]['colour'] = colour
+//                         //     barData[IDkey]['new'] = true
+//                         // }
+//                         var colourSelector = document.getElementById('colourSelectSpecies-'+wrapIDNum)
+//                         console.log(colourSelector.value)
+//                         if (colourSelector.style.backgroundColor != '') {
+//                             colour = colourSelector.style.backgroundColor
+//                             barData[IDkey] = {}
+//                             barData[IDkey]['colour'] = colour
+//                             barData[IDkey]['new'] = true
+//                         }
+//                         else {
+//                             if (colour != null) {
+//                                 colourSelector.value = colour
+//                                 colourSelector.style.backgroundColor = colour
+//                                 console.log(colour)
+//                                 barData[IDkey] = {}
+//                                 barData[IDkey]['colour'] = colour
+//                                 barData[IDkey]['new'] = true
+//                             }
+//                         }
+//                     }
+//                     barData[IDkey]['data'] = reply.data
+
+//                     var species_text = ''
+
+//                     if (wrapSpecies == '0') {
+//                         species_text = 'All'
+//                     }
+//                     else {
+//                         species_text = wrapSpecies
+//                     }
+                        
+//                     barData[IDkey]['legend'] = species_text  
+    
+//                     total = 0
+//                     for (let i=0;i<reply.data.length;i++) {
+//                         total += reply.data[i]
+//                     }
+//                     barData[IDkey]['total'] = total
+    
+//                     updateBarDisplay(wrapIDNum)
+//                 }
+//             }
+//         }(IDNum, species);
+//         xhttp.open("POST", 'getBarData');
+//         xhttp.send(formData);
+//     } else {
+//         IDkey = IDNum.toString()
+//         if (barData.hasOwnProperty(IDkey)) {
+//             barData[IDkey]['data'] = [0]
+//             barData[IDkey]['total'] = 0
+//             updateBarDisplay(IDNum)
+//         }
+//     }
+// }
 
 function normalisePolar() {
     /** Normalises the polar chart data. */
@@ -840,7 +1192,7 @@ function updateHeatMap() {
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-
+                console.log(reply)
                 heatMapData = JSON.parse(JSON.stringify(reply))
 
                 if (document.getElementById('normalisationCheckBox').checked) {
@@ -904,6 +1256,7 @@ function updateLineData(IDNum){
     baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
     timeUnitSelector = document.getElementById('timeUnitSelector')
     timeUnitSelection = timeUnitSelector.options[timeUnitSelector.selectedIndex].value
+    timeUnitNumber = document.getElementById('timeUnitNumber').value
     startDate = document.getElementById('startDate').value
     endDate = document.getElementById('endDate').value
 
@@ -958,6 +1311,7 @@ function updateLineData(IDNum){
     formData.append('baseUnit', JSON.stringify(baseUnitSelection));
     formData.append('trapgroup', JSON.stringify(traps));
     formData.append('timeUnit', JSON.stringify(timeUnitSelection));
+    formData.append('timeUnitNumber', JSON.stringify(timeUnitNumber));
     formData.append('startDate', JSON.stringify(startDate));
     formData.append('endDate', JSON.stringify(endDate));
 
@@ -971,16 +1325,16 @@ function updateLineData(IDNum){
                     console.log(response)
                     IDkey = wrapIDNum.toString()
 
-                    if (startDate != '' && endDate != '') {
-                        timeLabels = response.labels
-                    } else {
-                        if (response.timeUnit != wrapTimeUnit) {
-                            timeLabels = []
-                            document.getElementById('timeUnitSelector').value = response.timeUnit
-                        }
-                        updateTimeLabels(response.labels, response.timeUnit)
-                    }
-                    chart.data.labels = timeLabels
+                    // if (startDate != '' && endDate != '') {
+                    //     timeLabels = response.labels
+                    // } else {
+                    //     if (response.timeUnit != wrapTimeUnit) {
+                    //         timeLabels = []
+                    //         document.getElementById('timeUnitSelector').value = response.timeUnit
+                    //     }
+                    //     updateTimeLabels(response.labels, response.timeUnit, timeUnitNumber)
+                    // }
+                    
 
                     if (!lineData.hasOwnProperty(IDkey)) {
                         colour = null
@@ -991,18 +1345,40 @@ function updateLineData(IDNum){
                                 break
                             }
                         }
-                        if (colour != null) {
-                            btnColour = colour
-                            btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                            btnRemove.setAttribute('style','background-color: '+btnColour)
+
+                        var colourSelector = document.getElementById('colourSelect-'+wrapIDNum)
+                        console.log(colourSelector.value)
+                        if (colourSelector.style.backgroundColor != '') {
+                            colour = colourSelector.style.backgroundColor
                             lineData[IDkey] = {}
                             lineData[IDkey]['colour'] = colour
                             lineData[IDkey]['new'] = true
                         }
+                        else {
+                            if (colour != null) {
+                                colourSelector.value = colour
+                                colourSelector.style.backgroundColor = colour
+                                console.log(colour)
+                                lineData[IDkey] = {}
+                                lineData[IDkey]['colour'] = colour
+                                lineData[IDkey]['new'] = true
+                            }
+                        }
+
+                        // if (colour != null) {
+                        //     btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
+                        //     btnRemove.setAttribute('style','background-color: '+btnColour)
+                        //     lineData[IDkey] = {}
+                        //     lineData[IDkey]['colour'] = colour
+                        //     lineData[IDkey]['new'] = true
+                        // }
                     }
 
                     lineData[IDkey]['data'] = response.data
                     lineData[IDkey]['labels'] = response.labels
+
+                    timeLabels = response.labels
+                    chart.data.labels = response.labels
 
                     var species_text = ''
                     var site_text = ''
@@ -1023,20 +1399,27 @@ function updateLineData(IDNum){
                         
                     lineData[IDkey]['legend'] = site_text + ' '+ species_text  
 
-                    if (startDate != '' && endDate != '') {
-                        updateLineDisplay(wrapIDNum)
-                    } else {
-                        updatLineDataAndLabels()
+                    updateLineDisplay(wrapIDNum)
 
-                        for (let IDNum in lineData) {
-                            if (response.timeUnit != wrapTimeUnit) {
-                                updateLineData(IDNum)
-                            }
-                            else{
-                                updateLineDisplay(IDNum)
-                            }
-                        }
-                    }
+                    // if (startDate != '' && endDate != '') {
+                    //     updateLineDisplay(wrapIDNum)
+                    // } else {
+                    //     // updatLineDataAndLabels()
+
+                    //     // for (let IDNum in lineData) {
+                    //     //     if (response.timeUnit != wrapTimeUnit) {
+                    //     //         updateLineData(IDNum)
+                    //     //     }
+                    //     //     else{
+                    //     //         updateLineDisplay(IDNum)
+                    //     //     }
+                    //     // }
+
+                    //     // updateTimeLabelsAndData(response.timeUnit, parseInt(timeUnitNumber))
+                    //     for (let IDNum in lineData) {
+                    //         updateLineDisplay(IDNum)
+                    //     }
+                    // }
                 }
             }
         }(IDNum, species, site, timeUnitSelection);
@@ -1066,21 +1449,23 @@ function updateLineDisplay(IDNum){
     }
 
     if (lineData[IDkey]['new']) {
-        addData(data,colour,chartType, legend)
+        addData(data,colour,chartType, legend, IDkey)
         lineData[IDkey]['new'] = false
     } else {
-        editData(data,colour,chartType,legend)
+        editData(data,colour,chartType,legend, IDkey)
     }
 }
 
-function addLineData(data,colour, legend) {
+function addLineData(data,colour, legend, IDNum) {
     /**
      * Adds the stipulated data to an active line chart.
      * @param {arr} data The data points
      * @param {str} colour The colour with which to display the data
      */
     
+    data = data.map((value) => (value === 0 ? null : value));
     dataset = {
+        id: 'data-'+IDNum,
         label: legend,
         data: data,
         hoverBackgroundColor: colour,
@@ -1088,14 +1473,16 @@ function addLineData(data,colour, legend) {
         borderColor: colour,
         borderWidth: 2,
         fill: false,
-        tension : 0.1
+        tension : 0,
+        spanGaps: true
     }
     chart.data.datasets.push(dataset)
     chart.update()
 }
 
-function editLineData(data,colour,legend) {
+function editLineData(data,colour,legend, IDNum) {
     /** Edits the stipulated data in an active line chart. */
+    data = data.map((value) => (value === 0 ? null : value));
     pieces = colour.split(', ')
     if (pieces.length>1) {
         colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
@@ -1190,25 +1577,23 @@ function updateBaseUnitLine() {
     }
 }
 
-function removeLineData(colour) {
+function removeLineData(IDNum) {
     /**
      * Removes a dataset from the active line chart based on colour.
      * @param {str} colour The colour dataset to remove
      */
 
-    pieces = colour.split(', ')
-    if (pieces.length>1) {
-        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
-    }
+    var datasets = []
     for (let i=0;i<chart.data.datasets.length;i++) {
-        if (chart.data.datasets[i].borderColor==colour) {
-            chart.data.datasets.splice(i, 1);
-            break
+        if (chart.data.datasets[i].id=='data-'+IDNum || chart.data.datasets[i].id=='trendline-'+IDNum) {
+            chartColours[chart.data.datasets[i].backgroundColor] = false
+        }
+        else{
+            datasets.push(chart.data.datasets[i])
         }
     }
-    chartColours[colour] = false
+    chart.data.datasets = datasets
     chart.update()
-
 }
 
 function clearLineColours(){
@@ -1218,42 +1603,77 @@ function clearLineColours(){
     }
 }
 
-function updateTimeLabels(labels, timeUnit) {
+function updateTimeLabels(labels, timeUnit, timeUnitNumber) {
     /** Updates the line chart's labels*/
-    var dTimeLabels = timeLabels.map(date => new Date(date));
-    var dLabels = labels.map(date => new Date(date));
+    // var dTimeLabels = timeLabels.map(date => new Date(date));
+    // var dLabels = labels.map(date => new Date(date));
+    // var timeUnitNumber = parseInt(timeUnitNumber);
+    // var min_date = new Date(Math.min(...dTimeLabels, ...dLabels));
+    // var max_date = new Date(Math.max(...dTimeLabels, ...dLabels));
 
-    var min_date = new Date(Math.min(...dTimeLabels, ...dLabels));
-    var max_date = new Date(Math.max(...dTimeLabels, ...dLabels));
+    var start_date =lineData[0]['labels'][0]
+    var end_date = lineData[0]['labels'][lineData[0]['labels'].length-1]
+    var timeLabels = []
 
-    while (min_date <= max_date) {
-        if (timeUnit === '1') {
-            if (!dTimeLabels.some(d => d.getDate() === min_date.getDate() && d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
-                dTimeLabels.push(new Date(min_date));
-            }
-            min_date.setDate(min_date.getDate() + 1);
-        } else if (timeUnit === '2') {
-            if (!dTimeLabels.some(d => d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
-                dTimeLabels.push(new Date(min_date));
-            }
-            min_date.setMonth(min_date.getMonth() + 1);
-        } else if (timeUnit === '3') {
-            if (!dTimeLabels.some(d => d.getFullYear() === min_date.getFullYear())) {
-                dTimeLabels.push(new Date(min_date));
-            }
-            min_date.setFullYear(min_date.getFullYear() + 1);
+    for (let i=0; i < lineData.length; i++) {
+        if (lineData[i]['labels'][0] < start_date) {
+            start_date = lineData[i]['labels'][0]
+        }
+
+        if (lineData[i]['labels'][lineData[i]['labels'].length-1] > end_date) {
+            end_date = lineData[i]['labels'][lineData[i]['labels'].length-1]
         }
     }
 
-    dTimeLabels.sort((a, b) => a.getTime() - b.getTime());
+    var min_date = new Date(start_date)
+    var max_date = new Date(end_date)
+    timeLabels = []
 
-    if (timeUnit === '1') {
-        timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }));
-    } else if (timeUnit === '2') {
-        timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }));
-    } else if (timeUnit === '3') {
-        timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric' }));
+    while (min_date <= max_date) {
+        var date = new Date(min_date)
+        if (timeUnit === '1') {
+            timeLabels.push(date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }));
+            min_date.setDate(min_date.getDate() + timeUnitNumber);
+        } else if (timeUnit === '2') {
+            timeLabels.push(date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }));
+            min_date.setMonth(min_date.getMonth() + timeUnitNumber);
+        } else if (timeUnit === '3') {
+            timeLabels.push(date.toLocaleDateString('en-GB', { year: 'numeric' }));
+            min_date.setFullYear(min_date.getFullYear() + timeUnitNumber);
+        }
     }
+
+
+
+
+    // while (min_date <= max_date) {
+    //     if (timeUnit === '1') {
+    //         if (!dTimeLabels.some(d => d.getDate() === min_date.getDate() && d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
+    //             dTimeLabels.push(new Date(min_date));
+    //         }
+    //         min_date.setDate(min_date.getDate() + timeUnitNumber);
+    //     } else if (timeUnit === '2') {
+    //         if (!dTimeLabels.some(d => d.getMonth() === min_date.getMonth() && d.getFullYear() === min_date.getFullYear())) {
+    //             dTimeLabels.push(new Date(min_date));
+    //         }
+    //         min_date.setMonth(min_date.getMonth() + timeUnitNumber);
+    //     } else if (timeUnit === '3') {
+    //         if (!dTimeLabels.some(d => d.getFullYear() === min_date.getFullYear())) {
+    //             dTimeLabels.push(new Date(min_date));
+    //         }
+    //         min_date.setFullYear(min_date.getFullYear() + timeUnitNumber);
+    //     }
+    // }
+
+    // dTimeLabels.sort((a, b) => a.getTime() - b.getTime());
+
+    // if (timeUnit === '1') {
+    //     timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }));
+    // } else if (timeUnit === '2') {
+    //     timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }));
+    // } else if (timeUnit === '3') {
+    //     timeLabels = dTimeLabels.map(date => date.toLocaleDateString('en-GB', { year: 'numeric' }));
+    // }
 
 }
 
@@ -1272,7 +1692,7 @@ function updatLineDataAndLabels(){
                     lineData[IDNum]['data'].push(temp_data[temp_labels.indexOf(timeLabels[i])])
                     lineData[IDNum]['labels'].push(timeLabels[i])
                 } else {
-                    lineData[IDNum]['data'].push(0)
+                    lineData[IDNum]['data'].push(null)
                     lineData[IDNum]['labels'].push(timeLabels[i])
                 }
             }
@@ -1280,9 +1700,10 @@ function updatLineDataAndLabels(){
     }
 }
 
-function addScatterData(data, colour,legend){
+function addScatterData(data, colour,legend,IDNum){
     /** Adds data to the active scatter chart */
     dataset = {
+        id: 'data-'+IDNum,
         label: legend,
         data: data,
         hoverBackgroundColor: colour,
@@ -1331,6 +1752,7 @@ function addRadarData(data, colour, legend){
         background = 'rgba(255,255,255,0.2)'
     }
     dataset = {
+        id: 'data-'+chart.data.datasets.length,
         label: legend,
         data: data,
         hoverBackgroundColor: background,
@@ -1377,76 +1799,106 @@ function removeRadarData(colour){
     chart.update()
 }
 
-function removeScatterData(colour){
+function removeScatterData(IDNum){
     /** Removes data from the active radar chart */
-    pieces = colour.split(', ')
-    if (pieces.length>1) {
-        colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
-    }
+    // pieces = colour.split(', ')
+    // if (pieces.length>1) {
+    //     colour = pieces[0]+','+pieces[1]+','+pieces[2]+','+pieces[3]
+    // }
+    var datasets = []
     for (let i=0;i<chart.data.datasets.length;i++) {
-        if (chart.data.datasets[i].borderColor==colour) {
-            chart.data.datasets.splice(i, 1);
-            break
+        if (chart.data.datasets[i].id=='data-'+IDNum || chart.data.datasets[i].id=='trendline-'+IDNum) {
+            chartColours[chart.data.datasets[i].backgroundColor] = false
+        }
+        else{
+            datasets.push(chart.data.datasets[i])
         }
     }
-    chartColours[colour] = false
+    chart.data.datasets = datasets
     chart.update()
 }
 
-function addData(data, colour, chartType, legend){
+function addData(data, colour, chartType, legend, IDkey){
     /** Adds data to the active chart */
     if (chartType=='line'){
-        addLineData(data, colour, legend)
+        addLineData(data, colour, legend, IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='polarArea'){
-        addPolarData(data, colour, legend)
+        addPolarData(data, colour, legend, IDkey)
     }
     else if (chartType=='bar'){
         addBarData(data, colour, legend)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='scatter'){
-        addScatterData(data, colour, legend)
+        addScatterData(data, colour, legend, IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='radar'){
-        addRadarData(data, colour, legend)
+        addRadarData(data, colour, legend, IDkey)
     }
 }
 
-function editData(data, colour, chartType, legend){
+function editData(data, colour, chartType, legend, IDkey){
     /** Edits the active chart's data */
     if (chartType=='line'){
-        editLineData(data, colour, legend)
+        editLineData(data, colour, legend, IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='polarArea'){
-        editPolarData(data, colour, legend)
+        editPolarData(data, colour, legend, IDkey)
     }
     else if (chartType=='bar'){
-        editBarData(data, colour, legend)
+        editBarData(data, colour, legend, IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='scatter'){
-        editScatterData(data, colour, legend)
+        editScatterData(data, colour, legend, IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='radar'){
-        editRadarData(data, colour, legend)
+        editRadarData(data, colour, legend, IDkey)
     }
 }
 
-function removeData(colour, chartType){
+function removeData(IDkey, chartType){
     /** Removes data from the active chart */
     if (chartType=='line'){
-        removeLineData(colour)
+        removeLineData(IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='polarArea'){
-        removePolarData(colour)
+        removePolarData(IDkey)
     }
     else if (chartType=='bar'){
-        removeBarData(colour)
+        removeBarData(IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='scatter'){
-        removeScatterData(colour)
+        removeScatterData(IDkey)
+        if (document.getElementById('trendlineSelector')){
+            updateTrendline()
+        }
     }
     else if (chartType=='radar'){
-        removeRadarData(colour)
+        removeRadarData(IDkey)
     }
 }
 
@@ -1457,3 +1909,77 @@ function clearChartColours(){
     }
 }
 
+function clearButtonColours(){
+    var allRemoveButtons = document.querySelectorAll('[id^=btnRemove-]')    
+    for (let i=0;i<allRemoveButtons.length;i++) {
+        allRemoveButtons[i].style.backgroundColor = 'white'
+    }
+
+    var allRemoveDataButtons = document.querySelectorAll('[id^=btnRemoveSpecies-]')
+    for (let i=0;i<allRemoveDataButtons.length;i++) {
+        allRemoveDataButtons[i].style.backgroundColor = 'white'
+    }
+}
+
+
+// function updateTimeLabelsAndData(timeUnit, timeUnitNumber){
+//     /** Updates the time labels and data for the active chart */
+
+//     var start_index = lineData[0]['data'].findIndex(x => x > 0)
+//     var end_index = lineData[0]['data'].length - lineData[0]['data'].reverse().findIndex(x => x > 0)
+//     var start_date =lineData[0]['labels'][start_index]
+//     var end_date = lineData[0]['labels'][end_index]
+//     timeLabels = []
+
+//     for (let i=0; i < lineData.length; i++) {
+//         start_index = lineData[i]['data'].findIndex(x => x > 0)
+//         end_index = lineData[i]['data'].length - lineData[i]['data'].reverse().findIndex(x => x > 0)
+
+//         if (lineData[i]['labels'][start_index] < start_date) {
+//             start_date = lineData[i]['labels'][start_index]
+//         }
+
+//         if (lineData[i]['labels'][end_index] > end_date) {
+//             end_date = lineData[i]['labels'][end_index]
+//         }
+//     }
+
+//     var min_date = new Date(start_date)
+//     var max_date = new Date(end_date)
+//     timeLabels = []
+
+//     while (min_date <= max_date) {
+//         var date = new Date(min_date)
+//         if (timeUnit === '1') {
+//             timeLabels.push(date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }));
+//             min_date.setDate(min_date.getDate() + timeUnitNumber);
+//         } else if (timeUnit === '2') {
+//             timeLabels.push(date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' }));
+//             min_date.setMonth(min_date.getMonth() + timeUnitNumber);
+//         } else if (timeUnit === '3') {
+//             timeLabels.push(date.toLocaleDateString('en-GB', { year: 'numeric' }));
+//             min_date.setFullYear(min_date.getFullYear() + timeUnitNumber);
+//         }
+//     }
+
+
+//     for (let i=0; i < lineData.length; i++) {
+//         var new_data = []
+//         for (let j=0; j < timeLabels.length; j++) {
+//             var index = lineData[i]['labels'].indexOf(timeLabels[j])
+//             if (index > -1) {
+//                 new_data.push(lineData[i]['data'][index])
+//             } else {
+//                 new_data.push(0)
+//             }
+//         }
+
+//         lineData[i]['data'] = new_data
+//     }
+
+//     chart.data.labels = timeLabels
+
+//     console.log(lineData)
+//     console.log(timeLabels)
+
+// }

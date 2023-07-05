@@ -37,13 +37,16 @@ function searchSites() {
     
     var search = document.getElementById('searchSites').value;
     var sitesDiv = document.getElementById('sitesDiv');
+    var advancedSearch = document.getElementById('advancedSearch').checked;
     
     while(sitesDiv.firstChild) {
         sitesDiv.removeChild(sitesDiv.firstChild);
     }
 
+    console.log(advancedSearch.toString());
     var formData = new FormData();
     formData.append('search', JSON.stringify(search));
+    formData.append('advanced', JSON.stringify(advancedSearch.toString()));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -194,7 +197,7 @@ function addSiteToGroup(checkbox) {
 
             var groupSiteDiv = document.createElement('div')
             groupSiteDiv.setAttribute('class','custom-control custom-checkbox')
-            groupSiteDiv.setAttribute('style','display: inline-block; padding-right: 0.5rem')
+            groupSiteDiv.setAttribute('style','display: inline-block;')
             col.appendChild(groupSiteDiv)
 
             input = document.createElement('input')
@@ -270,7 +273,7 @@ function initialiseSitesMap() {
             div.appendChild(col1)
 
             mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id','mapDiv')
+            mapDiv.setAttribute('id','mapDivDraw')
             mapDiv.setAttribute('style','height: 800px')
             col1.appendChild(mapDiv)
 
@@ -306,7 +309,7 @@ function initialiseSitesMap() {
             // gTer = L.gridLayer.googleMutant({type: 'terrain'})
             gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
-            mapSites = new L.map('mapDiv', {
+            mapSites = new L.map('mapDivDraw', {
                 layers: [gSat]
             });
 
@@ -545,7 +548,6 @@ function saveGroup() {
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
             modalGroups.modal('hide');
-            getGroups();
         }
     }
     xhttp.open("POST", '/saveGroup');
@@ -765,7 +767,6 @@ function editGroup() {
             reply = JSON.parse(this.responseText);
             if (reply.status == 'success') {
                 modalGroups.modal('hide');
-                getGroups();
             }
             else{
                 document.getElementById('groupError').innerHTML = reply.message
@@ -785,7 +786,6 @@ function deleteGroup() {
             reply = JSON.parse(this.responseText);
             if (reply.status == 'success') {
                 modalConfirmDelete.modal('hide');
-                getGroups();
             }
         }
     }
@@ -810,6 +810,10 @@ function updateSitesSelectionMethod(){
     col1.setAttribute('class','col-6')
     row.appendChild(col1)
 
+    var col2 = document.createElement('div')
+    col2.setAttribute('class','col-6')
+    row.appendChild(col2)
+
     if (searchSitesRb.checked) {
         var searchSitesInput = document.createElement('input')
         searchSitesInput.setAttribute('type','text')
@@ -822,6 +826,49 @@ function updateSitesSelectionMethod(){
             /** Listens for changes in the sites search bar */
             searchSites();
         });
+
+        var checkDiv = document.createElement('div')
+        checkDiv.setAttribute('class','custom-control custom-checkbox')
+        checkDiv.setAttribute('style','display: inline-block')
+        col2.appendChild(checkDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.classList.add('custom-control-input')
+        input.setAttribute('id','advancedSearch')
+        checkDiv.appendChild(input)
+
+        var label = document.createElement('label')
+        label.classList.add('custom-control-label')
+        label.setAttribute('for','advancedSearch')
+        label.innerHTML = 'Advanced'
+        checkDiv.appendChild(label)
+
+
+        $('#advancedSearch').change( function() {
+            // Regular expression search
+            var advancedSearchDiv = document.getElementById('advancedSearchDiv')
+            while(advancedSearchDiv.firstChild) {
+                advancedSearchDiv.removeChild(advancedSearchDiv.firstChild);
+            }
+            if (this.checked) {
+                buildRegExp()
+            }
+        });
+
+        var row2 = document.createElement('div')
+        row2.setAttribute('class','row')
+        addSitesDiv.appendChild(row2)
+
+        var col3 = document.createElement('div')
+        col3.setAttribute('class','col-12')
+        row2.appendChild(col3)
+
+        var advancedSearchDiv = document.createElement('div')
+        advancedSearchDiv.setAttribute('id','advancedSearchDiv')
+        col3.appendChild(advancedSearchDiv)
+
+        addSitesDiv.appendChild(document.createElement('br'))
 
         sitesDiv = document.createElement('div')
         sitesDiv.setAttribute('id','sitesDiv')
@@ -847,16 +894,411 @@ function updateSitesSelectionMethod(){
         });
     }
 
-    addSitesDiv.appendChild(document.createElement('br'))
+    // addSitesDiv.appendChild(document.createElement('br'))
+}
+
+function buildRegExp(){
+    /** Builds the advanced search div for the sites search bar */
+    
+    IDNum = getIdNumforNext('charSelect')
+
+    if (IDNum==0) {
+        // Initialising - build headings
+        tgBuilder = document.getElementById('advancedSearchDiv')
+        tgBuilder.append(document.createElement('br'))
+
+        tgBuilderRows = document.createElement('div')
+        tgBuilderRows.setAttribute('id','tgBuilderRows')
+        tgBuilder.append(tgBuilderRows)
+
+        // Add add-row button
+        tgBuilderBtnRow = document.createElement('div')
+        tgBuilderBtnRow.classList.add('row')
+        tgBuilder.append(tgBuilderBtnRow)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-11')
+        tgBuilderBtnRow.appendChild(col1)
+
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-1')
+        tgBuilderBtnRow.appendChild(col2)  
+        
+        btnAdd = document.createElement('button');
+        btnAdd.classList.add('btn');
+        btnAdd.classList.add('btn-primary');
+        btnAdd.innerHTML = '+';
+        col2.appendChild(btnAdd)
+        
+        btnAdd.addEventListener('click', (evt)=>{
+            buildRegExp();
+        });
+
+        // Heading Row
+        row = document.createElement('div')
+        row.classList.add('row')
+        tgBuilderRows.append(row)
+
+        // Character column
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-2')
+        col1.innerHTML = 'Character(s)'
+        row.appendChild(col1)
+
+        // Custom Character Column
+        col2 = document.createElement('div')
+        col2.classList.add('col-lg-3')
+        row.appendChild(col2)
+
+        // Custom Character Operation Column
+        col3 = document.createElement('div')
+        col3.classList.add('col-lg-2')
+        row.appendChild(col3)
+
+        // Occurrence Column
+        col4 = document.createElement('div')
+        col4.classList.add('col-lg-2')
+        col4.innerHTML = 'Occurence'
+        row.appendChild(col4)
+
+        // Custom Occurrence Column
+        col5 = document.createElement('div')
+        col5.classList.add('col-lg-2')
+        row.appendChild(col5)
+
+        // Delete Button Column
+        col6 = document.createElement('div')
+        col6.classList.add('col-lg-1')
+        row.appendChild(col6)
+    } else {
+        tgBuilderRows = document.getElementById('tgBuilderRows')
+    }
+
+    row = document.createElement('div')
+    row.classList.add('row')
+    tgBuilderRows.append(row)
+
+    // Character column
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-2')
+    row.appendChild(col1)
+
+    selectID = 'charSelect-'+IDNum
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id',selectID)
+    col1.appendChild(select)
+
+    $("#"+selectID).change( function(wrapIDNum) {
+        return function() {
+            select = document.getElementById('charSelect-'+wrapIDNum)
+            selection = select.options[select.selectedIndex].text
+            if (selection == 'Custom Set') {
+                //Build custom row
+                col2 = document.getElementById('tgBuilderCol2-'+wrapIDNum)
+
+                input = document.createElement('input')
+                input.setAttribute('type','text')
+                input.classList.add('form-control')
+                input.required = true
+                input.setAttribute('id','customCharacters-'+wrapIDNum)
+                col2.appendChild(input)
+
+                $("#customCharacters-"+wrapIDNum).change( function() {
+                    updateRegExp()
+                })
+
+                col3 = document.getElementById('tgBuilderCol3-'+wrapIDNum)
+                
+                select = document.createElement('select')
+                select.classList.add('form-control')
+                select.setAttribute('id','CustomCharSelect-'+wrapIDNum)
+                col3.appendChild(select)
+
+                $("#CustomCharSelect-"+wrapIDNum).change( function() {
+                    updateRegExp()
+                })
+
+                fillSelect(select, ['Exactly','Or'], [1,2])
+
+            } else {
+                // Remove any custom row
+                div = document.getElementById('tgBuilderCol2-'+wrapIDNum)
+                while(div.firstChild){
+                    div.removeChild(div.firstChild);
+                }
+
+                div = document.getElementById('tgBuilderCol3-'+wrapIDNum)
+                while(div.firstChild){
+                    div.removeChild(div.firstChild);
+                }
+            }
+            updateRegExp()
+        }
+    }(IDNum));
+
+    fillSelect(select, ['Any Digit','Any Letter (Upper)','Any Letter (Lower)','Any Letter (Any)','Any Character','Custom Set'], [1,2,3,4,5,7])
+
+    // Custom Character Column
+    col2 = document.createElement('div')
+    col2.classList.add('col-lg-3')
+    col2.setAttribute('id','tgBuilderCol2-'+IDNum)
+    row.appendChild(col2)
+
+    // Custom Character Operation Column
+    col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.setAttribute('id','tgBuilderCol3-'+IDNum)
+    row.appendChild(col3)
+
+    // Occurrence Column
+    col4 = document.createElement('div')
+    col4.classList.add('col-lg-2')
+    row.appendChild(col4)
+
+    selectID = 'occurrenceSelect-'+IDNum
+    select = document.createElement('select')
+    select.classList.add('form-control')
+    select.setAttribute('id',selectID)
+    col4.appendChild(select)
+
+    $("#"+selectID).change( function(wrapIDNum) {
+        return function() {
+            select = document.getElementById('occurrenceSelect-'+wrapIDNum)
+            selection = select.options[select.selectedIndex].text
+            if (selection == 'Custom Count') {
+                //Build custom row
+                col5 = document.getElementById('tgBuilderCol5-'+wrapIDNum)
+
+                input = document.createElement('input')
+                input.setAttribute('type','text')
+                input.classList.add('form-control')
+                input.required = true
+                input.setAttribute('id','customOccurrence-'+wrapIDNum)
+                col5.appendChild(input)
+
+                $("#customOccurrence-"+wrapIDNum).change( function() {
+                    updateRegExp()
+                })
+            } else {
+                // Remove any custom row
+                div = document.getElementById('tgBuilderCol5-'+wrapIDNum)
+                while(div.firstChild){
+                    div.removeChild(div.firstChild);
+                }
+            }
+            updateRegExp()
+        }
+    }(IDNum));
+
+    fillSelect(select, ['Once','Zero or More','Zero or One','One or More','Custom Count'], [1,2,3,4,5])
+
+    // Custom Occurrence Column
+    col5 = document.createElement('div')
+    col5.classList.add('col-lg-2')
+    col5.setAttribute('id','tgBuilderCol5-'+IDNum)
+    row.appendChild(col5)
+
+    // Delete Column
+    col6 = document.createElement('div')
+    col6.classList.add('col-lg-1')
+    row.appendChild(col6)
+
+    btnRemove = document.createElement('button');
+    btnRemove.classList.add('btn');
+    btnRemove.classList.add('btn-default');
+    // btnRemove.id = 'btnRemove-'+IDNum;
+    btnRemove.innerHTML = '&times;';
+    col6.appendChild(btnRemove)
+    
+    btnRemove.addEventListener('click', (evt)=>{
+        evt.target.parentNode.parentNode.remove();
+        updateRegExp()
+    });
+
+    if (IDNum!=0) {
+        updateRegExp()
+    }
+
+
+}
+
+function updateRegExp() {
+    /** Extracts the info from the trapgroup code builder and populates the trapgroup code accordingly. */
+
+    tgCode = ''
+    charSelects = document.querySelectorAll('[id^=charSelect-]')
+    for (let i=0;i<charSelects.length;i++) {
+        IDNum = charSelects[i].id.split("-")[charSelects[i].id.split("-").length-1]
+        
+        selection = charSelects[i].options[charSelects[i].selectedIndex].text
+        if (selection=='Any Digit') {
+            tgCode += '[0-9]'
+        } else if (selection=='Any Letter (Upper)') {
+            tgCode += '[A-Z]'
+        } else if (selection=='Any Letter (Lower)') {
+            tgCode += '[a-z]'
+        } else if (selection=='Any Letter (Any)') {
+            tgCode += '[A-Za-z]'
+        } else if (selection=='Any Character') {
+            tgCode += '.'
+        } else if (selection=='Custom Set') {
+            customCharacters = document.getElementById('customCharacters-'+IDNum).value
+            CustomCharSelect = document.getElementById('CustomCharSelect-'+IDNum)
+            selection = CustomCharSelect.options[CustomCharSelect.selectedIndex].text
+            if (selection=='Exactly') {
+                tgCode += customCharacters
+            } else if (selection=='Or') {
+                tgCode += '['+customCharacters+']'
+            }
+        }
+        
+        occurrenceSelect = document.getElementById('occurrenceSelect-'+IDNum)
+        selection = occurrenceSelect.options[occurrenceSelect.selectedIndex].text
+        if (selection=='Once') {
+            //pass
+        } else if (selection=='Zero or More') {
+            tgCode += '*'
+        } else if (selection=='Zero or One') {
+            tgCode += '?'
+        } else if (selection=='One or More') {
+            tgCode += '+'
+        } else if (selection=='Custom Count') {
+            customOccurrence = document.getElementById('customOccurrence-'+IDNum).value
+            tgCode += '{'+customOccurrence.toString()+'}'
+        }
+    }
+
+    document.getElementById('searchSites').value = tgCode
+    searchSites()
+
 }
 
 function viewGroups(){
     modalViewGroups.modal({keyboard: true});
-    getGroups()
+}
+
+function saveGroupFromData(){
+    // Opens the createGroup modal and populates it with the data selected from the generate analysis card
+    document.getElementById('groupHeader').innerHTML = 'Create Group'
+    var groupSitesDiv = document.getElementById('groupSitesDiv')
+    var row = document.createElement('div')
+    row.setAttribute('class','row')
+    groupSitesDiv.appendChild(row)
+    site_col_count = 0
+    for (let i = 0; i < 4 ; i++) {
+        var col = document.createElement('div')
+        col.setAttribute('class','col-3')
+        col.setAttribute('id','groupSitesCol-'+i)
+        row.appendChild(col)
+    }
+
+    var sites = getSitesForGroup()
+
+    allCheckboxes = []
+    groupSites = []
+    console.log(sites)
+
+    for (let i=0;i<sites.length;i++) {
+        var site = sites[i]
+        var site_text = site.text
+        var site_ids = site.ids
+        var splits = site.text.split(' ')
+        var tag = splits[0] + '_' + splits[1].split('(')[1].split(',')[0] + '_' + splits[2].split(')')[0]
+
+        if (!groupSites.includes(site_ids)) {
+
+            if (site_col_count == 4) {
+                site_col_count = 0
+            }
+
+            var col = document.getElementById('groupSitesCol-'+site_col_count)
+
+            allCheckboxes.push(tag+'-box')
+            checkDiv = document.createElement('div')
+            checkDiv.setAttribute('class','custom-control custom-checkbox')
+            checkDiv.setAttribute('style','display: inline-block')
+            col.appendChild(checkDiv)
+        
+            input = document.createElement('input')
+            input.setAttribute('type','checkbox')
+            input.classList.add('custom-control-input')
+            input.setAttribute('id',tag+'-box')
+            input.setAttribute('name',tag+'-box')
+            input.setAttribute('value',site_ids)
+            checkDiv.appendChild(input)
+        
+            label = document.createElement('label')
+            label.classList.add('custom-control-label')
+            label.setAttribute('for',tag+'-box')
+            label.innerHTML = site_text
+            checkDiv.appendChild(label)
+        
+            input.checked = true
+            groupSites.push(site_ids)
+            site_col_count += 1
+
+            input.addEventListener('change', function() {
+                if (!this.checked) {
+                    groupSites.splice(groupSites.indexOf(this.value),1)
+                }
+                else {
+                    groupSites.push(this.value)
+                }
+            });
+            
+        }
+    }
+
+    modalGroups.modal({keyboard: true});
+}
+
+function getSitesForGroup(){
+    /** Gets the sites for the group from the generate analysis card */
+    var analysisType = document.getElementById('analysisSelector').value    
+    if (analysisType == '1' || analysisType == '4') {
+        var allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    }
+    else if (analysisType == '2') {
+        var allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    }
+    else{
+        var allSites = null
+    }
+    var sites = []
+    var selectAll = false
+
+    if (allSites){
+        for (let i = 0; i < allSites.length; i++) {
+            if (allSites[i].value != '0' && allSites[i].value != '-1'){
+                sites.push({
+                    'ids': allSites[i].value,
+                    'text': allSites[i].options[allSites[i].selectedIndex].text
+                })
+            }
+            else if (allSites[i].value == '0'){
+                selectAll = true
+                break
+            }
+        }
+    
+        if (selectAll) {
+            sites = []
+            for (let i = 0; i < globalSites.length; i++) {
+                sites.push({
+                    'ids': globalSitesIDs[i], 
+                    'text': globalSites[i]
+                })
+            }
+        }
+    }
+
+    return sites
 }
 
 modalGroups.on('show.bs.modal', function(){
     modalGroupReturn = true 
+    document.getElementById('searchSitesRb').checked = true
     updateSitesSelectionMethod()
 
 });
@@ -903,6 +1345,10 @@ modalSitesMap.on('hidden.bs.modal', function(){
 
 modalConfirmDelete.on('hidden.bs.modal', function(){
     modalViewGroups.modal({keyboard: true});
+});
+
+modalViewGroups.on('show.bs.modal', function(){
+    getGroups()
 });
 
 $('#btnSaveGroup').click( function() {

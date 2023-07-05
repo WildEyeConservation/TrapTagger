@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function fillSelect(selectElement, optionTexts, optionValues, optionColours=null){
+function fillSelect(selectElement, optionTexts, optionValues, optionColours=null, backgroundColours=null){
     /** Fills the given selector with the supplied options & colours.
      * @param {select} selectElement The element to populate
      * @param {arr} optionTexts The text values of the options
      * @param {arr} optionValues The numerical values of the options
      * @param {arr} optionColours The colours of the options
+     * @param {arr} backgroundColours The background colours of the options
      */
 
     optionTexts.forEach((text, index) => {
@@ -26,6 +27,9 @@ function fillSelect(selectElement, optionTexts, optionValues, optionColours=null
         option.value = optionValues[index];
         if (optionColours != null) {
             option.style.color = optionColours[index];
+        }
+        if (backgroundColours != null) {
+            option.style.backgroundColor = backgroundColours[index];
         }
         selectElement.add(option);
     });

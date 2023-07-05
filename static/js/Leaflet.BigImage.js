@@ -86,16 +86,16 @@
 
             this._createCloseButton();
 
-            let containerTitle = document.createElement('h6');
-            containerTitle.style.width = '100%';
-            containerTitle.innerHTML = this.options.inputTitle;
-            this._containerParams.appendChild(containerTitle);
+            // let containerTitle = document.createElement('h6');
+            // containerTitle.style.width = '100%';
+            // containerTitle.innerHTML = this.options.inputTitle;
+            // this._containerParams.appendChild(containerTitle);
 
-            this._createScaleInput();
+            // this._createScaleInput();
             this._createDownloadButton();
             this._container.appendChild(this._containerParams);
 
-            this._createControlPanel(classesToAdd, context, label, title, fn);
+            // this._createControlPanel(classesToAdd, context, label, title, fn);
 
             L.DomEvent.disableScrollPropagation(this._container);
             L.DomEvent.disableClickPropagation(this._container);
@@ -415,7 +415,7 @@
             self.canvas.height = dimensions.y;
             self.ctx = self.canvas.getContext('2d');
 
-            this._changeScale(document.getElementById('scale').value);
+            // this._changeScale(document.getElementById('scale').value);
 
             let promise = new Promise(function (resolve, reject) {
                 self._getLayers(resolve);
@@ -450,8 +450,8 @@
                     link.href = URL.createObjectURL(blob);
                     link.click();
                 });
-                self._containerParams.classList.remove('print-disabled');
-                self._loader.style.display = 'none';
+                // self._containerParams.classList.remove('print-disabled');
+                // self._loader.style.display = 'none';
             });
         }
     });
