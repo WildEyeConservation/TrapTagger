@@ -4264,6 +4264,7 @@ def getSuggestion(individual_id):
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
+    suggestion = None
     suggestionID = request.args.get('suggestion', None)
     task = current_user.turkcode[0].task
     task_ids = [r.id for r in task.sub_tasks]
@@ -4272,9 +4273,6 @@ def getSuggestion(individual_id):
     reply = {}
 
     if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-        # if not populateMutex(task.id): return json.dumps('error')
-
-        GLOBALS.mutex[task.id]['global'].acquire()
 
         if suggestionID:
             suggestion = db.session.query(IndSimilarity).filter(\
@@ -4286,56 +4284,50 @@ def getSuggestion(individual_id):
                                                 IndSimilarity.individual_1==int(suggestionID),\
                                                 IndSimilarity.individual_2==int(individual_id))\
                                         )).first()
-        else:
-            if individual1 and individual1.active:
-                tL = re.split(',',task.tagging_level)
 
-                inactiveIndividuals = db.session.query(Individual.id)\
-                                                .join(Task,Individual.tasks)\
-                                                .filter(Task.id.in_(task_ids))\
-                                                .filter(Individual.species==individual1.species)\
-                                                .filter(Individual.active==False)\
-                                                .filter(Individual.name!='unidentifiable')\
-                                                .all()
-                inactiveIndividuals = [r[0] for r in inactiveIndividuals]
+            # if suggestion and not GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id):
+            #     GLOBALS.redisClient.sadd('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id)
+        
+        elif individual1 and individual1.active:
+            tL = re.split(',',task.tagging_level)
 
-                activeIndividuals = db.session.query(Individual.id)\
-                                                .join(Task,Individual.tasks)\
-                                                .filter(Task.id.in_(task_ids))\
-                                                .filter(Individual.species==individual1.species)\
-                                                .filter(Individual.allocated!=None)\
-                                                .filter(Individual.allocated!=current_user.id)\
-                                                .filter(Individual.name!='unidentifiable')\
-                                                .all()
+            inactiveIndividuals = [r[0] for r in db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==individual1.species)\
+                                            .filter(Individual.active==False)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .all()]
 
-                activeIndividuals = [r[0] for r in activeIndividuals]
+            taskIndividuals = [r[0] for r in db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==individual1.species)\
+                                            .all()]
 
-                taskIndividuals = db.session.query(Individual.id)\
-                                                .join(Task,Individual.tasks)\
-                                                .filter(Task.id.in_(task_ids))\
-                                                .filter(Individual.species==individual1.species)\
-                                                .all()
+            userIndividuals = [r for r in GLOBALS.redisClient.lrange('user_individuals_'+str(current_user.id),0,-1)]
+            activeIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_individuals_'+str(current_user.turkcode[0].task_id)) if r not in userIndividuals]
+            inactiveIndividuals.extend(activeIndividuals)
+            inactiveIndividuals = list(set(inactiveIndividuals))
 
-                taskIndividuals = [r[0] for r in taskIndividuals]
-
-                suggestion = db.session.query(IndSimilarity)\
-                                    .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
-                                    .filter(IndSimilarity.score>=tL[2])\
-                                    .filter(IndSimilarity.skipped==False)\
-                                    .filter(~IndSimilarity.individual_1.in_(inactiveIndividuals))\
-                                    .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\
-                                    .filter(~IndSimilarity.individual_1.in_(activeIndividuals))\
-                                    .filter(~IndSimilarity.individual_2.in_(activeIndividuals))\
-                                    .filter(IndSimilarity.individual_1.in_(taskIndividuals))\
-                                    .filter(IndSimilarity.individual_2.in_(taskIndividuals))\
-                                    .filter(IndSimilarity.allocated==None)\
-                                    .order_by(desc(IndSimilarity.score))\
-                                    .first()
-            else:
-                suggestion = None
+            suggestions = db.session.query(IndSimilarity)\
+                                .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
+                                .filter(IndSimilarity.score>=tL[2])\
+                                .filter(IndSimilarity.skipped==False)\
+                                .filter(~IndSimilarity.individual_1.in_(inactiveIndividuals))\
+                                .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\
+                                .filter(IndSimilarity.individual_1.in_(taskIndividuals))\
+                                .filter(IndSimilarity.individual_2.in_(taskIndividuals))\
+                                .order_by(desc(IndSimilarity.score))\
+                                .all()
+            
+            for item in suggestions:
+                # sadd returns 1 if the item was added to the set, 0 if it was already in the set
+                if GLOBALS.redisClient.sadd('active_indsims_'+str(current_user.turkcode[0].task_id),item.id):
+                    suggestion = item
+                    break
 
         if suggestion==None:
-            GLOBALS.mutex[task.id]['global'].release()
             reply = {'id': '-876'}
         else:
 
@@ -4344,20 +4336,11 @@ def getSuggestion(individual_id):
             else:
                 individual = db.session.query(Individual).get(suggestion.individual_1)
 
-            bufferCount = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==current_user.id).count()
-            if bufferCount >= 3:
-                remInds = db.session.query(IndSimilarity)\
-                                .filter(IndSimilarity.allocated==current_user.id)\
-                                .order_by(IndSimilarity.allocation_timestamp).limit(bufferCount-2).all()
-                for remInd in remInds:
-                    remInd.allocated = None
-                    remInd.allocation_timestamp = None
-
-            suggestion.allocated = current_user.id
-            suggestion.allocation_timestamp = datetime.utcnow()
-            db.session.commit()
-
-            GLOBALS.mutex[task.id]['global'].release()
+            # Handle buffer
+            bufferCount = GLOBALS.redisClient.rpush('user_indsims_'+str(current_user.id),suggestion.id)
+            for n in range(bufferCount-3):
+                indSimID = GLOBALS.redisClient.lpop('user_indsims_'+str(current_user.id))
+                if indSimID: GLOBALS.redisClient.srem('active_indsims_'+str(current_user.turkcode[0].task_id),int(indSimID.decode()))
 
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
@@ -4760,31 +4743,25 @@ def get_clusters():
 
         if '-5' in taggingLevel:
             # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
-            session.close()
-            GLOBALS.mutex[task_id]['global'].acquire()
-            session = db.session()
-            session.add(current_user)
-            session.refresh(current_user)
+            # session.close()
+            # GLOBALS.mutex[task_id]['global'].acquire()
+            # session = db.session()
+            # session.add(current_user)
+            # session.refresh(current_user)
             
             clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
 
-            # de-allocate old individuals
+            # Handle buffer
             for individual in individuals:
-                buffer = session.query(Individual).filter(Individual.allocated==current_user.id).order_by(Individual.allocation_timestamp).all()
-                if len(buffer) >= 5:
-                    for ind in buffer[:-4]:
-                        ind.allocated = None
-                        ind.allocation_timestamp = None
-
-                # Allocate new individual
-                individual.allocated = current_user.id
-                individual.allocation_timestamp = datetime.utcnow()
+                bufferCount = GLOBALS.redisClient.rpush('user_individuals_'+str(current_user.id),individual.id)
+                for n in range(bufferCount-1):
+                    indID = GLOBALS.redisClient.lpop('user_individuals_'+str(current_user.id))
+                    if indID: GLOBALS.redisClient.srem('active_individuals_'+str(current_user.turkcode[0].task_id),int(indID.decode()))
 
             clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(individuals)
             GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
-            current_user.last_ping = datetime.utcnow()
+            # current_user.last_ping = datetime.utcnow()
             session.commit()
-            GLOBALS.mutex[task_id]['global'].release()
 
         else:
             # session.close()
@@ -4813,7 +4790,7 @@ def get_clusters():
                 clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
             GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
 
-            current_user.last_ping = datetime.utcnow()
+            # current_user.last_ping = datetime.utcnow()
             
             session.commit()
             session.close()
@@ -6405,15 +6382,15 @@ def done():
         calculate_individual_similarities.delay(task_id=task_id,species=re.split(',',task.tagging_level)[1],user_ids=[current_user.id])
     elif '-5' in task.tagging_level:
         #flush allocations
-        allocateds = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==current_user.id).all()
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        userIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_individuals_'+str(current_user.id),0,-1)]
+        for userIndividual in userIndividuals:
+            GLOBALS.redisClient.srem('active_individuals_'+str(task_id),userIndividual)
+        GLOBALS.redisClient.delete('user_individuals_'+str(current_user.id))
 
-        allocateds = db.session.query(Individual).filter(Individual.allocated==current_user.id).all()
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        userIndSims = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(current_user.id),0,-1)]
+        for userIndSim in userIndSims:
+            GLOBALS.redisClient.srem('active_indsims_'+str(task_id),userIndSim)
+        GLOBALS.redisClient.delete('user_indsims_'+str(current_user.id))
 
     # current_user.passed = 'cTrue'
     GLOBALS.redisClient.srem('active_jobs_'+str(task_id),turkcode.code)

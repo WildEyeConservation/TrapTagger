@@ -281,28 +281,8 @@ def launch_task(self,task_id):
                 for skip in skips:
                     skip.skipped = False
 
-                allocateds = db.session.query(IndSimilarity)\
-                                .join(Individual, IndSimilarity.individual_1==Individual.id)\
-                                .join(Task,Individual.tasks)\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==species)\
-                                .filter(IndSimilarity.allocated!=None)\
-                                .distinct().all()
-
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
-
-                allocateds = db.session.query(Individual)\
-                                .join(Task,Individual.tasks)\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==species)\
-                                .filter(Individual.allocated!=None)\
-                                .distinct().all()
-
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
+                GLOBALS.redisClient.delete('active_individuals_'+str(task.id))
+                GLOBALS.redisClient.delete('active_indsims_'+str(task.id))
 
                 # db.session.commit()
         
@@ -545,6 +525,10 @@ def wrapUpTask(self,task_id):
             if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
             if incompleteIndividuals == 0:
                 task.survey.status = 'Ready'
+                
+        elif '-5' in task.tagging_level:
+            GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
+            GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
         elif '-3' in task.tagging_level:
             task.ai_check_complete = True
@@ -796,24 +780,24 @@ def manageTasks():
             resolve_abandoned_jobs(abandoned_jobs,session)
             session.commit()
 
-        # Ensure there are no locked-out individuals
-        allocateds = session.query(IndSimilarity)\
-                            .join(User)\
-                            .filter(~User.username.in_(active_jobs))\
-                            .distinct().all()
+        # # Ensure there are no locked-out individuals
+        # allocateds = session.query(IndSimilarity)\
+        #                     .join(User)\
+        #                     .filter(~User.username.in_(active_jobs))\
+        #                     .distinct().all()
         
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        # for allocated in allocateds:
+        #     allocated.allocated = None
+        #     allocated.allocation_timestamp = None
 
-        allocateds = session.query(Individual)\
-                            .join(User, User.id==Individual.allocated)\
-                            .filter(~User.username.in_(active_jobs))\
-                            .distinct().all()
+        # allocateds = session.query(Individual)\
+        #                     .join(User, User.id==Individual.allocated)\
+        #                     .filter(~User.username.in_(active_jobs))\
+        #                     .distinct().all()
         
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        # for allocated in allocateds:
+        #     allocated.allocated = None
+        #     allocated.allocation_timestamp = None
 
         #Catch trapgroups that are still allocated to users that are finished
         trapgroups = session.query(Trapgroup)\
@@ -912,6 +896,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
         tL = re.split(',',taggingLevel)
         species = tL[1]
         OtherIndividual = alias(Individual)
+        individuals = []
+
+        allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.lrange('active_indsims_'+str(task_id),0,-1)]
 
         # Find indviduals (joined on left side of similarity) with work available
         sq1 = db.session.query(Individual.id.label('indID1'))\
@@ -920,7 +907,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.allocated==None)\
+                        .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
@@ -937,7 +924,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.allocated==None)\
+                        .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
@@ -988,62 +975,64 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .join(Camera)\
                         .join(Trapgroup)\
                         .filter(Task.id.in_(task_ids))\
-                        .filter(Individual.allocated==None)\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Detection.static==False)\
                         .order_by(desc(sq3.c.count3)).all()
 
-        if clusters:
-            individuals = [clusters[0][0]]
-        else:
-            individuals = []
-
         for row in clusters:
-            # Handle clusters
-            if row[1] and (row[1] not in clusterInfo.keys()):
-                clusterInfo[row[1]] = {
-                    'id': row[1],
-                    'classification': {},
-                    'required': [],
-                    'images': {},
-                    'label': [],
-                    'label_ids': [],
-                    'tags': [],
-                    'tag_ids': [],
-                    'groundTruth': [],
-                    'trapGroup': 'None',
-                    'notes': row[2]
-                }
+            # sadd returns 1 if the item was added to the set, 0 if it was already in the set
+            if GLOBALS.redisClient.sadd('active_individuals_'+str(task_id),row[1]):
+                individuals.append(row[0])
+                break
 
-            # Handle images
-            if row[3] and (row[3] not in clusterInfo[row[1]]['images'].keys()):
-                clusterInfo[row[1]]['images'][row[3]] = {
-                    'id': row[3],
-                    'url': row[14] + '/' + row[4],
-                    'filename': row[4],
-                    'timestamp': numify_timestamp(row[5]),
-                    'camera': row[15],
-                    'rating': row[6],
-                    'latitude': row[16],
-                    'longitude': row[17],
-                    'detections': {}
-                }
+        if individuals:
+            for row in clusters:
+                # Handle clusters
+                if row[0] and (row[0] in individuals):
+                    if row[1] and (row[1] not in clusterInfo.keys()):
+                        clusterInfo[row[1]] = {
+                            'id': row[1],
+                            'classification': {},
+                            'required': [],
+                            'images': {},
+                            'label': [],
+                            'label_ids': [],
+                            'tags': [],
+                            'tag_ids': [],
+                            'groundTruth': [],
+                            'trapGroup': 'None',
+                            'notes': row[2]
+                        }
 
-            # Handle detections
-            if row[7] and (row[7] not in clusterInfo[row[1]]['images'][row[3]]['detections'].keys()):
-                clusterInfo[row[1]]['images'][row[3]]['detections'][row[7]] = {
-                    'id': row[7],
-                    'top': row[8],
-                    'bottom': row[9],
-                    'left': row[10],
-                    'right': row[11],
-                    'category': row[12],
-                    'individuals': [],
-                    'static': row[13],
-                    'labels': []
-                }
+                    # Handle images
+                    if row[3] and (row[3] not in clusterInfo[row[1]]['images'].keys()):
+                        clusterInfo[row[1]]['images'][row[3]] = {
+                            'id': row[3],
+                            'url': row[14] + '/' + row[4],
+                            'filename': row[4],
+                            'timestamp': numify_timestamp(row[5]),
+                            'camera': row[15],
+                            'rating': row[6],
+                            'latitude': row[16],
+                            'longitude': row[17],
+                            'detections': {}
+                        }
+
+                    # Handle detections
+                    if row[7] and (row[7] not in clusterInfo[row[1]]['images'][row[3]]['detections'].keys()):
+                        clusterInfo[row[1]]['images'][row[3]]['detections'][row[7]] = {
+                            'id': row[7],
+                            'top': row[8],
+                            'bottom': row[9],
+                            'left': row[10],
+                            'right': row[11],
+                            'category': row[12],
+                            'individuals': [],
+                            'static': row[13],
+                            'labels': []
+                        }
 
         return clusterInfo, individuals
 

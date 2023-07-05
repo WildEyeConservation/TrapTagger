@@ -15,7 +15,7 @@ limitations under the License.
 '''
 
 from config import Config
-if Config.MONKEY_PATCH:
+if Config.MONKEY_PATCH=='true':
     from gevent import monkey
     monkey.patch_all()
 
@@ -36,8 +36,8 @@ from kombu import Queue
 from flask_mail import Mail
 from werkzeug.middleware.proxy_fix import ProxyFix
 from celery.signals import celeryd_after_setup
-import debugpy
-debugpy.listen(5679)
+# import debugpy
+# debugpy.listen(5678)
 
 REDIS_IP = os.environ.get('REDIS_IP') or '127.0.0.1'
 REDIS_ADDRESS = 'redis://'+REDIS_IP+':6379/0'

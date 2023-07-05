@@ -413,8 +413,9 @@ class DetSimilarity(db.Model):
 
 
 class IndSimilarity(db.Model):
-    individual_1 = db.Column(db.Integer, db.ForeignKey('individual.id'), primary_key=True)
-    individual_2 = db.Column(db.Integer, db.ForeignKey('individual.id'), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
+    individual_1 = db.Column(db.Integer, db.ForeignKey('individual.id'))
+    individual_2 = db.Column(db.Integer, db.ForeignKey('individual.id'))
     detection_1 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     detection_2 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     score = db.Column(db.Float, index=True)

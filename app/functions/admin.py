@@ -193,26 +193,26 @@ def delete_task(self,task_id):
                 message = 'Could not delete labels.'
                 app.logger.info('Failed to delete labels.')
 
-        #Dissociate remaining multi-task individuals from this task's workers
-        if status != 'error':
-            try:
-                individuals = db.session.query(Individual)\
-                                        .join(User,or_(User.id==Individual.user_id,User.id==Individual.allocated))\
-                                        .join(Turkcode)\
-                                        .filter(Turkcode.task_id==task_id) \
-                                        .filter(User.email==None) \
-                                        .all()
+        # #Dissociate remaining multi-task individuals from this task's workers
+        # if status != 'error':
+        #     try:
+        #         individuals = db.session.query(Individual)\
+        #                                 .join(User,or_(User.id==Individual.user_id,User.id==Individual.allocated))\
+        #                                 .join(Turkcode)\
+        #                                 .filter(Turkcode.task_id==task_id) \
+        #                                 .filter(User.email==None) \
+        #                                 .all()
                 
-                for individual in individuals:
-                    individual.user_id = None
-                    individual.allocated = None
+        #         for individual in individuals:
+        #             individual.user_id = None
+        #             individual.allocated = None
                 
-                db.session.commit()
-                app.logger.info('Multi-task individuals dissociated successfully.')
-            except:
-                status = 'error'
-                message = 'Could not dissociate multi-task individuals.'
-                app.logger.info('Failed to dissociate multi-task individuals.')
+        #         db.session.commit()
+        #         app.logger.info('Multi-task individuals dissociated successfully.')
+        #     except:
+        #         status = 'error'
+        #         message = 'Could not dissociate multi-task individuals.'
+        #         app.logger.info('Failed to dissociate multi-task individuals.')
 
         #Delete turkcodes & workers
         if status != 'error':
@@ -295,6 +295,8 @@ def stop_task(self,task_id):
                 db.session.commit()
             elif '-5' in task.tagging_level:
                 cleanUpIndividuals(task_id)
+                GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
+                GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
             updateTaskCompletionStatus(int(task_id))
             updateLabelCompletionStatus(int(task_id))

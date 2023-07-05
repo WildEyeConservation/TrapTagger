@@ -1637,23 +1637,17 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
             if Config.DEBUGGING: app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
             from app.functions.individualID import calculate_individual_similarities
             calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
-        # elif '-5' in task.tagging_level:
-        #     #flush allocations
-        #     allocateds = session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
-        #     for allocated in allocateds:
-        #         allocated.allocated = None
-        #         allocated.allocation_timestamp = None
-
-        #     allocateds = session.query(Individual).filter(Individual.allocated==user.id).all()
-        #     for allocated in allocateds:
-        #         allocated.allocated = None
-        #         allocated.allocation_timestamp = None
-
-        for trapgroup in user.trapgroup:
-            trapgroup.user_id = None
-            if trapgroup.active:
-                GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
-                GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
+        
+        if '-5' in task.tagging_level:
+            #flush allocations
+            GLOBALS.redisClient.delete('user_individuals_'+str(user.id))
+            GLOBALS.redisClient.delete('user_indsims_'+str(user.id))
+        else:
+            for trapgroup in user.trapgroup:
+                trapgroup.user_id = None
+                if trapgroup.active:
+                    GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+                    GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
 
         # user.trapgroup = []
         # user.passed = 'cFalse'
