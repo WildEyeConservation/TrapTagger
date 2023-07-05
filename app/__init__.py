@@ -165,6 +165,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         from app.functions.imports import setupDatabase
         from app.functions.annotation import manageTasks, manageDownloads
         from app.functions.globals import importMonitor
+        import GLOBALS
    
         # Try to create the database in case it does not exist. If it allready exists a sqlalchemy ProgrammingError
         # exception will be raised, which we can then ignore.
