@@ -4275,7 +4275,7 @@ def getSuggestion(individual_id):
     if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
 
         if suggestionID:
-            suggestion = db.session.query(IndSimilarity).filter(\
+            indSim = db.session.query(IndSimilarity).filter(\
                                         or_(\
                                             and_(\
                                                 IndSimilarity.individual_1==int(individual_id),\
@@ -4284,6 +4284,11 @@ def getSuggestion(individual_id):
                                                 IndSimilarity.individual_1==int(suggestionID),\
                                                 IndSimilarity.individual_2==int(individual_id))\
                                         )).first()
+
+            if indSim and GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),indSim.id):
+                userIndSms = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(current_user.id),0,-1)]
+                if indSim.id in userIndSms:
+                    suggestion = item
 
             # if suggestion and not GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id):
             #     GLOBALS.redisClient.sadd('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id)

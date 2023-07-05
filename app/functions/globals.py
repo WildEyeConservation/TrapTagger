@@ -1640,8 +1640,16 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         
         if '-5' in task.tagging_level:
             #flush allocations
+            userIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_individuals_'+str(user.id),0,-1)]
+            for userIndividual in userIndividuals:
+                GLOBALS.redisClient.srem('active_individuals_'+str(task_id),userIndividual)
             GLOBALS.redisClient.delete('user_individuals_'+str(user.id))
+
+            userIndSims = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(user.id),0,-1)]
+            for userIndSim in userIndSims:
+                GLOBALS.redisClient.srem('active_indsims_'+str(task_id),userIndSim)
             GLOBALS.redisClient.delete('user_indsims_'+str(user.id))
+
         else:
             for trapgroup in user.trapgroup:
                 trapgroup.user_id = None

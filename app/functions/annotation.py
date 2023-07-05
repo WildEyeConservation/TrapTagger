@@ -898,7 +898,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
         OtherIndividual = alias(Individual)
         individuals = []
 
-        allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.lrange('active_indsims_'+str(task_id),0,-1)]
+        allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_indsims_'+str(task_id))]
 
         # Find indviduals (joined on left side of similarity) with work available
         sq1 = db.session.query(Individual.id.label('indID1'))\

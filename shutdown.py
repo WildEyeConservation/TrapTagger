@@ -22,6 +22,7 @@ from config import Config
 import importlib
 import re
 import GLOBALS
+from app.models import *
 
 # Stop all task consumption
 allQueues = ['default'] #default needs to be first
