@@ -17,7 +17,7 @@ limitations under the License.
 from app import app, db, celery
 from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
-                                    retryTime, chunker, populateMutex, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
+                                    retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
 from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
 import GLOBALS
@@ -193,32 +193,32 @@ def delete_task(self,task_id):
                 message = 'Could not delete labels.'
                 app.logger.info('Failed to delete labels.')
 
-        #Dissociate remaining multi-task individuals from this task's workers
-        if status != 'error':
-            try:
-                individuals = db.session.query(Individual)\
-                                        .join(User,or_(User.id==Individual.user_id,User.id==Individual.allocated))\
-                                        .join(Turkcode,Turkcode.user_id==User.username)\
-                                        .filter(Turkcode.task_id==task_id) \
-                                        .filter(User.email==None) \
-                                        .all()
+        # #Dissociate remaining multi-task individuals from this task's workers
+        # if status != 'error':
+        #     try:
+        #         individuals = db.session.query(Individual)\
+        #                                 .join(User,or_(User.id==Individual.user_id,User.id==Individual.allocated))\
+        #                                 .join(Turkcode)\
+        #                                 .filter(Turkcode.task_id==task_id) \
+        #                                 .filter(User.email==None) \
+        #                                 .all()
                 
-                for individual in individuals:
-                    individual.user_id = None
-                    individual.allocated = None
+        #         for individual in individuals:
+        #             individual.user_id = None
+        #             individual.allocated = None
                 
-                db.session.commit()
-                app.logger.info('Multi-task individuals dissociated successfully.')
-            except:
-                status = 'error'
-                message = 'Could not dissociate multi-task individuals.'
-                app.logger.info('Failed to dissociate multi-task individuals.')
+        #         db.session.commit()
+        #         app.logger.info('Multi-task individuals dissociated successfully.')
+        #     except:
+        #         status = 'error'
+        #         message = 'Could not dissociate multi-task individuals.'
+        #         app.logger.info('Failed to dissociate multi-task individuals.')
 
         #Delete turkcodes & workers
         if status != 'error':
             try:
                 data = db.session.query(Turkcode,User) \
-                                    .join(User, User.username==Turkcode.user_id) \
+                                    .join(User) \
                                     .filter(Turkcode.task_id==task_id) \
                                     .filter(User.email==None) \
                                     .all()
@@ -269,20 +269,21 @@ def stop_task(self,task_id):
             survey = task.survey
             app.logger.info(task.survey.name + ': ' + task.name + ' stopped')
 
-            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[task_id]['job'].acquire()
-            turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==int(task_id)).filter(User.id==None).filter(Turkcode.active==True).all()
+            GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
+            GLOBALS.redisClient.delete('job_pool_'+str(task.id))
+
+            turkcodes = db.session.query(Turkcode).outerjoin(User).filter(Turkcode.task_id==int(task_id)).filter(User.id==None).filter(Turkcode.active==True).all()
             for turkcode in turkcodes:
                 db.session.delete(turkcode)
 
             db.session.commit()
-            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[task_id]['job'].release()
 
-            abandoned_jobs = db.session.query(User,Task) \
-                                .join(Turkcode, User.username==Turkcode.user_id) \
+            active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_id))]
+            abandoned_jobs = session.query(User,Task)\
+                                .join(Turkcode,Turkcode.user_id==User.id)\
                                 .join(Task)\
-                                .filter(User.parent_id!=None) \
-                                .filter(~User.passed.in_(['cTrue','cFalse'])) \
-                                .filter(Turkcode.task_id==int(task_id)) \
+                                .filter(User.parent_id!=None)\
+                                .filter(Turkcode.code.in_(active_jobs))\
                                 .all()
 
             resolve_abandoned_jobs(abandoned_jobs)
@@ -294,12 +295,14 @@ def stop_task(self,task_id):
                 db.session.commit()
             elif '-5' in task.tagging_level:
                 cleanUpIndividuals(task_id)
+                GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
+                GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
             updateTaskCompletionStatus(int(task_id))
             updateLabelCompletionStatus(int(task_id))
             updateIndividualIdStatus(int(task_id))
 
-            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
+            # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
             task.current_name = None
             task.status = 'Stopped'
@@ -334,6 +337,9 @@ def stop_task(self,task_id):
 
                 if not still_processing:
                     survey.status = 'Ready'
+
+            #remove trapgroup list from redis
+            GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
 
             db.session.commit()
 

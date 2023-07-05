@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import populateMutex, taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
+from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
@@ -281,28 +281,8 @@ def launch_task(self,task_id):
                 for skip in skips:
                     skip.skipped = False
 
-                allocateds = db.session.query(IndSimilarity)\
-                                .join(Individual, IndSimilarity.individual_1==Individual.id)\
-                                .join(Task,Individual.tasks)\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==species)\
-                                .filter(IndSimilarity.allocated!=None)\
-                                .distinct().all()
-
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
-
-                allocateds = db.session.query(Individual)\
-                                .join(Task,Individual.tasks)\
-                                .filter(Task.id.in_(task_ids))\
-                                .filter(Individual.species==species)\
-                                .filter(Individual.allocated!=None)\
-                                .distinct().all()
-
-                for allocated in allocateds:
-                    allocated.allocated = None
-                    allocated.allocation_timestamp = None
+                GLOBALS.redisClient.delete('active_individuals_'+str(task.id))
+                GLOBALS.redisClient.delete('active_indsims_'+str(task.id))
 
                 # db.session.commit()
         
@@ -422,6 +402,7 @@ def launch_task(self,task_id):
 
                 if clusterCount != 0:
                     trapgroup.active = True
+                    GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
                 else:
                     trapgroup.active = False
 
@@ -432,7 +413,7 @@ def launch_task(self,task_id):
         task.status = 'PROGRESS'
         db.session.commit()
 
-        populateMutex(int(task_id))
+        # populateMutex(int(task_id))
 
     except Exception as exc:
         app.logger.info(' ')
@@ -477,6 +458,7 @@ def freeUpWork(task,session):
 
         for trapgroup in trapgroups:
             trapgroup.active = True
+            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
 
     return True
 
@@ -487,12 +469,12 @@ def wrapUpTask(self,task_id):
     try:
         task = db.session.query(Task).get(task_id)
 
-        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].acquire()
-        turkcodes = db.session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(User.id==None).filter(Turkcode.active==True).all()
+        GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
+        GLOBALS.redisClient.delete('job_pool_'+str(task.id))
+
+        turkcodes = db.session.query(Turkcode).outerjoin(User).filter(Turkcode.task_id==task_id).filter(User.id==None).filter(Turkcode.active==True).all()
         for turkcode in turkcodes:
             db.session.delete(turkcode)
-
-        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].release()
 
         if '-5' in task.tagging_level:
             cleanUpIndividuals(task_id)
@@ -518,7 +500,7 @@ def wrapUpTask(self,task_id):
             task.status = 'SUCCESS'
 
         turkcodes = db.session.query(Turkcode)\
-                            .join(User, User.username==Turkcode.user_id)\
+                            .join(User)\
                             .filter(User.parent_id!=None)\
                             .filter(Turkcode.task_id==task_id)\
                             .filter(Turkcode.tagging_time!=None)\
@@ -544,6 +526,10 @@ def wrapUpTask(self,task_id):
             if incompleteIndividuals == 0:
                 task.survey.status = 'Ready'
 
+        elif '-5' in task.tagging_level:
+            GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
+            GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
+
         elif '-3' in task.tagging_level:
             task.ai_check_complete = True
 
@@ -557,7 +543,10 @@ def wrapUpTask(self,task_id):
             sub_task.survey.status = 'Ready'
         task.sub_tasks = []
 
-        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(int(task_id), None)
+        #remove trapgroup list from redis
+        GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
+
+        # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(int(task_id), None)
         db.session.commit()
 
     except Exception as exc:
@@ -581,8 +570,8 @@ def manage_task(task,session):
     survey_id = task.survey_id
     jobs_to_delete = 0
 
-    if not populateMutex(int(task_id)):
-        return False, jobs_to_delete
+    # if not populateMutex(int(task_id)):
+    #     return False, jobs_to_delete
 
     #Manage number of workers
     if '-5' in taggingLevel:
@@ -648,14 +637,16 @@ def manage_task(task,session):
         max_workers_possible = 1
 
     #Check job count
-    task_jobs = session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
-    active_jobs = session.query(Turkcode) \
-                                .join(User, User.username==Turkcode.user_id) \
-                                .filter(User.parent_id!=None) \
-                                .filter(~User.passed.in_(['cTrue','cFalse'])) \
-                                .filter(Turkcode.task_id==task_id) \
-                                .filter(Turkcode.active==False) \
-                                .count()
+    task_jobs = GLOBALS.redisClient.scard('job_pool_'+str(task_id))
+    active_jobs = GLOBALS.redisClient.scard('active_jobs_'+str(task_id))
+    # task_jobs = session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).count()
+    # active_jobs = session.query(Turkcode) \
+    #                             .join(User) \
+    #                             .filter(User.parent_id!=None) \
+    #                             .filter(~User.passed.in_(['cTrue','cFalse'])) \
+    #                             .filter(Turkcode.task_id==task_id) \
+    #                             .filter(Turkcode.active==False) \
+    #                             .count()
     task_jobs += active_jobs
 
     if task_jobs < max_workers_possible:
@@ -710,49 +701,49 @@ def manageTasks():
         for task in tasks:
             task.status = 'successInitial'
 
-        #Look for abandoned jobs
-        abandoned_jobs = session.query(User,Task)\
-                                .join(Turkcode,User.username==Turkcode.user_id)\
-                                .join(Task)\
-                                .filter(User.parent_id!=None)\
-                                .filter(~User.passed.in_(['cTrue','cFalse']))\
-                                .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
-                                .filter(Turkcode.active==False)\
-                                .all()
+        # #Look for abandoned jobs
+        # abandoned_jobs = session.query(User,Task)\
+        #                         .join(Turkcode,Turkcode.user_id==User.id)\
+        #                         .join(Task)\
+        #                         .filter(User.parent_id!=None)\
+        #                         .filter(~User.passed.in_(['cTrue','cFalse']))\
+        #                         .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
+        #                         .filter(Turkcode.active==False)\
+        #                         .all()
 
-        if abandoned_jobs:
-            resolve_abandoned_jobs(abandoned_jobs,session)
-            session.commit()
+        # if abandoned_jobs:
+        #     resolve_abandoned_jobs(abandoned_jobs,session)
+        #     session.commit()
 
-        # Ensure there are no locked-out individuals
-        allocateds = session.query(IndSimilarity)\
-                            .join(User)\
-                            .filter(User.passed.in_(['cTrue','cFalse']))\
-                            .distinct().all()
+        # # Ensure there are no locked-out individuals
+        # allocateds = session.query(IndSimilarity)\
+        #                     .join(User)\
+        #                     .filter(User.passed.in_(['cTrue','cFalse']))\
+        #                     .distinct().all()
         
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        # for allocated in allocateds:
+        #     allocated.allocated = None
+        #     allocated.allocation_timestamp = None
 
-        allocateds = session.query(Individual)\
-                            .join(User, User.id==Individual.allocated)\
-                            .filter(User.passed.in_(['cTrue','cFalse']))\
-                            .distinct().all()
+        # allocateds = session.query(Individual)\
+        #                     .join(User, User.id==Individual.allocated)\
+        #                     .filter(User.passed.in_(['cTrue','cFalse']))\
+        #                     .distinct().all()
         
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        # for allocated in allocateds:
+        #     allocated.allocated = None
+        #     allocated.allocation_timestamp = None
 
-        #Catch trapgroups that are still allocated to users that are finished
-        trapgroups = session.query(Trapgroup)\
-                            .join(User)\
-                            .filter(User.passed.in_(['cTrue','cFalse']))\
-                            .distinct().all()
+        # #Catch trapgroups that are still allocated to users that are finished
+        # trapgroups = session.query(Trapgroup)\
+        #                     .join(User)\
+        #                     .filter(User.passed.in_(['cTrue','cFalse']))\
+        #                     .distinct().all()
 
-        for trapgroup in trapgroups:
-            trapgroup.user_id = None
+        # for trapgroup in trapgroups:
+        #     trapgroup.user_id = None
 
-        session.commit()
+        # session.commit()
 
         Owner = alias(User)
         Worker = alias(User)
@@ -762,7 +753,7 @@ def manageTasks():
                         .outerjoin(workersTable,Owner.c.id==workersTable.c.user_id)\
                         .outerjoin(Worker,Worker.c.id==workersTable.c.worker_id)\
                         .outerjoin(Turkcode)\
-                        .outerjoin(User,User.username==Turkcode.user_id)\
+                        .outerjoin(User)\
                         .filter(or_(
                             User.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
                             Owner.c.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
@@ -771,6 +762,53 @@ def manageTasks():
                         .filter(Task.status=='PROGRESS')\
                         .distinct().all()
         print('{} tasks are currently active.'.format(len(tasks)))
+
+        active_jobs = []
+        for task in tasks:
+            active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task.id))]
+
+        #Look for abandoned jobs
+        abandoned_jobs = session.query(User,Task)\
+                            .join(Turkcode,Turkcode.user_id==User.id)\
+                            .join(Task)\
+                            .filter(User.parent_id!=None)\
+                            .filter(Turkcode.code.in_(active_jobs))\
+                            .filter(User.last_ping<(datetime.utcnow()-timedelta(minutes=3)))\
+                            .all()
+
+        if abandoned_jobs:
+            resolve_abandoned_jobs(abandoned_jobs,session)
+            session.commit()
+
+        # # Ensure there are no locked-out individuals
+        # allocateds = session.query(IndSimilarity)\
+        #                     .join(User)\
+        #                     .filter(~User.username.in_(active_jobs))\
+        #                     .distinct().all()
+        
+        # for allocated in allocateds:
+        #     allocated.allocated = None
+        #     allocated.allocation_timestamp = None
+
+        # allocateds = session.query(Individual)\
+        #                     .join(User, User.id==Individual.allocated)\
+        #                     .filter(~User.username.in_(active_jobs))\
+        #                     .distinct().all()
+        
+        # for allocated in allocateds:
+        #     allocated.allocated = None
+        #     allocated.allocation_timestamp = None
+
+        #Catch trapgroups that are still allocated to users that are finished
+        trapgroups = session.query(Trapgroup)\
+                            .join(User)\
+                            .filter(~User.username.in_(active_jobs))\
+                            .distinct().all()
+
+        for trapgroup in trapgroups:
+            trapgroup.user_id = None
+
+        session.commit()
 
         # pool = Pool(processes=4)
         wrapUps = []
@@ -811,33 +849,36 @@ def manageTasks():
 def allocate_new_trapgroup(task_id,user_id,survey_id,session):
     '''Allocates a new trapgroup to the specified user for the given task. Attempts to free up trapgroups if none are available. Returns the allocate trapgroup.'''
 
-    trapgroup = session.query(Trapgroup) \
-                    .filter(Trapgroup.survey_id==survey_id)\
-                    .filter(Trapgroup.active == True) \
-                    .filter(Trapgroup.user_id == None) \
-                    .first()
+    trapgroup = GLOBALS.redisClient.lpop('trapgroups_'+str(survey_id))
+    
+    # trapgroup = session.query(Trapgroup) \
+    #                 .filter(Trapgroup.survey_id==survey_id)\
+    #                 .filter(Trapgroup.active == True) \
+    #                 .filter(Trapgroup.user_id == None) \
+    #                 .first()
 
-    if trapgroup == None:
-        #Try to free up trapgroups
-        trapgroups = session.query(Trapgroup) \
-                        .join(Camera) \
-                        .join(Image) \
-                        .join(Cluster, Image.clusters) \
-                        .filter(Cluster.task_id == task_id) \
-                        .filter(Trapgroup.active == False) \
-                        .filter(Trapgroup.queueing == False) \
-                        .filter(Trapgroup.processing == False) \
-                        .filter(Trapgroup.user_id == None) \
-                        .filter(Cluster.examined==False)\
-                        .distinct().all()
+    # if trapgroup == None:
+    #     #Try to free up trapgroups
+    #     trapgroups = session.query(Trapgroup) \
+    #                     .join(Camera) \
+    #                     .join(Image) \
+    #                     .join(Cluster, Image.clusters) \
+    #                     .filter(Cluster.task_id == task_id) \
+    #                     .filter(Trapgroup.active == False) \
+    #                     .filter(Trapgroup.queueing == False) \
+    #                     .filter(Trapgroup.processing == False) \
+    #                     .filter(Trapgroup.user_id == None) \
+    #                     .filter(Cluster.examined==False)\
+    #                     .distinct().all()
 
-        for trapgroup in trapgroups:
-            trapgroup.active = True
+    #     for trapgroup in trapgroups:
+    #         trapgroup.active = True
 
-        if trapgroups:
-            trapgroup = trapgroups[0]
+    #     if trapgroups:
+    #         trapgroup = trapgroups[0]
 
     if trapgroup:
+        trapgroup = session.query(Trapgroup).get(int(trapgroup.decode()))
         trapgroup.user_id = user_id
         session.commit()
 
@@ -855,6 +896,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
         tL = re.split(',',taggingLevel)
         species = tL[1]
         OtherIndividual = alias(Individual)
+        individuals = []
+
+        allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_indsims_'+str(task_id))]
 
         # Find indviduals (joined on left side of similarity) with work available
         sq1 = db.session.query(Individual.id.label('indID1'))\
@@ -863,7 +907,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.allocated==None)\
+                        .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
@@ -880,7 +924,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
                         .filter(OtherIndividual.c.active==True)\
                         .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(IndSimilarity.allocated==None)\
+                        .filter(~IndSimilarity.id.in_(allocatedIndSims))\
                         .filter(IndSimilarity.score>=tL[2])\
                         .filter(IndSimilarity.skipped==False)\
                         .filter(Task.id.in_(task_ids))\
@@ -931,62 +975,64 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .join(Camera)\
                         .join(Trapgroup)\
                         .filter(Task.id.in_(task_ids))\
-                        .filter(Individual.allocated==None)\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(~Detection.status.in_(['deleted','hidden']))\
                         .filter(Detection.static==False)\
                         .order_by(desc(sq3.c.count3)).all()
 
-        if clusters:
-            individuals = [clusters[0][0]]
-        else:
-            individuals = []
-
         for row in clusters:
-            # Handle clusters
-            if row[1] and (row[1] not in clusterInfo.keys()):
-                clusterInfo[row[1]] = {
-                    'id': row[1],
-                    'classification': {},
-                    'required': [],
-                    'images': {},
-                    'label': [],
-                    'label_ids': [],
-                    'tags': [],
-                    'tag_ids': [],
-                    'groundTruth': [],
-                    'trapGroup': 'None',
-                    'notes': row[2]
-                }
+            # sadd returns 1 if the item was added to the set, 0 if it was already in the set
+            if GLOBALS.redisClient.sadd('active_individuals_'+str(task_id),row[1]):
+                individuals.append(row[0])
+                break
 
-            # Handle images
-            if row[3] and (row[3] not in clusterInfo[row[1]]['images'].keys()):
-                clusterInfo[row[1]]['images'][row[3]] = {
-                    'id': row[3],
-                    'url': row[14] + '/' + row[4],
-                    'filename': row[4],
-                    'timestamp': numify_timestamp(row[5]),
-                    'camera': row[15],
-                    'rating': row[6],
-                    'latitude': row[16],
-                    'longitude': row[17],
-                    'detections': {}
-                }
+        if individuals:
+            for row in clusters:
+                # Handle clusters
+                if row[0] and (row[0] in individuals):
+                    if row[1] and (row[1] not in clusterInfo.keys()):
+                        clusterInfo[row[1]] = {
+                            'id': row[1],
+                            'classification': {},
+                            'required': [],
+                            'images': {},
+                            'label': [],
+                            'label_ids': [],
+                            'tags': [],
+                            'tag_ids': [],
+                            'groundTruth': [],
+                            'trapGroup': 'None',
+                            'notes': row[2]
+                        }
 
-            # Handle detections
-            if row[7] and (row[7] not in clusterInfo[row[1]]['images'][row[3]]['detections'].keys()):
-                clusterInfo[row[1]]['images'][row[3]]['detections'][row[7]] = {
-                    'id': row[7],
-                    'top': row[8],
-                    'bottom': row[9],
-                    'left': row[10],
-                    'right': row[11],
-                    'category': row[12],
-                    'individuals': [],
-                    'static': row[13],
-                    'labels': []
-                }
+                    # Handle images
+                    if row[3] and (row[3] not in clusterInfo[row[1]]['images'].keys()):
+                        clusterInfo[row[1]]['images'][row[3]] = {
+                            'id': row[3],
+                            'url': row[14] + '/' + row[4],
+                            'filename': row[4],
+                            'timestamp': numify_timestamp(row[5]),
+                            'camera': row[15],
+                            'rating': row[6],
+                            'latitude': row[16],
+                            'longitude': row[17],
+                            'detections': {}
+                        }
+
+                    # Handle detections
+                    if row[7] and (row[7] not in clusterInfo[row[1]]['images'][row[3]]['detections'].keys()):
+                        clusterInfo[row[1]]['images'][row[3]]['detections'][row[7]] = {
+                            'id': row[7],
+                            'top': row[8],
+                            'bottom': row[9],
+                            'left': row[10],
+                            'right': row[11],
+                            'category': row[12],
+                            'individuals': [],
+                            'static': row[13],
+                            'labels': []
+                        }
 
         return clusterInfo, individuals
 
