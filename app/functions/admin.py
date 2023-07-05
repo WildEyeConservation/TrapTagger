@@ -302,7 +302,7 @@ def stop_task(self,task_id):
             updateLabelCompletionStatus(int(task_id))
             updateIndividualIdStatus(int(task_id))
 
-            if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
+            # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
             task.current_name = None
             task.status = 'Stopped'

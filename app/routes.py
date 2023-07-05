@@ -4731,7 +4731,7 @@ def get_clusters():
     limit = 1
     label_description = None
 
-    if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+    if GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),0)
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
         label_description = session.query(Label).get(int(taggingLevel)).description
@@ -4758,8 +4758,8 @@ def get_clusters():
                     indID = GLOBALS.redisClient.lpop('user_individuals_'+str(current_user.id))
                     if indID: GLOBALS.redisClient.srem('active_individuals_'+str(current_user.turkcode[0].task_id),int(indID.decode()))
 
-            clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(individuals)
-            GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+            clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + len(individuals)
+            GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),clusters_allocated)
             # current_user.last_ping = datetime.utcnow()
             session.commit()
 
@@ -4778,17 +4778,17 @@ def get_clusters():
                 # GLOBALS.mutex[task_id]['global'].release()
                 return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
-            limit = task_size - GLOBALS.clusters_allocated[current_user.id]
+            limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode())
             clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
             # if len(clusterInfo)==0: current_user.trapgroup = []
             if len(clusterInfo) <= limit:
-                clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(clusterInfo)
+                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + len(clusterInfo)
                 trapgroup.active = False
                 GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
             else:
-                clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
-            GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + limit
+            GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),clusters_allocated)
 
             # current_user.last_ping = datetime.utcnow()
             
@@ -4918,7 +4918,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     finished = False
     if task.survey.user==current_user:
         if int(clusterID) != -102:
-            GLOBALS.mutex[int(task_id)]['global'].acquire()
+            # GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
             F_index = int(F_index)
             app.logger.info('GetKnockCluster: Status:{} Index:{} ImageIndex:{}'.format(knockedstatus, index, imageIndex))
@@ -5131,10 +5131,10 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
             # checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
 
-        if int(clusterID) != -102: GLOBALS.mutex[int(task_id)]['global'].release()
+        # if int(clusterID) != -102: GLOBALS.mutex[int(task_id)]['global'].release()
 
-        if finished:
-            GLOBALS.mutex.pop(int(task_id), None)
+        # if finished:
+        #     GLOBALS.mutex.pop(int(task_id), None)
 
     else:
         result = json.dumps('error')
@@ -5641,7 +5641,7 @@ def assignLabel(clusterID):
                                                 .first()
 
                         if tgs_available and (not explore) and removable_detections:
-                            if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+                            if GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),0)
                             reAllocated = True
                             trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
                             survey_id = task.survey_id
@@ -5649,7 +5649,7 @@ def assignLabel(clusterID):
                             trapgroup.processing = True
                             trapgroup.active = False
                             trapgroup.user_id = None
-                            GLOBALS.clusters_allocated[current_user.id] = num
+                            GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),num)
 
                             label_description = None
                             if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
@@ -5659,33 +5659,34 @@ def assignLabel(clusterID):
                             removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
 
                             # Get a new batch of clusters
-                            session.close()
-                            GLOBALS.mutex[task_id]['global'].acquire()
-                            # Open a new session to ensure allocations are up to date after a long wait
-                            session = db.session()
-                            session.add(current_user)
-                            session.refresh(current_user)
+                            # session.close()
+                            # GLOBALS.mutex[task_id]['global'].acquire()
+                            # # Open a new session to ensure allocations are up to date after a long wait
+                            # session = db.session()
+                            # session.add(current_user)
+                            # session.refresh(current_user)
 
                             trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
                             if trapgroup == None:
                                 session.close()
-                                GLOBALS.mutex[task_id]['global'].release()
+                                # GLOBALS.mutex[task_id]['global'].release()
                                 newClusters = []
                             else:
-                                limit = task_size - GLOBALS.clusters_allocated[current_user.id]
+                                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode())
                                 clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if len(clusterInfo) <= limit:
-                                    clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(clusterInfo)
+                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + len(clusterInfo)
                                     trapgroup.active = False
+                                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
                                 else:
-                                    clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
-                                GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + limit
+                                GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),clusters_allocated)
                                 
                                 session.commit()
                                 session.close()
-                                GLOBALS.mutex[task_id]['global'].release()
+                                # GLOBALS.mutex[task_id]['global'].release()
 
                                 newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None,label_description)['info']
 
@@ -6394,6 +6395,7 @@ def done():
 
     # current_user.passed = 'cTrue'
     GLOBALS.redisClient.srem('active_jobs_'+str(task_id),turkcode.code)
+    GLOBALS.redisClient.delete('clusters_allocated'+str(current_user.id))
     turkcode.active = False
 
     for trapgroup in current_user.trapgroup:
@@ -6405,7 +6407,6 @@ def done():
     db.session.commit()
 
     # GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
-    GLOBALS.clusters_allocated.pop(current_user.id, None)
 
     if current_user.parent_id:
         admin_user = current_user.parent
@@ -6857,9 +6858,9 @@ def knockdown(imageId, clusterId):
                 if (check > 0):
                     return ""
 
-                if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+                if GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),0)
 
-                GLOBALS.clusters_allocated[current_user.id] = num_cluster
+                GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),num_cluster)
                 db.session.commit()
 
                 if trapgroup.processing:
@@ -7167,15 +7168,21 @@ def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
 
     files = request.json['filenames']
-    
-    results = []
-    pool = Pool(processes=4)
-    for file in files:
-        results.append(pool.apply_async(checkFile,(file,current_user.folder)))
-    pool.close()
-    pool.join()
 
-    already_uploaded = [result for result in [result.get() for result in results] if result!=None]
+    already_uploaded = []
+    for file in files:
+        result = checkFile(file,current_user.folder)
+        if result:
+            already_uploaded.append(result)
+    
+    # results = []
+    # pool = Pool(processes=4)
+    # for file in files:
+    #     results.append(pool.apply_async(checkFile,(file,current_user.folder)))
+    # pool.close()
+    # pool.join()
+
+    # already_uploaded = [result for result in [result.get() for result in results] if result!=None]
 
     return json.dumps(already_uploaded)
 

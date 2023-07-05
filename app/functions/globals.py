@@ -51,98 +51,98 @@ from iptcinfo3 import IPTCInfo
 import piexif
 import io
 
-def cleanupWorkers(one, two):
-    '''
-    Reschedules all active Celery tasks on app shutdown. Docker stop flask, and then docker-compose down when message appears. Alternatively, if you do 
-    not wish to reschedule the currently active Celery tasks, use docker kill flask instead.
-    '''
+# def cleanupWorkers(one, two):
+#     '''
+#     Reschedules all active Celery tasks on app shutdown. Docker stop flask, and then docker-compose down when message appears. Alternatively, if you do 
+#     not wish to reschedule the currently active Celery tasks, use docker kill flask instead.
+#     '''
 
-    # Stop all task consumption
-    allQueues = ['default'] #default needs to be first
-    allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
-    allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
-    for queue in allQueues:
-        celery.control.cancel_consumer(queue)
+#     # Stop all task consumption
+#     allQueues = ['default'] #default needs to be first
+#     allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+#     allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+#     for queue in allQueues:
+#         celery.control.cancel_consumer(queue)
 
-    app.logger.info('')
-    app.logger.info('*********************************************************')
-    app.logger.info('')
-    app.logger.info('All queues cancelled. Revoking active tasks...')
+#     app.logger.info('')
+#     app.logger.info('*********************************************************')
+#     app.logger.info('')
+#     app.logger.info('All queues cancelled. Revoking active tasks...')
     
-    # revoke active and reserved tasks
-    active_tasks = []
-    inspector = celery.control.inspect()
-    inspector_reserved = inspector.reserved()
-    inspector_active = inspector.active()
-    defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
+#     # revoke active and reserved tasks
+#     active_tasks = []
+#     inspector = celery.control.inspect()
+#     inspector_reserved = inspector.reserved()
+#     inspector_active = inspector.active()
+#     defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
 
-    if inspector_active!=None:
-        for worker in inspector_active:
-            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_active[worker])
-            for task in inspector_active[worker]:
-                try:
-                    celery.control.revoke(task['id'], terminate=True)
-                except:
-                    pass
+#     if inspector_active!=None:
+#         for worker in inspector_active:
+#             if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_active[worker])
+#             for task in inspector_active[worker]:
+#                 try:
+#                     celery.control.revoke(task['id'], terminate=True)
+#                 except:
+#                     pass
     
-    if inspector_reserved != None:
-        for worker in inspector_reserved:
-            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_reserved[worker])
-            for task in inspector_reserved[worker]:
-                try:
-                    celery.control.revoke(task['id'], terminate=True)
-                except:
-                    pass
+#     if inspector_reserved != None:
+#         for worker in inspector_reserved:
+#             if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_reserved[worker])
+#             for task in inspector_reserved[worker]:
+#                 try:
+#                     celery.control.revoke(task['id'], terminate=True)
+#                 except:
+#                     pass
 
-    app.logger.info('Active tasks revoked. Flushing queues...')
+#     app.logger.info('Active tasks revoked. Flushing queues...')
 
-    # Flush all other (non-default) queues
-    for queue in allQueues:
-        if queue not in ['default','ram_intensive']:
-            while True:
-                task = GLOBALS.redisClient.blpop(queue, timeout=1)
-                if not task:
-                    break
+#     # Flush all other (non-default) queues
+#     for queue in allQueues:
+#         if queue not in ['default','ram_intensive']:
+#             while True:
+#                 task = GLOBALS.redisClient.blpop(queue, timeout=1)
+#                 if not task:
+#                     break
 
-    app.logger.info('Queues flushed. Rescheduling active tasks...')
+#     app.logger.info('Queues flushed. Rescheduling active tasks...')
 
-    # Reschedule default queue tasks
-    for active_task in active_tasks:
-        for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
-                                    'app.functions.imports','app.functions.individualID','app.functions.results']:
-            if function_location in active_task['name']:
-                module = importlib.import_module(function_location)
-                function_name = re.split(function_location+'.',active_task['name'])[1]
-                active_function = getattr(module, function_name)
-                break
-        kwargs = active_task['kwargs']
-        # priority = active_task['delivery_info']['priority']
-        if 'ram_worker' in active_task['hostname']:
-            queue = 'ram_intensive'
-        else:
-            queue = 'default'
-        app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
-        active_function.apply_async(kwargs=kwargs, queue=queue) #, priority=priority)
+#     # Reschedule default queue tasks
+#     for active_task in active_tasks:
+#         for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
+#                                     'app.functions.imports','app.functions.individualID','app.functions.results']:
+#             if function_location in active_task['name']:
+#                 module = importlib.import_module(function_location)
+#                 function_name = re.split(function_location+'.',active_task['name'])[1]
+#                 active_function = getattr(module, function_name)
+#                 break
+#         kwargs = active_task['kwargs']
+#         # priority = active_task['delivery_info']['priority']
+#         if 'ram_worker' in active_task['hostname']:
+#             queue = 'ram_intensive'
+#         else:
+#             queue = 'default'
+#         app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
+#         active_function.apply_async(kwargs=kwargs, queue=queue) #, priority=priority)
 
-    #Ensure redis db is saved
-    app.logger.info('Saving redis db...')
-    GLOBALS.redisClient.save()
-    app.logger.info('Redis db saved')
+#     #Ensure redis db is saved
+#     app.logger.info('Saving redis db...')
+#     GLOBALS.redisClient.save()
+#     app.logger.info('Redis db saved')
 
-    app.logger.info('')
-    app.logger.info('*********************************************************')
-    app.logger.info('')
-    app.logger.info('                 Exited Gracefully!')
-    app.logger.info('          You may docker-compose down now')
-    app.logger.info('')
-    app.logger.info('*********************************************************')
-    app.logger.info('')
+#     app.logger.info('')
+#     app.logger.info('*********************************************************')
+#     app.logger.info('')
+#     app.logger.info('                 Exited Gracefully!')
+#     app.logger.info('          You may docker-compose down now')
+#     app.logger.info('')
+#     app.logger.info('*********************************************************')
+#     app.logger.info('')
 
-    sys.exit(0)
+#     sys.exit(0)
 
-signal.signal(signal.SIGTERM, cleanupWorkers) #only necessary one
-signal.signal(signal.SIGINT, cleanupWorkers)
-signal.signal(signal.SIGABRT, cleanupWorkers)
+# signal.signal(signal.SIGTERM, cleanupWorkers) #only necessary one
+# signal.signal(signal.SIGINT, cleanupWorkers)
+# signal.signal(signal.SIGABRT, cleanupWorkers)
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def checkQueueingProcessing(self,task_id):
@@ -982,9 +982,9 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         trapgroup_id = trapgroup.id
         downLabel = session.query(Label).get(GLOBALS.knocked_id)
 
-        if celeryTask and (task_id in GLOBALS.mutex.keys()):
-            GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].acquire()
-            # session.commit()
+        # if celeryTask and (task_id in GLOBALS.mutex.keys()):
+        #     GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].acquire()
+        #     # session.commit()
 
         if Config.DEBUGGING: app.logger.info('Continuing finish_knockdown for image ' + str(rootImageID))
 
@@ -993,8 +993,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         trapgroup.user_id = None
         if celeryTask: session.commit()
 
-        if celeryTask and (task_id in GLOBALS.mutex.keys()):
-            GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].release()
+        # if celeryTask and (task_id in GLOBALS.mutex.keys()):
+        #     GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].release()
 
         cluster = Cluster(user_id=current_user_id, labels=[downLabel], timestamp=datetime.utcnow(), task=task)
         session.add(cluster)
@@ -1144,9 +1144,9 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         
         # populateMutex(int(task_id))
 
-        if int(task_id) in GLOBALS.mutex.keys():
-            GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].acquire()
-            db.session.commit()
+        # if int(task_id) in GLOBALS.mutex.keys():
+        #     GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].acquire()
+        #     db.session.commit()
 
         #Checkout tg
         trapgroup.processing = True
@@ -1154,8 +1154,8 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         trapgroup.user_id = None
         db.session.commit()
 
-        if int(task_id) in GLOBALS.mutex.keys():
-            GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].release()
+        # if int(task_id) in GLOBALS.mutex.keys():
+        #     GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].release()
 
         cluster.labels = []
 
@@ -1653,7 +1653,7 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         # user.passed = 'cFalse'
         GLOBALS.redisClient.srem('active_jobs_'+str(task.id),user.turkcode[0].code)
 
-        GLOBALS.clusters_allocated.pop(user.id, None)
+        GLOBALS.redisClient.delete('clusters_allocated'+str(user.id))
 
         # if task.id in GLOBALS.mutex.keys():
         #     GLOBALS.mutex[task.id]['user'].pop(user.id, None)

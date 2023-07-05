@@ -525,7 +525,7 @@ def wrapUpTask(self,task_id):
             if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
             if incompleteIndividuals == 0:
                 task.survey.status = 'Ready'
-                
+
         elif '-5' in task.tagging_level:
             GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
             GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
@@ -546,7 +546,7 @@ def wrapUpTask(self,task_id):
         #remove trapgroup list from redis
         GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
 
-        if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(int(task_id), None)
+        # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(int(task_id), None)
         db.session.commit()
 
     except Exception as exc:
