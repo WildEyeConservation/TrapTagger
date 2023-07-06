@@ -2577,7 +2577,7 @@ function submitLabels(mapID = 'map1') {
                                 clusterRequests[wrapMapID] = [];
                                 clusters[wrapMapID] = clusters[wrapMapID].slice(0,clusterIndex[wrapMapID]+1);
                                 clusters[wrapMapID].push(...reply.newClusters)
-                                clisterIdList = []
+                                clusterIdList = []
                             }
                             if (modalWait2.is(':visible')) {
                                 modalWait2Hide = true

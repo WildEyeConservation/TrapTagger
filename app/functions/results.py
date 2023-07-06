@@ -85,7 +85,7 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
     matches = []
     for label in labels1:
         if label in labels2:
-            GLOBALS.confusions[user_id][label][label].append(image_id)
+            GLOBALS.confusions[label][label].append(image_id)
             matches.append(label)
 
     for match in matches:
@@ -95,30 +95,30 @@ def compareLabels(user_id,image_id,labels1,labels2,nothing_label1,nothing_label2
     # MegaDetector misses
     if ground_truth == 1:
         if (nothing_label2 in labels2) and (nothing_label1 not in labels1) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source[0]]):
-            GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
-            GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels1)
+            GLOBALS.megaDetectorMisses['image_ids'].append(image_id)
+            GLOBALS.megaDetectorMisses['count'] += len(labels1)
     else:
         if (nothing_label1 in labels1) and (nothing_label2 not in labels2) and (detection<=Config.DETECTOR_THRESHOLDS[detection_source[0]]):
-            GLOBALS.MegaDetectorMisses[user_id]['image_ids'].append(image_id)
-            GLOBALS.MegaDetectorMisses[user_id]['count'] += len(labels2)
+            GLOBALS.megaDetectorMisses['image_ids'].append(image_id)
+            GLOBALS.megaDetectorMisses['count'] += len(labels2)
 
     if (len(labels1) != 0) or ((len(labels2) != 0)):
         if (len(labels1) > 1) or ((len(labels2) > 1)):
             if labels1 == [nothing_label1]:
                 for label in labels2:
-                    GLOBALS.confusions[user_id][nothing_label1][label].append(image_id)
+                    GLOBALS.confusions[nothing_label1][label].append(image_id)
             elif labels2 == [nothing_label2]:
                 for label in labels1:
-                    GLOBALS.confusions[user_id][label][nothing_label2].append(image_id)
+                    GLOBALS.confusions[label][nothing_label2].append(image_id)
             else:
-                GLOBALS.confusions[user_id]['multi'].append(image_id)
+                GLOBALS.confusions['multi'].append(image_id)
         else:
             if len(labels1) == 0:
-                GLOBALS.confusions[user_id][nothing_label1][labels2[0]].append(image_id)
+                GLOBALS.confusions[nothing_label1][labels2[0]].append(image_id)
             elif len(labels2) == 0:
-                GLOBALS.confusions[user_id][labels1[0]][nothing_label2].append(image_id)
+                GLOBALS.confusions[labels1[0]][nothing_label2].append(image_id)
             else:
-                GLOBALS.confusions[user_id][labels1[0]][labels2[0]].append(image_id)
+                GLOBALS.confusions[labels1[0]][labels2[0]].append(image_id)
 
     return True
 
@@ -135,10 +135,11 @@ def findEmptyClustered(user_id,image_id,cluster_labels,image_labels,nothing_labe
     '''
     
     if (len(cluster_labels)>1) and (nothing_label in cluster_labels) and (nothing_label in image_labels):
-        GLOBALS.emptyClustered[user_id].append(image_id)
+        GLOBALS.emptyClustered.append(image_id)
     return True
 
-def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
+@celery.task(bind=True,max_retries=1,ignore_result=True)
+def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
     '''
     Prepares the requested task comparison for a survey by populating the comparison globals.
 
@@ -150,144 +151,159 @@ def prepareComparison(translations,groundTruth,task_id1,task_id2,user_id):
             user_id (int): User that requested the comparison
     '''
     
-    app.logger.info('Preparing comparison.')
-    task_id1 = int(task_id1)
-    task_id2 = int(task_id2)
-    task1 = db.session.query(Task).get(task_id1)
-    survey_id = task1.survey_id
-    translations = translations.replace('*****', '/')
-    translations = ast.literal_eval(translations)
+    try:
+        app.logger.info('Preparing comparison.')
+        task_id1 = int(task_id1)
+        task_id2 = int(task_id2)
+        task1 = db.session.query(Task).get(task_id1)
+        survey_id = task1.survey_id
+        translations = translations.replace('*****', '/')
+        translations = ast.literal_eval(translations)
 
-    GLOBALS.ground_truths[str(user_id)] = {}
-    GLOBALS.ground_truths[str(user_id)]['ground'] = int(groundTruth)
-    GLOBALS.ground_truths[str(user_id)]['task1'] = int(task_id1)
-    GLOBALS.ground_truths[str(user_id)]['task2'] = int(task_id2)
+        ground_truths = {}
+        ground_truths['ground'] = int(groundTruth)
+        ground_truths['task1'] = int(task_id1)
+        ground_truths['task2'] = int(task_id2)
 
-    if int(groundTruth) == int(task_id1):
-        GLOBALS.ground_truths[str(user_id)]['other'] = int(task_id2)
-        ground_truth = 1
-    else:
-        GLOBALS.ground_truths[str(user_id)]['other'] = int(task_id1)
-        ground_truth = 2
+        if int(groundTruth) == int(task_id1):
+            ground_truths['other'] = int(task_id2)
+            ground_truth = 1
+        else:
+            ground_truths['other'] = int(task_id1)
+            ground_truth = 2
 
-    task1Translation = {}
-    task2Translation = {}
-    newLabels = {}
-    index = 1
-    for key in translations:
-        newLabels[str(index)] = key
-        for labelID in translations[key][str(task_id1)]:
-            task1Translation[str(labelID)] = str(index)
-        for labelID in translations[key][str(task_id2)]:
-            task2Translation[str(labelID)] = str(index)
-        index += 1
+        task1Translation = {}
+        task2Translation = {}
+        newLabels = {}
+        index = 1
+        for key in translations:
+            newLabels[str(index)] = key
+            for labelID in translations[key][str(task_id1)]:
+                task1Translation[str(labelID)] = str(index)
+            for labelID in translations[key][str(task_id2)]:
+                task2Translation[str(labelID)] = str(index)
+            index += 1
 
-    GLOBALS.comparisonLabels[user_id] = newLabels
-    
-    task1Translation['None'] = task1Translation[str(GLOBALS.nothing_id)]
-    task2Translation['None'] = task2Translation[str(GLOBALS.nothing_id)]
+        GLOBALS.redisClient.set('comparisonLabels_'+str(user_id), json.dumps(newLabels))
+        
+        task1Translation['None'] = task1Translation[str(GLOBALS.nothing_id)]
+        task2Translation['None'] = task2Translation[str(GLOBALS.nothing_id)]
 
-    GLOBALS.ground_truths[str(user_id)]['nothing1'] = task1Translation[str(GLOBALS.nothing_id)]
-    GLOBALS.ground_truths[str(user_id)]['nothing2'] = task2Translation[str(GLOBALS.nothing_id)]
+        ground_truths['nothing1'] = task1Translation[str(GLOBALS.nothing_id)]
+        ground_truths['nothing2'] = task2Translation[str(GLOBALS.nothing_id)]
 
-    # detection-label based
-    sq1 = db.session.query(Image.id.label('image_id1'),Label.id.label('label_id1'))\
-                    .join(Detection)\
-                    .join(Labelgroup)\
-                    .join(Label, Labelgroup.labels)\
-                    .filter(Labelgroup.task_id==task_id1)\
-                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                    .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                    .subquery()
-    sq2 = db.session.query(Image.id.label('image_id2'),Label.id.label('label_id2'))\
-                    .join(Detection)\
-                    .join(Labelgroup)\
-                    .join(Label, Labelgroup.labels)\
-                    .filter(Labelgroup.task_id==task_id2)\
-                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                    .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
-                    .subquery()
+        # detection-label based
+        sq1 = db.session.query(Image.id.label('image_id1'),Label.id.label('label_id1'))\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .join(Label, Labelgroup.labels)\
+                        .filter(Labelgroup.task_id==task_id1)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .subquery()
+        sq2 = db.session.query(Image.id.label('image_id2'),Label.id.label('label_id2'))\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .join(Label, Labelgroup.labels)\
+                        .filter(Labelgroup.task_id==task_id2)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .subquery()
 
-    if ground_truth == 1:
-        df = pd.read_sql(db.session.query( \
-                        Image.id.label('image_id'), \
-                        sq1.c.label_id1.label('label_id1'), \
-                        sq2.c.label_id2.label('label_id2'),\
-                        Cluster.id.label('cluster_id'), \
-                        Detection.score.label('detections'),
-                        Detection.source.label('detection_source')) \
-                        .outerjoin(sq1, sq1.c.image_id1==Image.id) \
-                        .outerjoin(sq2, sq2.c.image_id2==Image.id) \
-                        .outerjoin(Detection, Detection.image_id==Image.id) \
-                        .join(Camera,Image.camera_id==Camera.id) \
-                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
-                        .join(Cluster, Image.clusters) \
-                        .filter(Trapgroup.survey_id==survey_id) \
-                        .filter(Cluster.task_id==task_id2) \
-                        .statement,db.session.bind)
-    else:
-        df = pd.read_sql(db.session.query( \
-                        Image.id.label('image_id'), \
-                        sq1.c.label_id1.label('label_id1'), \
-                        sq2.c.label_id2.label('label_id2'),\
-                        Cluster.id.label('cluster_id'), \
-                        Detection.score.label('detections'),
-                        Detection.source.label('detection_source')) \
-                        .outerjoin(sq1, sq1.c.image_id1==Image.id) \
-                        .outerjoin(sq2, sq2.c.image_id2==Image.id) \
-                        .outerjoin(Detection, Detection.image_id==Image.id) \
-                        .join(Camera,Image.camera_id==Camera.id) \
-                        .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
-                        .join(Cluster, Image.clusters) \
-                        .filter(Trapgroup.survey_id==survey_id) \
-                        .filter(Cluster.task_id==task_id1) \
-                        .statement,db.session.bind)
+        if ground_truth == 1:
+            df = pd.read_sql(db.session.query( \
+                            Image.id.label('image_id'), \
+                            sq1.c.label_id1.label('label_id1'), \
+                            sq2.c.label_id2.label('label_id2'),\
+                            Cluster.id.label('cluster_id'), \
+                            Detection.score.label('detections'),
+                            Detection.source.label('detection_source')) \
+                            .outerjoin(sq1, sq1.c.image_id1==Image.id) \
+                            .outerjoin(sq2, sq2.c.image_id2==Image.id) \
+                            .outerjoin(Detection, Detection.image_id==Image.id) \
+                            .join(Camera,Image.camera_id==Camera.id) \
+                            .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                            .join(Cluster, Image.clusters) \
+                            .filter(Trapgroup.survey_id==survey_id) \
+                            .filter(Cluster.task_id==task_id2) \
+                            .statement,db.session.bind)
+        else:
+            df = pd.read_sql(db.session.query( \
+                            Image.id.label('image_id'), \
+                            sq1.c.label_id1.label('label_id1'), \
+                            sq2.c.label_id2.label('label_id2'),\
+                            Cluster.id.label('cluster_id'), \
+                            Detection.score.label('detections'),
+                            Detection.source.label('detection_source')) \
+                            .outerjoin(sq1, sq1.c.image_id1==Image.id) \
+                            .outerjoin(sq2, sq2.c.image_id2==Image.id) \
+                            .outerjoin(Detection, Detection.image_id==Image.id) \
+                            .join(Camera,Image.camera_id==Camera.id) \
+                            .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
+                            .join(Cluster, Image.clusters) \
+                            .filter(Trapgroup.survey_id==survey_id) \
+                            .filter(Cluster.task_id==task_id1) \
+                            .statement,db.session.bind)
 
-    df = df.groupby('image_id').agg(lambda x: tuple(set(x))).reset_index()
+        df = df.groupby('image_id').agg(lambda x: tuple(set(x))).reset_index()
 
-    df['detection'] = df['detections'].apply(max)
-    df['cluster_detection'] = df.groupby('cluster_id')['detection'].transform(max)
-    del df['detections']
-    del df['detection']
+        df['detection'] = df['detections'].apply(max)
+        df['cluster_detection'] = df.groupby('cluster_id')['detection'].transform(max)
+        del df['detections']
+        del df['detection']
 
-    df['task1_labels'] = df.apply(lambda x: translate(x.label_id1, task1Translation), axis=1)
-    df['task2_labels'] = df.apply(lambda x: translate(x.label_id2, task2Translation), axis=1)
+        df['task1_labels'] = df.apply(lambda x: translate(x.label_id1, task1Translation), axis=1)
+        df['task2_labels'] = df.apply(lambda x: translate(x.label_id2, task2Translation), axis=1)
 
-    del df['label_id1']
-    del df['label_id2']
+        del df['label_id1']
+        del df['label_id2']
 
-    confusion_matrix = {}
-    confusion_matrix['multi'] = []
-    for i in range(1,index):
-        confusion_matrix[str(i)] = {}
-        for n in range(1,index):
-            confusion_matrix[str(i)][str(n)] = []
+        GLOBALS.confusions = {}
+        GLOBALS.confusions['multi'] = []
+        for i in range(1,index):
+            GLOBALS.confusions[str(i)] = {}
+            for n in range(1,index):
+                GLOBALS.confusions[str(i)][str(n)] = []
 
-    GLOBALS.confusions[user_id] = confusion_matrix
+        GLOBALS.megaDetectorMisses = {}
+        GLOBALS.megaDetectorMisses['image_ids'] = []
+        GLOBALS.megaDetectorMisses['count'] = 0
 
-    GLOBALS.MegaDetectorMisses[user_id] = {}
-    GLOBALS.MegaDetectorMisses[user_id]['image_ids'] = []
-    GLOBALS.MegaDetectorMisses[user_id]['count'] = 0
+        nothing_label1 = task1Translation['None']
+        nothing_label2 = task2Translation['None']
+        df.apply(lambda x: compareLabels(user_id,x.image_id,x.task1_labels,x.task2_labels,nothing_label1,nothing_label2,ground_truth,x.cluster_detection,x.detection_source), axis=1)
 
-    nothing_label1 = task1Translation['None']
-    nothing_label2 = task2Translation['None']
-    df.apply(lambda x: compareLabels(user_id,x.image_id,x.task1_labels,x.task2_labels,nothing_label1,nothing_label2,ground_truth,x.cluster_detection,x.detection_source), axis=1)
+        # Find error souces:
+        # empty-clustered
+        GLOBALS.emptyClustered = []
+        if ground_truth == 1:
+            df['cluster_labels1'] = df.groupby('cluster_id')['task1_labels'].transform(sum)
+            df['cluster_labels'] = df.apply(lambda x: set(x.cluster_labels1), axis=1)
+            del df['cluster_labels1']
+            df.apply(lambda x: findEmptyClustered(user_id,x.image_id,x.cluster_labels,x.task1_labels,nothing_label1), axis=1)
+        else:
+            df['cluster_labels1'] = df.groupby('cluster_id')['task2_labels'].transform(sum)
+            df['cluster_labels'] = df.apply(lambda x: set(x.cluster_labels1), axis=1)
+            del df['cluster_labels1']
+            df.apply(lambda x: findEmptyClustered(user_id,x.image_id,x.cluster_labels,x.task2_labels,nothing_label2), axis=1)
 
-    # Find error souces:
-    # empty-clustered
-    GLOBALS.emptyClustered[user_id] = []
-    if ground_truth == 1:
-        df['cluster_labels1'] = df.groupby('cluster_id')['task1_labels'].transform(sum)
-        df['cluster_labels'] = df.apply(lambda x: set(x.cluster_labels1), axis=1)
-        del df['cluster_labels1']
-        df.apply(lambda x: findEmptyClustered(user_id,x.image_id,x.cluster_labels,x.task1_labels,nothing_label1), axis=1)
-    else:
-        df['cluster_labels1'] = df.groupby('cluster_id')['task2_labels'].transform(sum)
-        df['cluster_labels'] = df.apply(lambda x: set(x.cluster_labels1), axis=1)
-        del df['cluster_labels1']
-        df.apply(lambda x: findEmptyClustered(user_id,x.image_id,x.cluster_labels,x.task2_labels,nothing_label2), axis=1)
+        GLOBALS.redisClient.set('megaDetectorMisses_'+str(user_id), json.dumps(GLOBALS.megaDetectorMisses))
+        GLOBALS.redisClient.set('emptyClustered_'+str(user_id), json.dumps(GLOBALS.emptyClustered))
+        GLOBALS.redisClient.set('ground_truths_'+str(user_id), json.dumps(ground_truths))
+        GLOBALS.redisClient.set('confusions_'+str(user_id), json.dumps(GLOBALS.confusions))
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
 

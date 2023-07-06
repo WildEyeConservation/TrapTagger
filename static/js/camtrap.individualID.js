@@ -21,7 +21,7 @@ isIDing = true
 var suggestions = []
 var suggestionIndex = 0
 var suggestionImageIndex = 0
-var clisterIdList = []
+var clusterIdList = []
 // const modalNote = $('#modalNote');
 const modalNextIndividual = $('#modalNextIndividual');
 const modalAlertNextIndividual = $('#modalAlertNextIndividual');
@@ -62,7 +62,9 @@ function coordinateDistance(lat1,lon1,lat2,lon2) {
 function idNextCluster() {
     /** Allocates a new individual to the individual for ID. */
     if ((!submittedResponse) && (finishedDisplaying['map1']) && (finishedDisplaying['map2']) && (modalActive == false) && (modalActive2 == false)) {
-        actions.push('n')
+        // actions.push('n')
+        // We don't want users to go back after beig allocated a new individual
+        actions = []
         nextCluster()
     }
 }
@@ -198,9 +200,10 @@ function undoPreviousSuggestion() {
         previous = actions.pop()
 
         if (previous=='n') {
-            prevCluster()
-            getSuggestions()
-            submittedResponse = false
+            // We don't want users to be able to go back after having been allocated a new individual
+            // prevCluster()
+            // getSuggestions()
+            // submittedResponse = false
         } else if (previous[0]=='dissociation') {
             mapID = previous[3]
             var xhttp = new XMLHttpRequest();
@@ -393,8 +396,8 @@ function loadNewCluster(mapID = 'map1') {
                                         }
                                         
                                         if (knockedTG==null) {
-                                            if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                                clisterIdList.push(newcluster.id)
+                                            if (true) { //(!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')
+                                                clusterIdList.push(newcluster.id)
     
                                                 if ((clusters[wrapMapID].length>0)&&(clusters[wrapMapID][clusters[wrapMapID].length-1].id=='-101')&&(clusterIndex[wrapMapID] < clusters[wrapMapID].length-1)) {
                                                     clusters[wrapMapID].splice(clusters[wrapMapID].length-1, 0, newcluster)

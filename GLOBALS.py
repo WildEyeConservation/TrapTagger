@@ -13,10 +13,8 @@
 # limitations under the License.
 
 confusions = {}
-comparisonLabels = {}
-ground_truths = {}
 emptyClustered = {}
-MegaDetectorMisses = {}
+megaDetectorMisses = {}
 load_testers = 0
 s3client = None
 s3UploadClient = None

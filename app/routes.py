@@ -4288,7 +4288,7 @@ def getSuggestion(individual_id):
             if indSim and GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),indSim.id):
                 userIndSms = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(current_user.id),0,-1)]
                 if indSim.id in userIndSms:
-                    suggestion = item
+                    suggestion = indSim
 
             # if suggestion and not GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id):
             #     GLOBALS.redisClient.sadd('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id)
@@ -4866,8 +4866,10 @@ def getImage():
                                 for detection in image.detections
                                 if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden'])) ]}] #and (detection.static == False)
 
-        GTtask = GLOBALS.ground_truths[str(current_user.id)]['ground']
-        otherTask = GLOBALS.ground_truths[str(current_user.id)]['other']
+        ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
+
+        GTtask = ground_truths['ground']
+        otherTask = ground_truths['other']
 
         GTcluster = db.session.query(Cluster).filter(Cluster.images.contains(image)).filter(Cluster.task_id==GTtask).first()
         otherCluster = db.session.query(Cluster).filter(Cluster.images.contains(image)).filter(Cluster.task_id==otherTask).first()
@@ -5968,7 +5970,8 @@ def submitComparison(groundTruth,task_id1,task_id2):
         task1 = db.session.query(Task).get(int(task_id1))
         task2 = db.session.query(Task).get(int(task_id2))
         if task1 and task2 and (task1.survey.user_id==current_user.id) and (task2.survey.user_id==current_user.id):
-            prepareComparison(translations,groundTruth,task_id1,task_id2,str(current_user.id))
+            GLOBALS.redisClient.delete('confusions_'+str(current_user.id))
+            prepareComparison.delay(translations=translations,groundTruth=groundTruth,task_id1=task_id1,task_id2=task_id2,user_id=str(current_user.id))
             return json.dumps('success')
         else:
             return json.dumps('error')
@@ -5998,7 +6001,11 @@ def comparison():
         else:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
 
-            if str(current_user.id) in GLOBALS.confusions.keys():
+            confusions = GLOBALS.redisClient.get('confusions_'+str(current_user.id))
+
+            if confusions:
+                confusions = json.loads(confusions.decode())
+                ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
 
                 # Generate some stats
                 total_sightings = 0
@@ -6006,71 +6013,73 @@ def comparison():
                 nothing_sightings = 0
                 non_nothing = 0
 
-                for key in GLOBALS.confusions[str(current_user.id)]:
+                for key in confusions:
                     if key != 'multi':
-                        for key2 in GLOBALS.confusions[str(current_user.id)][key]:
-                            total_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
+                        for key2 in confusions[key]:
+                            total_sightings += len(confusions[key][key2])
                             if key == key2:
-                                matched_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
-                            if GLOBALS.ground_truths[str(current_user.id)]['task1']==GLOBALS.ground_truths[str(current_user.id)]['ground']:
-                                if key == GLOBALS.ground_truths[str(current_user.id)]['nothing1']:
-                                    nothing_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
-                                if key2 != GLOBALS.ground_truths[str(current_user.id)]['nothing2']:
-                                    non_nothing += len(GLOBALS.confusions[str(current_user.id)][key][key2])
+                                matched_sightings += len(confusions[key][key2])
+                            if ground_truths['task1']==ground_truths['ground']:
+                                if key == ground_truths['nothing1']:
+                                    nothing_sightings += len(confusions[key][key2])
+                                if key2 != ground_truths['nothing2']:
+                                    non_nothing += len(confusions[key][key2])
                             else:
-                                if key2 == GLOBALS.ground_truths[str(current_user.id)]['nothing2']:
-                                    nothing_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
-                                if key != GLOBALS.ground_truths[str(current_user.id)]['nothing1']:
-                                    non_nothing += len(GLOBALS.confusions[str(current_user.id)][key][key2])
+                                if key2 == ground_truths['nothing2']:
+                                    nothing_sightings += len(confusions[key][key2])
+                                if key != ground_truths['nothing1']:
+                                    non_nothing += len(confusions[key][key2])
 
                 match_percentage = round((matched_sightings/total_sightings)*100,2)
                 wrong_sightings = total_sightings - matched_sightings
                 wrong_percentage = round((wrong_sightings/total_sightings)*100,2)
 
                 unknownLabel = db.session.query(Label).get(GLOBALS.unknown_id)
-                unknowns = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==GLOBALS.ground_truths[str(current_user.id)]['other']).filter(Cluster.labels.contains(unknownLabel)).count()
+                unknowns = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==ground_truths['other']).filter(Cluster.labels.contains(unknownLabel)).count()
 
-                survey_id = db.session.query(Task).get(GLOBALS.ground_truths[str(current_user.id)]['other']).survey_id
+                survey_id = db.session.query(Task).get(ground_truths['other']).survey_id
 
                 animal_sightings = total_sightings - nothing_sightings
                 value_percentage = round((animal_sightings/total_sightings)*100,2)
                 unknown_percentage = round((unknowns/animal_sightings)*100,2)
 
-                correct_animal_sightings = matched_sightings - len(GLOBALS.confusions[str(current_user.id)][GLOBALS.ground_truths[str(current_user.id)]['nothing1']][GLOBALS.ground_truths[str(current_user.id)]['nothing2']])
+                correct_animal_sightings = matched_sightings - len(confusions[ground_truths['nothing1']][ground_truths['nothing2']])
 
                 recall_rate = round((correct_animal_sightings/animal_sightings)*100,2)
                 precision = round((correct_animal_sightings/non_nothing)*100,2)
 
-                task1_heading = db.session.query(Task).get(GLOBALS.ground_truths[str(current_user.id)]['task1']).name
-                task2_heading = db.session.query(Task).get(GLOBALS.ground_truths[str(current_user.id)]['task2']).name
+                task1_heading = db.session.query(Task).get(ground_truths['task1']).name
+                task2_heading = db.session.query(Task).get(ground_truths['task2']).name
 
                 image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).count()
 
-                MegaDetectorFailures = GLOBALS.MegaDetectorMisses[str(current_user.id)]['count']
+                MegaDetectorFailures = json.loads(GLOBALS.redisClient.get('megaDetectorMisses_'+str(current_user.id)).decode())['count']
                 MegaDetectorFailures_percentage = round((MegaDetectorFailures/wrong_sightings)*100,2)
-                EmptyClustered = len(GLOBALS.emptyClustered[str(current_user.id)])
+                EmptyClustered = len(json.loads(GLOBALS.redisClient.get('emptyClustered_'+str(current_user.id)).decode()))
                 EmptyClustered_percentage = round((EmptyClustered/image_count)*100,2)
+
+                comparisonLabels = json.loads(GLOBALS.redisClient.get('comparisonLabels_'+str(current_user.id)).decode())
 
                 # Species by species
                 species_names = []
                 species_recalls = []
                 species_precisions = []
-                for species in GLOBALS.confusions[str(current_user.id)]:
+                for species in confusions:
                     if species != 'multi':
                         rowCount = 0
                         colCount = 0
-                        for key in GLOBALS.confusions[str(current_user.id)][species]:
-                            rowCount += len(GLOBALS.confusions[str(current_user.id)][species][key])
-                            colCount += len(GLOBALS.confusions[str(current_user.id)][key][species])
+                        for key in confusions[species]:
+                            rowCount += len(confusions[species][key])
+                            colCount += len(confusions[key][species])
 
-                        if GLOBALS.ground_truths[str(current_user.id)]['task1']==GLOBALS.ground_truths[str(current_user.id)]['ground']:
+                        if ground_truths['task1']==ground_truths['ground']:
                             actual_species_count = rowCount
                             species_count = colCount
                         else:
                             actual_species_count = colCount
                             species_count = rowCount
 
-                        match_count = len(GLOBALS.confusions[str(current_user.id)][species][species])
+                        match_count = len(confusions[species][species])
 
                         if actual_species_count!=0:
                             species_recalls.append(round((match_count/actual_species_count)*100,2))
@@ -6082,7 +6091,7 @@ def comparison():
                         else:
                             species_precisions.append('n/a')
 
-                        species_names.append(GLOBALS.comparisonLabels[str(current_user.id)][species])
+                        species_names.append(comparisonLabels[species])
                         
                 return render_template('html/comparison.html', title='Comparison',   total_sightings=total_sightings,
                         matched_sightings=matched_sightings, match_percentage=match_percentage, task1_heading=task1_heading,
@@ -6094,15 +6103,17 @@ def comparison():
                         MegaDetectorFailures_percentage=MegaDetectorFailures_percentage,EmptyClustered_percentage=EmptyClustered_percentage,
                         image_count=image_count, helpFile='comparison_page', bucket=Config.BUCKET, version=Config.VERSION)
             else:
-                return render_template("html/block.html",text="Your comparison session has expired. Please request a new comparison.", helpFile='block', version=Config.VERSION)
+                return render_template("html/block.html",text="Your comparison does not seem to be ready yet. Please refresh the page in a few minutes.", helpFile='block', version=Config.VERSION)
     
 @app.route('/getConfusionMatrix')
 @login_required
 def getConfusionMatrix():
     '''Returns the confusion matrix comparisons for the task-comparison page, for the active comparison.'''
 
-    if str(current_user.id) in GLOBALS.confusions.keys():
-        return json.dumps(GLOBALS.confusions[str(current_user.id)])
+    confusions = GLOBALS.redisClient.get('confusions_'+str(current_user.id))
+
+    if confusions:
+        return confusions.decode()
     else:
         return json.dumps('Error')
 
@@ -6111,13 +6122,16 @@ def getConfusionMatrix():
 @login_required
 def getConfusionLabels():
     '''Gets the gouping labels for the task-comparison page.'''
+
+    comparisonLabels = GLOBALS.redisClient.get('comparisonLabels_'+str(current_user.id))
     
-    if str(current_user.id) in GLOBALS.comparisonLabels.keys():
+    if comparisonLabels:
+        comparisonLabels = json.loads(comparisonLabels.decode())
         newDict = {}
-        for key in GLOBALS.comparisonLabels[str(current_user.id)]:
+        for key in comparisonLabels:
             newDict[key] = {}
-            newDict[key]['name'] = GLOBALS.comparisonLabels[str(current_user.id)][key]
-            newDict[key]['length'] = math.floor(len(GLOBALS.comparisonLabels[str(current_user.id)][key])/3)
+            newDict[key]['name'] = comparisonLabels[key]
+            newDict[key]['length'] = math.floor(len(comparisonLabels[key])/3)
         return json.dumps(newDict)
     else:
         return json.dumps('Error')

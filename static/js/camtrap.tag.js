@@ -18,7 +18,7 @@ isKnockdown = false
 isBounding = false
 isIDing = false
 
-var clisterIdList = []
+var clusterIdList = []
 // const modalNote = $('#modalNote');
 
 function loadNewCluster(mapID = 'map1') {
@@ -47,8 +47,8 @@ function loadNewCluster(mapID = 'map1') {
                                 }
                                 
                                 if (knockedTG==null) {
-                                    if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                        clisterIdList.push(newcluster.id)
+                                    if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                                        clusterIdList.push(newcluster.id)
 
                                         if ((clusters[mapID].length>0)&&(clusters[mapID][clusters[mapID].length-1].id=='-101')&&(clusterIndex[mapID] < clusters[mapID].length-1)) {
                                             clusters[mapID].splice(clusters[mapID].length-1, 0, newcluster)

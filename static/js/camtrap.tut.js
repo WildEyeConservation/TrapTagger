@@ -19,7 +19,7 @@ isBounding = false
 isIDing = false
 
 var clusterIdx = 0;
-var clisterIdList = []
+var clusterIdList = []
 
 function loadNewCluster(mapID = 'map1') {
     /** load fixed clusters from tut_cluster_list */
@@ -34,8 +34,8 @@ function loadNewCluster(mapID = 'map1') {
 
         newcluster = info.info;
 
-        if (!clisterIdList.includes(newcluster.id)) {
-            clisterIdList.push(newcluster.id)
+        if (!clusterIdList.includes(newcluster.id)) {
+            clusterIdList.push(newcluster.id)
             clusters[mapID].push(newcluster)
             if (clusters[mapID].length - 1 == clusterIndex[mapID]) {
                 updateCanvas()
