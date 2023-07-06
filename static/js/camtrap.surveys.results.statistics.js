@@ -1690,7 +1690,7 @@ function clearStatistics() {
     document.getElementById('statisticsErrors').innerHTML = ''
 }
 
-analysisSelector.addEventListener('click', ()=>{
+analysisSelector.addEventListener('change', ()=>{
     /** Event listener on the analysis selector that selects what type of analysis the user would like to see. */
     selection = analysisSelector.options[analysisSelector.selectedIndex].value
     clearStatistics()

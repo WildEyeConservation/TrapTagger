@@ -471,16 +471,28 @@ btnCsvDownload.addEventListener('click', ()=>{
                 col_translation = selection
             } else if (dataSelection == 'Labels') {
                 selection = levelSelection+'_labels'
-                col_translation = levelSelection+'_label'
+                if (label_type != 'column') {
+                    col_translation = selection
+                } else {
+                    col_translation = levelSelection+'_label'
+                }
             } else if (dataSelection == 'Tags') {
                 selection = levelSelection+'_tags'
-                col_translation = levelSelection+'_tag'
+                if (label_type != 'column') {
+                    col_translation = selection
+                } else {
+                    col_translation = levelSelection+'_tag'
+                }
             } else if (dataSelection == 'URL') {
                 selection = levelSelection+'_url'
                 col_translation = selection
             } else if (dataSelection == 'Individuals') {
                 selection = levelSelection+'_individuals'
-                col_translation = levelSelection+'_individual'
+                if (label_type != 'column') {
+                    col_translation = selection
+                } else {
+                    col_translation = levelSelection+'_individual'
+                }
             } else if (dataSelection == 'Sighting Count') {
                 selection = levelSelection+'_sighting_count'
                 col_translation = selection
