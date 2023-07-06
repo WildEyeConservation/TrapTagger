@@ -1103,7 +1103,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
                 re_evaluate_trapgroup_examined(trapgroup_id,task_id)
                 trapgroup.active = True
                 trapgroup.processing = False
-                # GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
+                GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
                 session.commit()
 
         if Config.DEBUGGING: app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))

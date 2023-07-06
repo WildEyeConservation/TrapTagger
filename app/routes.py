@@ -6557,6 +6557,7 @@ def generateCSV():
             excludes = []
             start_date = None
             end_date = None
+            column_translations = {}
         else:
             selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
             level = ast.literal_eval(request.form['level'])
@@ -6569,6 +6570,7 @@ def generateCSV():
             if start_date == '': start_date = None
             end_date = ast.literal_eval(request.form['end_date'])
             if end_date == '': end_date = None
+            column_translations = ast.literal_eval(request.form['column_translations'])
 
     except:
         return json.dumps({'status':'error',  'message': None})
@@ -6603,8 +6605,8 @@ def generateCSV():
     else:
         queue='default'
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date))
-    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date}, queue=queue)
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations))
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
