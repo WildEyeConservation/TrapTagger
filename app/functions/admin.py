@@ -279,7 +279,7 @@ def stop_task(self,task_id):
             db.session.commit()
 
             active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_id))]
-            abandoned_jobs = session.query(User,Task)\
+            abandoned_jobs = db.session.query(User,Task)\
                                 .join(Turkcode,Turkcode.user_id==User.id)\
                                 .join(Task)\
                                 .filter(User.parent_id!=None)\
