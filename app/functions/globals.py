@@ -2671,13 +2671,13 @@ def clean_up_redis():
                 if task.status not in ['PENDING','PROGRESS']:
                     GLOBALS.redisClient.delete(key)
 
-            elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims'])
+            elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims']):
                 user_id = int(key.split('_')[-1])
                 user = db.session.query(User).get(user_id)
                 if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
                     GLOBALS.redisClient.delete(key)
 
-            elif any(name in key for name in ['trapgroups'])
+            elif any(name in key for name in ['trapgroups']):
                 survey_id = int(key.split('_')[-1])
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
                 if not task:
