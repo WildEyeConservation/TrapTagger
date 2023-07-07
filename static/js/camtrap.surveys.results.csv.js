@@ -488,7 +488,11 @@ btnCsvDownload.addEventListener('click', ()=>{
                 col_translation = selection
             } else if (dataSelection == 'Individuals') {
                 selection = levelSelection+'_individuals'
-                col_translation = levelSelection+'_individual'         
+                if (label_type != 'column') {
+                    col_translation = selection
+                } else {
+                    col_translation = levelSelection+'_individual'
+                }         
             } else if (dataSelection == 'Sighting Count') {
                 selection = levelSelection+'_sighting_count'
                 col_translation = selection

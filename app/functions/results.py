@@ -903,66 +903,66 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
                 tag_list[tag_level] = tag_li
 
-        for individual_level in individual_levels:
-            
-            if individual_level=='detection':
-                sq = rDets(db.session.query(Detection,func.count(distinct(Individual.id)).label('count'))\
-                                    .join(Image)\
-                                    .group_by(Detection.id))
-            elif individual_level=='image':
-                sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
-                                    .group_by(Image.id)\
-                                    .join(Detection))
-            elif individual_level=='capture':
-                sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
-                                    .join(Detection)\
-                                    .join(Camera)\
-                                    .group_by(Camera.id,Image.corrected_timestamp))
-            elif individual_level=='cluster':
-                sq = rDets(db.session.query(Cluster,func.count(distinct(Individual.id)).label('count'))\
-                                    .group_by(Cluster.id)\
-                                    .join(Image,Cluster.images)\
-                                    .join(Detection))
-            elif individual_level=='camera':
-                sq = rDets(db.session.query(Camera,func.count(distinct(Individual.id)).label('count'))\
-                                    .group_by(Camera.id)\
-                                    .join(Image)\
-                                    .join(Detection))
-            elif individual_level=='trapgroup':
-                sq = rDets(db.session.query(Trapgroup,func.count(distinct(Individual.id)).label('count'))\
-                                    .group_by(Trapgroup.id)\
-                                    .join(Camera)\
-                                    .join(Image)\
-                                    .join(Detection))
-            elif individual_level=='survey':
-                sq = rDets(db.session.query(Survey,func.count(distinct(Individual.id)).label('count'))\
-                                    .group_by(Survey.id)\
-                                    .join(Trapgroup)\
-                                    .join(Camera)\
-                                    .join(Image)\
-                                    .join(Detection))
+            for individual_level in individual_levels:
+                
+                if individual_level=='detection':
+                    sq = rDets(db.session.query(Detection,func.count(distinct(Individual.id)).label('count'))\
+                                        .join(Image)\
+                                        .group_by(Detection.id))
+                elif individual_level=='image':
+                    sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
+                                        .group_by(Image.id)\
+                                        .join(Detection))
+                elif individual_level=='capture':
+                    sq = rDets(db.session.query(Image,func.count(distinct(Individual.id)).label('count'))\
+                                        .join(Detection)\
+                                        .join(Camera)\
+                                        .group_by(Camera.id,Image.corrected_timestamp))
+                elif individual_level=='cluster':
+                    sq = rDets(db.session.query(Cluster,func.count(distinct(Individual.id)).label('count'))\
+                                        .group_by(Cluster.id)\
+                                        .join(Image,Cluster.images)\
+                                        .join(Detection))
+                elif individual_level=='camera':
+                    sq = rDets(db.session.query(Camera,func.count(distinct(Individual.id)).label('count'))\
+                                        .group_by(Camera.id)\
+                                        .join(Image)\
+                                        .join(Detection))
+                elif individual_level=='trapgroup':
+                    sq = rDets(db.session.query(Trapgroup,func.count(distinct(Individual.id)).label('count'))\
+                                        .group_by(Trapgroup.id)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection))
+                elif individual_level=='survey':
+                    sq = rDets(db.session.query(Survey,func.count(distinct(Individual.id)).label('count'))\
+                                        .group_by(Survey.id)\
+                                        .join(Trapgroup)\
+                                        .join(Camera)\
+                                        .join(Image)\
+                                        .join(Detection))
 
-            if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
-            if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
+                if startDate: sq = sq.filter(Image.corrected_timestamp>=startDate)
+                if endDate: sq = sq.filter(Image.corrected_timestamp<=endDate)
 
-            sq = sq.join(Individual,Detection.individuals)\
-                    .join(Task,Individual.tasks)\
-                    .filter(Task.id.in_(selectedTasks))\
-                    .subquery()
+                sq = sq.join(Individual,Detection.individuals)\
+                        .join(Task,Individual.tasks)\
+                        .filter(Task.id.in_(selectedTasks))\
+                        .subquery()
 
-            count = db.session.query(func.max(sq.c.count)).scalar()
+                count = db.session.query(func.max(sq.c.count)).scalar()
 
-            if count in [None,0]: count = 1
+                if count in [None,0]: count = 1
 
-            individual_li = []
-            for i in range(count):
-                individual_li.append(individual_level+'_individual_'+str(i+1))
+                individual_li = []
+                for i in range(count):
+                    individual_li.append(individual_level+'_individual_'+str(i+1))
 
-            for heading in individual_li:
-                requestedColumns.insert(requestedColumns.index(individual_level+'_individuals'), heading)
-            requestedColumns.remove(individual_level+'_individuals')
+                for heading in individual_li:
+                    requestedColumns.insert(requestedColumns.index(individual_level+'_individuals'), heading)
+                requestedColumns.remove(individual_level+'_individuals')
 
-            individual_list[individual_level] = individual_li
+                individual_list[individual_level] = individual_li
 
         originalRequestedColumns = requestedColumns.copy()
 
@@ -1044,14 +1044,20 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
                             outputDF[tag_level+'_tags'] = outputDF.apply(lambda x: combine_list(x[tag_level+'_tags']), axis=1)
 
                     for individual_level in individual_levels:
-                        count = outputDF[individual_level+'_individuals'].apply(len).max()
-                        outputDF[individual_list[individual_level][:count]] = pd.DataFrame(outputDF[individual_level+'_individuals'].tolist(), index=outputDF.index)
-                        
-                        for column in individual_list[individual_level][count:]:
-                            outputDF[column] = 'None'
+                        if label_type=='column':
+                            count = outputDF[individual_level+'_individuals'].apply(len).max()
+                            outputDF[individual_list[individual_level][:count]] = pd.DataFrame(outputDF[individual_level+'_individuals'].tolist(), index=outputDF.index)
+                            
+                            for column in individual_list[individual_level][count:]:
+                                outputDF[column] = 'None'
 
-                        del outputDF[individual_level+'_individuals']
-                        outputDF.fillna('None', inplace=True)
+                            del outputDF[individual_level+'_individuals']
+                            outputDF.fillna('None', inplace=True)
+                        elif label_type=='row':
+                            outputDF[individual_level+'_individuals'] = outputDF.apply(lambda x: list(x[individual_level+'_individuals']), axis=1)
+                            outputDF = outputDF.explode(individual_level+'_individuals')
+                        elif label_type=='list':
+                            outputDF[individual_level+'_individuals'] = outputDF.apply(lambda x: combine_list(x[individual_level+'_individuals']), axis=1)
 
                     outputDF = outputDF[requestedColumns]
 
