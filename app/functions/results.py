@@ -1313,7 +1313,7 @@ def generate_excel(self,task_id):
         sheet.row_dimensions[1].height = 25
         # sheet.merge_cells('A1:E1')
         sheet["B2"] = 'Co-ordinates'
-        sheet["A3"] = 'Trap'
+        sheet["A3"] = 'Site'
         sheet["A3"].border = bottom_border
         sheet["B3"] = 'Longitude'
         sheet["B3"].border = Border(left=Side(style='thin'), bottom=Side(style='thin'))
