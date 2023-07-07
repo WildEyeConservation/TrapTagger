@@ -1386,6 +1386,7 @@ function nextCluster(mapID = 'map1') {
             updateClusterLabels(mapID)
 
             if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                actions = []
                 preLoadCount = 1
                 updateProgress()
             } else {

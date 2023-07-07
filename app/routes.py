@@ -4736,7 +4736,7 @@ def get_clusters():
     limit = 1
     label_description = None
 
-    if GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),0)
+    if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
         label_description = session.query(Label).get(int(taggingLevel)).description
@@ -4746,80 +4746,84 @@ def get_clusters():
 
     else:
 
-        if '-5' in taggingLevel:
-            # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
-            # session.close()
-            # GLOBALS.mutex[task_id]['global'].acquire()
-            # session = db.session()
-            # session.add(current_user)
-            # session.refresh(current_user)
-            
-            clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
-
-            # Handle buffer
-            for individual in individuals:
-                bufferCount = GLOBALS.redisClient.rpush('user_individuals_'+str(current_user.id),individual.id)
-                for n in range(bufferCount-1):
-                    indID = GLOBALS.redisClient.lpop('user_individuals_'+str(current_user.id))
-                    if indID: GLOBALS.redisClient.srem('active_individuals_'+str(current_user.turkcode[0].task_id),int(indID.decode()))
-
-            clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + len(individuals)
-            GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),clusters_allocated)
-            # current_user.last_ping = datetime.utcnow()
-            session.commit()
+        if not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user.username):
+            clusterInfo = {}
 
         else:
-            # session.close()
-            # GLOBALS.mutex[task_id]['global'].acquire()
-            # Open a new session to ensure allocations are up to date after a long wait
-            # session = db.session()
-            # session.add(current_user)
-            # session.refresh(current_user)
+            if '-5' in taggingLevel:
+                # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
+                # session.close()
+                # GLOBALS.mutex[task_id]['global'].acquire()
+                # session = db.session()
+                # session.add(current_user)
+                # session.refresh(current_user)
+                
+                clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
 
-            # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
-            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
-            if trapgroup == None:
+                # Handle buffer
+                for individual in individuals:
+                    bufferCount = GLOBALS.redisClient.rpush('user_individuals_'+str(current_user.id),individual.id)
+                    for n in range(bufferCount-1):
+                        indID = GLOBALS.redisClient.lpop('user_individuals_'+str(current_user.id))
+                        if indID: GLOBALS.redisClient.srem('active_individuals_'+str(current_user.turkcode[0].task_id),int(indID.decode()))
+
+                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(individuals)
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
+                # current_user.last_ping = datetime.utcnow()
+                session.commit()
+
+            else:
+                # session.close()
+                # GLOBALS.mutex[task_id]['global'].acquire()
+                # Open a new session to ensure allocations are up to date after a long wait
+                # session = db.session()
+                # session.add(current_user)
+                # session.refresh(current_user)
+
+                # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
+                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                if trapgroup == None:
+                    session.close()
+                    # GLOBALS.mutex[task_id]['global'].release()
+                    return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+
+                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
+                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+
+                # if len(clusterInfo)==0: current_user.trapgroup = []
+                if len(clusterInfo) <= limit:
+                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
+                    trapgroup.active = False
+                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
+                else:
+                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
+
+                # current_user.last_ping = datetime.utcnow()
+                
+                session.commit()
                 session.close()
                 # GLOBALS.mutex[task_id]['global'].release()
-                return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
-            limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode())
-            clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                # if current_user.trapgroup[:]:
+                #     trapgroup = current_user.trapgroup[0]
+                # else:
+                #     GLOBALS.mutex[task_id]['global'].acquire()
+                #     db.session.commit()
 
-            # if len(clusterInfo)==0: current_user.trapgroup = []
-            if len(clusterInfo) <= limit:
-                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + len(clusterInfo)
-                trapgroup.active = False
-                GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
-            else:
-                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + limit
-            GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),clusters_allocated)
+                #     trapgroup = allocate_new_trapgroup(task_id,current_user.id)
+                #     if trapgroup == None:
+                #         GLOBALS.mutex[task_id]['global'].release()
+                #         return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+                #     GLOBALS.mutex[task_id]['global'].release()
 
-            # current_user.last_ping = datetime.utcnow()
-            
-            session.commit()
-            session.close()
-            # GLOBALS.mutex[task_id]['global'].release()
-
-            # if current_user.trapgroup[:]:
-            #     trapgroup = current_user.trapgroup[0]
-            # else:
-            #     GLOBALS.mutex[task_id]['global'].acquire()
-            #     db.session.commit()
-
-            #     trapgroup = allocate_new_trapgroup(task_id,current_user.id)
-            #     if trapgroup == None:
-            #         GLOBALS.mutex[task_id]['global'].release()
-            #         return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
-            #     GLOBALS.mutex[task_id]['global'].release()
-
-            # GLOBALS.mutex[task_id]['user'][current_user.id].acquire()
-            # limit = task.size - current_user.clusters_allocated
-            # # clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
-            # clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id)
-            # current_user.clusters_allocated += len(clusters)
-            # db.session.commit()
-            # GLOBALS.mutex[task_id]['user'][current_user.id].release()
+                # GLOBALS.mutex[task_id]['user'][current_user.id].acquire()
+                # limit = task.size - current_user.clusters_allocated
+                # # clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
+                # clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id)
+                # current_user.clusters_allocated += len(clusters)
+                # db.session.commit()
+                # GLOBALS.mutex[task_id]['user'][current_user.id].release()
 
     # if clusters == []:
     #     current_user.trapgroup = []
@@ -4837,7 +4841,7 @@ def get_clusters():
 
     reply = translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id,label_description)
 
-    if (id is None) and (clusters_allocated >= task_size):
+    if ((id is None) and (clusters_allocated >= task_size)) or (reply['info'] == []):
         reply['info'].append(Config.FINISHED_CLUSTER)
 
     if Config.DEBUGGING: app.logger.info("Entire get cluster completed in {}".format(time.time() - OverallStartTime))
@@ -5648,7 +5652,7 @@ def assignLabel(clusterID):
                                                 .first()
 
                         if tgs_available and (not explore) and removable_detections:
-                            if GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),0)
+                            if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
                             reAllocated = True
                             trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
                             survey_id = task.survey_id
@@ -5656,7 +5660,7 @@ def assignLabel(clusterID):
                             trapgroup.processing = True
                             trapgroup.active = False
                             trapgroup.user_id = None
-                            GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),num)
+                            GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num)
 
                             label_description = None
                             if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
@@ -5679,17 +5683,17 @@ def assignLabel(clusterID):
                                 # GLOBALS.mutex[task_id]['global'].release()
                                 newClusters = []
                             else:
-                                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode())
+                                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
                                 clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if len(clusterInfo) <= limit:
-                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + len(clusterInfo)
+                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
                                     trapgroup.active = False
                                     GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
                                 else:
-                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id)).decode()) + limit
-                                GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),clusters_allocated)
+                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
+                                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
                                 
                                 session.commit()
                                 session.close()
@@ -6414,7 +6418,7 @@ def done():
 
     # current_user.passed = 'cTrue'
     GLOBALS.redisClient.srem('active_jobs_'+str(task_id),turkcode.code)
-    GLOBALS.redisClient.delete('clusters_allocated'+str(current_user.id))
+    GLOBALS.redisClient.delete('clusters_allocated_'+str(current_user.id))
     turkcode.active = False
 
     for trapgroup in current_user.trapgroup:
@@ -6879,9 +6883,9 @@ def knockdown(imageId, clusterId):
                 if (check > 0):
                     return ""
 
-                if GLOBALS.redisClient.get('clusters_allocated'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),0)
+                if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
-                GLOBALS.redisClient.set('clusters_allocated'+str(current_user.id),num_cluster)
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num_cluster)
                 db.session.commit()
 
                 if trapgroup.processing:

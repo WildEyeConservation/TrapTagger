@@ -1661,7 +1661,7 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
         # user.passed = 'cFalse'
         GLOBALS.redisClient.srem('active_jobs_'+str(task.id),user.turkcode[0].code)
 
-        GLOBALS.redisClient.delete('clusters_allocated'+str(user.id))
+        GLOBALS.redisClient.delete('clusters_allocated_'+str(user.id))
 
         # if task.id in GLOBALS.mutex.keys():
         #     GLOBALS.mutex[task.id]['user'].pop(user.id, None)
@@ -2600,3 +2600,104 @@ def numify_timestamp(timestamp):
         return (timestamp-datetime(1970,1,1)).total_seconds()
     except:
         return 0
+
+def fire_up_instances(queue,instance_count):
+    ''' Function to manually fire up extra instances when needed'''
+
+    ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
+    client = boto3.client('ec2',region_name=Config.AWS_REGION)
+
+    if queue in Config.QUEUES.keys():
+        ami = Config.QUEUES[queue]['ami']
+        instances = Config.QUEUES[queue]['instances']
+        user_data = Config.QUEUES[queue]['user_data']
+        idle_multiplier = Config.IDLE_MULTIPLIER[queue]
+        instance_rates = Config.INSTANCE_RATES[queue]
+        git_pull = True
+        subnet = Config.PUBLIC_SUBNET_ID
+    else:
+        classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
+        ami = classifier.ami_id
+        instances = Config.GPU_INSTANCE_TYPES
+        user_data = Config.CLASSIFIER['user_data']
+        idle_multiplier = Config.IDLE_MULTIPLIER['classification']
+        instance_rates = Config.INSTANCE_RATES['classification']
+        git_pull = False
+        subnet = Config.PRIVATE_SUBNET_ID
+    
+    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet)
+
+    return True
+
+def inspect_celery(include_reserved=False):
+    ''' Funcion to manually inspect the running celery tasks'''
+    inspector = celery.control.inspect()
+
+    print('//////////////////////Active tasks://////////////////////')
+    inspector_active = inspector.active()
+    for worker in inspector_active:
+        for task in inspector_active[worker]:
+            if not any(name in task['name'] for name in ['importImages','detection','classify']):
+                print('')
+                print(task)
+
+    if include_reserved:
+        print('')
+        print('')
+        print('')
+        print('//////////////////////Reserved tasks://////////////////////')
+        inspector_reserved = inspector.reserved()
+        for worker in inspector_reserved:
+            for task in inspector_reserved[worker]:
+                if not any(name in task['name'] for name in ['importImages','detection','classify']):
+                    print('')
+                    print(task)
+
+    return True
+
+@celery.task(ignore_result=True)
+def clean_up_redis():
+    ''' Periodic function to manually clean up redis cache'''
+
+    try:
+        startTime = datetime.utcnow()
+        redisKeys = [r.decode() for r in GLOBALS.redisClient.keys()]
+
+        for key in redisKeys:
+
+            if any(name in key for name in ['active_jobs','job_pool','active_individuals','active_indsims']):
+                task_id = int(key.split('_')[-1])
+                task = db.session.query(Task).get(task_id)
+                if task.status not in ['PENDING','PROGRESS']:
+                    GLOBALS.redisClient.delete(key)
+
+            elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims'])
+                user_id = int(key.split('_')[-1])
+                user = db.session.query(User).get(user_id)
+                if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                    GLOBALS.redisClient.delete(key)
+
+            elif any(name in key for name in ['trapgroups'])
+                survey_id = int(key.split('_')[-1])
+                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
+                if not task:
+                    GLOBALS.redisClient.delete(key)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
+        if countdown < 0: countdown=0
+        clean_up_redis.apply_async(queue='priority', priority=0, countdown=countdown)
+
+    return True
+
+
+ 
+        
