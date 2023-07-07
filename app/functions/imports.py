@@ -3509,7 +3509,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
             with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
 
                 # Change crf and preset to change quality and size of video
-                output_video = ffmpeg.output(input_video, temp_file_out.name, crf=25, preset='medium')
+                output_video = ffmpeg.output(input_video, temp_file_out.name, crf=30, preset='veryfast')
                 output_video.run(overwrite_output=True)
 
                 # Upload video to compressed bucket
