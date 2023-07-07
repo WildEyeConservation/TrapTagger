@@ -25,7 +25,7 @@ from sqlalchemy.sql import func, or_, alias, distinct, and_
 from sqlalchemy import desc
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import math
 import boto3
