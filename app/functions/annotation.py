@@ -429,15 +429,18 @@ def launch_task(self,task_id):
     return True
 
 # @celery.task(bind=True,max_retries=29,ignore_result=True)
-def freeUpWork(task,session):
+def freeUpWork(task_id):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
     if '-5' not in task.tagging_level:
+        session = db.session()
+        task = session.query(Task).get(task_id)
+
         clusterSQ = session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
                                 .join(Camera)\
                                 .join(Image)\
                                 .join(Cluster,Image.clusters)\
-                                .filter(Cluster.task_id == task.id) \
+                                .filter(Cluster.task_id == task_id) \
                                 .subquery()
 
         trapgroups = session.query(Trapgroup) \
@@ -445,7 +448,7 @@ def freeUpWork(task,session):
                         .join(Image) \
                         .join(Cluster, Image.clusters) \
                         .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
-                        .filter(Cluster.task_id == task.id) \
+                        .filter(Cluster.task_id == task_id) \
                         .filter(Trapgroup.active == False) \
                         .filter(Trapgroup.processing == False) \
                         .filter(Trapgroup.queueing == False)\
@@ -459,6 +462,9 @@ def freeUpWork(task,session):
         for trapgroup in trapgroups:
             trapgroup.active = True
             GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
+
+        session.commit()
+        session.close()
 
     return True
 
@@ -562,9 +568,11 @@ def wrapUpTask(self,task_id):
 
     return True
 
-def manage_task(task,session):
+def manage_task(task_id):
     '''Manages an active task by controlling the number of active jobs, cleaning up item statuses, and even cleans up tasks when annotation is complete.'''
 
+    session = db.session()
+    task = session.query(Task).get(task_id)
     task_id = task.id
     taggingLevel = task.tagging_level
     survey_id = task.survey_id
@@ -668,17 +676,21 @@ def manage_task(task,session):
 
     task.clusters_remaining = clusters_remaining
 
+    session.commit()
+    session.close()
+
     if (clusters_remaining==0) and (active_jobs==0):
         processing = session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(or_(Trapgroup.processing==True,Trapgroup.queueing==True)).first()
 
         if not processing:
             app.logger.info('Task finished.')
             task.status = 'Wrapping Up'
-            # session.commit()
+            session.commit()
+            session.close()
             # wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    elif task_jobs == 0: freeUpWork(task, session)
+    elif task_jobs == 0: freeUpWork(task_id)
 
     return False, jobs_to_delete
 
@@ -763,9 +775,11 @@ def manageTasks():
                         .distinct().all()
         print('{} tasks are currently active.'.format(len(tasks)))
 
+        task_ids = [r.id for r in tasks]
+
         active_jobs = []
         for task in tasks:
-            active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task.id))]
+            active_jobs.extend([r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task.id))])
 
         #Look for abandoned jobs
         abandoned_jobs = session.query(User,Task)\
@@ -779,6 +793,18 @@ def manageTasks():
         if abandoned_jobs:
             resolve_abandoned_jobs(abandoned_jobs,session)
             session.commit()
+
+        # Look for checked-out jobs that were never started (often due to the tutorial)
+        abandoned_jobs = session.query(Turkcode)\
+                            .filter(Turkcode.user_id==None)\
+                            .filter(Turkcode.assigned<(datetime.utcnow()-timedelta(minutes=5)))\
+                            .all()
+
+        for abandoned_job in abandoned_jobs:
+            abandoned_job.active = True
+            abandoned_job.assigned = None
+            GLOBALS.redisClient.srem('active_jobs_'+str(abandoned_job.task_id),abandoned_job.code)
+            GLOBALS.redisClient.sadd('job_pool_'+str(abandoned_job.task_id),abandoned_job.code)
 
         # # Ensure there are no locked-out individuals
         # allocateds = session.query(IndSimilarity)\
@@ -813,18 +839,18 @@ def manageTasks():
         # pool = Pool(processes=4)
         wrapUps = []
         jobs_to_delete = {}
-        for task in tasks:
-            wrapUp, jobs_to_delete[task.id] = manage_task(task,session)
-            if wrapUp: wrapUps.append(task.id)
+        for task_id in task_ids:
+            wrapUp, jobs_to_delete[task_id] = manage_task(task_id)
+            if wrapUp: wrapUps.append(task_id)
             # pool.apply_async(manage_task,(task_id,))
         # pool.close()
         # pool.join()
 
-        session.commit()
+        # session.commit()
 
         # Delete excess jobs
         for task_id in jobs_to_delete.keys():
-            deleteTurkcodes(jobs_to_delete[task_id], task_id, session)
+            deleteTurkcodes(jobs_to_delete[task_id], task_id)
 
         # Wrap up finished tasks
         for task_id in wrapUps:

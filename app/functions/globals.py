@@ -1504,17 +1504,19 @@ def createTurkcodes(number_of_workers, task_id, session):
 
     return turkcodes
 
-def deleteTurkcodes(number_of_jobs, task_id, session):
+def deleteTurkcodes(number_of_jobs, task_id):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
     # if not populateMutex(int(task_id)): return False
 
+    session = db.session()
     for n in range(number_of_jobs):
         code = GLOBALS.redisClient.spop('job_pool_'+str(task_id))
         if code:
             turkcode = session.query(Turkcode).filter(Turkcode.code==code).first()
             session.delete(turkcode)
     session.commit()
+    session.close()
 
     return True
 

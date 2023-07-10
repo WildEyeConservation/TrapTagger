@@ -2277,6 +2277,10 @@ def dotask(username):
 
     turkcode = db.session.query(Turkcode).filter(Turkcode.code==username).first()
     if turkcode and (username.lower() not in Config.DISALLOWED_USERNAMES) and ((current_user in turkcode.task.survey.user.workers) or (current_user == turkcode.task.survey.user)):
+        
+        # Job was probably cleaned up
+        if not GLOBALS.redisClient.sismember('active_jobs_'+str(turkcode.task_id),turkcode.code): return redirect(url_for('jobs'))
+
         user = turkcode.user
         
         if user is None:
@@ -2302,7 +2306,7 @@ def dotask(username):
         else:
             return redirect(url_for('index'))
     else:
-        return render_template("html/block.html",text="Invalid URL.", helpFile='block', version=Config.VERSION)
+        return redirect(url_for('jobs'))
 
 @app.route('/createAccount/<token>')
 def createAccount(token):
