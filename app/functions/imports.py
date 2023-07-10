@@ -3504,12 +3504,21 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
             # Convert and compress video
             input_video = ffmpeg.input(temp_file.name)
-            # output_width = 480
-            # input_video = input_video.filter('scale', width=output_width, height=-2).filter('setsar', ratio='1:1')
-            with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
+            try:
+                probe = ffmpeg.probe(temp_file.name)
+                video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+                width = int(video_stream['width'])
+                height = int(video_stream['height'])
+            except:
+                width = None
+                height = None
 
-                # Change crf and preset to change quality and size of video
-                output_video = ffmpeg.output(input_video, temp_file_out.name, crf=30, preset='veryfast')
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.mp4') as temp_file_out:
+                # Compress video
+                if width and height and width > 854 and height > 480:
+                    output_video = ffmpeg.output(input_video, temp_file_out.name, crf=30, preset='veryfast', s='854:480', pix_fmt='yuv420p')
+                else:
+                    output_video = ffmpeg.output(input_video, temp_file_out.name, crf=30, preset='veryfast', pix_fmt='yuv420p')
                 output_video.run(overwrite_output=True)
 
                 # Upload video to compressed bucket
