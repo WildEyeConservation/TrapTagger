@@ -2668,22 +2668,34 @@ def clean_up_redis():
         for key in redisKeys:
 
             if any(name in key for name in ['active_jobs','job_pool','active_individuals','active_indsims']):
-                task_id = int(key.split('_')[-1])
-                task = db.session.query(Task).get(task_id)
-                if task.status not in ['PENDING','PROGRESS']:
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
                     GLOBALS.redisClient.delete(key)
+                else:
+                    task = db.session.query(Task).get(int(task_id))
+                    if task.status not in ['PENDING','PROGRESS']:
+                        GLOBALS.redisClient.delete(key)
 
             elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims']):
-                user_id = int(key.split('_')[-1])
-                user = db.session.query(User).get(user_id)
-                if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                user_id = key.split('_')[-1]
+
+                if user_id == 'None':
                     GLOBALS.redisClient.delete(key)
+                else:
+                    user = db.session.query(User).get(int(user_id))
+                    if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                        GLOBALS.redisClient.delete(key)
 
             elif any(name in key for name in ['trapgroups']):
-                survey_id = int(key.split('_')[-1])
-                task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
-                if not task:
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
                     GLOBALS.redisClient.delete(key)
+                else:
+                    task = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
+                    if not task:
+                        GLOBALS.redisClient.delete(key)
 
     except Exception as exc:
         app.logger.info(' ')
