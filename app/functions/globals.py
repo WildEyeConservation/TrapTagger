@@ -897,7 +897,8 @@ def removeFalseDetections(self,cluster_id,undo):
             trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
             trapgroup.processing = False
             trapgroup.active = True
-            GLOBALS.redisClient.rpush('trapgroups_'+str(survey_id),trapgroup.id)
+            GLOBALS.redisClient.lrem('trapgroups_'+str(survey_id),0,trapgroup.id)
+            GLOBALS.redisClient.rpush('trapgroups_'+str(survey_id),trapgroup.id) 
             db.session.commit()
 
     except Exception as exc:
@@ -1103,7 +1104,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
                 re_evaluate_trapgroup_examined(trapgroup_id,task_id)
                 trapgroup.active = True
                 trapgroup.processing = False
-                GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
+                GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+                GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)                 
                 session.commit()
 
         if Config.DEBUGGING: app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
@@ -2627,7 +2629,7 @@ def fire_up_instances(queue,instance_count):
         git_pull = False
         subnet = Config.PRIVATE_SUBNET_ID
     
-    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet)
+    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,instances,instance_rates,git_pull,subnet)
 
     return True
 
@@ -2695,6 +2697,17 @@ def clean_up_redis():
                 else:
                     task = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
                     if not task:
+                        GLOBALS.redisClient.delete(key)
+
+            # clusters_remaining = int(GLOBALS.redisClient.get('clusters_remaining_'+str(item[0])).decode())
+            if any(name in key for name in ['clusters_remaining_']):
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    task = db.session.query(Task).get(int(task_id))
+                    if task.status not in ['PROGRESS']:
                         GLOBALS.redisClient.delete(key)
 
     except Exception as exc:

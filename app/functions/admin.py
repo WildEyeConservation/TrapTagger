@@ -272,7 +272,7 @@ def stop_task(self,task_id):
             GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
             GLOBALS.redisClient.delete('job_pool_'+str(task.id))
 
-            turkcodes = db.session.query(Turkcode).outerjoin(User).filter(Turkcode.task_id==int(task_id)).filter(User.id==None).filter(Turkcode.active==True).all()
+            turkcodes = db.session.query(Turkcode).filter(Turkcode.task_id==int(task_id)).filter(Turkcode.user_id==None).filter(Turkcode.active==True).all()
             for turkcode in turkcodes:
                 db.session.delete(turkcode)
 
@@ -773,6 +773,21 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
         db.session.remove()
 
     return True
+
+# def reclusterAfterTimestampChange(survey_id):
+#     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels etc.'''
+
+#     session = db.session()
+#     tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
+
+#     for task in tasks:
+#         clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).all()
+#         for cluster in clusters:
+#             cluster.labels = []
+#             cluster.tags = []
+#             cluster.images = []
+#             cluster.required_images = []
+#             db.session.delete(cluster)
 
 def reclusterAfterTimestampChange(survey_id):
     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels. Saves all old tasks 

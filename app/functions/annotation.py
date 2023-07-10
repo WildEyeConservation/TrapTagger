@@ -449,7 +449,6 @@ def freeUpWork(task_id, taggingLevel):
                         .join(Cluster, Image.clusters) \
                         .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
                         .filter(Cluster.task_id == task_id) \
-                        .filter(Trapgroup.active == False) \
                         .filter(Trapgroup.processing == False) \
                         .filter(Trapgroup.queueing == False)\
                         .filter(Trapgroup.user_id == None)\
@@ -461,7 +460,8 @@ def freeUpWork(task_id, taggingLevel):
 
         for trapgroup in trapgroups:
             trapgroup.active = True
-            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
+            GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)            
 
         session.commit()
         session.close()
@@ -478,7 +478,7 @@ def wrapUpTask(self,task_id):
         GLOBALS.redisClient.delete('active_jobs_'+str(task.id))
         GLOBALS.redisClient.delete('job_pool_'+str(task.id))
 
-        turkcodes = db.session.query(Turkcode).outerjoin(User).filter(Turkcode.task_id==task_id).filter(User.id==None).filter(Turkcode.active==True).all()
+        turkcodes = db.session.query(Turkcode).filter(Turkcode.task_id==task_id).filter(Turkcode.user_id==None).filter(Turkcode.active==True).all()
         for turkcode in turkcodes:
             db.session.delete(turkcode)
 
@@ -674,7 +674,25 @@ def manage_task(task_id):
                         .filter(Cluster.examined==False)\
                         .count()
 
-    task.clusters_remaining = clusters_remaining
+    # task.clusters_remaining = clusters_remaining
+    GLOBALS.redisClient.set('clusters_remaining_'+str(task_id), clusters_remaining)
+
+    # # make sure trapgroup pool is correct:
+    # trapgroups = session.query(Trapgroup) \
+    #                 .join(Camera) \
+    #                 .join(Image) \
+    #                 .join(Cluster, Image.clusters) \
+    #                 .filter(Cluster.task_id == task_id) \
+    #                 .filter(Trapgroup.processing == False) \
+    #                 .filter(Trapgroup.queueing == False)\
+    #                 .filter(Trapgroup.user_id == None)\
+    #                 .filter(Cluster.examined==False)\
+    #                 .filter(~Trapgroup.id.in_([int(r.decode()) for r in GLOBALS.redisClient.lrange('trapgroups_'+str(survey_id), 0, -1)]))\
+    #                 .distinct().all()
+
+    # for trapgroup in trapgroups:
+    #     GLOBALS.redisClient.lrem('trapgroups_'+str(survey_id),0,trapgroup.id)
+    #     GLOBALS.redisClient.lpush('trapgroups_'+str(survey_id), trapgroup.id)
 
     session.commit()
     session.close()
@@ -684,15 +702,16 @@ def manage_task(task_id):
 
         if not processing:
             app.logger.info('Task finished.')
+            task = session.query(Task).get(task_id)
             task.status = 'Wrapping Up'
             session.commit()
             session.close()
-            # wrapUpTask.delay(task_id=task_id)
+            wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
     elif task_jobs == 0: freeUpWork(task_id, taggingLevel)
 
-    return False, jobs_to_delete
+    return False, jobs_to_delete                     
 
 @celery.task(ignore_result=True)
 def manageTasks():
@@ -835,13 +854,14 @@ def manageTasks():
             trapgroup.user_id = None
 
         session.commit()
+        session.close()
 
         # pool = Pool(processes=4)
         wrapUps = []
         jobs_to_delete = {}
         for task_id in task_ids:
             wrapUp, jobs_to_delete[task_id] = manage_task(task_id)
-            if wrapUp: wrapUps.append(task_id)
+            # if wrapUp: wrapUps.append(task_id)
             # pool.apply_async(manage_task,(task_id,))
         # pool.close()
         # pool.join()
@@ -852,9 +872,9 @@ def manageTasks():
         for task_id in jobs_to_delete.keys():
             deleteTurkcodes(jobs_to_delete[task_id], task_id)
 
-        # Wrap up finished tasks
-        for task_id in wrapUps:
-            wrapUpTask.delay(task_id=task_id)
+        # # Wrap up finished tasks
+        # for task_id in wrapUps:
+        #     wrapUpTask.delay(task_id=task_id)
 
     except Exception as exc:
         app.logger.info(' ')

@@ -363,16 +363,17 @@ def takeJob(task_id):
 
         job = GLOBALS.redisClient.spop('job_pool_'+str(task_id))
         if job == None: return json.dumps({'status':'error'})
-        GLOBALS.redisClient.sadd('active_jobs_'+str(task_id),job)
 
         job = db.session.query(Turkcode).filter(Turkcode.code==job).first()
-        job.active = False
-        job.assigned = datetime.utcnow()
-        db.session.commit()
 
-        return json.dumps({'status':'success','code':endpoint+job.code})
-    else:
-        return json.dumps({'status':'inactive'})
+        if job:
+            GLOBALS.redisClient.sadd('active_jobs_'+str(task_id),job.code)
+            job.active = False
+            job.assigned = datetime.utcnow()
+            db.session.commit()
+            return json.dumps({'status':'success','code':endpoint+job.code})
+
+    return json.dumps({'status':'inactive'})
 
 @app.route('/getAllIndividuals', methods=['POST'])
 @login_required
@@ -2852,7 +2853,7 @@ def getHomeSurveys():
         current_downloads = request.args.get('downloads', '', type=str)
 
         siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
-        availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+        # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
         completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                             .join(Turkcode)\
                                             .join(User)\
@@ -2875,12 +2876,11 @@ def getHomeSurveys():
                                     Task.complete,
                                     Task.tagging_level,
                                     Task.cluster_count,
-                                    Task.clusters_remaining,
-                                    availableJobsSQ.c.count,
+                                    Task.id, #temp replacement for Task.clusters_remaining
+                                    Task.id, #availableJobsSQ.c.count,
                                     completeJobsSQ.c.count
                                 ).outerjoin(Task,Task.survey_id==Survey.id)\
                                 .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
-                                .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                                 .filter(Survey.user_id==current_user.id)\
                                 .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))
@@ -2914,14 +2914,19 @@ def getHomeSurveys():
                                         'tasks': []}
 
             if item[8] and (item[9]!='default'):
+                clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
+                if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+                jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
+
                 taskInfo = {'id': item[8],
                             'name': item[9],
                             'status': item[10],
                             'complete': item[11],
                             'tagging_level': item[12],
                             'total': item[13],
-                            'remaining': item[14],
-                            'jobsAvailable': item[15],
+                            'remaining': clusters_remaining,
+                            'jobsAvailable': jobsAvailable,
                             'jobsCompleted': item[16]}
 
                 if taskInfo['total'] and taskInfo['remaining']:
@@ -2979,14 +2984,19 @@ def getHomeSurveys():
                                             'tasks': []}
 
                 if item[8] and (item[9]!='default'):
+                    clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
+                    if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+                    jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
+
                     taskInfo = {'id': item[8],
                                 'name': item[9],
                                 'status': item[10],
                                 'complete': item[11],
                                 'tagging_level': item[12],
                                 'total': item[13],
-                                'remaining': item[14],
-                                'jobsAvailable': item[15],
+                                'remaining': clusters_remaining,
+                                'jobsAvailable': jobsAvailable,
                                 'jobsCompleted': item[16]}
 
                     if taskInfo['total'] and taskInfo['remaining']:
@@ -3069,7 +3079,7 @@ def getJobs():
     search = request.args.get('search', '', type=str)
     individual_id = request.args.get('individual_id', 'false', type=str)
 
-    availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+    # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
     completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                         .join(Turkcode)\
                                         .join(User)\
@@ -3083,14 +3093,13 @@ def getJobs():
                                 Task.id,
                                 Task.tagging_level,
                                 Task.cluster_count,
-                                Task.clusters_remaining,
-                                availableJobsSQ.c.count,
+                                Task.id, #temp replacement for Task.clusters_remaining
+                                Task.id, #availableJobsSQ.c.count,
                                 completeJobsSQ.c.count,
                                 Survey.name
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .join(User,Survey.user_id==User.id)\
                             .outerjoin(Worker, User.workers)\
-                            .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .filter(or_(User.id==current_user.id,Worker.c.id==current_user.id))
 
@@ -3131,13 +3140,17 @@ def getJobs():
     for item in tasks:
         if item[0] not in covered_tasks:
             covered_tasks.append(item[0])
+            clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[0]))
+            if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+            jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[0]))
 
             taskInfo = {'id': item[0],
                         'name': item[6],
                         'tagging_level': item[1],
                         'total': item[2],
-                        'remaining': item[3],
-                        'jobsAvailable': item[4],
+                        'remaining': clusters_remaining,
+                        'jobsAvailable': jobsAvailable,
                         'jobsCompleted': item[5]}
 
             if taskInfo['total'] and taskInfo['remaining']:
