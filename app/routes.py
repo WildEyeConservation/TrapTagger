@@ -6259,7 +6259,9 @@ def submitTags(task_id):
 @login_required
 def editSightings(image_id,task_id):
     '''Handles the editing of bounding boxes on the specified image, and labels for the associated labelgroup for the given task.'''
-    
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
     detDbIDs = {}
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
@@ -6375,7 +6377,7 @@ def editSightings(image_id,task_id):
                                             .first()
 
                 if clusterDetections == None:
-                    num += 1
+                    # num += 1
 
                     detectionLabels = db.session.query(Label) \
                                                 .join(Labelgroup, Label.labelgroups) \
