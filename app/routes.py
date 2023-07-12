@@ -2002,7 +2002,7 @@ def getBarData():
         startDate = None
         endDate = None
 
-    if Config.DEBUGGING: app.logger.info('Bar data requested for {} {} {} {} {} {}'.format(task_ids,species,baseUnit,axis,startDate,endDate))
+    if Config.DEBUGGING: app.logger.info('Bar data requested for {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,axis,startDate,endDate, sites_ids))
 
     data = []
     labels = []
@@ -2052,7 +2052,7 @@ def getBarData():
             data_labels = ['Surveys Count']
 
         elif axis == '2': #Trapgroup count
-            if sites_ids:
+            if sites_ids and sites_ids != '0':
                 trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).filter(Trapgroup.id.in_(sites_ids)).distinct().all()
             else:
                 trapgroups = db.session.query(Trapgroup).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()

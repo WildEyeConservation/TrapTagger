@@ -265,8 +265,8 @@ function generateResults(){
         document.getElementById('spatialOptionsDiv').hidden = true
         document.getElementById('spatialDataDiv').hidden = true
         document.getElementById('analysisDataDiv').hidden = false
-        // document.getElementById('comparisonDiv').hidden = true
-        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = true
         generateTemporal()
@@ -280,8 +280,8 @@ function generateResults(){
         document.getElementById('spatialOptionsDiv').hidden = false
         document.getElementById('spatialDataDiv').hidden = false
         document.getElementById('analysisDataDiv').hidden = true
-        // document.getElementById('comparisonDiv').hidden = true
-        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = true
         generateSpatial()
@@ -291,13 +291,13 @@ function generateResults(){
         document.getElementById('btnExportResults').disabled = false
         document.getElementById('chartTypeDiv').hidden = false
         document.getElementById('chartTypeSelector').value = 'bar'
-        document.getElementById('normalisationDiv').hidden = false
+        document.getElementById('normalisationDiv').hidden = true
         document.getElementById('timeUnitSelectionDiv').hidden = true 
         document.getElementById('spatialOptionsDiv').hidden = true
         document.getElementById('spatialDataDiv').hidden = true
-        document.getElementById('analysisDataDiv').hidden = false
-        // document.getElementById('comparisonDiv').hidden = false
-        // document.getElementById('numericalDataDiv').hidden = false
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = false
+        document.getElementById('numericalDataDiv').hidden = false
         document.getElementById('btnSaveGroupFromData').disabled = true
         document.getElementById('trendlineDiv').hidden = false
         generateNumerical()
@@ -312,8 +312,8 @@ function generateResults(){
         document.getElementById('spatialOptionsDiv').hidden = true
         document.getElementById('spatialDataDiv').hidden = true
         document.getElementById('analysisDataDiv').hidden = false
-        // document.getElementById('comparisonDiv').hidden = true
-        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = false
         generateTime()
@@ -326,8 +326,8 @@ function generateResults(){
         document.getElementById('spatialOptionsDiv').hidden = true
         document.getElementById('spatialDataDiv').hidden = true
         document.getElementById('analysisDataDiv').hidden = true
-        // document.getElementById('comparisonDiv').hidden = true
-        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = true
         document.getElementById('trendlineDiv').hidden = true
     }
@@ -823,7 +823,7 @@ function generateTime(){
 
 }
 
-function buildSpeciesAndSiteSelectorRow(){
+function buildDataSelectorRow(){
     /** Builds a row for the species and site selectors */
 
     var dataDiv = document.getElementById('dataDiv')
@@ -955,9 +955,12 @@ function buildSpeciesAndSiteSelectorRow(){
             var colourPicker = document.getElementById('colourPicker-' + wrapIDNum);
     
             if (selectColour.value === 'custom-' + wrapIDNum) {
+                selectColour.hidden = true;
                 colourPicker.hidden = false;
                 // colourPicker.click();
             } else {
+                colourPicker.hidden = true;
+                selectColour.hidden = false;
                 selectColour.style.backgroundColor = selectColour.value;
                 selectColour.value = selectColour.value;
                 updateDataColour(wrapIDNum, selectColour.value);
@@ -987,6 +990,7 @@ function buildSpeciesAndSiteSelectorRow(){
 
             console.log(selectedColor, rgba)
             colourPicker.hidden = true;
+            selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
         };
     }(IDNum));
@@ -1070,8 +1074,12 @@ function updateDataColour(IDNum, colour) {
             chart.data.datasets[i].backgroundColor = colour;
         }
     }
-
     chart.update();
+
+    // Bug in chart.js that causes the bar chart legend not to update unless the chart is updated again
+    if ( chartType == 'bar' ) {
+        chart.update();
+    }
 }
 
 function buildSpeciesSelectorRow(){
@@ -1144,9 +1152,9 @@ function buildSpeciesSelectorRow(){
     colourPicker.type = 'color';
     colourPicker.id = 'colourPickerSpecies-' + IDNum;
     colourPicker.value = '#000000';
-    colourPicker.style.width = '50%';
-    colourPicker.style.height = '50%';
-    colourPicker.style.padding = '0px';
+    // colourPicker.style.width = '50%';
+    // colourPicker.style.height = '50%';
+    // colourPicker.style.padding = '0px';
     colourPicker.hidden = true;
     col2.appendChild(colourPicker);
     
@@ -1156,6 +1164,7 @@ function buildSpeciesSelectorRow(){
             var colourPicker = document.getElementById('colourPickerSpecies-' + wrapIDNum);
     
             if (selectColour.value === 'custom-' + wrapIDNum) {
+                selectColour.hidden = true;
                 colourPicker.hidden = false;
                 // colourPicker.click();
             } else {
@@ -1188,6 +1197,7 @@ function buildSpeciesSelectorRow(){
 
             console.log(selectedColor, rgba)
             colourPicker.hidden = true;
+            selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
         };
     }(IDNum));
@@ -1216,6 +1226,79 @@ function buildSpeciesSelectorRow(){
         }
     }(IDNum));
     
+}
+
+
+function buildSiteCountSelectorRow(){
+    /** Builds a row for the site selectors */
+    console.log('buildSiteCountSelectorRow')
+    var siteCountSelectorDiv = document.getElementById('siteCountSelectorDiv')
+    var IDNum = getIdNumforNext('trapgroupSelectNum-')
+
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','siteSelCountDiv-'+String(IDNum))
+    siteCountSelectorDiv.appendChild(containingDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    containingDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
+    row.appendChild(col3)
+
+    siteCountSelectorDiv.appendChild(row)
+    
+    var siteSelector = document.createElement('select')
+    siteSelector.classList.add('form-control')
+    siteSelector.id = 'trapgroupSelectNum-'+String(IDNum)
+    col1.appendChild(siteSelector)
+    if (IDNum == 0) {
+        var siteOptionTexts = ['All']
+        var siteOptionValues = ['0']
+    }
+    else{
+        var siteOptionTexts = []
+        var siteOptionValues = []
+    }
+    siteOptionTexts.push(...globalSites) 
+    siteOptionValues.push(...globalSitesIDs)
+
+    fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
+
+    $("#"+siteSelector.id).change( function(wrapIDNum) {
+        return function() {
+            updateResults(true)
+        }
+    }(IDNum));
+
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.id = 'btnRemoveSiteCount-'+IDNum;
+        btnRemove.setAttribute("class",'btn btn-info');
+        btnRemove.innerHTML = '&times;';
+        col3.appendChild(btnRemove);
+        btnRemove.addEventListener('click', function(wrapIDNum) {
+            return function() {
+                site = document.getElementById('trapgroupSelectNum-'+wrapIDNum).options[document.getElementById('trapgroupSelectNum-'+wrapIDNum).selectedIndex].text 
+                site_tag = site.split(' ')[0]
+                site_index = chart.data.labels.indexOf(site_tag)
+                chart.data.labels.splice(site_index, 1)
+                chart.data.datasets.forEach((dataset) => {
+                    dataset.data.splice(site_index, 1);
+                }
+                );
+                chart.update();
+                btnRemove = document.getElementById('btnRemoveSiteCount-'+wrapIDNum)
+                btnRemove.parentNode.parentNode.remove();
+            }
+        }(IDNum));
+    }
 }
 
 function buildSiteSelectorRow(){
@@ -1340,7 +1423,7 @@ function updateResults(update=false){
     }
     else if (analysisSelection == '3') {
         if (update) {
-            // getTrapgroups()
+            getTrapgroups()
         }
         updateBar()
     }
@@ -1494,32 +1577,44 @@ function updateMap(){
 
 function getTrapgroups(){
     /**Gets all trapgroups from server for the specified tasks*/
-    var formData = new FormData();
-    var tasks = getSelectedTasks()
+    // var formData = new FormData();
+    // var tasks = getSelectedTasks()
 
-    formData.append('task_ids', JSON.stringify(tasks));
+    // formData.append('task_ids', JSON.stringify(tasks));
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            trapgroupNames = reply.names 
-            trapgroupValues = reply.values
+    // var xhttp = new XMLHttpRequest();
+    // xhttp.onreadystatechange =
+    // function(){
+    //     if (this.readyState == 4 && this.status == 200) {
+    //         reply = JSON.parse(this.responseText);
+    //         trapgroupNames = reply.names 
+    //         trapgroupValues = reply.values
 
-            var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
-            if (analysisSelection == '3') {
-                var xAxisSelection = document.getElementById('xAxisSelector').options[document.getElementById('xAxisSelector').selectedIndex].value
-                if (xAxisSelection == '1') {
-                    chart.data.labels = ['Survey Count']
-                } else if (xAxisSelection == '2') {
-                    chart.data.labels = trapgroupNames.slice(2)
-                }
-            }
-        }
-    }
-    xhttp.open("POST", '/getTrapgroups');
-    xhttp.send(formData);
+    //         var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
+    //         if (analysisSelection == '3') {
+    //             var xAxisSelection = document.getElementById('xAxisSelector').options[document.getElementById('xAxisSelector').selectedIndex].value
+    //             if (xAxisSelection == '1') {
+    //                 chart.data.labels = ['Survey Count']
+    //             } else if (xAxisSelection == '2') {
+    //                 chart.data.labels = trapgroupNames.slice(2)
+    //             }
+    //         }
+    //     }
+    // }
+    // xhttp.open("POST", '/getTrapgroups');
+    // xhttp.send(formData);
+
+    // var sites = getSelectedSites(true)
+    // var validSites = checkSitesSpatial() // hierdeie update 
+    // var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
+    // if (analysisSelection == '3') {
+    //     var xAxisSelection = document.getElementById('xAxisSelector').options[document.getElementById('xAxisSelector').selectedIndex].value
+    //     if (xAxisSelection == '1') {
+    //         chart.data.labels = ['Survey Count']
+    //     }
+    //     else if (xAxisSelection == '2' && validSites) {
+    //         chart.data.labels = sites
+    //     }
 }
 
 function getSelectedTasks(){
@@ -1539,6 +1634,9 @@ function getSelectedSites(text=false){
     var allSites = null
     if (analysis == '2'){
         allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    }
+    else if (analysis == '3'){
+        allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
     else {
         allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
@@ -2355,9 +2453,12 @@ $("#xAxisSelector").change( function() {
     if (xAxisSelection == '1') {
         chart.data.labels = ['Survey Count']
         document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('siteCountDiv').hidden = true
     } else if (xAxisSelection == '2') {
         chart.data.labels = []
         document.getElementById('normalisationDiv').hidden = false 
+        document.getElementById('siteCountDiv').hidden = false
+        buildSiteCountSelectorRow()
     }
 
     document.getElementById('statisticsErrors').innerHTML = ''
@@ -2611,8 +2712,8 @@ function clearResults(){
         document.getElementById('timeUnitSelectionDiv').hidden = true 
         document.getElementById('spatialOptionsDiv').hidden = true
         document.getElementById('spatialDataDiv').hidden = true
-        // document.getElementById('comparisonDiv').hidden = true
-        // document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('analysisDataDiv').hidden = true
         document.getElementById('trendlineDiv').hidden = true
         document.getElementById('trendlineOrderDiv').hidden = true
@@ -2636,9 +2737,9 @@ function clearResults(){
         polarData = {}
         lineData = {}
 
-        buildSpeciesAndSiteSelectorRow()
+        buildDataSelectorRow()
         buildSiteSelectorRow()
-        // buildSpeciesSelectorRow()
+        buildSpeciesSelectorRow()
     }
     else if (tabActive == 'baseChartDiv'){
         document.getElementById('backgroundSelector').value = '1'
@@ -2732,9 +2833,9 @@ function onload(){
     polarData = {}
     lineData = {}
     getLabelsAndSites()
-    buildSpeciesAndSiteSelectorRow()
+    buildDataSelectorRow()
     buildSiteSelectorRow()
-    // buildSpeciesSelectorRow()
+    buildSpeciesSelectorRow()
 }
 
 window.addEventListener('load', onload, false);

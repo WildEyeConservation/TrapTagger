@@ -92,7 +92,7 @@ limitations under the License. -->
                     <br>
                     <br>	
 
-                    <!-- <div id="comparisonDiv" hidden>
+                    <div id="comparisonDiv" hidden>
                         <h5 style="margin-bottom: 2px">Comparison</h5>
                         <div style="font-size: 80%; margin-bottom: 2px">
                         <i>Select what type of comparison you would like to do.</i>
@@ -102,12 +102,22 @@ limitations under the License. -->
                             <select class="form-control" id="xAxisSelector">
                                 <option value="1">Survey Counts</option>
                                 <option value="2">Site Counts</option>
-                                <option value="3">Group Counts</option>
+                                <!-- <option value="3">Group Counts</option> -->
                             </select>
                         </div>
                         </div>
                         <br>
-                    </div> -->
+                        <div id="siteCountDiv" hidden>
+                            <h5 style="margin-bottom: 2px">Site</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px">
+                                <i>Select the site you would like to compare.</i>
+                            </div>
+                            <div id="siteCountSelectorDiv"></div>
+                            <button class="btn btn-info" type="button" id="btnAddSiteCount" onclick=buildSiteCountSelectorRow()>+</button>
+                            <div id="siteCountErrors" style="font-size: 80%; color: #DF691A"></div>
+                            <br>
+                        </div>
+                    </div>
 
                     <div id="normalisationDiv" hidden>
                         <h5 style="margin-bottom: 2px">Normalisation</h5>
@@ -150,12 +160,12 @@ limitations under the License. -->
                         <h5 style="margin-bottom: 2px">Data</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select which site and species combination you would like to see results for.</i></div>
                         <div id="dataDiv"></div>
-                        <button class="btn btn-info" type="button" id="btnAddSpeciesAndSite" onclick=buildSpeciesAndSiteSelectorRow()>+</button>
+                        <button class="btn btn-info" type="button" id="btnAddSpeciesAndSite" onclick=buildDataSelectorRow()>+</button>
                         <div id="dataErrors" style="font-size: 80%; color: #DF691A"></div>	
                         <br>
                     </div>
 
-                    <!-- <div id="numericalDataDiv" hidden>
+                    <div id="numericalDataDiv" hidden>
                         <h5 style="margin-bottom: 2px">Species</h5>
                         <div style="font-size: 80%; margin-bottom: 2px">
                         <i>Select the sites you would like to see results for.</i>
@@ -164,7 +174,7 @@ limitations under the License. -->
                         <button class="btn btn-info" type="button" id="btnAddSpecies" onclick=buildSpeciesSelectorRow()>+</button>
                         <br>
                         <br>
-                    </div> -->
+                    </div>
 
                     <div id="spatialDataDiv" hidden>
                         <h5 style="margin-bottom: 2px">Species</h5>
