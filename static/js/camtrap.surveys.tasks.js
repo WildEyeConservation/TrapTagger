@@ -513,9 +513,16 @@ function checkLabels(editing) {
      * Checks the legality of the labels, updates the legalLabels status, and updates the error messages accordingly.
      * @param {bool} editing Whether the labels being checked are new labels, or labels being edited.
     */
-   
-    allHotkeys = document.querySelectorAll('[id^=labelhotkey-]');
-    allDescriptions = document.querySelectorAll('[id^=labeldescription-]');
+
+    if (editing) {
+        parentDiv = document.getElementById('modalEditTask')
+    }
+    else {
+        parentDiv = document.getElementById('modalAddTask')
+    }
+
+    allHotkeys = parentDiv.querySelectorAll('[id^=labelhotkey-]');
+    allDescriptions = parentDiv.querySelectorAll('[id^=labeldescription-]');
 
     var duplicateDescriptions = []
     var duplicateKeys = {}
@@ -551,8 +558,14 @@ function checkLabels(editing) {
                 if (!(description in dict)) {
                     dict[description] = [];
                 } else {
-                    if ((!duplicateDescriptions.includes(description))&&((allDescriptions[n].parentNode.parentNode.parentNode.parentNode.id=='AddLabelDiv')||(allDescriptions[n].parentNode.parentNode.parentNode.parentNode.id=='divLabel'))) {
-                        duplicateDescriptions.push(description)
+                    if (editing) {
+                        if ((!duplicateDescriptions.includes(description))&&((allDescriptions[n].parentNode.parentNode.parentNode.parentNode.id=='AddLabelDiv')||(allDescriptions[n].parentNode.parentNode.parentNode.parentNode.id=='labelDisplayDiv'))) {
+                            duplicateDescriptions.push(description)
+                        }
+                    } else {
+                        if ((!duplicateDescriptions.includes(description))&&(allDescriptions[n].parentNode.parentNode.parentNode.parentNode.id=='divLabel')) {
+                            duplicateDescriptions.push(description)
+                        }
                     }
                 }
             }
