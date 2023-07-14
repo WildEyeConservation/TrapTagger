@@ -513,7 +513,10 @@ function submitChanges(mapID = 'map1') {
         xhttp.onreadystatechange =
         function(wrapClusterID,wrapMapID){
             return function() {
-                if (this.readyState == 4 && this.status == 200) {
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+                else if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText)
                     for (let key in reply.detIDs) {
                         for (let i=0;i<clusters[wrapMapID][wrapClusterID].images[0].detections.length;i++) {
