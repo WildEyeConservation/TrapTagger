@@ -432,39 +432,41 @@ def launch_task(self,task_id):
 def freeUpWork(task_id, taggingLevel):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
-    if '-5' not in taggingLevel:
-        session = db.session()
-        task = session.query(Task).get(task_id)
+    session = db.session()
+    task = session.query(Task).get(task_id)
 
-        clusterSQ = session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
-                                .join(Camera)\
-                                .join(Image)\
-                                .join(Cluster,Image.clusters)\
-                                .filter(Cluster.task_id == task_id) \
-                                .subquery()
+    clusterSQ = session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.task_id == task_id) \
+                            .subquery()
 
-        trapgroups = session.query(Trapgroup) \
-                        .join(Camera) \
-                        .join(Image) \
-                        .join(Cluster, Image.clusters) \
-                        .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
-                        .filter(Cluster.task_id == task_id) \
-                        .filter(Trapgroup.processing == False) \
-                        .filter(Trapgroup.queueing == False)\
-                        .filter(Trapgroup.user_id == None)\
-                        .filter(Cluster.examined==False)\
-                        .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=2),clusterSQ.c.timestamp==None))\
-                        .distinct().all()
+    trapgroup_pool = [int(r.decode()) for r in GLOBALS.redisClient.lrange('trapgroups_'+str(task.survey_id),0,-1)]
 
-        if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
+    trapgroups = session.query(Trapgroup) \
+                    .join(Camera) \
+                    .join(Image) \
+                    .join(Cluster, Image.clusters) \
+                    .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
+                    .filter(Cluster.task_id == task_id) \
+                    .filter(Trapgroup.processing == False) \
+                    .filter(Trapgroup.queueing == False)\
+                    .filter(Trapgroup.user_id == None)\
+                    .filter(Cluster.examined==False)\\
+                    .filter(~Trapgroup.id.in_(trapgroup_pool))\
+                    .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=3),clusterSQ.c.timestamp==None))\
+                    .distinct().all()
 
-        for trapgroup in trapgroups:
-            trapgroup.active = True
-            GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
-            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)            
+    if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
 
-        session.commit()
-        session.close()
+    for trapgroup in trapgroups:
+        trapgroup.active = True
+        GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+        GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)            
+
+    session.commit()
+    session.close()
 
     return True
 
@@ -709,7 +711,7 @@ def manage_task(task_id):
             wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    elif task_jobs == 0: freeUpWork(task_id, taggingLevel)
+    if '-5' not in taggingLevel: freeUpWork(task_id, taggingLevel)
 
     return False, jobs_to_delete                     
 
