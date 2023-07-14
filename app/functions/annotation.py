@@ -453,7 +453,7 @@ def freeUpWork(task_id, taggingLevel):
                     .filter(Trapgroup.processing == False) \
                     .filter(Trapgroup.queueing == False)\
                     .filter(Trapgroup.user_id == None)\
-                    .filter(Cluster.examined==False)\\
+                    .filter(Cluster.examined==False)\
                     .filter(~Trapgroup.id.in_(trapgroup_pool))\
                     .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=3),clusterSQ.c.timestamp==None))\
                     .distinct().all()
