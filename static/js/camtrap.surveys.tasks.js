@@ -574,7 +574,7 @@ function checkLabels(editing) {
         parent = selectElement.options[selectElement.selectedIndex].text.toLowerCase(); 
         hotkey = document.getElementById('labelhotkey-'+IDNum).value.toLowerCase();
 
-        if (parent==allDescriptions[n].value.toLowerCase()) {
+        if (parent.trim()==allDescriptions[n].value.toLowerCase().trim()) {
             selfParent=true
         }
 

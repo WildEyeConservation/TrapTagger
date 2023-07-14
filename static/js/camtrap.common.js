@@ -1386,6 +1386,7 @@ function nextCluster(mapID = 'map1') {
             updateClusterLabels(mapID)
 
             if (isIDing && (document.getElementById('btnSendToBack')==null)) {
+                actions = []
                 preLoadCount = 1
                 updateProgress()
             } else {
@@ -2310,23 +2311,25 @@ function updateMap(mapID = 'map1', url){
 
 function pingServer() {
     /** Pings the server to let it know that the user is still active. */
-    if ((activity||modalWait.is(':visible')||modalWait2.is(':visible'))&&(!waitingForClusters['map1'])) {
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 278) {
-                window.location.replace(JSON.parse(this.responseText)['redirect'])
+    if (!isTutorial) {
+        if ((activity||modalWait.is(':visible')||modalWait2.is(':visible'))&&(!waitingForClusters['map1'])) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+                else if (this.readyState == 4 && this.status == 200) {
+                    setTimeout(function() { pingServer(); }, 30000);
+                }
             }
-            else if (this.readyState == 4 && this.status == 200) {
-                setTimeout(function() { pingServer(); }, 30000);
-            }
+            xhttp.open("POST", '/ping');
+            xhttp.send();
+        } else {
+            setTimeout(function() { pingServer(); }, 30000);
         }
-        xhttp.open("POST", '/ping');
-        xhttp.send();
-    } else {
-        setTimeout(function() { pingServer(); }, 30000);
+        activity = false
     }
-    activity = false
 }
 
 function updateProgress() {
@@ -2541,69 +2544,71 @@ function activateMultiple(mapID = 'map1') {
 
 function submitLabels(mapID = 'map1') {
     /** Submits the labels contained in the clusterLabels global as the labels for the current cluster. */
-    var formData = new FormData()
-    formData.append("labels", JSON.stringify(clusterLabels[mapID]))
-    if (taggingLevel.includes('-2') && isReviewing) {
-        formData.append("taggingLevel", '-2')
-    }
-    console.log(clusterLabels[mapID])
-    nothingStatus = false
-    if (clusterLabels[mapID].includes(RFDLabel.toString()) && isTagging) {
-        // reallocate on nothing
-        nothingStatus = true
-        if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
-            waitModalID = clusters[mapID][clusterIndex[mapID]]
-            waitModalMap = mapID
-            modalWait2Hide = false
-            modalWait2.modal({backdrop: 'static', keyboard: false});
+    if (!isTutorial) {
+        var formData = new FormData()
+        formData.append("labels", JSON.stringify(clusterLabels[mapID]))
+        if (taggingLevel.includes('-2') && isReviewing) {
+            formData.append("taggingLevel", '-2')
         }
-    }
-    clusterID = clusters[mapID][clusterIndex[mapID]].id
-    url = '/assignLabel/'+clusterID
-    if (isReviewing) {
-        url += '?explore=true'
-    }
-    var xhttp = new XMLHttpRequest();
-    if (isTagging) { 
-        xhttp.onreadystatechange = function(wrapNothingStatus,wrapMapID,wrapIndex) {
-            return function() {
-                if (this.readyState == 4 && this.status == 278) {
-                    window.location.replace(JSON.parse(this.responseText)['redirect'])
-                } else if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    if (reply!='error') {
-                        if (wrapNothingStatus) {
-                            if (reply.reAllocated==true) {
-                                clusterRequests[wrapMapID] = [];
-                                clusters[wrapMapID] = clusters[wrapMapID].slice(0,clusterIndex[wrapMapID]+1);
-                                clusters[wrapMapID].push(...reply.newClusters)
-                                clisterIdList = []
+        console.log(clusterLabels[mapID])
+        nothingStatus = false
+        if (clusterLabels[mapID].includes(RFDLabel.toString()) && isTagging) {
+            // reallocate on nothing
+            nothingStatus = true
+            if ((!modalWait2.is(':visible'))&&(!modalWait.is(':visible'))) {
+                waitModalID = clusters[mapID][clusterIndex[mapID]]
+                waitModalMap = mapID
+                modalWait2Hide = false
+                modalWait2.modal({backdrop: 'static', keyboard: false});
+            }
+        }
+        clusterID = clusters[mapID][clusterIndex[mapID]].id
+        url = '/assignLabel/'+clusterID
+        if (isReviewing) {
+            url += '?explore=true'
+        }
+        var xhttp = new XMLHttpRequest();
+        if (isTagging) { 
+            xhttp.onreadystatechange = function(wrapNothingStatus,wrapMapID,wrapIndex) {
+                return function() {
+                    if (this.readyState == 4 && this.status == 278) {
+                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    } else if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);
+                        if (reply!='error') {
+                            if (wrapNothingStatus) {
+                                if (reply.reAllocated==true) {
+                                    clusterRequests[wrapMapID] = [];
+                                    clusters[wrapMapID] = clusters[wrapMapID].slice(0,clusterIndex[wrapMapID]+1);
+                                    clusters[wrapMapID].push(...reply.newClusters)
+                                    clusterIdList = []
+                                }
+                                if (modalWait2.is(':visible')) {
+                                    modalWait2Hide = true
+                                    modalWait2.modal('hide');
+                                }
+                                nextCluster(wrapMapID)
                             }
-                            if (modalWait2.is(':visible')) {
-                                modalWait2Hide = true
-                                modalWait2.modal('hide');
+                            if (isClassCheck) {
+                                clusters[wrapMapID][wrapIndex].ready = true
+                                clusters[wrapMapID][wrapIndex].classification = reply.classifications
                             }
-                            nextCluster(wrapMapID)
+                            Progress = reply.progress
+                            updateProgBar(Progress)
                         }
-                        if (isClassCheck) {
-                            clusters[wrapMapID][wrapIndex].ready = true
-                            clusters[wrapMapID][wrapIndex].classification = reply.classifications
-                        }
-                        Progress = reply.progress
-                        updateProgBar(Progress)
                     }
                 }
-            }
-        }(nothingStatus,mapID,clusterIndex[mapID])
-    }
-    xhttp.open("POST", url, true);
-    if (isClassCheck) {
-        wrongStatus = false
-        clusters[mapID][clusterIndex[mapID]].ready = false
-    }
-    xhttp.send(formData);
-    if (batchComplete&&nothingStatus) {
-        redirectToDone()
+            }(nothingStatus,mapID,clusterIndex[mapID])
+        }
+        xhttp.open("POST", url, true);
+        if (isClassCheck) {
+            wrongStatus = false
+            clusters[mapID][clusterIndex[mapID]].ready = false
+        }
+        xhttp.send(formData);
+        if (batchComplete&&nothingStatus) {
+            redirectToDone()
+        }
     }
 }
 

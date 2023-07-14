@@ -65,6 +65,7 @@ GLOBALS.s3UploadClient = boto3.client('s3',
                                     region_name=Config.AWS_REGION,
                                     aws_access_key_id=Config.AWS_S3_UPLOAD_ACCESS_KEY_ID,
                                     aws_secret_access_key=Config.AWS_S3_UPLOAD_SECRET_ACCESS_KEY)
+GLOBALS.redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
 GLOBALS.lock = Lock()
 
 @app.before_request
@@ -90,7 +91,7 @@ def internal_error(error):
 def getUniqueName():
     '''Returns a unique name for an individual for the current task and species.'''
 
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     tL = re.split(',',task.tagging_level)
     name = generateUniqueName(task.id,tL[1],tL[2])
     return json.dumps(name)
@@ -325,7 +326,7 @@ def MturkStatus():
             task = db.session.query(Task).get(int(task_id))
 
             jobs_finished = db.session.query(Turkcode)\
-                                    .join(User, User.username==Turkcode.user_id)\
+                                    .join(User)\
                                     .filter(User.parent_id!=None)\
                                     .filter(Turkcode.task_id==int(task_id))\
                                     .filter(Turkcode.tagging_time!=None)\
@@ -360,24 +361,21 @@ def takeJob(task_id):
         else:
             endpoint = '/dotask/'
 
-        if not populateMutex(int(task_id)): return json.dumps({'status':'inactive'})
-        GLOBALS.mutex[int(task_id)]['job'].acquire()
-        db.session.commit()
+        # if not populateMutex(int(task_id)): return json.dumps({'status':'inactive'})
 
-        job = db.session.query(Turkcode).filter(Turkcode.active==True).filter(Turkcode.task_id==int(task_id)).first()
+        job = GLOBALS.redisClient.spop('job_pool_'+str(task_id))
+        if job == None: return json.dumps({'status':'error'})
 
-        if job == None:
-            GLOBALS.mutex[int(task_id)]['job'].release()
-            return json.dumps({'status':'error'})
+        job = db.session.query(Turkcode).filter(Turkcode.code==job).first()
 
-        job.active = False
-        job.assigned = datetime.utcnow()
-        db.session.commit()
-        GLOBALS.mutex[int(task_id)]['job'].release()
+        if job:
+            GLOBALS.redisClient.sadd('active_jobs_'+str(task_id),job.code)
+            job.active = False
+            job.assigned = datetime.utcnow()
+            db.session.commit()
+            return json.dumps({'status':'success','code':endpoint+job.code})
 
-        return json.dumps({'status':'success','code':endpoint+job.user_id})
-    else:
-        return json.dumps({'status':'inactive'})
+    return json.dumps({'status':'inactive'})
 
 @app.route('/getAllIndividuals', methods=['POST'])
 @login_required
@@ -1758,11 +1756,11 @@ def signup():
             return redirect(url_for('surveys'))
         elif current_user.parent_id == None:
             return redirect(url_for('jobs'))
-        elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+        elif current_user.turkcode[0].task.is_bounding:
             return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
@@ -1807,8 +1805,9 @@ def newWorkerAccount(token):
                 user = User(username=username, email=email, admin=False)
                 user.set_password(password)
                 db.session.add(user)
-                turkcode = Turkcode(user_id=username, active=False, tagging_time=0)
+                turkcode = Turkcode(code=username, active=False, tagging_time=0)
                 db.session.add(turkcode)
+                turkcode.user = user
                 db.session.commit()
                 login_user(user, remember=False)
                 return redirect(url_for('jobs', _external=True))
@@ -2145,11 +2144,10 @@ def getBarDataIndividual():
 def setAdminTask(task):
     '''Sets the current user's active task to the specified one.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     if current_user.admin == True:
-        turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
+        turkcode = current_user.turkcode[0]
         turkcode.task_id = task
         db.session.commit()
     return json.dumps('')
@@ -2375,13 +2373,18 @@ def getDetailedTaskStatus(task_id):
 def dotask(username):
     '''Allocates the specified job to the current user, logging them into a tmp user profile to perform the work.'''
 
-    turkcode = db.session.query(Turkcode).filter(Turkcode.user_id==username).first()
+    turkcode = db.session.query(Turkcode).filter(Turkcode.code==username).first()
     if turkcode and (username.lower() not in Config.DISALLOWED_USERNAMES) and ((current_user in turkcode.task.survey.user.workers) or (current_user == turkcode.task.survey.user)):
-        user = db.session.query(User).filter(User.username==username).first()
+        
+        # Job was probably cleaned up
+        if not GLOBALS.redisClient.sismember('active_jobs_'+str(turkcode.task_id),turkcode.code): return redirect(url_for('jobs'))
+
+        user = turkcode.user
         
         if user is None:
             user=User(username=username, passed='pending', admin=False, parent_id=current_user.id, last_ping=datetime.utcnow())
             db.session.add(user)
+            turkcode.user = user
             db.session.commit()
         else:
             if current_user != user:
@@ -2390,7 +2393,7 @@ def dotask(username):
         logout_user()
         login_user(user)
 
-        if not populateMutex(turkcode.task_id,user.id): return redirect(url_for('jobs'))
+        # if not populateMutex(turkcode.task_id,user.id): return redirect(url_for('jobs'))
 
         if '-4' in turkcode.task.tagging_level:
             return redirect(url_for('clusterID'))
@@ -2401,7 +2404,7 @@ def dotask(username):
         else:
             return redirect(url_for('index'))
     else:
-        return render_template("html/block.html",text="Invalid URL.", helpFile='block', version=Config.VERSION)
+        return redirect(url_for('jobs'))
 
 @app.route('/createAccount/<token>')
 def createAccount(token):
@@ -2422,7 +2425,8 @@ def createAccount(token):
         
         if (check == None) and (len(folder) <= 64):
             newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder)
-            newTurkcode = Turkcode(user_id=info['organisation'], active=False, tagging_time=0)
+            newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
+            newTurkcode.user = newUser
             newPassword = randomString()
             newUser.set_password(newPassword)
             notifications = db.session.query(Notification)\
@@ -2464,11 +2468,11 @@ def changePassword(token):
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -2503,11 +2507,11 @@ def requestPasswordChange():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -2544,11 +2548,11 @@ def tutorial():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+        if current_user.turkcode[0].task.is_bounding:
             return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
@@ -2564,11 +2568,11 @@ def individuals():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+        if current_user.turkcode[0].task.is_bounding:
             return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
@@ -2589,15 +2593,15 @@ def index():
             return redirect(url_for('surveys'))
     elif current_user.parent_id == None:
         return redirect(url_for('jobs'))
-    elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+    elif current_user.turkcode[0].task.is_bounding:
         return redirect(url_for('sightings'))
-    elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+    elif '-4' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('clusterID'))
-    elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+    elif '-5' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        if current_user.passed in ['cTrue', 'cFalse', 'true', 'false']:
-                return redirect(url_for('done'))
+        if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+            return redirect(url_for('done'))
         return render_template('html/index.html', title='TrapTagger', helpFile='annotation', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/jobs')
@@ -2607,11 +2611,11 @@ def jobs():
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+        if current_user.turkcode[0].task.is_bounding:
             return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
             return redirect(url_for('individualID'))
         else:
             return redirect(url_for('index'))
@@ -2633,11 +2637,11 @@ def register():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -2728,11 +2732,11 @@ def surveys():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -2757,11 +2761,11 @@ def sightings():
             return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
         return redirect(url_for('jobs'))
-    elif not db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+    elif not current_user.turkcode[0].task.is_bounding:
         return redirect(url_for('index'))
-    elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+    elif '-4' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('clusterID'))
-    elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+    elif '-5' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('individualID'))
     else:
         return render_template('html/bounding.html', title='Sighting Analysis', helpFile='edit_sightings', bucket=Config.BUCKET, version=Config.VERSION)
@@ -2780,9 +2784,9 @@ def individualID():
             return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
         return redirect(url_for('jobs'))
-    elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+    elif current_user.turkcode[0].task.is_bounding:
         return redirect(url_for('sightings'))
-    elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+    elif '-4' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('clusterID'))
     else:
         return render_template('html/individualID.html', title='Individual Identification', helpFile='inter-cluster_id', bucket=Config.BUCKET, version=Config.VERSION)
@@ -2801,9 +2805,9 @@ def clusterID():
             return redirect(url_for('surveys'))
     elif current_user.parent_id==None:
         return redirect(url_for('jobs'))
-    elif db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+    elif current_user.turkcode[0].task.is_bounding:
         return redirect(url_for('sightings'))
-    elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+    elif '-5' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('individualID'))
     else:
         return render_template('html/clusterID.html', title='Cluster Identification', helpFile='cluster_id', bucket=Config.BUCKET, version=Config.VERSION)
@@ -2820,11 +2824,11 @@ def clusterID():
 #             if current_user.parent_id == None:
 #                 return redirect(url_for('jobs'))
 #             else:
-#                 if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+#                 if current_user.turkcode[0].task.is_bounding:
 #                     return redirect(url_for('sightings'))
-#                 elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+#                 elif '-4' in current_user.turkcode[0].task.tagging_level:
 #                     return redirect(url_for('clusterID'))
-#                 elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+#                 elif '-5' in current_user.turkcode[0].task.tagging_level:
 #                     return redirect(url_for('individualID'))
 #                 else:
 #                     return redirect(url_for('index'))
@@ -2843,11 +2847,11 @@ def workers():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -2896,7 +2900,7 @@ def getWorkerStats():
                 childWorker = alias(User)
                 workers = db.session.query(User)\
                                     .join(childWorker, childWorker.c.parent_id==User.id)\
-                                    .join(Turkcode, childWorker.c.username==Turkcode.user_id)\
+                                    .join(Turkcode, childWorker.c.id==Turkcode.user_id)\
                                     .filter(Turkcode.task_id==task.id)\
                                     .distinct().all()
 
@@ -2904,14 +2908,13 @@ def getWorkerStats():
             for worker in workers:
                 info = {}
                 info['batchCount'] = db.session.query(User)\
-                                            .join(Turkcode, Turkcode.user_id==User.username)\
+                                            .join(Turkcode)\
                                             .filter(User.parent_id==worker.id)\
-                                            .filter(or_(User.passed=='cTrue',User.passed=='cFalse'))\
                                             .filter(Turkcode.task_id==task.id)\
                                             .distinct().count()
 
                 turkcodes = db.session.query(Turkcode)\
-                                    .join(User, User.username==Turkcode.user_id)\
+                                    .join(User)\
                                     .filter(User.parent_id==worker.id)\
                                     .filter(Turkcode.task_id==task.id)\
                                     .distinct().all()
@@ -2947,10 +2950,10 @@ def getHomeSurveys():
         current_downloads = request.args.get('downloads', '', type=str)
 
         siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
-        availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.user_id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
-        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.user_id)-Task.jobs_finished).label('count'))\
+        # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                             .join(Turkcode)\
-                                            .join(User, User.username==Turkcode.user_id)\
+                                            .join(User)\
                                             .filter(User.parent_id!=None)\
                                             .filter(Turkcode.tagging_time!=None)\
                                             .group_by(Task.id).subquery()
@@ -2970,12 +2973,11 @@ def getHomeSurveys():
                                     Task.complete,
                                     Task.tagging_level,
                                     Task.cluster_count,
-                                    Task.clusters_remaining,
-                                    availableJobsSQ.c.count,
+                                    Task.id, #temp replacement for Task.clusters_remaining
+                                    Task.id, #availableJobsSQ.c.count,
                                     completeJobsSQ.c.count
                                 ).outerjoin(Task,Task.survey_id==Survey.id)\
                                 .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
-                                .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                                 .filter(Survey.user_id==current_user.id)\
                                 .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))
@@ -3009,14 +3011,19 @@ def getHomeSurveys():
                                         'tasks': []}
 
             if item[8] and (item[9]!='default'):
+                clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
+                if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+                jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
+
                 taskInfo = {'id': item[8],
                             'name': item[9],
                             'status': item[10],
                             'complete': item[11],
                             'tagging_level': item[12],
                             'total': item[13],
-                            'remaining': item[14],
-                            'jobsAvailable': item[15],
+                            'remaining': clusters_remaining,
+                            'jobsAvailable': jobsAvailable,
                             'jobsCompleted': item[16]}
 
                 if taskInfo['total'] and taskInfo['remaining']:
@@ -3074,14 +3081,19 @@ def getHomeSurveys():
                                             'tasks': []}
 
                 if item[8] and (item[9]!='default'):
+                    clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
+                    if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+                    jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
+
                     taskInfo = {'id': item[8],
                                 'name': item[9],
                                 'status': item[10],
                                 'complete': item[11],
                                 'tagging_level': item[12],
                                 'total': item[13],
-                                'remaining': item[14],
-                                'jobsAvailable': item[15],
+                                'remaining': clusters_remaining,
+                                'jobsAvailable': jobsAvailable,
                                 'jobsCompleted': item[16]}
 
                     if taskInfo['total'] and taskInfo['remaining']:
@@ -3164,10 +3176,10 @@ def getJobs():
     search = request.args.get('search', '', type=str)
     individual_id = request.args.get('individual_id', 'false', type=str)
 
-    availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.user_id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
-    completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.user_id)-Task.jobs_finished).label('count'))\
+    # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+    completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
                                         .join(Turkcode)\
-                                        .join(User, User.username==Turkcode.user_id)\
+                                        .join(User)\
                                         .filter(User.parent_id!=None)\
                                         .filter(Turkcode.tagging_time!=None)\
                                         .group_by(Task.id).subquery()
@@ -3178,14 +3190,13 @@ def getJobs():
                                 Task.id,
                                 Task.tagging_level,
                                 Task.cluster_count,
-                                Task.clusters_remaining,
-                                availableJobsSQ.c.count,
+                                Task.id, #temp replacement for Task.clusters_remaining
+                                Task.id, #availableJobsSQ.c.count,
                                 completeJobsSQ.c.count,
                                 Survey.name
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .join(User,Survey.user_id==User.id)\
                             .outerjoin(Worker, User.workers)\
-                            .outerjoin(availableJobsSQ,availableJobsSQ.c.id==Task.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
                             .filter(or_(User.id==current_user.id,Worker.c.id==current_user.id))
 
@@ -3226,13 +3237,17 @@ def getJobs():
     for item in tasks:
         if item[0] not in covered_tasks:
             covered_tasks.append(item[0])
+            clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[0]))
+            if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+            jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[0]))
 
             taskInfo = {'id': item[0],
                         'name': item[6],
                         'tagging_level': item[1],
                         'total': item[2],
-                        'remaining': item[3],
-                        'jobsAvailable': item[4],
+                        'remaining': clusters_remaining,
+                        'jobsAvailable': jobsAvailable,
                         'jobsCompleted': item[5]}
 
             if taskInfo['total'] and taskInfo['remaining']:
@@ -3327,7 +3342,7 @@ def getWorkers():
         worker_dict['survey_count'] = db.session.query(Survey)\
                                                 .join(Task)\
                                                 .join(Turkcode)\
-                                                .join(User,User.username==Turkcode.user_id)\
+                                                .join(User)\
                                                 .filter(User.parent_id==worker.id)\
                                                 .distinct().count()
         
@@ -3337,7 +3352,7 @@ def getWorkers():
             worker_dict['isOwner'] = 'false'
 
         turkcodes = db.session.query(Turkcode)\
-                            .join(User, User.username==Turkcode.user_id)\
+                            .join(User)\
                             .filter(User.parent_id==worker.id)\
                             .distinct().all()
 
@@ -3710,11 +3725,11 @@ def explore():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -3739,11 +3754,11 @@ def exploreKnockdowns():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
@@ -3778,7 +3793,7 @@ def login_page():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs', _external=True))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings', _external=True))
                 else:
                     return redirect(url_for('index', _external=True))
@@ -3817,7 +3832,8 @@ def load_login(user_id):
                 user = User(username=username, admin=False)
                 user.set_password(randomString())
                 db.session.add(user)
-                turkcode = Turkcode(user_id=username, active=False, tagging_time=0)
+                turkcode = Turkcode(code=username, active=False, tagging_time=0)
+                turkcode.user=user
                 db.session.add(turkcode)
                 db.session.commit()
 
@@ -3865,26 +3881,24 @@ def logout():
 @login_required
 def ping():
     '''Keeps the current user's annotation session active.'''
-    return json.dumps('success')
 
-    # if current_user.is_authenticated:
-    #     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-    #         return {'redirect': url_for('done')}, 278
-    #     else:
-    #         current_user.last_ping = datetime.utcnow()
-    #         db.session.commit()
-    #         if current_user.parent:
-    #             if Config.DEBUGGING: app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
-    #         return json.dumps('success')
-    # return json.dumps('error')
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+
+    if current_user.is_authenticated:
+        current_user.last_ping = datetime.utcnow()
+        db.session.commit()
+        if current_user.parent:
+            if Config.DEBUGGING: app.logger.info('Ping received from {} ({})'.format(current_user.parent.username,current_user.id))
+        return json.dumps('success')
+
+    return json.dumps('error')
 
 @app.route('/skipSuggestion/<individual_1>/<individual_2>')
 @login_required
 def skipSuggestion(individual_1,individual_2):
     '''Skips the individual ID suggestion, removing the IndSimilarity from the session until relaunch. Returns success/error status and progress numbers.'''
     
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
@@ -3907,7 +3921,7 @@ def skipSuggestion(individual_1,individual_2):
                                 .filter(Individual.active==True)\
                                 .first()
 
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
@@ -3934,12 +3948,11 @@ def skipSuggestion(individual_1,individual_2):
 def undoPreviousSuggestion(individual_1,individual_2):
     '''Undoes the previous action for the two speciefied individual IDs. Returns error/success status, progress numbers and the current images associated with the first individual.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
     
@@ -4000,8 +4013,7 @@ def dissociateDetection(detection_id):
     '''Dissociates the specified detection from either its current individual or the specified one. The detection will be allocated to a new individual, 
     and all necessary individual similarities recalculated. Returns a success/error status.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual_id = request.args.get('individual_id', None)
     if individual_id:
@@ -4009,7 +4021,7 @@ def dissociateDetection(detection_id):
         task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
         if not task: task = individual.tasks[0]
     else:
-        task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+        task = current_user.turkcode[0].task
 
     detection = db.session.query(Detection).get(detection_id)
 
@@ -4095,12 +4107,11 @@ def dissociateDetection(detection_id):
 def reAssociateDetection(detection_id,individual_id):
     '''Re-associates the detection with the specified individual ID, undoing a dissociate action. Restores all necessary similarity scores, and returns success/error status.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     detection = db.session.query(Detection).get(detection_id)
     individual = db.session.query(Individual).get(individual_id)
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
 
     if detection and individual and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
 
@@ -4156,11 +4167,10 @@ def reAssociateDetection(detection_id,individual_id):
 def suggestionUnidentifiable(individual_id):
     '''Marks the suggested individual as unidentifiable. Returns success/error status, progress count, and unidentifiable ID.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual = db.session.query(Individual).get(int(individual_id))
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
@@ -4206,8 +4216,7 @@ def suggestionUnidentifiable(individual_id):
 def acceptSuggestion(individual_1,individual_2):
     '''Accepts the suggestion that the two specified individuals are the same, combining them. Returns success/error status and progress numbers.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
@@ -4230,7 +4239,7 @@ def acceptSuggestion(individual_1,individual_2):
                                 .filter(Individual.active==True)\
                                 .first()
 
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
@@ -4316,8 +4325,7 @@ def rejectSuggestion(individual_1,individual_2):
     '''Rejects the suggestion that the two specified individuals are the same, removing their similarity from circulation. 
     Returns success/error status and progress numbers.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
@@ -4340,7 +4348,7 @@ def rejectSuggestion(individual_1,individual_2):
                                 .filter(Individual.active==True)\
                                 .first()
 
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
@@ -4368,23 +4376,20 @@ def rejectSuggestion(individual_1,individual_2):
 def getSuggestion(individual_id):
     '''Gets the next suggested match for the specified individual. Returns a suggestion dictionary.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
+    suggestion = None
     suggestionID = request.args.get('suggestion', None)
-    task = db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task
+    task = current_user.turkcode[0].task
     task_ids = [r.id for r in task.sub_tasks]
     task_ids.append(task.id)
     individual1 = db.session.query(Individual).get(int(individual_id))
     reply = {}
 
     if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-        if not populateMutex(task.id): return json.dumps('error')
-
-        GLOBALS.mutex[task.id]['global'].acquire()
 
         if suggestionID:
-            suggestion = db.session.query(IndSimilarity).filter(\
+            indSim = db.session.query(IndSimilarity).filter(\
                                         or_(\
                                             and_(\
                                                 IndSimilarity.individual_1==int(individual_id),\
@@ -4393,56 +4398,55 @@ def getSuggestion(individual_id):
                                                 IndSimilarity.individual_1==int(suggestionID),\
                                                 IndSimilarity.individual_2==int(individual_id))\
                                         )).first()
-        else:
-            if individual1 and individual1.active:
-                tL = re.split(',',task.tagging_level)
 
-                inactiveIndividuals = db.session.query(Individual.id)\
-                                                .join(Task,Individual.tasks)\
-                                                .filter(Task.id.in_(task_ids))\
-                                                .filter(Individual.species==individual1.species)\
-                                                .filter(Individual.active==False)\
-                                                .filter(Individual.name!='unidentifiable')\
-                                                .all()
-                inactiveIndividuals = [r[0] for r in inactiveIndividuals]
+            if indSim and GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),indSim.id):
+                userIndSms = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(current_user.id),0,-1)]
+                if indSim.id in userIndSms:
+                    suggestion = indSim
 
-                activeIndividuals = db.session.query(Individual.id)\
-                                                .join(Task,Individual.tasks)\
-                                                .filter(Task.id.in_(task_ids))\
-                                                .filter(Individual.species==individual1.species)\
-                                                .filter(Individual.allocated!=None)\
-                                                .filter(Individual.allocated!=current_user.id)\
-                                                .filter(Individual.name!='unidentifiable')\
-                                                .all()
+            # if suggestion and not GLOBALS.redisClient.sismember('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id):
+            #     GLOBALS.redisClient.sadd('active_indsims_'+str(current_user.turkcode[0].task_id),suggestion.id)
+        
+        elif individual1 and individual1.active:
+            tL = re.split(',',task.tagging_level)
 
-                activeIndividuals = [r[0] for r in activeIndividuals]
+            inactiveIndividuals = [r[0] for r in db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==individual1.species)\
+                                            .filter(Individual.active==False)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .all()]
 
-                taskIndividuals = db.session.query(Individual.id)\
-                                                .join(Task,Individual.tasks)\
-                                                .filter(Task.id.in_(task_ids))\
-                                                .filter(Individual.species==individual1.species)\
-                                                .all()
+            taskIndividuals = [r[0] for r in db.session.query(Individual.id)\
+                                            .join(Task,Individual.tasks)\
+                                            .filter(Task.id.in_(task_ids))\
+                                            .filter(Individual.species==individual1.species)\
+                                            .all()]
 
-                taskIndividuals = [r[0] for r in taskIndividuals]
+            userIndividuals = [r for r in GLOBALS.redisClient.lrange('user_individuals_'+str(current_user.id),0,-1)]
+            activeIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_individuals_'+str(current_user.turkcode[0].task_id)) if r not in userIndividuals]
+            inactiveIndividuals.extend(activeIndividuals)
+            inactiveIndividuals = list(set(inactiveIndividuals))
 
-                suggestion = db.session.query(IndSimilarity)\
-                                    .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
-                                    .filter(IndSimilarity.score>=tL[2])\
-                                    .filter(IndSimilarity.skipped==False)\
-                                    .filter(~IndSimilarity.individual_1.in_(inactiveIndividuals))\
-                                    .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\
-                                    .filter(~IndSimilarity.individual_1.in_(activeIndividuals))\
-                                    .filter(~IndSimilarity.individual_2.in_(activeIndividuals))\
-                                    .filter(IndSimilarity.individual_1.in_(taskIndividuals))\
-                                    .filter(IndSimilarity.individual_2.in_(taskIndividuals))\
-                                    .filter(IndSimilarity.allocated==None)\
-                                    .order_by(desc(IndSimilarity.score))\
-                                    .first()
-            else:
-                suggestion = None
+            suggestions = db.session.query(IndSimilarity)\
+                                .filter(or_(IndSimilarity.individual_1==int(individual_id),IndSimilarity.individual_2==int(individual_id)))\
+                                .filter(IndSimilarity.score>=tL[2])\
+                                .filter(IndSimilarity.skipped==False)\
+                                .filter(~IndSimilarity.individual_1.in_(inactiveIndividuals))\
+                                .filter(~IndSimilarity.individual_2.in_(inactiveIndividuals))\
+                                .filter(IndSimilarity.individual_1.in_(taskIndividuals))\
+                                .filter(IndSimilarity.individual_2.in_(taskIndividuals))\
+                                .order_by(desc(IndSimilarity.score))\
+                                .all()
+            
+            for item in suggestions:
+                # sadd returns 1 if the item was added to the set, 0 if it was already in the set
+                if GLOBALS.redisClient.sadd('active_indsims_'+str(current_user.turkcode[0].task_id),item.id):
+                    suggestion = item
+                    break
 
         if suggestion==None:
-            GLOBALS.mutex[task.id]['global'].release()
             reply = {'id': '-876'}
         else:
 
@@ -4451,20 +4455,11 @@ def getSuggestion(individual_id):
             else:
                 individual = db.session.query(Individual).get(suggestion.individual_1)
 
-            bufferCount = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==current_user.id).count()
-            if bufferCount >= 3:
-                remInds = db.session.query(IndSimilarity)\
-                                .filter(IndSimilarity.allocated==current_user.id)\
-                                .order_by(IndSimilarity.allocation_timestamp).limit(bufferCount-2).all()
-                for remInd in remInds:
-                    remInd.allocated = None
-                    remInd.allocation_timestamp = None
-
-            suggestion.allocated = current_user.id
-            suggestion.allocation_timestamp = datetime.utcnow()
-            db.session.commit()
-
-            GLOBALS.mutex[task.id]['global'].release()
+            # Handle buffer
+            bufferCount = GLOBALS.redisClient.rpush('user_indsims_'+str(current_user.id),suggestion.id)
+            for n in range(bufferCount-3):
+                indSimID = GLOBALS.redisClient.lpop('user_indsims_'+str(current_user.id))
+                if indSimID: GLOBALS.redisClient.srem('active_indsims_'+str(current_user.turkcode[0].task_id),int(indSimID.decode()))
 
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
@@ -4616,8 +4611,7 @@ def getSuggestion(individual_id):
 def getIndividualInfo(individual_id):
     '''Returns all info relating to the specified individual.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     individual = db.session.query(Individual).get(individual_id)
 
@@ -4669,11 +4663,10 @@ def getIndividualInfo(individual_id):
 def prepNewIndividual():
     '''Returns the individual tags for the users current task.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
     
     reply = []
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
     
     if task and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user)):
         for tag in task.tags:
@@ -4687,12 +4680,11 @@ def submitIndividuals():
     '''Submits all the individuals for a specified cluster, for the current species. Returns success/error status, progress numbers, and a dictionary for translating 
     the user-generated IDs into database IDs. Alternatively returns error status and a list of problem names in the case of duplicates.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     success = False
     try:
-        task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+        task = current_user.turkcode[0].task
         task_id = task.id
         translations = {}
         individuals = ast.literal_eval(request.form['individuals'])
@@ -4822,10 +4814,12 @@ def get_clusters():
             if current_user.parent_id==None:
                 return {'redirect': url_for('done')}, 278
             else:
-                task_id = session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
+                task_id = current_user.turkcode[0].task_id
     else:
         cluster = session.query(Cluster).get(id)
         task_id = cluster.task_id
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user.username)): return {'redirect': url_for('done')}, 278
     
     task = None
     try:
@@ -4845,10 +4839,9 @@ def get_clusters():
     else:
         num = session.query(Cluster).filter(Cluster.user==current_user).count()
 
-    if (num >= (task.size + task.test_size)) or (current_user.passed in ['cFalse','false','cTrue']):    
-        return {'redirect': url_for('done')}, 278
+    if (num >= (task.size + task.test_size)): return {'redirect': url_for('done')}, 278
 
-    if (id is None) and (not populateMutex(task_id,current_user.id)): return json.dumps('error')
+    # if (id is None) and (not populateMutex(task_id,current_user.id)): return json.dumps('error')
 
     isBounding = task.is_bounding
     taggingLevel = task.tagging_level
@@ -4857,7 +4850,7 @@ def get_clusters():
     limit = 1
     label_description = None
 
-    if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+    if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
     if (',' not in taggingLevel) and (not isBounding) and int(taggingLevel) > 0:
         label_description = session.query(Label).get(int(taggingLevel)).description
@@ -4867,85 +4860,84 @@ def get_clusters():
 
     else:
 
-        if '-5' in taggingLevel:
-            # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
-            session.close()
-            GLOBALS.mutex[task_id]['global'].acquire()
-            session = db.session()
-            session.add(current_user)
-            session.refresh(current_user)
-            
-            clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
-
-            # de-allocate old individuals
-            for individual in individuals:
-                buffer = session.query(Individual).filter(Individual.allocated==current_user.id).order_by(Individual.allocation_timestamp).all()
-                if len(buffer) >= 5:
-                    for ind in buffer[:-4]:
-                        ind.allocated = None
-                        ind.allocation_timestamp = None
-
-                # Allocate new individual
-                individual.allocated = current_user.id
-                individual.allocation_timestamp = datetime.utcnow()
-
-            clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(individuals)
-            GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
-            current_user.last_ping = datetime.utcnow()
-            session.commit()
-            GLOBALS.mutex[task_id]['global'].release()
+        if not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user.username):
+            clusterInfo = {}
 
         else:
-            session.close()
-            GLOBALS.mutex[task_id]['global'].acquire()
-            # Open a new session to ensure allocations are up to date after a long wait
-            session = db.session()
-            session.add(current_user)
-            session.refresh(current_user)
+            if '-5' in taggingLevel:
+                # inter-cluster ID does not need to be on a per-trapgroup basis. Need to do this with a global mutex. Also handing allocation better.
+                # session.close()
+                # GLOBALS.mutex[task_id]['global'].acquire()
+                # session = db.session()
+                # session.add(current_user)
+                # session.refresh(current_user)
+                
+                clusterInfo, individuals = fetch_clusters(taggingLevel,task_id,isBounding,None,session)
 
-            # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
-            trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
-            if trapgroup == None:
-                session.close()
-                GLOBALS.mutex[task_id]['global'].release()
-                return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+                # Handle buffer
+                for individual in individuals:
+                    bufferCount = GLOBALS.redisClient.rpush('user_individuals_'+str(current_user.id),individual.id)
+                    for n in range(bufferCount-1):
+                        indID = GLOBALS.redisClient.lpop('user_individuals_'+str(current_user.id))
+                        if indID: GLOBALS.redisClient.srem('active_individuals_'+str(current_user.turkcode[0].task_id),int(indID.decode()))
 
-            limit = task_size - GLOBALS.clusters_allocated[current_user.id]
-            clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(individuals)
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
+                # current_user.last_ping = datetime.utcnow()
+                session.commit()
 
-            # if len(clusterInfo)==0: current_user.trapgroup = []
-            if len(clusterInfo) <= limit:
-                clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(clusterInfo)
-                trapgroup.active = False
             else:
-                clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
-            GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+                # session.close()
+                # GLOBALS.mutex[task_id]['global'].acquire()
+                # Open a new session to ensure allocations are up to date after a long wait
+                # session = db.session()
+                # session.add(current_user)
+                # session.refresh(current_user)
 
-            current_user.last_ping = datetime.utcnow()
-            
-            session.commit()
-            session.close()
-            GLOBALS.mutex[task_id]['global'].release()
+                # this is now fast enough that if the user is coming back, their old trapgroup was finished and they need a new one
+                trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
+                if trapgroup == None:
+                    session.close()
+                    # GLOBALS.mutex[task_id]['global'].release()
+                    return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
-            # if current_user.trapgroup[:]:
-            #     trapgroup = current_user.trapgroup[0]
-            # else:
-            #     GLOBALS.mutex[task_id]['global'].acquire()
-            #     db.session.commit()
+                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
+                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
-            #     trapgroup = allocate_new_trapgroup(task_id,current_user.id)
-            #     if trapgroup == None:
-            #         GLOBALS.mutex[task_id]['global'].release()
-            #         return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
-            #     GLOBALS.mutex[task_id]['global'].release()
+                # if len(clusterInfo)==0: current_user.trapgroup = []
+                if len(clusterInfo) <= limit:
+                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
+                    trapgroup.active = False
+                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
+                else:
+                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
 
-            # GLOBALS.mutex[task_id]['user'][current_user.id].acquire()
-            # limit = task.size - current_user.clusters_allocated
-            # # clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
-            # clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id)
-            # current_user.clusters_allocated += len(clusters)
-            # db.session.commit()
-            # GLOBALS.mutex[task_id]['user'][current_user.id].release()
+                # current_user.last_ping = datetime.utcnow()
+                
+                session.commit()
+                session.close()
+                # GLOBALS.mutex[task_id]['global'].release()
+
+                # if current_user.trapgroup[:]:
+                #     trapgroup = current_user.trapgroup[0]
+                # else:
+                #     GLOBALS.mutex[task_id]['global'].acquire()
+                #     db.session.commit()
+
+                #     trapgroup = allocate_new_trapgroup(task_id,current_user.id)
+                #     if trapgroup == None:
+                #         GLOBALS.mutex[task_id]['global'].release()
+                #         return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
+                #     GLOBALS.mutex[task_id]['global'].release()
+
+                # GLOBALS.mutex[task_id]['user'][current_user.id].acquire()
+                # limit = task.size - current_user.clusters_allocated
+                # # clusters = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,limit)
+                # clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id)
+                # current_user.clusters_allocated += len(clusters)
+                # db.session.commit()
+                # GLOBALS.mutex[task_id]['user'][current_user.id].release()
 
     # if clusters == []:
     #     current_user.trapgroup = []
@@ -4963,7 +4955,7 @@ def get_clusters():
 
     reply = translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel,id,label_description)
 
-    if (id is None) and (clusters_allocated >= task_size):
+    if ((id is None) and (clusters_allocated >= task_size)) or (reply['info'] == []):
         reply['info'].append(Config.FINISHED_CLUSTER)
 
     if Config.DEBUGGING: app.logger.info("Entire get cluster completed in {}".format(time.time() - OverallStartTime))
@@ -4992,8 +4984,10 @@ def getImage():
                                 for detection in image.detections
                                 if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden'])) ]}] #and (detection.static == False)
 
-        GTtask = GLOBALS.ground_truths[str(current_user.id)]['ground']
-        otherTask = GLOBALS.ground_truths[str(current_user.id)]['other']
+        ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
+
+        GTtask = ground_truths['ground']
+        otherTask = ground_truths['other']
 
         GTcluster = db.session.query(Cluster).filter(Cluster.images.contains(image)).filter(Cluster.task_id==GTtask).first()
         otherCluster = db.session.query(Cluster).filter(Cluster.images.contains(image)).filter(Cluster.task_id==otherTask).first()
@@ -5041,7 +5035,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
         task.status = 'Knockdown Analysis'
         db.session.commit()
 
-    if not populateMutex(int(task_id)): return json.dumps('error')
+    # if not populateMutex(int(task_id)): return json.dumps('error')
 
     cluster = None
     result = None
@@ -5049,7 +5043,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     finished = False
     if task.survey.user==current_user:
         if int(clusterID) != -102:
-            GLOBALS.mutex[int(task_id)]['global'].acquire()
+            # GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
             F_index = int(F_index)
             app.logger.info('GetKnockCluster: Status:{} Index:{} ImageIndex:{}'.format(knockedstatus, index, imageIndex))
@@ -5262,10 +5256,10 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
             # checkQueueingProcessing.apply_async(kwargs={'task_id': task.id}, countdown=30, queue='priority', priority=9)
 
-        if int(clusterID) != -102: GLOBALS.mutex[int(task_id)]['global'].release()
+        # if int(clusterID) != -102: GLOBALS.mutex[int(task_id)]['global'].release()
 
-        if finished:
-            GLOBALS.mutex.pop(int(task_id), None)
+        # if finished:
+        #     GLOBALS.mutex.pop(int(task_id), None)
 
     else:
         result = json.dumps('error')
@@ -5608,11 +5602,10 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 # def assignTag(clusterID, tagID):
 #     '''Depricated information tagging ability. Adds given tag to the specified cluster. Returns progress numbers.'''
 
-#     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-#         return {'redirect': url_for('done')}, 278
+#     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
 #     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-#     thetask = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+#     thetask = current_user.turkcode[0].task
 #     cluster = db.session.query(Cluster).filter(Cluster.id == int(clusterID)).first()
 #     num2 = thetask.size #+ thetask.test_size
 
@@ -5637,8 +5630,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 # def removeTag(clusterID, tagID):
 #     '''Depricated informational tagging. Removes the given tag from the specified cluster.'''
 
-#     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-#         return {'redirect': url_for('done')}, 278
+#     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
 #     cluster = db.session.query(Cluster).get(int(clusterID))
 #     if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
@@ -5657,8 +5649,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 # def deleteTags(clusterID):
 #     '''Part of the depricated informational tagging functionality. Deletes all tages from the specified cluster.'''
 
-#     if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-#         return {'redirect': url_for('done')}, 278
+#     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
 #     cluster = db.session.query(Cluster).get(int(clusterID))
 #     if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
@@ -5672,8 +5663,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 def assignNote():
     '''Assigns a note to the given cluster or individual.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     try:
         note = ast.literal_eval(request.form['note'])
@@ -5706,8 +5696,7 @@ def assignNote():
 def assignLabel(clusterID):
     '''Assigned the specified list of labels to the cluster. Returns progress numbers of an error status.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     try:
         labels = ast.literal_eval(request.form['labels'])
@@ -5728,7 +5717,7 @@ def assignLabel(clusterID):
             remove_false_detections = True
 
         num = session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-        turkcode = session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
+        turkcode = current_user.turkcode[0]
         task = turkcode.task
         num2 = task.size + task.test_size
         cluster = session.query(Cluster).get(int(clusterID))
@@ -5834,7 +5823,7 @@ def assignLabel(clusterID):
                                                 .first()
 
                         if tgs_available and (not explore) and removable_detections:
-                            if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+                            if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
                             reAllocated = True
                             trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
                             survey_id = task.survey_id
@@ -5842,7 +5831,7 @@ def assignLabel(clusterID):
                             trapgroup.processing = True
                             trapgroup.active = False
                             trapgroup.user_id = None
-                            GLOBALS.clusters_allocated[current_user.id] = num
+                            GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num)
 
                             label_description = None
                             if int(taggingLevel) > 0: label_description = session.query(Label).get(int(taggingLevel)).description
@@ -5852,33 +5841,34 @@ def assignLabel(clusterID):
                             removeFalseDetections.apply_async(kwargs={'cluster_id':clusterID,'undo':False})
 
                             # Get a new batch of clusters
-                            session.close()
-                            GLOBALS.mutex[task_id]['global'].acquire()
-                            # Open a new session to ensure allocations are up to date after a long wait
-                            session = db.session()
-                            session.add(current_user)
-                            session.refresh(current_user)
+                            # session.close()
+                            # GLOBALS.mutex[task_id]['global'].acquire()
+                            # # Open a new session to ensure allocations are up to date after a long wait
+                            # session = db.session()
+                            # session.add(current_user)
+                            # session.refresh(current_user)
 
                             trapgroup = allocate_new_trapgroup(task_id,current_user.id,survey_id,session)
                             if trapgroup == None:
                                 session.close()
-                                GLOBALS.mutex[task_id]['global'].release()
+                                # GLOBALS.mutex[task_id]['global'].release()
                                 newClusters = []
                             else:
-                                limit = task_size - GLOBALS.clusters_allocated[current_user.id]
+                                limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
                                 clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if len(clusterInfo) <= limit:
-                                    clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + len(clusterInfo)
+                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
                                     trapgroup.active = False
+                                    GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
                                 else:
-                                    clusters_allocated = GLOBALS.clusters_allocated[current_user.id] + limit
-                                GLOBALS.clusters_allocated[current_user.id] = clusters_allocated
+                                    clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + limit
+                                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),clusters_allocated)
                                 
                                 session.commit()
                                 session.close()
-                                GLOBALS.mutex[task_id]['global'].release()
+                                # GLOBALS.mutex[task_id]['global'].release()
 
                                 newClusters = translate_cluster_for_client(clusterInfo,'0',limit,isBounding,taggingLevel,None,label_description)['info']
 
@@ -5902,11 +5892,10 @@ def assignLabel(clusterID):
 def updateProgress():
     '''Returns the progress of the current user's batch.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     progress = None
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
     if task:
         if '-5' in task.tagging_level:
             individual_id = request.args.get('id', None)
@@ -5923,10 +5912,9 @@ def updateProgress():
 def getTaggingLevel():
     '''Returns the tagging level of the current user's allocated task, alongside the name of the label.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
     taggingLevel = task.tagging_level
 
     wrongStatus = 'false'
@@ -5951,10 +5939,9 @@ def getTaggingLevel():
 def initKeys():
     '''Returns the labels and their associated hotkeys for the given task.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
 
     # if taggingLevel == '-23':
     #     taggingLevel = task.tagging_level
@@ -5999,7 +5986,7 @@ def getWorkerSurveys():
         surveys = db.session.query(Survey.id, Survey.name)\
                             .join(Task)\
                             .join(Turkcode)\
-                            .join(User,User.username==Turkcode.user_id)\
+                            .join(User)\
                             .filter(User.parent_id==worker_id)\
                             .filter(Survey.user_id == current_user.id)\
                             .distinct().all()
@@ -6017,7 +6004,7 @@ def getTasks(survey_id):
         tasks = db.session.query(Task.id, Task.name)\
                             .join(Survey)\
                             .join(Turkcode)\
-                            .join(User,User.username==Turkcode.user_id)\
+                            .join(User)\
                             .filter(User.parent_id==worker_id)\
                             .filter(Survey.user_id == current_user.id)\
                             .filter(Survey.id == int(survey_id))\
@@ -6045,11 +6032,10 @@ def getOtherTasks(task_id):
 def reviewClassification():
     '''Endpoint for the review of classifications in the AI check workflow.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-    turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
+    turkcode = current_user.turkcode[0]
     num2 = turkcode.task.size + turkcode.task.test_size
 
     cluster_labels = []
@@ -6063,7 +6049,7 @@ def reviewClassification():
 
     cluster = db.session.query(Cluster).get(cluster_id)
     if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
-        if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
+        if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
             if (num < cluster.task.size) or (current_user.admin == True):
                 num += 1
 
@@ -6159,7 +6145,8 @@ def submitComparison(groundTruth,task_id1,task_id2):
         task1 = db.session.query(Task).get(int(task_id1))
         task2 = db.session.query(Task).get(int(task_id2))
         if task1 and task2 and (task1.survey.user_id==current_user.id) and (task2.survey.user_id==current_user.id):
-            prepareComparison(translations,groundTruth,task_id1,task_id2,str(current_user.id))
+            GLOBALS.redisClient.delete('confusions_'+str(current_user.id))
+            prepareComparison.delay(translations=translations,groundTruth=groundTruth,task_id1=task_id1,task_id2=task_id2,user_id=str(current_user.id))
             return json.dumps('success')
         else:
             return json.dumps('error')
@@ -6178,18 +6165,22 @@ def comparison():
             if current_user.parent_id == None:
                 return redirect(url_for('jobs'))
             else:
-                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
-                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('clusterID'))
-                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
                     return redirect(url_for('individualID'))
                 else:
                     return redirect(url_for('index'))
         else:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
 
-            if str(current_user.id) in GLOBALS.confusions.keys():
+            confusions = GLOBALS.redisClient.get('confusions_'+str(current_user.id))
+
+            if confusions:
+                confusions = json.loads(confusions.decode())
+                ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
 
                 # Generate some stats
                 total_sightings = 0
@@ -6197,71 +6188,73 @@ def comparison():
                 nothing_sightings = 0
                 non_nothing = 0
 
-                for key in GLOBALS.confusions[str(current_user.id)]:
+                for key in confusions:
                     if key != 'multi':
-                        for key2 in GLOBALS.confusions[str(current_user.id)][key]:
-                            total_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
+                        for key2 in confusions[key]:
+                            total_sightings += len(confusions[key][key2])
                             if key == key2:
-                                matched_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
-                            if GLOBALS.ground_truths[str(current_user.id)]['task1']==GLOBALS.ground_truths[str(current_user.id)]['ground']:
-                                if key == GLOBALS.ground_truths[str(current_user.id)]['nothing1']:
-                                    nothing_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
-                                if key2 != GLOBALS.ground_truths[str(current_user.id)]['nothing2']:
-                                    non_nothing += len(GLOBALS.confusions[str(current_user.id)][key][key2])
+                                matched_sightings += len(confusions[key][key2])
+                            if ground_truths['task1']==ground_truths['ground']:
+                                if key == ground_truths['nothing1']:
+                                    nothing_sightings += len(confusions[key][key2])
+                                if key2 != ground_truths['nothing2']:
+                                    non_nothing += len(confusions[key][key2])
                             else:
-                                if key2 == GLOBALS.ground_truths[str(current_user.id)]['nothing2']:
-                                    nothing_sightings += len(GLOBALS.confusions[str(current_user.id)][key][key2])
-                                if key != GLOBALS.ground_truths[str(current_user.id)]['nothing1']:
-                                    non_nothing += len(GLOBALS.confusions[str(current_user.id)][key][key2])
+                                if key2 == ground_truths['nothing2']:
+                                    nothing_sightings += len(confusions[key][key2])
+                                if key != ground_truths['nothing1']:
+                                    non_nothing += len(confusions[key][key2])
 
                 match_percentage = round((matched_sightings/total_sightings)*100,2)
                 wrong_sightings = total_sightings - matched_sightings
                 wrong_percentage = round((wrong_sightings/total_sightings)*100,2)
 
                 unknownLabel = db.session.query(Label).get(GLOBALS.unknown_id)
-                unknowns = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==GLOBALS.ground_truths[str(current_user.id)]['other']).filter(Cluster.labels.contains(unknownLabel)).count()
+                unknowns = db.session.query(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==ground_truths['other']).filter(Cluster.labels.contains(unknownLabel)).count()
 
-                survey_id = db.session.query(Task).get(GLOBALS.ground_truths[str(current_user.id)]['other']).survey_id
+                survey_id = db.session.query(Task).get(ground_truths['other']).survey_id
 
                 animal_sightings = total_sightings - nothing_sightings
                 value_percentage = round((animal_sightings/total_sightings)*100,2)
                 unknown_percentage = round((unknowns/animal_sightings)*100,2)
 
-                correct_animal_sightings = matched_sightings - len(GLOBALS.confusions[str(current_user.id)][GLOBALS.ground_truths[str(current_user.id)]['nothing1']][GLOBALS.ground_truths[str(current_user.id)]['nothing2']])
+                correct_animal_sightings = matched_sightings - len(confusions[ground_truths['nothing1']][ground_truths['nothing2']])
 
                 recall_rate = round((correct_animal_sightings/animal_sightings)*100,2)
                 precision = round((correct_animal_sightings/non_nothing)*100,2)
 
-                task1_heading = db.session.query(Task).get(GLOBALS.ground_truths[str(current_user.id)]['task1']).name
-                task2_heading = db.session.query(Task).get(GLOBALS.ground_truths[str(current_user.id)]['task2']).name
+                task1_heading = db.session.query(Task).get(ground_truths['task1']).name
+                task2_heading = db.session.query(Task).get(ground_truths['task2']).name
 
                 image_count = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).count()
 
-                MegaDetectorFailures = GLOBALS.MegaDetectorMisses[str(current_user.id)]['count']
+                MegaDetectorFailures = json.loads(GLOBALS.redisClient.get('megaDetectorMisses_'+str(current_user.id)).decode())['count']
                 MegaDetectorFailures_percentage = round((MegaDetectorFailures/wrong_sightings)*100,2)
-                EmptyClustered = len(GLOBALS.emptyClustered[str(current_user.id)])
+                EmptyClustered = len(json.loads(GLOBALS.redisClient.get('emptyClustered_'+str(current_user.id)).decode()))
                 EmptyClustered_percentage = round((EmptyClustered/image_count)*100,2)
+
+                comparisonLabels = json.loads(GLOBALS.redisClient.get('comparisonLabels_'+str(current_user.id)).decode())
 
                 # Species by species
                 species_names = []
                 species_recalls = []
                 species_precisions = []
-                for species in GLOBALS.confusions[str(current_user.id)]:
+                for species in confusions:
                     if species != 'multi':
                         rowCount = 0
                         colCount = 0
-                        for key in GLOBALS.confusions[str(current_user.id)][species]:
-                            rowCount += len(GLOBALS.confusions[str(current_user.id)][species][key])
-                            colCount += len(GLOBALS.confusions[str(current_user.id)][key][species])
+                        for key in confusions[species]:
+                            rowCount += len(confusions[species][key])
+                            colCount += len(confusions[key][species])
 
-                        if GLOBALS.ground_truths[str(current_user.id)]['task1']==GLOBALS.ground_truths[str(current_user.id)]['ground']:
+                        if ground_truths['task1']==ground_truths['ground']:
                             actual_species_count = rowCount
                             species_count = colCount
                         else:
                             actual_species_count = colCount
                             species_count = rowCount
 
-                        match_count = len(GLOBALS.confusions[str(current_user.id)][species][species])
+                        match_count = len(confusions[species][species])
 
                         if actual_species_count!=0:
                             species_recalls.append(round((match_count/actual_species_count)*100,2))
@@ -6273,7 +6266,7 @@ def comparison():
                         else:
                             species_precisions.append('n/a')
 
-                        species_names.append(GLOBALS.comparisonLabels[str(current_user.id)][species])
+                        species_names.append(comparisonLabels[species])
                         
                 return render_template('html/comparison.html', title='Comparison',   total_sightings=total_sightings,
                         matched_sightings=matched_sightings, match_percentage=match_percentage, task1_heading=task1_heading,
@@ -6285,15 +6278,17 @@ def comparison():
                         MegaDetectorFailures_percentage=MegaDetectorFailures_percentage,EmptyClustered_percentage=EmptyClustered_percentage,
                         image_count=image_count, helpFile='comparison_page', bucket=Config.BUCKET, version=Config.VERSION)
             else:
-                return render_template("html/block.html",text="Your comparison session has expired. Please request a new comparison.", helpFile='block', version=Config.VERSION)
+                return render_template("html/block.html",text="Your comparison does not seem to be ready yet. Please refresh the page in a few minutes.", helpFile='block', version=Config.VERSION)
     
 @app.route('/getConfusionMatrix')
 @login_required
 def getConfusionMatrix():
     '''Returns the confusion matrix comparisons for the task-comparison page, for the active comparison.'''
 
-    if str(current_user.id) in GLOBALS.confusions.keys():
-        return json.dumps(GLOBALS.confusions[str(current_user.id)])
+    confusions = GLOBALS.redisClient.get('confusions_'+str(current_user.id))
+
+    if confusions:
+        return confusions.decode()
     else:
         return json.dumps('Error')
 
@@ -6302,13 +6297,16 @@ def getConfusionMatrix():
 @login_required
 def getConfusionLabels():
     '''Gets the gouping labels for the task-comparison page.'''
+
+    comparisonLabels = GLOBALS.redisClient.get('comparisonLabels_'+str(current_user.id))
     
-    if str(current_user.id) in GLOBALS.comparisonLabels.keys():
+    if comparisonLabels:
+        comparisonLabels = json.loads(comparisonLabels.decode())
         newDict = {}
-        for key in GLOBALS.comparisonLabels[str(current_user.id)]:
+        for key in comparisonLabels:
             newDict[key] = {}
-            newDict[key]['name'] = GLOBALS.comparisonLabels[str(current_user.id)][key]
-            newDict[key]['length'] = math.floor(len(GLOBALS.comparisonLabels[str(current_user.id)][key])/3)
+            newDict[key]['name'] = comparisonLabels[key]
+            newDict[key]['length'] = math.floor(len(comparisonLabels[key])/3)
         return json.dumps(newDict)
     else:
         return json.dumps('Error')
@@ -6418,7 +6416,7 @@ def editSightings(image_id,task_id):
     
     detDbIDs = {}
     if current_user.admin == False:    
-        task_id = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
+        task_id = current_user.turkcode[0].task_id
 
     task = db.session.query(Task).get(int(task_id))
     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
@@ -6440,7 +6438,7 @@ def editSightings(image_id,task_id):
                 for detID in detectionsDict:
                     app.logger.info('{}: {}'.format(detID,detectionsDict[detID]))
 
-            if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
+            if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < task.size) or (current_user.admin == True):
 
@@ -6562,13 +6560,13 @@ def done():
         return redirect(url_for('jobs'))
 
     # already finished
-    if (current_user.passed == 'cTrue') or (current_user.passed == 'cFalse'):
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         admin_user = current_user.parent
         logout_user()
         login_user(admin_user)
         return redirect(url_for('jobs'))
 
-    turkcode = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first()
+    turkcode = current_user.turkcode[0]
     task_id = turkcode.task_id
     task = turkcode.task
 
@@ -6579,25 +6577,30 @@ def done():
         calculate_individual_similarities.delay(task_id=task_id,species=re.split(',',task.tagging_level)[1],user_ids=[current_user.id])
     elif '-5' in task.tagging_level:
         #flush allocations
-        allocateds = db.session.query(IndSimilarity).filter(IndSimilarity.allocated==current_user.id).all()
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        userIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_individuals_'+str(current_user.id),0,-1)]
+        for userIndividual in userIndividuals:
+            GLOBALS.redisClient.srem('active_individuals_'+str(task_id),userIndividual)
+        GLOBALS.redisClient.delete('user_individuals_'+str(current_user.id))
 
-        allocateds = db.session.query(Individual).filter(Individual.allocated==current_user.id).all()
-        for allocated in allocateds:
-            allocated.allocated = None
-            allocated.allocation_timestamp = None
+        userIndSims = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(current_user.id),0,-1)]
+        for userIndSim in userIndSims:
+            GLOBALS.redisClient.srem('active_indsims_'+str(task_id),userIndSim)
+        GLOBALS.redisClient.delete('user_indsims_'+str(current_user.id))
 
-    current_user.passed = 'cTrue'
+    # current_user.passed = 'cTrue'
+    GLOBALS.redisClient.srem('active_jobs_'+str(task_id),turkcode.code)
+    GLOBALS.redisClient.delete('clusters_allocated_'+str(current_user.id))
     turkcode.active = False
 
     for trapgroup in current_user.trapgroup:
         trapgroup.user_id = None
+        if trapgroup.active:
+            GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
+
     db.session.commit()
 
     # GLOBALS.mutex[int(task_id)]['user'].pop(current_user.id, None)
-    GLOBALS.clusters_allocated.pop(current_user.id, None)
 
     if current_user.parent_id:
         admin_user = current_user.parent
@@ -6612,7 +6615,7 @@ def getSpeciesSelectorBySurvey(label):
     '''Returns label list for populating the species selector.'''
 
     response = []
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
 
     if task and (current_user==task.survey.user):
         parent_labels = db.session.query(Label).filter(Label.task_id == task.id).filter(Label.parent_id == None).all()
@@ -6657,7 +6660,7 @@ def populateTagSelector():
     '''Returns tag list for populating the tag selector.'''
 
     response = []
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
 
     if task and (current_user==task.survey.user):
         tags = db.session.query(Tag).filter(Tag.task_id == task.id).all()
@@ -6674,7 +6677,7 @@ def getLabelHierarchy(task_id):
     
     reply = {}
     if current_user.admin == False:    
-        task_id = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id
+        task_id = current_user.turkcode[0].task_id
     
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
@@ -6690,11 +6693,10 @@ def getLabelHierarchy(task_id):
 def getTaggingLevels():
     '''Returns the tagging levels for the task allocated to the current user.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     parent_labels = []
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
     if task and ((current_user==task.survey.user) or (current_user.parent == task.survey.user) or (current_user.parent in task.survey.user.workers)):
         parent_labels = db.session.query(Label.id,Label.description).filter(Label.task_id==task.id).filter(Label.children.any()).all()
         parent_labels.append((GLOBALS.vhl_id,'Vehicles/Humans/Livestock'))
@@ -6744,6 +6746,7 @@ def generateCSV():
             excludes = []
             start_date = None
             end_date = None
+            column_translations = {}
         else:
             selectedTasks = [int(r) for r in ast.literal_eval(request.form['selectedTasks'])]
             level = ast.literal_eval(request.form['level'])
@@ -6756,6 +6759,7 @@ def generateCSV():
             if start_date == '': start_date = None
             end_date = ast.literal_eval(request.form['end_date'])
             if end_date == '': end_date = None
+            column_translations = ast.literal_eval(request.form['column_translations'])
 
     except:
         return json.dumps({'status':'error',  'message': None})
@@ -6790,8 +6794,8 @@ def generateCSV():
     else:
         queue='default'
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date))
-    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date}, queue=queue)
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations))
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -6929,11 +6933,10 @@ def checkDownload(fileType,selectedTask):
 def undoknockdown(imageId, clusterId, label):
     '''Undoes the knock-down categorisation of the specified image. The cluster label is replaced with the supplied label.'''
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     image = db.session.query(Image).get(int(imageId))
-    task = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task
+    task = current_user.turkcode[0].task
     if image and (image.corrected_timestamp) and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user==task.survey.user)) and (task.survey_id == image.camera.trapgroup.survey_id):
         app.logger.info(str(clusterId) + ' undo knock down.')
 
@@ -6948,7 +6951,7 @@ def undoknockdown(imageId, clusterId, label):
             image.camera.trapgroup.user_id = None
             db.session.commit()
             app.logger.info('Unknocking cluster for image {}'.format(imageId))
-            unknock_cluster.apply_async(kwargs={'image_id':int(imageId), 'label_id':label, 'user_id':current_user.id, 'task_id':db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task_id})
+            unknock_cluster.apply_async(kwargs={'image_id':int(imageId), 'label_id':label, 'user_id':current_user.id, 'task_id':current_user.turkcode[0].task_id})
 
     return ""
 
@@ -6959,15 +6962,14 @@ def knockdown(imageId, clusterId):
     
     app.logger.info('Knockdown initiated for image {}'.format(imageId))
 
-    if (current_user.passed == 'false') or (current_user.passed == 'cFalse'):
-        return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     #Check if they have permission to work on this survey
     image = db.session.query(Image).get(imageId)
     if not (image and ((current_user == image.camera.trapgroup.survey.user) or (current_user.parent in image.camera.trapgroup.survey.user.workers) or (current_user.parent == image.camera.trapgroup.survey.user))):
         return {'redirect': url_for('done')}, 278
 
-    taggingLevel = db.session.query(Turkcode).filter(Turkcode.user_id == current_user.username).first().task.tagging_level
+    taggingLevel = current_user.turkcode[0].task.tagging_level
 
     if (taggingLevel == '-1') or (taggingLevel == '0'):   
         #Check if image has already been marked knocked down, if so, ignore
@@ -7008,7 +7010,7 @@ def knockdown(imageId, clusterId):
         if (rootImage.corrected_timestamp==None) or (first_im.corrected_timestamp==None) or ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1)):
             #Still setting up
             if Config.DEBUGGING: ('Still setting up.')
-            if (current_user.passed != 'false') and (current_user.passed != 'cFalse'):
+            if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < aCluster.task.size) or (current_user.admin == True):
 
@@ -7052,9 +7054,9 @@ def knockdown(imageId, clusterId):
                 if (check > 0):
                     return ""
 
-                if current_user.id not in GLOBALS.clusters_allocated.keys(): GLOBALS.clusters_allocated[current_user.id] = 0
+                if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
-                GLOBALS.clusters_allocated[current_user.id] = num_cluster
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num_cluster)
                 db.session.commit()
 
                 if trapgroup.processing:
@@ -7193,11 +7195,11 @@ def dashboard():
                 if current_user.parent_id == None:
                     return redirect(url_for('jobs'))
                 else:
-                    if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                    if current_user.turkcode[0].task.is_bounding:
                         return redirect(url_for('sightings'))
-                    elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    elif '-4' in current_user.turkcode[0].task.tagging_level:
                         return redirect(url_for('clusterID'))
-                    elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    elif '-5' in current_user.turkcode[0].task.tagging_level:
                         return redirect(url_for('individualID'))
                     else:
                         return redirect(url_for('index'))
@@ -7362,15 +7364,21 @@ def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
 
     files = request.json['filenames']
-    
-    results = []
-    pool = Pool(processes=4)
-    for file in files:
-        results.append(pool.apply_async(checkFile,(file,current_user.folder)))
-    pool.close()
-    pool.join()
 
-    already_uploaded = [result for result in [result.get() for result in results] if result!=None]
+    already_uploaded = []
+    for file in files:
+        result = checkFile(file,current_user.folder)
+        if result:
+            already_uploaded.append(result)
+    
+    # results = []
+    # pool = Pool(processes=4)
+    # for file in files:
+    #     results.append(pool.apply_async(checkFile,(file,current_user.folder)))
+    # pool.close()
+    # pool.join()
+
+    # already_uploaded = [result for result in [result.get() for result in results] if result!=None]
 
     return json.dumps(already_uploaded)
 
@@ -7645,8 +7653,7 @@ def set_download_status():
         include_frames = request.json['include_frames']
 
         # Make sure old counts are removed
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        redisClient.delete(str(task.id)+'_filesToDownload')
+        GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
 
         # Image downloaded state should always be false, but need to catch dropped uploads
         checkImage = db.session.query(Image)\
@@ -7684,11 +7691,10 @@ def check_download_initialised():
     task = db.session.query(Task).get(task_id)
     reply = {'status': 'ready'}
     if task and (task.survey.user==current_user):
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        filesToDownload = redisClient.get(str(task.id)+'_filesToDownload')
+        filesToDownload = GLOBALS.redisClient.get(str(task.id)+'_filesToDownload')
         if filesToDownload:
             filesToDownload = int(filesToDownload.decode())
-            redisClient.delete(str(task.id)+'_filesToDownload')
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
             reply['filesToDownload'] = filesToDownload
 
         if task.status == 'Preparing Download':

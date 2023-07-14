@@ -25,7 +25,7 @@ from sqlalchemy.sql import func, or_, alias, distinct, and_
 from sqlalchemy import desc
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import math
 import boto3
@@ -51,99 +51,98 @@ from iptcinfo3 import IPTCInfo
 import piexif
 import io
 
-def cleanupWorkers(one, two):
-    '''
-    Reschedules all active Celery tasks on app shutdown. Docker stop flask, and then docker-compose down when message appears. Alternatively, if you do 
-    not wish to reschedule the currently active Celery tasks, use docker kill flask instead.
-    '''
+# def cleanupWorkers(one, two):
+#     '''
+#     Reschedules all active Celery tasks on app shutdown. Docker stop flask, and then docker-compose down when message appears. Alternatively, if you do 
+#     not wish to reschedule the currently active Celery tasks, use docker kill flask instead.
+#     '''
 
-    # Stop all task consumption
-    allQueues = ['default'] #default needs to be first
-    allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
-    allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
-    for queue in allQueues:
-        celery.control.cancel_consumer(queue)
+#     # Stop all task consumption
+#     allQueues = ['default'] #default needs to be first
+#     allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
+#     allQueues.extend([r[0] for r in db.session.query(Classifier.name).all()])
+#     for queue in allQueues:
+#         celery.control.cancel_consumer(queue)
 
-    app.logger.info('')
-    app.logger.info('*********************************************************')
-    app.logger.info('')
-    app.logger.info('All queues cancelled. Revoking active tasks...')
+#     app.logger.info('')
+#     app.logger.info('*********************************************************')
+#     app.logger.info('')
+#     app.logger.info('All queues cancelled. Revoking active tasks...')
     
-    # revoke active and reserved tasks
-    active_tasks = []
-    inspector = celery.control.inspect()
-    inspector_reserved = inspector.reserved()
-    inspector_active = inspector.active()
-    defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
+#     # revoke active and reserved tasks
+#     active_tasks = []
+#     inspector = celery.control.inspect()
+#     inspector_reserved = inspector.reserved()
+#     inspector_active = inspector.active()
+#     defaultWorkerNames = ['default_worker','traptagger_worker','ram_worker']
 
-    if inspector_active!=None:
-        for worker in inspector_active:
-            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_active[worker])
-            for task in inspector_active[worker]:
-                try:
-                    celery.control.revoke(task['id'], terminate=True)
-                except:
-                    pass
+#     if inspector_active!=None:
+#         for worker in inspector_active:
+#             if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_active[worker])
+#             for task in inspector_active[worker]:
+#                 try:
+#                     celery.control.revoke(task['id'], terminate=True)
+#                 except:
+#                     pass
     
-    if inspector_reserved != None:
-        for worker in inspector_reserved:
-            if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_reserved[worker])
-            for task in inspector_reserved[worker]:
-                try:
-                    celery.control.revoke(task['id'], terminate=True)
-                except:
-                    pass
+#     if inspector_reserved != None:
+#         for worker in inspector_reserved:
+#             if any(name in worker for name in defaultWorkerNames): active_tasks.extend(inspector_reserved[worker])
+#             for task in inspector_reserved[worker]:
+#                 try:
+#                     celery.control.revoke(task['id'], terminate=True)
+#                 except:
+#                     pass
 
-    app.logger.info('Active tasks revoked. Flushing queues...')
+#     app.logger.info('Active tasks revoked. Flushing queues...')
 
-    # Flush all other (non-default) queues
-    redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-    for queue in allQueues:
-        if queue not in ['default','ram_intensive']:
-            while True:
-                task = redisClient.blpop(queue, timeout=1)
-                if not task:
-                    break
+#     # Flush all other (non-default) queues
+#     for queue in allQueues:
+#         if queue not in ['default','ram_intensive']:
+#             while True:
+#                 task = GLOBALS.redisClient.blpop(queue, timeout=1)
+#                 if not task:
+#                     break
 
-    app.logger.info('Queues flushed. Rescheduling active tasks...')
+#     app.logger.info('Queues flushed. Rescheduling active tasks...')
 
-    # Reschedule default queue tasks
-    for active_task in active_tasks:
-        for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
-                                    'app.functions.imports','app.functions.individualID','app.functions.results']:
-            if function_location in active_task['name']:
-                module = importlib.import_module(function_location)
-                function_name = re.split(function_location+'.',active_task['name'])[1]
-                active_function = getattr(module, function_name)
-                break
-        kwargs = active_task['kwargs']
-        # priority = active_task['delivery_info']['priority']
-        if 'ram_worker' in active_task['hostname']:
-            queue = 'ram_intensive'
-        else:
-            queue = 'default'
-        app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
-        active_function.apply_async(kwargs=kwargs, queue=queue) #, priority=priority)
+#     # Reschedule default queue tasks
+#     for active_task in active_tasks:
+#         for function_location in ['app.routes','app.functions.admin','app.functions.annotation','app.functions.globals',
+#                                     'app.functions.imports','app.functions.individualID','app.functions.results']:
+#             if function_location in active_task['name']:
+#                 module = importlib.import_module(function_location)
+#                 function_name = re.split(function_location+'.',active_task['name'])[1]
+#                 active_function = getattr(module, function_name)
+#                 break
+#         kwargs = active_task['kwargs']
+#         # priority = active_task['delivery_info']['priority']
+#         if 'ram_worker' in active_task['hostname']:
+#             queue = 'ram_intensive'
+#         else:
+#             queue = 'default'
+#         app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
+#         active_function.apply_async(kwargs=kwargs, queue=queue) #, priority=priority)
 
-    #Ensure redis db is saved
-    app.logger.info('Saving redis db...')
-    redisClient.save()
-    app.logger.info('Redis db saved')
+#     #Ensure redis db is saved
+#     app.logger.info('Saving redis db...')
+#     GLOBALS.redisClient.save()
+#     app.logger.info('Redis db saved')
 
-    app.logger.info('')
-    app.logger.info('*********************************************************')
-    app.logger.info('')
-    app.logger.info('                 Exited Gracefully!')
-    app.logger.info('          You may docker-compose down now')
-    app.logger.info('')
-    app.logger.info('*********************************************************')
-    app.logger.info('')
+#     app.logger.info('')
+#     app.logger.info('*********************************************************')
+#     app.logger.info('')
+#     app.logger.info('                 Exited Gracefully!')
+#     app.logger.info('          You may docker-compose down now')
+#     app.logger.info('')
+#     app.logger.info('*********************************************************')
+#     app.logger.info('')
 
-    sys.exit(0)
+#     sys.exit(0)
 
-signal.signal(signal.SIGTERM, cleanupWorkers) #only necessary one
-signal.signal(signal.SIGINT, cleanupWorkers)
-signal.signal(signal.SIGABRT, cleanupWorkers)
+# signal.signal(signal.SIGTERM, cleanupWorkers) #only necessary one
+# signal.signal(signal.SIGINT, cleanupWorkers)
+# signal.signal(signal.SIGABRT, cleanupWorkers)
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def checkQueueingProcessing(self,task_id):
@@ -212,16 +211,16 @@ def get_price(region, instance, os):
     except:
         return None
 
-def getQueueLengths(redisClient):
+def getQueueLengths():
     '''Returns a dictionary of all Redis queues and their length.'''
     queues = {}
     for queue in Config.QUEUES:
-        queueLength = redisClient.llen(queue)
+        queueLength = GLOBALS.redisClient.llen(queue)
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
     for queue in [r[0] for r in db.session.query(Classifier.name).all()]:
-        queueLength = redisClient.llen(queue)
+        queueLength = GLOBALS.redisClient.llen(queue)
         if Config.DEBUGGING: print('{} queue length: {}'.format(queue,queueLength))
         if queueLength: queues[queue] = queueLength
 
@@ -324,7 +323,7 @@ def getInstancesRequired(current_instances,queue_type,queue_length,total_images_
 
     return instances_required
 
-def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet):
+def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,instances,instance_rates,git_pull,subnet):
     '''Launches the required EC2 instances'''
 
     kwargs = {
@@ -413,7 +412,7 @@ def launch_instances(queue,ami,user_data,instances_required,idle_multiplier,ec2,
             try:
                 ec2.create_instances(**kwargs)
                 app.logger.info('Launched {} {} instance for {} queue.'.format(pieces[1],kwargs['InstanceType'],queue))
-                redisClient.set(queue+'_last_launch',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+                GLOBALS.redisClient.set(queue+'_last_launch',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
                 break
 
             except ClientError:
@@ -428,8 +427,7 @@ def importMonitor():
     
     try:
         startTime = datetime.utcnow()
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        queues = getQueueLengths(redisClient)
+        queues = getQueueLengths()
         commit = None
 
         if queues:
@@ -460,14 +458,14 @@ def importMonitor():
 
                 current_instances[queue] = getInstanceCount(client,queue,ami,Config.HOST_IP,instances)
                 
-                if not redisClient.get(queue+'_last_launch'):
-                    redisClient.set(queue+'_last_launch',0)
+                if not GLOBALS.redisClient.get(queue+'_last_launch'):
+                    GLOBALS.redisClient.set(queue+'_last_launch',0)
 
                 instances_required[queue] = getInstancesRequired(current_instances[queue],
                                                                 queue_type,
                                                                 queues[queue],
                                                                 images_processing['total'],
-                                                                int(redisClient.get(queue+'_last_launch').decode()),
+                                                                int(GLOBALS.redisClient.get(queue+'_last_launch').decode()),
                                                                 rate,
                                                                 launch_delay,
                                                                 max_instances)
@@ -488,7 +486,7 @@ def importMonitor():
             # current_capacity = scaleDbCapacity(required_capacity)
 
             # # Get time since last db scaling request
-            # aurora_request_count = redisClient.get('aurora_request_count')
+            # aurora_request_count = GLOBALS.redisClient.get('aurora_request_count')
             # if not aurora_request_count:
             #     aurora_request_count = 0
             # else:
@@ -496,7 +494,7 @@ def importMonitor():
 
             # Launch Instances
             # if (current_capacity >= required_capacity) or (aurora_request_count >= 2):
-            #     redisClient.set('aurora_request_count',0)
+            #     GLOBALS.redisClient.set('aurora_request_count',0)
             
             for queue in queues:
                 instance_count = instances_required[queue]-current_instances[queue]
@@ -518,7 +516,7 @@ def importMonitor():
                         instance_rates = Config.INSTANCE_RATES['classification']
                         git_pull = False
                         subnet = Config.PRIVATE_SUBNET_ID
-                    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,redisClient,instances,instance_rates,git_pull,subnet)
+                    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,instances,instance_rates,git_pull,subnet)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -798,6 +796,7 @@ def removeFalseDetections(self,cluster_id,undo):
         cluster = db.session.query(Cluster).get(cluster_id)
         task_id = cluster.task_id
         trapgroup_id = cluster.images[0].camera.trapgroup.id
+        survey_id = cluster.task.survey_id
 
         if cluster:
             detections = db.session.query(Detection).join(Image).filter(Image.clusters.contains(cluster)).filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)).filter(~Detection.status.in_(['deleted','hidden'])).distinct().all()
@@ -898,6 +897,8 @@ def removeFalseDetections(self,cluster_id,undo):
             trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
             trapgroup.processing = False
             trapgroup.active = True
+            GLOBALS.redisClient.lrem('trapgroups_'+str(survey_id),0,trapgroup.id)
+            GLOBALS.redisClient.rpush('trapgroups_'+str(survey_id),trapgroup.id) 
             db.session.commit()
 
     except Exception as exc:
@@ -913,44 +914,44 @@ def removeFalseDetections(self,cluster_id,undo):
 
     return ""
 
-def populateMutex(task_id,user_id=None):
-    '''Checks for and populates the mutex globals for a given task, and optional user combination.'''
-    try:
-        task = db.session.query(Task).get(task_id)
-        if task_id not in GLOBALS.mutex.keys():
-            if task and (task.status in ['PROGRESS','Processing','Knockdown Analysis']):
-                GLOBALS.mutex[task_id] = {
-                    'global': threading.Lock(),
-                    # 'user': {},
-                    'job': threading.Lock(),
-                    'trapgroup': {}
-                }
+# def populateMutex(task_id,user_id=None):
+#     '''Checks for and populates the mutex globals for a given task, and optional user combination.'''
+#     try:
+#         task = db.session.query(Task).get(task_id)
+#         if task_id not in GLOBALS.mutex.keys():
+#             if task and (task.status in ['PROGRESS','Processing','Knockdown Analysis']):
+#                 GLOBALS.mutex[task_id] = {
+#                     'global': threading.Lock(),
+#                     # 'user': {},
+#                     'job': threading.Lock(),
+#                     'trapgroup': {}
+#                 }
 
-                for trapgroup in task.survey.trapgroups:
-                    GLOBALS.mutex[task_id]['trapgroup'][trapgroup.id] = threading.Lock()
+#                 for trapgroup in task.survey.trapgroups:
+#                     GLOBALS.mutex[task_id]['trapgroup'][trapgroup.id] = threading.Lock()
             
-            else:
-                return False
-        else:
-            if task and (task.status not in ['PROGRESS','Processing','Knockdown Analysis']):
-                GLOBALS.mutex.pop(task_id, None)
+#             else:
+#                 return False
+#         else:
+#             if task and (task.status not in ['PROGRESS','Processing','Knockdown Analysis']):
+#                 GLOBALS.mutex.pop(task_id, None)
 
-        # if user_id:
-        #     user = db.session.query(User).get(user_id)
-        #     if user:
-        #         if user_id not in GLOBALS.mutex[task_id]['user'].keys():
-        #             if user.passed not in ['cTrue', 'cFalse', 'true', 'false']:
-        #                 GLOBALS.mutex[task_id]['user'][user_id] = threading.Lock()
-        #             else:
-        #                 return False
-        #         else:
-        #             if user.passed in ['cTrue', 'cFalse', 'true', 'false']:
-        #                 GLOBALS.mutex[task_id]['user'].pop(user_id, None)
+#         # if user_id:
+#         #     user = db.session.query(User).get(user_id)
+#         #     if user:
+#         #         if user_id not in GLOBALS.mutex[task_id]['user'].keys():
+#         #             if user.passed not in ['cTrue', 'cFalse', 'true', 'false']:
+#         #                 GLOBALS.mutex[task_id]['user'][user_id] = threading.Lock()
+#         #             else:
+#         #                 return False
+#         #         else:
+#         #             if user.passed in ['cTrue', 'cFalse', 'true', 'false']:
+#         #                 GLOBALS.mutex[task_id]['user'].pop(user_id, None)
 
-    except:
-        return False
+#     except:
+#         return False
    
-    return True
+#     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, session=None):
@@ -975,16 +976,16 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         else:
             celeryTask = False
 
-        if celeryTask: populateMutex(task_id)
+        # if celeryTask: populateMutex(task_id)
 
         rootImage = session.query(Image).get(rootImageID)
         trapgroup = db.session.query(Trapgroup).join(Camera).join(Image).filter(Image.id==rootImageID).first()
         trapgroup_id = trapgroup.id
         downLabel = session.query(Label).get(GLOBALS.knocked_id)
 
-        if celeryTask and (task_id in GLOBALS.mutex.keys()):
-            GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].acquire()
-            # session.commit()
+        # if celeryTask and (task_id in GLOBALS.mutex.keys()):
+        #     GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].acquire()
+        #     # session.commit()
 
         if Config.DEBUGGING: app.logger.info('Continuing finish_knockdown for image ' + str(rootImageID))
 
@@ -993,8 +994,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
         trapgroup.user_id = None
         if celeryTask: session.commit()
 
-        if celeryTask and (task_id in GLOBALS.mutex.keys()):
-            GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].release()
+        # if celeryTask and (task_id in GLOBALS.mutex.keys()):
+        #     GLOBALS.mutex[task_id]['trapgroup'][trapgroup_id].release()
 
         cluster = Cluster(user_id=current_user_id, labels=[downLabel], timestamp=datetime.utcnow(), task=task)
         session.add(cluster)
@@ -1103,6 +1104,8 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
                 re_evaluate_trapgroup_examined(trapgroup_id,task_id)
                 trapgroup.active = True
                 trapgroup.processing = False
+                GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+                GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)                 
                 session.commit()
 
         if Config.DEBUGGING: app.logger.info('Completed finish_knockdown for image ' + str(rootImageID))
@@ -1141,11 +1144,11 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         trapgroup = image.camera.trapgroup
         trapgroup_id = trapgroup.id
         
-        populateMutex(int(task_id))
+        # populateMutex(int(task_id))
 
-        if int(task_id) in GLOBALS.mutex.keys():
-            GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].acquire()
-            db.session.commit()
+        # if int(task_id) in GLOBALS.mutex.keys():
+        #     GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].acquire()
+        #     db.session.commit()
 
         #Checkout tg
         trapgroup.processing = True
@@ -1153,8 +1156,8 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
         trapgroup.user_id = None
         db.session.commit()
 
-        if int(task_id) in GLOBALS.mutex.keys():
-            GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].release()
+        # if int(task_id) in GLOBALS.mutex.keys():
+        #     GLOBALS.mutex[int(task_id)]['trapgroup'][trapgroup_id].release()
 
         cluster.labels = []
 
@@ -1493,26 +1496,30 @@ def createTurkcodes(number_of_workers, task_id, session):
         user_ids.append(randomString(24))
 
     turkcodes = []
-    checks = [r[0] for r in session.query(Turkcode.user_id).filter(Turkcode.user_id.in_(user_ids)).all()]
+    checks = [r[0] for r in session.query(Turkcode.code).filter(Turkcode.code.in_(user_ids)).all()]
     for user_id in user_ids:
         if user_id not in checks:
-            turkcode = Turkcode(user_id=user_id, task_id=task_id, active=True)
+            turkcode = Turkcode(code=user_id, task_id=task_id, active=True)
             session.add(turkcode)
             turkcodes.append({'user_id':user_id})
+            GLOBALS.redisClient.sadd('job_pool_'+str(task_id),turkcode.code)
 
     return turkcodes
 
-def deleteTurkcodes(number_of_jobs, task_id, session):
+def deleteTurkcodes(number_of_jobs, task_id):
     '''Deletes the specified number of turkcodes (jobs) for the specified task'''
     
-    if not populateMutex(int(task_id)): return False
-    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].acquire()
+    # if not populateMutex(int(task_id)): return False
+
+    session = db.session()
+    for n in range(number_of_jobs):
+        code = GLOBALS.redisClient.spop('job_pool_'+str(task_id))
+        if code:
+            turkcode = session.query(Turkcode).filter(Turkcode.code==code).first()
+            session.delete(turkcode)
     session.commit()
-    turkcodes = session.query(Turkcode).outerjoin(User, User.username==Turkcode.user_id).filter(Turkcode.task_id==task_id).filter(Turkcode.active==True).filter(User.id==None).limit(number_of_jobs).all()
-    for turkcode in turkcodes:
-        session.delete(turkcode)
-    session.commit()
-    if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex[int(task_id)]['job'].release()
+    session.close()
+
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
@@ -1634,22 +1641,31 @@ def resolve_abandoned_jobs(abandoned_jobs,session=None):
             if Config.DEBUGGING: app.logger.info('Triggering individual similarity calculation for user {}'.format(user.parent.username))
             from app.functions.individualID import calculate_individual_similarities
             calculate_individual_similarities.delay(task_id=task.id,species=re.split(',',task.tagging_level)[1],user_ids=[user.id])
-        # elif '-5' in task.tagging_level:
-        #     #flush allocations
-        #     allocateds = session.query(IndSimilarity).filter(IndSimilarity.allocated==user.id).all()
-        #     for allocated in allocateds:
-        #         allocated.allocated = None
-        #         allocated.allocation_timestamp = None
+        
+        if '-5' in task.tagging_level:
+            #flush allocations
+            userIndividuals = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_individuals_'+str(user.id),0,-1)]
+            for userIndividual in userIndividuals:
+                GLOBALS.redisClient.srem('active_individuals_'+str(task.id),userIndividual)
+            GLOBALS.redisClient.delete('user_individuals_'+str(user.id))
 
-        #     allocateds = session.query(Individual).filter(Individual.allocated==user.id).all()
-        #     for allocated in allocateds:
-        #         allocated.allocated = None
-        #         allocated.allocation_timestamp = None
+            userIndSims = [int(r.decode()) for r in GLOBALS.redisClient.lrange('user_indsims_'+str(user.id),0,-1)]
+            for userIndSim in userIndSims:
+                GLOBALS.redisClient.srem('active_indsims_'+str(task.id),userIndSim)
+            GLOBALS.redisClient.delete('user_indsims_'+str(user.id))
 
-        user.trapgroup = []
-        user.passed = 'cFalse'
+        else:
+            for trapgroup in user.trapgroup:
+                trapgroup.user_id = None
+                if trapgroup.active:
+                    GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+                    GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)
 
-        GLOBALS.clusters_allocated.pop(user.id, None)
+        # user.trapgroup = []
+        # user.passed = 'cFalse'
+        GLOBALS.redisClient.srem('active_jobs_'+str(task.id),user.turkcode[0].code)
+
+        GLOBALS.redisClient.delete('clusters_allocated_'+str(user.id))
 
         # if task.id in GLOBALS.mutex.keys():
         #     GLOBALS.mutex[task.id]['user'].pop(user.id, None)
@@ -2348,8 +2364,7 @@ def scaleDbCapacity(required_capacity):
         current_capacity = response['DBClusters'][0]['Capacity']
 
         # Get time since last request
-        redisClient = redis.Redis(host=Config.REDIS_IP, port=6379)
-        last_aurora_request = redisClient.get('last_aurora_request')
+        last_aurora_request = GLOBALS.redisClient.get('last_aurora_request')
         if not last_aurora_request:
             last_aurora_request = 0
         else:
@@ -2367,16 +2382,16 @@ def scaleDbCapacity(required_capacity):
                 )
 
                 # Record the request time
-                redisClient.set('last_aurora_request',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
+                GLOBALS.redisClient.set('last_aurora_request',round((datetime.utcnow()-datetime(1970, 1, 1)).total_seconds()))
 
                 # Increment the request count
-                aurora_request_count = redisClient.get('aurora_request_count')
+                aurora_request_count = GLOBALS.redisClient.get('aurora_request_count')
                 if not aurora_request_count:
                     aurora_request_count = 0
                 else:
                     aurora_request_count = int(aurora_request_count.decode())
                 aurora_request_count += 1
-                redisClient.set('aurora_request_count',aurora_request_count)
+                GLOBALS.redisClient.set('aurora_request_count',aurora_request_count)
 
             except:
                 pass
@@ -2589,3 +2604,127 @@ def numify_timestamp(timestamp):
         return (timestamp-datetime(1970,1,1)).total_seconds()
     except:
         return 0
+
+def fire_up_instances(queue,instance_count):
+    ''' Function to manually fire up extra instances when needed'''
+
+    ec2 = boto3.resource('ec2', region_name=Config.AWS_REGION)
+    client = boto3.client('ec2',region_name=Config.AWS_REGION)
+
+    if queue in Config.QUEUES.keys():
+        ami = Config.QUEUES[queue]['ami']
+        instances = Config.QUEUES[queue]['instances']
+        user_data = Config.QUEUES[queue]['user_data']
+        idle_multiplier = Config.IDLE_MULTIPLIER[queue]
+        instance_rates = Config.INSTANCE_RATES[queue]
+        git_pull = True
+        subnet = Config.PUBLIC_SUBNET_ID
+    else:
+        classifier = db.session.query(Classifier).filter(Classifier.name==queue).first()
+        ami = classifier.ami_id
+        instances = Config.GPU_INSTANCE_TYPES
+        user_data = Config.CLASSIFIER['user_data']
+        idle_multiplier = Config.IDLE_MULTIPLIER['classification']
+        instance_rates = Config.INSTANCE_RATES['classification']
+        git_pull = False
+        subnet = Config.PRIVATE_SUBNET_ID
+    
+    launch_instances(queue,ami,user_data,instance_count,idle_multiplier,ec2,instances,instance_rates,git_pull,subnet)
+
+    return True
+
+def inspect_celery(include_reserved=False):
+    ''' Funcion to manually inspect the running celery tasks'''
+    inspector = celery.control.inspect()
+
+    print('//////////////////////Active tasks://////////////////////')
+    inspector_active = inspector.active()
+    for worker in inspector_active:
+        for task in inspector_active[worker]:
+            if not any(name in task['name'] for name in ['importImages','detection','classify']):
+                print('')
+                print(task)
+
+    if include_reserved:
+        print('')
+        print('')
+        print('')
+        print('//////////////////////Reserved tasks://////////////////////')
+        inspector_reserved = inspector.reserved()
+        for worker in inspector_reserved:
+            for task in inspector_reserved[worker]:
+                if not any(name in task['name'] for name in ['importImages','detection','classify']):
+                    print('')
+                    print(task)
+
+    return True
+
+@celery.task(ignore_result=True)
+def clean_up_redis():
+    ''' Periodic function to manually clean up redis cache'''
+
+    try:
+        startTime = datetime.utcnow()
+        redisKeys = [r.decode() for r in GLOBALS.redisClient.keys()]
+
+        for key in redisKeys:
+
+            if any(name in key for name in ['active_jobs','job_pool','active_individuals','active_indsims']):
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    task = db.session.query(Task).get(int(task_id))
+                    if task.status not in ['PENDING','PROGRESS']:
+                        GLOBALS.redisClient.delete(key)
+
+            elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims']):
+                user_id = key.split('_')[-1]
+
+                if user_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    user = db.session.query(User).get(int(user_id))
+                    if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                        GLOBALS.redisClient.delete(key)
+
+            elif any(name in key for name in ['trapgroups']):
+                survey_id = key.split('_')[-1]
+
+                if survey_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    task = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.status.in_(['PENDING','PROGRESS'])).first()
+                    if not task:
+                        GLOBALS.redisClient.delete(key)
+
+            # clusters_remaining = int(GLOBALS.redisClient.get('clusters_remaining_'+str(item[0])).decode())
+            if any(name in key for name in ['clusters_remaining_']):
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    task = db.session.query(Task).get(int(task_id))
+                    if task.status not in ['PROGRESS']:
+                        GLOBALS.redisClient.delete(key)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+        countdown = 20 - (datetime.utcnow()-startTime).total_seconds()
+        if countdown < 0: countdown=0
+        clean_up_redis.apply_async(queue='priority', priority=0, countdown=countdown)
+
+    return True
+
+
+ 
+        

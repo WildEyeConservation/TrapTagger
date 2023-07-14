@@ -13,11 +13,8 @@
 # limitations under the License.
 
 confusions = {}
-comparisonLabels = {}
-ground_truths = {}
 emptyClustered = {}
-MegaDetectorMisses = {}
-mutex = {}
+megaDetectorMisses = {}
 load_testers = 0
 s3client = None
 s3UploadClient = None
@@ -29,4 +26,4 @@ unknown_id = 4
 vhl_id = 6
 remove_false_detections_id = 7
 results_queue = []
-clusters_allocated = {}
+redisClient = None

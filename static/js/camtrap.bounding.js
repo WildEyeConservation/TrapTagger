@@ -25,7 +25,7 @@ var labelHierarchy
 var currentHierarchicalLevel = []
 var plusInProgress = false
 var contextLocation
-var clisterIdList = []
+var clusterIdList = []
 var editingEnabled = false
 var multiContextVal = 0
 var subDividedContList
@@ -61,8 +61,8 @@ function loadNewCluster(mapID = 'map1') {
                                 }
                                 
                                 if (knockedTG==null) {
-                                    if ((!clisterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
-                                        clisterIdList.push(newcluster.id)
+                                    if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
+                                        clusterIdList.push(newcluster.id)
                                         for (let n=0;n<newcluster.images.length;n++) {
                                             var newsubcluster = {
                                                 id: newcluster.id, 

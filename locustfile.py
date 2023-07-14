@@ -52,7 +52,7 @@ class TagBatch(TaskSet):
         if reply['status'] == 'success':
             self.client.get(reply['code'], name="/dotask")
             self.clusters = []
-            self.clisterIdList = []
+            self.clusterIdList = []
             self.clusterIndex = 0
             self.call_count = 0
             self.awaiting_clusters = False
@@ -79,8 +79,8 @@ class TagBatch(TaskSet):
                     if 'info' in reply.keys():
                         newClusters = reply['info']
                         for newCluster in newClusters:
-                            if (newCluster['id'] not in self.clisterIdList) or (str(newCluster['id']) == '-101'):
-                                self.clisterIdList.append(newCluster['id'])
+                            if (newCluster['id'] not in self.clusterIdList) or (str(newCluster['id']) == '-101'):
+                                self.clusterIdList.append(newCluster['id'])
                                 self.clusters.append(newCluster)
                         self.awaiting_clusters = False
                     elif 'redirect' in reply.keys():

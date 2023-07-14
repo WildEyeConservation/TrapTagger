@@ -217,7 +217,9 @@ class Detection(db.Model):
         return '<Detection of class {} on image {}>'.format(self.category, self.image_id)
 
 class Turkcode(db.Model):
-    user_id = db.Column(db.String(64), primary_key=True, index=True)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    code = db.Column(db.String(64))
     active = db.Column(db.Boolean, default=True, index=True)
     assigned = db.Column(db.DateTime, unique=False, index=False)
     tagging_time = db.Column(db.Integer, index=False)
@@ -244,6 +246,7 @@ class User(db.Model, UserMixin):
     trapgroup = db.relationship('Trapgroup', backref='user', lazy=True)
     surveys = db.relationship('Survey', backref='user', lazy=True)
     children = db.relationship('User', backref=db.backref('parent', remote_side=[id]), lazy=True)
+    turkcode = db.relationship('Turkcode', backref='user', lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -410,8 +413,9 @@ class DetSimilarity(db.Model):
 
 
 class IndSimilarity(db.Model):
-    individual_1 = db.Column(db.Integer, db.ForeignKey('individual.id'), primary_key=True)
-    individual_2 = db.Column(db.Integer, db.ForeignKey('individual.id'), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
+    individual_1 = db.Column(db.Integer, db.ForeignKey('individual.id'))
+    individual_2 = db.Column(db.Integer, db.ForeignKey('individual.id'))
     detection_1 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     detection_2 = db.Column(db.Integer, db.ForeignKey('detection.id'), index=True)
     score = db.Column(db.Float, index=True)
