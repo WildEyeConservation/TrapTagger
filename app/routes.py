@@ -164,8 +164,27 @@ def launchTask():
     else:
         statusPass = True
 
-    if (len(task_ids)>1) and ('-5' in taggingLevel):
+    # Prevent individual ID for too many detections
+    if ('-4' in taggingLevel) or ('-5' in taggingLevel):
         species = re.split(',',taggingLevel)[1]
+        detCount = db.session.query(Detection.id)\
+                            .join(Labelgroup)\
+                            .join(Task)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .distinct().count()
+
+        if detCount > 2000:
+            return json.dumps({'message':   'There are too many sightings/boxes for your selection, resulting in too many combinations for which similarities '+
+                                            'need to be calculated. For now, individual ID cannot be performed across more than 2000 sightings/boxes (2 million combinations). '+
+                                            'Please try again after future updates, or reduce the size of your dataset.', 'status': 'Error'})
+
+    if (len(task_ids)>1) and ('-5' in taggingLevel):
+        # species = re.split(',',taggingLevel)[1]
         individuals_in_selection = db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
