@@ -2653,7 +2653,7 @@ def inspect_celery(include_reserved=False):
         inspector_reserved = inspector.reserved()
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
-                if not any(name in task['name'] for name in ['importImages','detection','classify','runClassifier']):
+                if not any(name in task['name'] for name in ['importImages','.detection','classify','runClassifier']):
                     print('')
                     print(task)
 
