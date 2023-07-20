@@ -499,6 +499,8 @@ function generateTemporal(){
         options: options
     });
 
+    document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
+
     updateResults()
 }
 
@@ -770,6 +772,7 @@ function generateNumerical(){
         options: options
     });
 
+    document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
 
     updateResults()
 
@@ -890,6 +893,7 @@ function generateTime(){
         options: options
     });
 
+    document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
 
     updateResults()
 
@@ -2502,9 +2506,6 @@ function checkTimeUnit(){
 function updateChartStyle(){
     // Updates the chart style based on the selected style
 
-    var chartData = chart.data
-    var chartOptions = chart.options
-    var chartType = chart.config.type
     textColour = document.getElementById('textColourSelector').value
     var axisColourSelector = document.getElementById('axisColourSelector').value
     includeLegend = document.getElementById('includeLegend').checked
@@ -2525,66 +2526,72 @@ function updateChartStyle(){
         backgroundColour = '#4E5D6C'
     }
 
-    chartOptions.legend.display = includeLegend
-    chartOptions.legend.labels.fontColor = textColour
-    chartOptions.legend.onClick = null
+    if (chart && document.getElementById('statisticsChart')) {
+        var chartData = chart.data
+        var chartOptions = chart.options
+        var chartType = chart.config.type
 
-    if (axisColourSelector == '1') {
-        axisColour = 'rgba(255,255,255,0.2)'
+        chartOptions.legend.display = includeLegend
+        chartOptions.legend.labels.fontColor = textColour
+        chartOptions.legend.onClick = null
+
+        if (axisColourSelector == '1') {
+            axisColour = 'rgba(255,255,255,0.2)'
+        }
+        else {
+            axisColour = 'rgba(0,0,0,0.2)'
+        }
+
+        if (chartOptions.scale != undefined) {
+            if (chartOptions.scale.pointLabels != undefined) {
+                chartOptions.scale.pointLabels.display = includeLabels
+                chartOptions.scale.pointLabels.fontColor = textColour
+            }
+            if (chartOptions.scale.ticks != undefined) {
+                chartOptions.scale.ticks.display = includeRadialAxisLabels
+                chartOptions.scale.ticks.fontColor = textColour
+            }
+            if (chartOptions.scale.gridLines != undefined) {
+                chartOptions.scale.gridLines.display = includeGridLines
+                chartOptions.scale.gridLines.color = axisColour
+            }
+        }
+        else if (chartOptions.scales != undefined){
+        
+            if (chartOptions.scales.xAxes != undefined) {
+                chartOptions.scales.xAxes[0].ticks.display = includeLabels
+                chartOptions.scales.xAxes[0].ticks.fontColor = textColour
+                chartOptions.scales.xAxes[0].gridLines.drawOnChartArea = includeGridLines
+                chartOptions.scales.xAxes[0].gridLines.color = axisColour
+            }
+        
+            if (chartOptions.scales.yAxes != undefined) {
+                chartOptions.scales.yAxes[0].ticks.display = includeLabels
+                chartOptions.scales.yAxes[0].ticks.fontColor = textColour
+                chartOptions.scales.yAxes[0].gridLines.drawOnChartArea = includeGridLines
+                chartOptions.scales.yAxes[0].gridLines.color = axisColour
+            }
+        }
+
+        if (chartType != 'line') {
+            for (let i=0;i<chartData.datasets.length;i++) {
+                chartData.datasets[i].borderColor = borderColour
+                chartData.datasets[i].borderWidth = includeBorders ? 1 : 0
+            }
+        }
+
+        chart.destroy()
+
+        var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+        chart = new Chart(ctx, {
+            data: chartData,
+            type: chartType,
+            options: chartOptions
+        });
+
+        document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
     }
-    else {
-        axisColour = 'rgba(0,0,0,0.2)'
-    }
-
-    if (chartOptions.scale != undefined) {
-        if (chartOptions.scale.pointLabels != undefined) {
-            chartOptions.scale.pointLabels.display = includeLabels
-            chartOptions.scale.pointLabels.fontColor = textColour
-        }
-        if (chartOptions.scale.ticks != undefined) {
-            chartOptions.scale.ticks.display = includeRadialAxisLabels
-            chartOptions.scale.ticks.fontColor = textColour
-        }
-        if (chartOptions.scale.gridLines != undefined) {
-            chartOptions.scale.gridLines.display = includeGridLines
-            chartOptions.scale.gridLines.color = axisColour
-        }
-    }
-    else if (chartOptions.scales != undefined){
-    
-        if (chartOptions.scales.xAxes != undefined) {
-            chartOptions.scales.xAxes[0].ticks.display = includeLabels
-            chartOptions.scales.xAxes[0].ticks.fontColor = textColour
-            chartOptions.scales.xAxes[0].gridLines.drawOnChartArea = includeGridLines
-            chartOptions.scales.xAxes[0].gridLines.color = axisColour
-        }
-    
-        if (chartOptions.scales.yAxes != undefined) {
-            chartOptions.scales.yAxes[0].ticks.display = includeLabels
-            chartOptions.scales.yAxes[0].ticks.fontColor = textColour
-            chartOptions.scales.yAxes[0].gridLines.drawOnChartArea = includeGridLines
-            chartOptions.scales.yAxes[0].gridLines.color = axisColour
-        }
-    }
-
-    if (chartType != 'line') {
-        for (let i=0;i<chartData.datasets.length;i++) {
-            chartData.datasets[i].borderColor = borderColour
-            chartData.datasets[i].borderWidth = includeBorders ? 1 : 0
-        }
-    }
-
-    chart.destroy()
-
-    var ctx = document.getElementById('statisticsChart').getContext('2d');
-
-    chart = new Chart(ctx, {
-        data: chartData,
-        type: chartType,
-        options: chartOptions
-    });
-
-    document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
 }
 
 function getSurveysAndAnnotationSets(clear=false){
@@ -2762,7 +2769,7 @@ function updateTrendline(){
 
                 trendline_datasets.push({
                     id: 'trendline-' + data_id,
-                    label: 'Trendline ' + datasets[i].label,
+                    label: 'Trend ' + datasets[i].label,
                     data: trendline,
                     borderColor: chart.data.datasets[i].backgroundColor,
                     backgroundColor: chart.data.datasets[i].backgroundColor,
