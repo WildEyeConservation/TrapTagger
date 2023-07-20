@@ -313,6 +313,9 @@ def stop_task(self,task_id):
                 sub_task.survey.status = 'Ready'
             task.sub_tasks = []
 
+            #remove trapgroup list from redis
+            GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
+
             if 'processing' not in survey.status:
                 survey.status = 'Ready'
             elif survey.status=='indprocessing':
@@ -337,9 +340,6 @@ def stop_task(self,task_id):
 
                 if not still_processing:
                     survey.status = 'Ready'
-
-            #remove trapgroup list from redis
-            GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
 
             db.session.commit()
 
@@ -774,20 +774,93 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
 
     return True
 
-# def reclusterAfterTimestampChange(survey_id):
-#     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels etc.'''
+def reclusterAfterTimestampChange(survey_id):
+    '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels etc.'''
 
-#     session = db.session()
-#     tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
+    # TODO:
+    # cluster notes
+    # knock-downs
+    # Check sessioning
+    # Auto classification - perhaps keep user-annotations & reclassify rest?
+    # informational tags?
+    # cluster function probably adds labelgroups
+    # classifytask will probably overwrite labelgroups - bad
 
-#     for task in tasks:
-#         clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).all()
-#         for cluster in clusters:
-#             cluster.labels = []
-#             cluster.tags = []
-#             cluster.images = []
-#             cluster.required_images = []
-#             db.session.delete(cluster)
+    session = db.session()
+
+    survey = session.query(Survey).get(survey_id)
+    survey.status = 'Reclustering'
+    for trapgroup in survey.trapgroups:
+        trapgroup.processing = False
+        trapgroup.queueing = False
+        trapgroup.active = False
+        trapgroup.user_id = None
+    session.commit()
+
+    tasks = session.query(Task).filter(Task.survey_id==survey_id).all()
+    admin = db.session.query(User).filter(User.username=='Admin').first()
+
+    # Delete old clusters
+    for task in tasks:
+        clusters = session.query(Cluster).filter(Cluster.task_id==task.id).all()
+        for cluster in clusters:
+            # If label source is AI (admin), then remove
+            if cluster.user == admin:
+                labelgroups = session.query(Labelgroup)\
+                                    .join(Detection)\
+                                    .join(Image)\
+                                    .filter(Image.clusters.contains(cluster))\
+                                    .filter(Labelgroup.task_id==task.id)\
+                                    .distinct().all()
+                for labelgroup in labelgroups:
+                    labelgroup.labels = []
+
+            # Delete the cluster
+            cluster.labels = []
+            cluster.tags = []
+            cluster.images = []
+            cluster.required_images = []
+            session.delete(cluster)
+
+    session.commit()
+    session.close()
+
+    #create new default task
+    task_id=cluster_survey(survey_id,'default')
+
+    session = db.session()
+
+    # Copy default clustering to other tasks
+    tasks = session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()
+    for task in tasks:
+        copyClusters(task.id)
+        classifyTask(task.id)
+
+    session.commit()
+
+    # Copy up labels from labelgroups
+    for task in tasks:
+        clusters = session.query(Cluster).filter(Cluster.task_id==task.id).all()
+        for cluster in clusters:
+            labels = session.query(Label)\
+                            .join(Labelgroup, Labelgroup.labels)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .filter(Image.clusters.contains(cluster))\
+                            .filter(Labelgroup.task_id==task.id)\
+                            .distinct().all()
+
+            cluster.labels = labels
+
+    # survey = session.query(Survey).get(survey_id)
+    # survey.status = 'Ready'
+    session.commit()
+
+    for task_id in tasks:
+        updateAllStatuses.delay(task_id=task_id)
+            
+    return True
+
 
 def reclusterAfterTimestampChange(survey_id):
     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels. Saves all old tasks 
