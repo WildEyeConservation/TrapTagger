@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
@@ -39,6 +39,8 @@ import json
 import io
 from celery.result import allow_join_result
 import redis
+import rpy2.robjects as robjects
+from rpy2.robjects import pandas2ri
 
 def translate(labels, dictionary):
     '''
@@ -2539,3 +2541,201 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
         db.session.remove()
 
     return True
+
+@celery.task(bind=True,max_retries=29)
+def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,startDate,endDate,unit,centre,time,overlap, bucket, user_folder, csv):
+    ''' Calculates the activity patterns for a set of species with R'''
+    try:
+        pandas2ri.activate()
+        activity_url = None
+        if task_ids:
+            if task_ids[0] == '0':
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id== user_id).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+            else:
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id==user_id).filter(Task.id.in_(task_ids)).all()
+            task_ids = [r[0] for r in tasks]
+            survey_ids = list(set([r[1] for r in tasks]))
+
+            if baseUnit == '1': # Image
+                baseQuery = db.session.query(
+                                Image.id,
+                                Image.corrected_timestamp,
+                                Label.id,
+                                Label.description
+                            )\
+                            .join(Camera) \
+                            .join(Trapgroup) \
+                            .outerjoin(Detection) \
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id.in_(task_ids))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+            elif baseUnit == '2': # Cluster
+                baseQuery = db.session.query(
+                                Cluster.id,
+                                Image.corrected_timestamp,
+                                Label.id,
+                                Label.description
+                            )\
+                            .join(Image,Cluster.images)\
+                            .join(Camera) \
+                            .join(Trapgroup) \
+                            .outerjoin(Detection) \
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Cluster.task_id.in_(task_ids))\
+                            .filter(Labelgroup.task_id.in_(task_ids))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+            elif baseUnit == '3':  # Detection
+                baseQuery = db.session.query(
+                                Detection.id,
+                                Image.corrected_timestamp,
+                                Label.id,
+                                Label.description
+                            )\
+                            .join(Image)\
+                            .join(Camera) \
+                            .join(Trapgroup) \
+                            .join(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Labelgroup.task_id.in_(task_ids))\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(~Detection.status.in_(['deleted','hidden']))
+
+            if trapgroups != '0':
+                if type(trapgroups) == list:
+                    trap_ids = [int(t) for t in trapgroups]
+                    baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
+                    trap_coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude).filter(Trapgroup.id.in_(trap_ids)).all()
+                else:
+                    baseQuery = baseQuery.filter(Trapgroup.tag==trapgroups).filter(Trapgroup.survey_id.in_(survey_ids))
+                    trap_coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude).filter(Trapgroup.tag==trapgroups).all()
+            else:
+                baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
+                trap_coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude).filter(Trapgroup.survey_id.in_(survey_ids)).all()
+
+            # Get average lat and lng coordinates 
+            if trap_coords:
+                lat = sum([r[0] for r in trap_coords])/len(trap_coords)
+                lng = sum([r[1] for r in trap_coords])/len(trap_coords)
+            else:
+                lat = 0
+                lng = 0
+
+            parent_children = {}
+            if species != '0':
+                labels = db.session.query(Label).filter(Label.description.in_(species)).filter(Label.task_id.in_(task_ids)).all()
+                label_list = []
+                for label in labels:
+                    label_list.append(label.id)
+                    children = getChildList(label,int(label.task_id))
+                    if children:
+                        if label.description not in parent_children.keys():
+                            parent_children[label.description] = []
+                        parent_children[label.description].extend(children)
+                    label_list.extend(children)
+                baseQuery = baseQuery.filter(Labelgroup.labels.any(Label.id.in_(label_list)))
+            else:
+                vhl = db.session.query(Label).get(GLOBALS.vhl_id)
+                label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
+                for task_id in task_ids:
+                    label_list.extend(getChildList(vhl,int(task_id)))
+                baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+            if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+
+            if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+
+            if baseUnit == '1':
+                baseQuery = baseQuery.filter(Image.corrected_timestamp != None).order_by(Image.corrected_timestamp).group_by(Image.id).distinct().all()
+            elif baseUnit == '2':
+                baseQuery = baseQuery.filter(Image.corrected_timestamp != None).order_by(Image.corrected_timestamp).group_by(Cluster.id).distinct().all()
+            elif baseUnit == '3':
+                baseQuery = baseQuery.filter(Image.corrected_timestamp != None).order_by(Image.corrected_timestamp).group_by(Detection.id).distinct().all()
+
+            id_list = []
+            time_list = []
+            species_list = []
+            for r in baseQuery:
+                id_list.append(r[0])
+                time_list.append(r[1])
+                if species != '0':	
+                    if r[3] not in species:
+                        parent_species = None
+                        for key, value in parent_children.items():
+                            if r[2] in value:
+                                parent_species = key
+                                break
+                        if parent_species:
+                            species_list.append(parent_species)
+                        else:
+                            species_list.append('Other')
+                    else:
+                        species_list.append(r[3])
+                else:
+                    species_list.append('All')
+
+            df = pd.DataFrame({'id': id_list, 'timestamp': time_list, 'species': species_list})
+
+            if csv:
+                # Convert to CSV and upload to bucket
+                df_csv = df.drop(columns=['id'])
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    df_csv.to_csv(temp_file.name,index=False)
+                    fileName = user_folder+'/docs/' + 'Activity_Pattern_CSV'
+                    for specie in species:
+                        fileName += '_' + specie
+                    fileName += '_' + datetime.now().strftime('%Y-%m-%d_%H:%M:%S') + '.csv'
+                    GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
+                    activity_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
+                    app.logger.info(activity_url)
+
+                # Schedule deletion
+                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
+
+            else: 
+                # Convert to R dataframe and run R script and upload to bucket
+                r_df = robjects.conversion.py2rpy(df)
+
+                r = robjects.r
+                r.source('R/activity_pattern.R')
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    fileName = user_folder+'/docs/' + 'Activity_Pattern' 
+                    for specie in species:
+                        fileName += '_' + specie
+                    fileName += '_' + datetime.now().strftime('%Y-%m-%d_%H:%M:%S') + '.JPG'
+                    file_name = temp_file.name.split('.JPG')[0]
+                    if species == '0':
+                        species_r = robjects.StrVector(['All'])
+                    else:
+                        species_r = robjects.StrVector(species)
+                    lat = robjects.FloatVector([lat])
+                    lng = robjects.FloatVector([lng])
+                    r.calculate_activity_pattern(r_df,file_name,species_r,centre,unit,time,overlap,lat,lng)
+                    temp_file = open(temp_file.name, 'rb')
+                    GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
+                    activity_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
+                    app.logger.info(activity_url)
+
+                # Schedule deletion
+                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return activity_url

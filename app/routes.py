@@ -56,6 +56,11 @@ import io
 import tracemalloc
 import calendar
 import pandas as pd
+import rpy2
+import rpy2.robjects as robjects
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+pandas2ri.activate()
 
 tracemalloc.start(40)
 
@@ -8624,5 +8629,262 @@ def getSurveysAndTasksForResults():
 
     return json.dumps(reply)
 
+@app.route('/getActivityPattern', methods=['POST'])
+@login_required
+def getActivityPattern():
+    ''' Get the activity pattern for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        baseUnit = ast.literal_eval(request.form['baseUnit'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        unit = ast.literal_eval(request.form['unit'])
+        centre = ast.literal_eval(request.form['centre'])
+        time = ast.literal_eval(request.form['time'])
+        overlap = ast.literal_eval(request.form['overlap'])
+        csv = False
+
+        if Config.DEBUGGING: app.logger.info('Activity data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,unit,centre,time,overlap))
+    else:
+        task_ids = None
+    
+    status = 'FAILURE'
+    activity_img_url = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id))
+                try:
+                    app.logger.info('Revoking task {}'.format(result_id))
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
+
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = calculateActivityPattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            GLOBALS.redisClient.set('activity_pattern_' + str(user_id), result.id)
+            app.logger.info('Task {} started'.format(result.id))
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id))
+            if result_id:
+                result = calculateActivityPattern.AsyncResult(result_id)
+                app.logger.info('Task {} status: {}'.format(result_id, result.state))
+                status = result.state
+                if status == 'SUCCESS':
+                    activity_img_url = result.result
+                    app.logger.info('Task {} result: {}'.format(result_id, activity_img_url))
+                    result.forget()
+                    GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
+
+    return json.dumps({'status': status, 'activity_img_url': activity_img_url})
+
+@app.route('/getActivityPatternCSV', methods=['POST'])
+@login_required
+def getActivityPatternCSV():
+    ''' Get the activity pattern CSV for a set of species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        baseUnit = ast.literal_eval(request.form['baseUnit'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        unit = ast.literal_eval(request.form['unit'])
+        centre = ast.literal_eval(request.form['centre'])
+        time = ast.literal_eval(request.form['time'])
+        overlap = ast.literal_eval(request.form['overlap'])
+        csv = True
+
+        if Config.DEBUGGING: app.logger.info('Activity data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,unit,centre,time,overlap))
+    else:
+        task_ids = None
+    
+    status = 'FAILURE'
+    activity_csv_url = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id))
+                try:
+                    app.logger.info('Revoking task {}'.format(result_id))
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
+
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = calculateActivityPattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            GLOBALS.redisClient.set('activity_pattern_csv_' + str(user_id), result.id)
+            app.logger.info('Task {} started'.format(result.id))
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id))
+            if result_id:
+                result = calculateActivityPattern.AsyncResult(result_id)
+                app.logger.info('Task {} status: {}'.format(result_id, result.state))
+                status = result.state
+                if status == 'SUCCESS':
+                    activity_csv_url = result.result
+                    app.logger.info('Task {} result: {}'.format(result_id, activity_csv_url))
+                    result.forget()
+                    GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
+
+    return json.dumps({'status': status, 'activity_csv_url': activity_csv_url})
+
+@app.route('/getRScript', methods=['POST'])
+@login_required
+def getRScript():
+    ''' Get the R script for a analysis type'''
+    filename = ast.literal_eval(request.form['filename'])
+
+    if Config.DEBUGGING: app.logger.info('R script requested for {}'.format(filename))
+    script = ''
+    with open('R/' + filename + '.R', 'r') as file:
+        script = file.read()
+        
+    return json.dumps({'status': 'success', 'script': script})
+
+
+@app.route('/getResultsSummary', methods=['POST'])
+@login_required
+def getResultsSummary():
+    ''' Get the results summary of your data'''
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    if 'startDate' in request.form:
+        startDate = ast.literal_eval(request.form['startDate'])
+    else:
+        startDate = None
+    if 'endDate' in request.form:	
+        endDate = ast.literal_eval(request.form['endDate'])
+    else:
+        endDate = None
+
+    if Config.DEBUGGING: app.logger.info('Results summary for {} {} {} {}'.format(task_ids,baseUnit,startDate,endDate))
+    
+
+    if task_ids:
+        if task_ids[0] == '0':
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+        else:
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+
+        task_ids = [r[0] for r in tasks]
+
+        # if baseUnit == '1': # Image
+        #     baseQuery = db.session.query(
+        #                     Label.id,
+        #                     Label.description,
+        #                     func.count(Image.id)
+        #                 )\
+        #                 .outerjoin(Detection) \
+        #                 .join(Labelgroup)\
+        #                 .outerjoin(Label,Labelgroup.labels)\
+        #                 .filter(Labelgroup.task_id.in_(task_ids))\
+        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                 .filter(Detection.static==False)\
+        #                 .filter(~Detection.status.in_(['deleted','hidden']))
+
+        # elif baseUnit == '2': # Cluster
+        #     baseQuery = db.session.query(
+        #                     Label.id,
+        #                     Label.description,
+        #                     func.count(Cluster.id)
+        #                 )\
+        #                 .join(Image,Cluster.images)\
+        #                 .outerjoin(Detection) \
+        #                 .join(Labelgroup)\
+        #                 .outerjoin(Label,Labelgroup.labels)\
+        #                 .filter(Cluster.task_id.in_(task_ids))\
+        #                 .filter(Labelgroup.task_id.in_(task_ids))\
+        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                 .filter(Detection.static==False)\
+        #                 .filter(~Detection.status.in_(['deleted','hidden']))
+
+        # elif baseUnit == '3':  # Detection
+        #     baseQuery = db.session.query(
+        #                     Label.id,
+        #                     Label.description,
+        #                     func.count(Detection.id)
+        #                 )\
+        #                 .join(Image)\
+        #                 .join(Labelgroup)\
+        #                 .outerjoin(Label,Labelgroup.labels)\
+        #                 .filter(Labelgroup.task_id.in_(task_ids))\
+        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                 .filter(Detection.static==False)\
+        #                 .filter(~Detection.status.in_(['deleted','hidden']))
+
+
+        # vhl = db.session.query(Label).get(GLOBALS.vhl_id)
+        # label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
+        # for task_id in task_ids:
+        #     label_list.extend(getChildList(vhl,int(task_id)))
+        # baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+        # if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+
+        # if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+
+        # labels = baseQuery.group_by(Label.id).distinct().all()
+
+        # app.logger.info(baseQuery)
+
+        if baseUnit == '1': # Image
+            labels = db.session.query(Label.id, Label.description, Label.image_count).filter(Label.task_id.in_(task_ids)).all()
+        elif baseUnit == '2': # Cluster
+            labels = db.session.query(Label.id, Label.description, Label.cluster_count).filter(Label.task_id.in_(task_ids)).all()
+        elif baseUnit == '3':  # Detection
+            labels = db.session.query(Label.id, Label.description, Label.sighting_count).filter(Label.task_id.in_(task_ids)).all()
+
+
+        df = pd.DataFrame(labels, columns=['id', 'species', 'count'])
+        species_count = df.groupby('species').sum().reset_index().drop('id', axis=1)
+
+        r = robjects.r
+        try:
+            vegan = importr('vegan')
+        except:
+            utils = importr('utils')
+            utils.install_packages('vegan')
+            vegan = importr('vegan')
+
+        r.source('R/summary.R')
+
+        app.logger.info(df)
+        app.logger.info(species_count)
+
+        species_count_r = robjects.conversion.py2rpy(species_count)
+
+        indexes = r.calculate_summary_indexes(species_count_r)
+
+        summary_indexes = {'Shannon-Wiener Index': float(indexes.rx2('shannon_index')[0]),
+                       "Simpson's Index": float(indexes.rx2('simpsons_index')[0]),
+                       'Hill Number': float(indexes.rx2('hill_number')[0]),
+                       "Pielou's Evenness": float(indexes.rx2('pielous_evenness')[0]),
+                       'Species Richness': float(indexes.rx2('species_richness')[0])}
+
+        species_count_dict = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
+        app.logger.info(species_count_dict)
+
+    return json.dumps({'status': 'success', 'indexes': summary_indexes, 'species_count': species_count_dict})
 
 

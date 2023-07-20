@@ -472,13 +472,12 @@ function updatePolarData(IDNum) {
                         }
 
                         if (wrapSite.includes(',')) {
-                            site_text = wrapSite.split(',')[0] + ' (' + wrapSite.split(',')[1] + ',' + wrapSite.split(',')[2] + ')'	
+                            site_text = wrapSite.split(',')[0] 
+                            polarData[IDkey]['legend'] = site_text + ' '+ species_text  
                         }
                         else {
-                            site_text = 'All'
+                            polarData[IDkey]['legend'] = species_text  
                         }
-                            
-                        polarData[IDkey]['legend'] = site_text + ' '+ species_text  
         
                         total = 0
                         for (let i=0;i<reply.length;i++) {
@@ -498,7 +497,7 @@ function updatePolarData(IDNum) {
         if (polarData.hasOwnProperty(IDkey)) {
             polarData[IDkey]['data'] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
             polarData[IDkey]['total'] = 0
-            polarData[IDkey]['legend'] = 'None'	
+            polarData[IDkey]['legend'] = ''	
             updatePolarDisplay(IDNum)
         }
     }
@@ -1370,13 +1369,12 @@ function updateLineData(IDNum){
                     }
 
                     if (wrapSite.includes(',')) {
-                        site_text = wrapSite.split(',')[0] + ' (' + wrapSite.split(',')[1] + ',' + wrapSite.split(',')[2] + ')'	
+                        site_text = wrapSite.split(',')[0] 
+                        lineData[IDkey]['legend'] = site_text + ' '+ species_text  
                     }
                     else {
-                        site_text = 'All'
+                        lineData[IDkey]['legend'] = species_text  
                     }
-                        
-                    lineData[IDkey]['legend'] = site_text + ' '+ species_text  
 
                     updateLineDisplay(wrapIDNum)
 

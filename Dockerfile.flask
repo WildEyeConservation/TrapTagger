@@ -16,6 +16,7 @@ FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /code
 COPY requirements.txt .
+COPY r-packages.txt .
 RUN apt-get update
 RUN apt-get install -y  python3.7\
                         python3-pip\
@@ -23,6 +24,8 @@ RUN apt-get install -y  python3.7\
                         libmagickwand-dev\
                         ffmpeg\
                         libsm6\
-                        libxext6
+                        libxext6\
+                        r-base\
 RUN pip install -r requirements.txt
 RUN pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
+RUN R -e "install.packages(readLines('r-packages.txt'))"

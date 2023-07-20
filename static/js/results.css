@@ -1,0 +1,71 @@
+/**
+Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.tab {
+  overflow: hidden;
+  /* border: 1px solid #ccc; */
+  /* border-bottom: 1px solid rgb(60,74,89); */
+  background-color: inherit;
+  /* padding-left: 20px; */
+}
+
+.tab button {
+  background-color: inherit;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 4px;
+  transition: 0.3s;
+  font-size: 17px;
+  color: #EBEBEB;
+  /* border-left: 1px solid rgb(60,74,89,0.5);
+  border-right: 1px solid rgb(60,74,89,0.5);
+  border-bottom: 1px solid rgb(60,74,89,0.5); */
+}
+
+.tab button:hover {
+  background-color: #FFFFFF13;
+}
+
+.tab button.active {
+  background-color: #FFFFFF13;
+  border-left: 1px solid rgb(60,74,89);
+  border-right: 1px solid rgb(60,74,89);
+  border-bottom: 1px solid rgb(60,74,89);
+}
+
+.tabcontent {
+  display: none;
+  padding: 0px;
+  -webkit-animation: fadeEffect 1s;
+  animation: fadeEffect 1s;
+}
+
+.loading-circle {
+  width: 75px;
+  height: 75px;
+  border: 5px solid #EBEBEB;
+  border-top: 5px solid #DF691A;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: none; 
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

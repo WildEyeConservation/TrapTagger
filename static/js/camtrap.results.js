@@ -134,9 +134,10 @@ var tabActive = 'baseAnalysisDiv'
 var selectedAnnotationSets = {}
 var suveysAndSets = []
 var globalAnnotationSets = []
+var activeImage = null
 
 const modalExportAlert = $('#modalExportAlert')
-const modalAnnotationsSets = $('#modalAnnotationsSets')
+// const modalAnnotationsSets = $('#modalAnnotationsSets')
 
 function getLabelsAndSites(){
     /** Builds the selectors for generating results*/
@@ -165,6 +166,11 @@ function getLabelsAndSites(){
             }
 
             updateLabelsAndSites()
+            buildDataSelectorRow()
+            buildSiteSelectorRow()
+            buildSpeciesSelectorRow()
+            buildRSiteRows()
+            buildRSpeciesRows()
 
         }
     }
@@ -174,12 +180,12 @@ function getLabelsAndSites(){
 
 function updateLabelsAndSites(){
     /** Updates the labels and sites selectors based on the selected surveys and annotation sets */
-    allSpeciesSelector = document.querySelectorAll('[id^=speciesSelect-]')
-    allSiteSelector = document.querySelectorAll('[id^=trapgroupSelect-]')
+    // allSpeciesSelector = document.querySelectorAll('[id^=speciesSelect-]')
+    // allSiteSelector = document.querySelectorAll('[id^=trapgroupSelect-]')
     speciesSelector = document.getElementById('speciesSelect')
-    siteSelector = document.getElementById('trapgroupSelect')
-    allSpeciesSelectorNum = document.querySelectorAll('[id^=speciesSelectNum-]')
-    allSiteSelectorSpat = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    // siteSelector = document.getElementById('trapgroupSelect')
+    // allSpeciesSelectorNum = document.querySelectorAll('[id^=speciesSelectNum-]')
+    // allSiteSelectorSpat = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
 
     if (speciesSelector) {
         clearSelect(speciesSelector)
@@ -191,50 +197,50 @@ function updateLabelsAndSites(){
     }
 
 
-    if (siteSelector) {
-        clearSelect(siteSelector)
-        optionValues = ['-1', '0']
-        optionTexts = ['None', 'All']
-        optionValues = optionValues.concat(globalSitesIDs)
-        optionTexts = optionTexts.concat(globalSites)
-        fillSelect(siteSelector, optionTexts, optionValues)
-    }
+    // if (siteSelector) {
+    //     clearSelect(siteSelector)
+    //     optionValues = ['-1', '0']
+    //     optionTexts = ['None', 'All']
+    //     optionValues = optionValues.concat(globalSitesIDs)
+    //     optionTexts = optionTexts.concat(globalSites)
+    //     fillSelect(siteSelector, optionTexts, optionValues)
+    // }
 
-    for (let i=0;i<allSpeciesSelector.length;i++) {
-        clearSelect(allSpeciesSelector[i])
-        var optionValues = ['-1', '0']
-        var optionTexts = ['None', 'All']
-        optionValues = optionValues.concat(globalLabels)
-        optionTexts = optionTexts.concat(globalLabels)
-        fillSelect(allSpeciesSelector[i], optionTexts, optionValues)
-    }
+    // for (let i=0;i<allSpeciesSelector.length;i++) {
+    //     clearSelect(allSpeciesSelector[i])
+    //     var optionValues = ['-1', '0']
+    //     var optionTexts = ['None', 'All']
+    //     optionValues = optionValues.concat(globalLabels)
+    //     optionTexts = optionTexts.concat(globalLabels)
+    //     fillSelect(allSpeciesSelector[i], optionTexts, optionValues)
+    // }
 
-    for (let i=0;i<allSiteSelector.length;i++) {
-        clearSelect(allSiteSelector[i])
-        var optionValues = ['-1', '0']
-        var optionTexts = ['None', 'All']
-        optionValues = optionValues.concat(globalSitesIDs)
-        optionTexts = optionTexts.concat(globalSites)
-        fillSelect(allSiteSelector[i], optionTexts, optionValues)
-    }
+    // for (let i=0;i<allSiteSelector.length;i++) {
+    //     clearSelect(allSiteSelector[i])
+    //     var optionValues = ['-1', '0']
+    //     var optionTexts = ['None', 'All']
+    //     optionValues = optionValues.concat(globalSitesIDs)
+    //     optionTexts = optionTexts.concat(globalSites)
+    //     fillSelect(allSiteSelector[i], optionTexts, optionValues)
+    // }
 
-    for (let i=0;i<allSpeciesSelectorNum.length;i++) {
-        clearSelect(allSpeciesSelectorNum[i])
-        var optionValues = ['-1', '0']
-        var optionTexts = ['None', 'All']
-        optionValues = optionValues.concat(globalLabels)
-        optionTexts = optionTexts.concat(globalLabels)
-        fillSelect(allSpeciesSelectorNum[i], optionTexts, optionValues)
-    }
+    // for (let i=0;i<allSpeciesSelectorNum.length;i++) {
+    //     clearSelect(allSpeciesSelectorNum[i])
+    //     var optionValues = ['-1', '0']
+    //     var optionTexts = ['None', 'All']
+    //     optionValues = optionValues.concat(globalLabels)
+    //     optionTexts = optionTexts.concat(globalLabels)
+    //     fillSelect(allSpeciesSelectorNum[i], optionTexts, optionValues)
+    // }
 
-    for (let i=0;i<allSiteSelectorSpat.length;i++) {
-        clearSelect(allSiteSelectorSpat[i])
-        var optionValues = ['0']
-        var optionTexts = ['All']
-        optionValues = optionValues.concat(globalSitesIDs)
-        optionTexts = optionTexts.concat(globalSites)
-        fillSelect(allSiteSelectorSpat[i], optionTexts, optionValues)
-    }
+    // for (let i=0;i<allSiteSelectorSpat.length;i++) {
+    //     clearSelect(allSiteSelectorSpat[i])
+    //     var optionValues = ['0']
+    //     var optionTexts = ['All']
+    //     optionValues = optionValues.concat(globalSitesIDs)
+    //     optionTexts = optionTexts.concat(globalSites)
+    //     fillSelect(allSiteSelectorSpat[i], optionTexts, optionValues)
+    // }
 
 }
 
@@ -255,7 +261,28 @@ function generateResults(){
     clearChartColours()
     clearButtonColours()
 
-    if (analysisType=='1') {
+    if (analysisType=='0') {
+        //Builds the selectors for the summary analysis
+        document.getElementById('btnExportResults').disabled = true
+        document.getElementById('chartTypeDiv').hidden = false
+        document.getElementById('chartTypeSelector').value = 'bar'
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true 
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = true
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
+        document.getElementById('scriptDiv').hidden = true
+        getSummary()
+    }
+    else if (analysisType=='1') {
         //Builds the selectors for the temporal analysis
         document.getElementById('btnExportResults').disabled = false
         document.getElementById('chartTypeDiv').hidden = false
@@ -269,6 +296,11 @@ function generateResults(){
         document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('scriptDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
         generateTemporal()
     }
     else if (analysisType=='2') {
@@ -284,6 +316,11 @@ function generateResults(){
         document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('scriptDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
         generateSpatial()
     }
     else if (analysisType=='3') {
@@ -300,6 +337,11 @@ function generateResults(){
         document.getElementById('numericalDataDiv').hidden = false
         document.getElementById('btnSaveGroupFromData').disabled = true
         document.getElementById('trendlineDiv').hidden = false
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('scriptDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
         generateNumerical()
     }
     else if (analysisType=='4') {
@@ -316,7 +358,32 @@ function generateResults(){
         document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = false
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('scriptDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
         generateTime()
+    }
+    else if (analysisType=='5') {
+        //Builds the selectors for the activity analysis
+        document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeDiv').hidden = true
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = false
+        document.getElementById('speciesDataDiv').hidden = false
+        document.getElementById('optionsDiv').hidden = false
+        document.getElementById('buttonsR').hidden = false
+        document.getElementById('scriptDiv').hidden = true
+        generateActivity()
     }
     else{
         document.getElementById('btnExportResults').disabled = true
@@ -330,6 +397,11 @@ function generateResults(){
         document.getElementById('numericalDataDiv').hidden = true
         document.getElementById('btnSaveGroupFromData').disabled = true
         document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
+        document.getElementById('scriptDiv').hidden = true
     }
 
 }
@@ -823,6 +895,38 @@ function generateTime(){
 
 }
 
+function generateActivity(){
+    /** Updates the generate results div for activity analysis */
+    // Chart generated from R script
+
+    var mainDiv = document.getElementById('resultsDiv')
+
+    div = document.createElement('div')
+    div.classList.add('row')
+    mainDiv.appendChild(div)
+
+    space = document.createElement('div')
+    space.classList.add('col-lg-1')
+    div.appendChild(space)
+
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    div.appendChild(col1)
+
+    center = document.createElement('center')
+    col1.appendChild(center)
+
+    mapDiv = document.createElement('div')
+    mapDiv.setAttribute('id','mapDiv')
+    mapDiv.setAttribute('style','height: 800px')
+    center.appendChild(mapDiv)
+
+    space = document.createElement('div')
+    space.classList.add('col-lg-1')
+    div.appendChild(space)
+
+}
+
 function buildDataSelectorRow(){
     /** Builds a row for the species and site selectors */
 
@@ -955,12 +1059,12 @@ function buildDataSelectorRow(){
             var colourPicker = document.getElementById('colourPicker-' + wrapIDNum);
     
             if (selectColour.value === 'custom-' + wrapIDNum) {
-                selectColour.hidden = true;
-                colourPicker.hidden = false;
-                // colourPicker.click();
+                // selectColour.hidden = true;
+                // colourPicker.hidden = false;
+                colourPicker.click();
             } else {
-                colourPicker.hidden = true;
-                selectColour.hidden = false;
+                // colourPicker.hidden = true;
+                // selectColour.hidden = false;
                 selectColour.style.backgroundColor = selectColour.value;
                 selectColour.value = selectColour.value;
                 updateDataColour(wrapIDNum, selectColour.value);
@@ -989,8 +1093,8 @@ function buildDataSelectorRow(){
             selectColour.style.backgroundColor = rgba;
 
             console.log(selectedColor, rgba)
-            colourPicker.hidden = true;
-            selectColour.hidden = false;
+            // colourPicker.hidden = true;
+            // selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
         };
     }(IDNum));
@@ -1164,9 +1268,9 @@ function buildSpeciesSelectorRow(){
             var colourPicker = document.getElementById('colourPickerSpecies-' + wrapIDNum);
     
             if (selectColour.value === 'custom-' + wrapIDNum) {
-                selectColour.hidden = true;
-                colourPicker.hidden = false;
-                // colourPicker.click();
+                // selectColour.hidden = true;
+                // colourPicker.hidden = false;
+                colourPicker.click();
             } else {
                 selectColour.style.backgroundColor = selectColour.value;
                 selectColour.value = selectColour.value;
@@ -1196,8 +1300,8 @@ function buildSpeciesSelectorRow(){
             selectColour.style.backgroundColor = rgba;
 
             console.log(selectedColor, rgba)
-            colourPicker.hidden = true;
-            selectColour.hidden = false;
+            // colourPicker.hidden = true;
+            // selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
         };
     }(IDNum));
@@ -1231,7 +1335,6 @@ function buildSpeciesSelectorRow(){
 
 function buildSiteCountSelectorRow(){
     /** Builds a row for the site selectors */
-    console.log('buildSiteCountSelectorRow')
     var siteCountSelectorDiv = document.getElementById('siteCountSelectorDiv')
     var IDNum = getIdNumforNext('trapgroupSelectNum-')
 
@@ -1431,6 +1534,12 @@ function updateResults(update=false){
         timeLabels = []
         updateLine()
     }
+    else if (analysisSelection == '5') {
+        document.getElementById('resultsDiv').style.display = 'none'
+        document.getElementById('loadingDiv').style.display = 'block'
+        document.getElementById('loadingCircle').style.display = 'block'
+        updateActivity()
+    }
 }
 
 function updatePolar(){
@@ -1575,6 +1684,266 @@ function updateMap(){
     }
 }
 
+function updateActivity(check=false){
+    /** Updates the activity chart  */
+    if (check) {
+        var species = '0'
+        var validActivity = true 
+        var formData = new FormData();
+    }
+    else{
+        var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
+        var species = getSelectedSpecies()
+        var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var density = document.getElementById('unitDensity').checked
+        var centreDay = document.getElementById('centreDay').checked
+        var overlap = document.getElementById('overlapEst').checked
+        var clockTime = document.getElementById('clockTime').checked
+    
+        var validActivity = checkActivity(species, overlap)
+    
+        var unit = density ? 'density' : 'frequency';
+        var centre = centreDay ? 'day' : 'night';
+        var time = clockTime ? 'clock' : 'solar';
+        var overlap = overlap ? 'true' : 'false';
+    
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
+        formData.append('species', JSON.stringify(species));
+        formData.append('baseUnit', JSON.stringify(baseUnit));
+        formData.append('unit', JSON.stringify(unit));
+        formData.append('centre', JSON.stringify(centre));
+        formData.append('time', JSON.stringify(time));
+        formData.append('overlap', JSON.stringify(overlap));
+    
+        if(startDate != ''){
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate));
+        }
+    
+        if(endDate != ''){
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate));
+        }
+    }
+
+    if (species != '-1' && validActivity) {
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if(reply.status == 'SUCCESS'){
+                    image_url = reply.activity_img_url
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+                    if (activeImage) {
+                        activeImage.setUrl(image_url)
+                    }
+                    else{
+                        initialiseImageMap(image_url)
+                    }
+                }
+                else if(reply.status != 'FAILURE'){
+                    setTimeout(function(){updateActivity(true)}, 10000);
+                }
+
+            }
+        }
+        xhttp.open("POST", '/getActivityPattern');
+        xhttp.send(formData);
+
+    }
+
+}
+
+function checkActivity(species, overlap){
+    /** Checks if the activity parameters are valid */
+    var rErrors = document.getElementById('rErrors')
+    message = ''
+    var valid = true
+
+    if (species == '-1') {
+        message = 'Please select a species.'
+        valid = false
+    }
+
+    console.log(overlap)
+
+    if (overlap){
+        if (species.length != 2){
+            message = 'Overlap estimation requires exactly two species.'
+            valid = false
+        }
+    }
+
+    if (valid) {
+        rErrors.innerHTML = ''
+    }
+    else {
+        rErrors.innerHTML = message
+    }
+
+    return valid
+}
+
+
+function initialiseImageMap(image_url){
+    /**Initialises the image map */
+    var mapDiv = document.getElementById('mapDiv')
+    var imageUrl = image_url
+    var img = new Image();
+    img.onload = function(){
+        w = this.width
+        h = this.height
+
+        console.log(w,h)
+    
+        if (w>h) {
+            mapDiv.setAttribute('style','height: calc(45vw *'+(h/w)+');  width:45vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+        } else {
+            mapDiv.setAttribute('style','height: calc(45vw *'+(w/h)+');  width:45vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
+        }
+
+        L.Browser.touch = true
+        console.log(mapDiv)
+        map = new L.map(mapDiv, {
+            crs: L.CRS.Simple,
+            maxZoom: 10,
+            center: [0, 0],
+            zoomSnap: 0
+        })
+        console.log(map)
+        var h1 = mapDiv.clientHeight
+        var w1 = mapDiv.clientWidth
+
+        var southWest = map.unproject([0, h1], 2);
+        var northEast = map.unproject([w1, 0], 2);
+        var bounds = new L.LatLngBounds(southWest, northEast);
+
+        mapWidth = northEast.lng
+        mapHeight = southWest.lat
+
+        activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
+        map.setMaxBounds(bounds);
+        map.fitBounds(bounds)
+        map.setMinZoom(map.getZoom())
+
+        
+        map.on('resize', function(){
+            mapDiv = document.getElementById('mapDiv')
+            h1 = mapDiv.clientHeight
+            w1 = mapDiv.clientWidth
+
+            southWest = map.unproject([0, h1], 2);
+            northEast = map.unproject([w1, 0], 2);
+            bounds = new L.LatLngBounds(southWest, northEast);
+
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+
+            map.invalidateSize()
+            map.setMaxBounds(bounds)
+            map.fitBounds(bounds)
+            map.setMinZoom(map.getZoom())
+            activeImage.setBounds(bounds)
+        });
+
+        map.on('drag', function() {
+            map.panInsideBounds(bounds, { animate: false });
+        });
+
+    }
+    console.log(img)
+    img.src = imageUrl
+}
+
+function getActivityPatternCSV(check=false){
+    /** Downloads the activity pattern CSV */
+
+    if (check) {
+        var species = '0'
+        var validActivity = true 
+        var formData = new FormData();
+    }
+    else{
+        var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
+        var species = getSelectedSpecies()
+        var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var density = document.getElementById('unitDensity').checked
+        var centreDay = document.getElementById('centreDay').checked
+        var overlap = document.getElementById('overlapEst').checked
+        var clockTime = document.getElementById('clockTime').checked
+    
+        var validActivity = checkActivity(species, overlap)
+    
+        var unit = density ? 'density' : 'frequency';
+        var centre = centreDay ? 'day' : 'night';
+        var time = clockTime ? 'clock' : 'solar';
+        var overlap = overlap ? 'true' : 'false';
+    
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
+        formData.append('species', JSON.stringify(species));
+        formData.append('baseUnit', JSON.stringify(baseUnit));
+        formData.append('unit', JSON.stringify(unit));
+        formData.append('centre', JSON.stringify(centre));
+        formData.append('time', JSON.stringify(time));
+        formData.append('overlap', JSON.stringify(overlap));
+    
+        if(startDate != ''){
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate));
+        }
+    
+        if(endDate != ''){
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate));
+        }
+    }
+
+    if (species != '-1' && validActivity) {
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if(reply.status == 'SUCCESS'){
+                    csv_url = reply.activity_csv_url
+                    filename = csv_url.split('/')[csv_url.split('/').length-1]
+                    
+                    var link = document.createElement('a');
+                    link.setAttribute('download', filename);
+                    link.setAttribute('href', csv_url);
+                    link.click();
+
+                }
+                else if(reply.status != 'FAILURE'){
+                    setTimeout(function(){getActivityPatternCSV(true)}, 10000);
+                }
+
+            }
+        }
+        xhttp.open("POST", '/getActivityPatternCSV');
+        xhttp.send(formData);
+
+    }
+
+}
+
 function getTrapgroups(){
     /**Gets all trapgroups from server for the specified tasks*/
     // var formData = new FormData();
@@ -1638,6 +2007,12 @@ function getSelectedSites(text=false){
     else if (analysis == '3'){
         allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
+    else if (analysis=='5'){
+        allSites = document.querySelectorAll('[id^=siteSelector-]')
+    }
+    else if (analysis=='0' || analysis=='-1'){
+        return '0'
+    }
     else {
         allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
     }
@@ -1680,6 +2055,25 @@ function getSelectedSites(text=false){
 
     console.log(sites)
     return sites
+}
+
+function getSelectedSpecies(){
+    //* Gets all the selected species from the species selectors*/
+    var species = []
+    var allSpecies = document.querySelectorAll('[id^=speciesSelector-]')
+    for (let i=0;i<allSpecies.length;i++) {
+        if (allSpecies[i].value != '-1' && allSpecies[i].value != '0' && species.indexOf(allSpecies[i].value) == -1){
+            species.push(allSpecies[i].value)
+        }
+    }
+
+    if (species.length==0) {
+        if (allSpecies.length > 0) {
+            species = allSpecies[0].value
+        }
+    }
+
+    return species
 }
 
 function checkSitesSpatial(){
@@ -1999,6 +2393,11 @@ function updateChart(chartType){
         document.getElementById('trendlineDiv').hidden = true
     }
 
+    analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
+    if (analysisSelection == '0') {
+        options.legend.display = false
+    }
+
     data = updateChartData(chartType, data, fillData)
 
     chart.destroy()
@@ -2188,13 +2587,21 @@ function updateChartStyle(){
     document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
 }
 
-function getSurveysAndAnnotationSets(){
+function getSurveysAndAnnotationSets(clear=false){
     // Gets the surveys with multiple annotation sets 
 
     var formData = new FormData()
-    sites_ids = getSelectedSites()
-    start_date = document.getElementById('startDate').value
-    end_date = document.getElementById('endDate').value
+
+    if (clear) {
+        sites_ids = '0'
+        start_date = ''
+        end_date = ''
+    }
+    else{
+        sites_ids = getSelectedSites()
+        start_date = document.getElementById('startDate').value
+        end_date = document.getElementById('endDate').value
+    }
 
     if (start_date != '') {
         start_date= start_date + ' 00:00:00'
@@ -2216,6 +2623,17 @@ function getSurveysAndAnnotationSets(){
 
             for (let i = 0; i < reply.length; i++) {
                 buildSurveysAndSets(reply)
+            }
+
+            if (selectedAnnotationSets) {
+                allSets = document.querySelectorAll('[id^=annotationSetSelect-]')
+                for (let i = 0; i < allSets.length; i++) {
+                    s_id = allSets[i].id.split('-')[1]
+                    if (selectedAnnotationSets[s_id] != undefined) {
+                        allSets[i].value = selectedAnnotationSets[s_id]
+                    }
+                }
+
             }
         }
     }
@@ -2364,7 +2782,114 @@ function updateTrendline(){
     chart.update()
 }
 
+function buildRSiteRows(){
+    var siteSelectorDiv = document.getElementById('siteSelectorDiv')
+    var IDNum = getIdNumforNext('siteSelector-')
+
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','siteSelDiv-'+String(IDNum))
+    siteSelectorDiv.appendChild(containingDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    containingDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
+    row.appendChild(col3)
+
+    siteSelectorDiv.appendChild(row)
+    
+    var siteSelector = document.createElement('select')
+    siteSelector.classList.add('form-control')
+    siteSelector.id = 'siteSelector-'+String(IDNum)
+    col1.appendChild(siteSelector)
+    if (IDNum == 0) {
+        var siteOptionTexts = ['All']
+        var siteOptionValues = ['0']
+    }
+    else{
+        var siteOptionTexts = []
+        var siteOptionValues = []
+    }
+    siteOptionTexts.push(...globalSites) 
+    siteOptionValues.push(...globalSitesIDs)
+
+    fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
+
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.id = 'btnRemoveSiteR-'+IDNum;
+        btnRemove.setAttribute("class",'btn btn-info');
+        btnRemove.innerHTML = '&times;';
+        col3.appendChild(btnRemove);
+        btnRemove.addEventListener('click', function(wrapIDNum) {
+            return function() {
+                btnRemove = document.getElementById('btnRemoveSiteR-'+wrapIDNum)
+                btnRemove.parentNode.parentNode.remove();
+            }
+        }(IDNum));
+    }
+}
+
+function buildRSpeciesRows(){
+    var speciesSelectorDiv = document.getElementById('speciesSelectorDiv')
+    var IDNum = getIdNumforNext('speciesSelector-')
+
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','speciesSelDiv-'+String(IDNum))
+    speciesSelectorDiv.appendChild(containingDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    containingDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
+    row.appendChild(col3)
+
+    speciesSelectorDiv.appendChild(row)
+
+    var speciesSelector = document.createElement('select')
+    speciesSelector.classList.add('form-control')
+    speciesSelector.id = 'speciesSelector-'+String(IDNum)
+    col1.appendChild(speciesSelector)
+
+    var speciesOptionTexts = ['None', 'All']
+    var speciesOptionValues = ['-1','0']
+    speciesOptionTexts.push(...globalLabels) 
+    speciesOptionValues.push(...globalLabels)
+
+    fillSelect(speciesSelector, speciesOptionTexts, speciesOptionValues)
+
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.id = 'btnRemoveSpeciesR-'+IDNum;
+        btnRemove.setAttribute("class",'btn btn-info');
+        btnRemove.innerHTML = '&times;';
+        col3.appendChild(btnRemove);
+        btnRemove.addEventListener('click', function(wrapIDNum) {
+            return function() {
+                btnRemove = document.getElementById('btnRemoveSpeciesR-'+wrapIDNum)
+                btnRemove.parentNode.parentNode.remove();
+            }
+        }(IDNum));
+    }
+}
+
+
 $('#analysisSelector').on('change', function() {
+    activeImage = null
     generateResults()
 });
 
@@ -2372,7 +2897,10 @@ $('#baseUnitSelector').on('change', function() {
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
-    if (analysisSelection == '1') {
+    if (analysisSelection == '0') {
+        getSummary()
+    }
+    else if (analysisSelection == '1') {
         updateBaseUnitPolar()
     }
     else if (analysisSelection == '2') {
@@ -2629,19 +3157,21 @@ $("#speciesSelect").change( function() {
     updateResults()
 });
 
-$("#btnManageAnnotationSets").click( function() {
-    getSurveysAndAnnotationSets()
-    modalAnnotationsSets.modal({keyboard: true})
-});
+// $("#btnManageAnnotationSets").click( function() {
+//     getSurveysAndAnnotationSets()
+//     modalAnnotationsSets.modal({keyboard: true})
+// });
 
 $("#btnSaveSets").click( function() {
     globalAnnotationSets = []
+    selectedAnnotationSets = {}
     var allSets = document.querySelectorAll('[id^=annotationSetSelect-]')
     for (let i=0;i<allSets.length;i++) {
         globalAnnotationSets.push(allSets[i].value)
+        selectedAnnotationSets[allSets[i].id.split('-')[1]] = allSets[i].value
     }
 
-    modalAnnotationsSets.modal('hide')
+    // modalAnnotationsSets.modal('hide')
 
     updateResults()
 });
@@ -2677,6 +3207,61 @@ $('#trendlineOnlyCheckbox').change( function() {
             }
         }
         chart.update()
+    }
+});
+
+// $('#solarTime, #clockTime').change( function() {
+//     var solarTime = document.getElementById('solarTime').checked
+//     if (solarTime) {
+//         document.getElementById('solarDiv').hidden = false
+//     } else {
+//         document.getElementById('solarDiv').hidden = true
+//     }
+
+// });
+
+$('#btnViewScript').click( function() {
+    // View the R script for the analysis
+    scriptDiv = document.getElementById('scriptDiv')
+    if (scriptDiv.hidden) {
+        var analysisSelector = document.getElementById('analysisSelector')
+        var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+        if (analysisSelection == '5') {
+            filename = 'activity_pattern'
+        }
+        else{
+            filename = ''
+        }
+
+        var formData = new FormData()
+        formData.append('filename', JSON.stringify(filename))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                document.getElementById('scriptTextArea').innerHTML = reply.script
+                document.getElementById('scriptDiv').hidden = false
+            }
+        }
+        xhttp.open("POST", '/getRScript');
+        xhttp.send(formData);
+    }
+    else {
+        document.getElementById('scriptDiv').hidden = true
+    }
+
+});
+
+$('#btnDownloadResultsCSV').click( function() {
+    // Downloads the data for the results as a CSV file
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+    if (analysisSelection == '5') {
+        getActivityPatternCSV()
     }
 });
 
@@ -2728,6 +3313,11 @@ function clearResults(){
         document.getElementById('btnExportResults').disabled = true
         document.getElementById('btnSaveGroupFromData').disabled = true
         document.getElementById('trendlineOnlyCheckbox').checked = false
+        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('speciesDataDiv').hidden = true
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = true
+        document.getElementById('scriptDiv').hidden = true
 
         clearChartColours()
 
@@ -2766,13 +3356,38 @@ function clearResults(){
         updateChartStyle()
 
     }
+    else if (tabActive == 'baseTasksDiv'){
+        selectedAnnotationSets = {}
+        globalAnnotationSets = []
+        getSurveysAndAnnotationSets(true)
+    }
 }
 
 function exportResults(){
     /** Exports the charts to an image */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
-    if (analysisSelection != '2'){
+
+    if (analysisSelection == '2') {
+        if (spatialExportControl){
+            if (activeBaseLayer.name.includes('Google')){
+                modalExportAlert.modal({keyboard: true})
+            }
+            else{
+                spatialExportControl._print();
+            }  
+        }
+    }
+    else if (analysisSelection == '5') {
+        if (activeImage && activeImage._url != '') {
+            var imageUrl = activeImage._url;
+            var link = document.createElement('a');
+            link.download = 'image.png';
+            link.href = imageUrl;
+            link.click();
+        }
+    }
+    else{
         var canvas = document.getElementById('statisticsChart');
         var newCanvas = document.createElement('canvas');
         newCanvas.width = canvas.width;
@@ -2789,17 +3404,6 @@ function exportResults(){
         link.download = 'chart.png';
         link.href = image;
         link.click();
-
-    }
-    else{
-        if (spatialExportControl){
-            if (activeBaseLayer.name.includes('Google')){
-                modalExportAlert.modal({keyboard: true})
-            }
-            else{
-                spatialExportControl._print();
-            }  
-        }
     }
 
 }
@@ -2824,7 +3428,198 @@ function openAnalysisEdit(evt, editName) {
     document.getElementById(editName).style.display = "block";
     evt.currentTarget.className += " active";
     tabActive = editName
+
+    if (tabActive == 'baseTasksDiv') {
+        getSurveysAndAnnotationSets()
+    }
   }
+
+function getSummary(){
+    /** Gets the summary of the results */
+    var task_ids = getSelectedTasks()
+    var baseUnit = document.getElementById('baseUnitSelector').value
+    var start_date = document.getElementById('startDate').value
+    var end_date = document.getElementById('endDate').value
+
+    var formData = new FormData()
+    formData.append('task_ids', JSON.stringify(task_ids))
+    formData.append('baseUnit', JSON.stringify(baseUnit))
+    if (start_date != '') {	
+        start_date = start_date + ' 00:00:00'
+        formData.append('startDate', JSON.stringify(start_date))
+    }
+    if (end_date != '') {
+        end_date = end_date + ' 23:59:59'
+        formData.append('endDate', JSON.stringify(end_date))
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            resultsDiv = document.getElementById('resultsDiv')
+            while(resultsDiv.firstChild){
+                resultsDiv.removeChild(resultsDiv.firstChild);
+            }
+            buildSummary(reply)
+        }
+    }
+    xhttp.open("POST", '/getResultsSummary');
+    xhttp.send(formData);
+}
+
+function buildSummary(summary){
+    /** Builds the summary div */
+    var resultsDiv = document.getElementById('resultsDiv')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    resultsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-12')
+    row.appendChild(col1)
+
+    resultsDiv.appendChild(document.createElement('br'))
+
+    var row1 = document.createElement('div')
+    row1.classList.add('row')
+    resultsDiv.appendChild(row1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-12')
+    row1.appendChild(col2)
+
+    resultsDiv.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Summary Indexes'
+    col1.appendChild(h5)
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Species Abundance'
+    col2.appendChild(h5)
+
+    var table = document.createElement('table')
+    table.style.borderCollapse = 'collapse'
+    var tbody = table.createTBody()
+
+    console.log(summary.indexes)
+    data = summary.indexes
+
+    var keysRow = tbody.insertRow();
+    for (var key in data) {
+    var cell = keysRow.insertCell();
+    cell.innerHTML = key;
+    cell.style.border = '1px solid rgba(0,0,0,0.2)';
+    cell.style.padding = '10px';
+    }
+
+    var valuesRow = tbody.insertRow();
+    for (var key in data) {
+    var cell = valuesRow.insertCell();
+    cell.innerHTML = data[key];
+    cell.style.border = '1px solid rgba(0,0,0,0.2)';
+    cell.style.padding = '10px';
+    }
+
+    col1.appendChild(table)
+
+    var rowc = document.createElement('div')
+    rowc.classList.add('row')
+    col2.appendChild(rowc)
+
+    var col = document.createElement('div')
+    col.classList.add('col-lg-12')
+    col.setAttribute('style','padding:4px;margin:0px')
+    rowc.appendChild(col)
+
+    canvas = document.createElement('canvas')
+    canvas.setAttribute('id','statisticsChart')
+    canvas.setAttribute('height','650')
+    col.appendChild(canvas)
+
+    var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+    var species = []
+    var abundance = []
+
+    for (i=0;i<summary.species_count.length;i++) {
+        if (summary.species_count[i]['count'] > 0) {
+            species.push(summary.species_count[i]['species'])
+            abundance.push(summary.species_count[i]['count'])
+        }
+    }
+
+    var data = {
+        datasets: [{
+            id: 'data-abundance',
+            data: abundance,
+            hoverBackgroundColor: 'rgba(255,255,255,0.1)',
+            borderColor: 'rgba(255,255,255,1)',
+            borderWidth: 1,
+            barPercentage: 1.0,
+            categoryPercentage: 1.0,
+            backgroundColor: 'rgba(223, 105, 26, 0.6)',
+        }],
+        // datasets: [],
+        labels: species
+    };
+
+    var options = {
+        maintainAspectRatio: false,
+        legend: {
+            display: false
+        },
+        tooltips: {
+            displayColors: false,
+            callbacks: {
+                title: function(tooltipItems, data) {
+                    return '';
+                },
+                label: function(tooltipItem, data) {
+                    var label = data.labels[tooltipItem.index];
+                    return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                }           
+            }
+        },
+        ticks: {
+            min: 0
+        },
+        scales: {
+            yAxes: [{
+                ticks: {
+                    fontColor : textColour,
+                    beginAtZero: true,
+                    display: includeLabels
+                },
+                gridLines: {
+                    drawOnChartArea: includeGridLines,
+                    color: axisColour
+                }
+            }],
+            xAxes: [{
+                ticks: {
+                    fontColor : textColour,
+                    display: includeLabels
+                },
+                gridLines: {
+                    drawOnChartArea: includeGridLines,
+                    color: axisColour
+                }
+            }] 
+        }
+    }
+
+    chart = new Chart(ctx, {
+        data: data,
+        type: 'bar',
+        options: options
+    });
+
+}
 
 function onload(){
     /**Function for initialising the page on load.*/
@@ -2833,9 +3628,6 @@ function onload(){
     polarData = {}
     lineData = {}
     getLabelsAndSites()
-    buildDataSelectorRow()
-    buildSiteSelectorRow()
-    buildSpeciesSelectorRow()
 }
 
 window.addEventListener('load', onload, false);
