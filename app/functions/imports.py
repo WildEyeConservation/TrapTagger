@@ -378,7 +378,7 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters 
     return newClusters
 
 @celery.task(bind=True,max_retries=29)
-def cluster_trapgroup(self,trapgroup_id):
+def cluster_trapgroup(self,trapgroup_id,force=False):
     '''Clusters the specified trapgroup. Handles pre-existing clusters cleanly, reusing labels etc where possible.'''
     
     try:
@@ -425,7 +425,7 @@ def cluster_trapgroup(self,trapgroup_id):
                 cluster.images.append(image)
             # db.session.commit()
 
-        if previouslyClustered:
+        if previouslyClustered and not force:
             #Clustering an already-clustered survey, trying to preserve labels etc.
             downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
             for task in survey.tasks:
@@ -587,7 +587,7 @@ def cluster_trapgroup(self,trapgroup_id):
 
     return True
 
-def cluster_survey(survey_id,queue='parallel'):
+def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
     '''Cluster the specified survey. Automatically handles additional images vs. initial clustering. Returns the default task id for the survey.'''
     
     survey = db.session.query(Survey).get(survey_id)
@@ -603,9 +603,12 @@ def cluster_survey(survey_id,queue='parallel'):
 
     db.session.commit()
 
+    if trapgroup_ids == None:
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
+
     results = []
-    for trapgroup_id in [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]:
-        results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue=queue))
+    for trapgroup_id in trapgroup_ids:
+        results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup_id,'force':force},queue=queue))
 
     task_id = task.id
 
@@ -3068,14 +3071,14 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         db.session.commit()
         
         skip = False
-        if correctTimestamps:
-            survey.status='Correcting Timestamps'
-            db.session.commit()
-            correct_timestamps(survey_id)
-            if addingImages:
-                from app.functions.admin import reclusterAfterTimestampChange
-                reclusterAfterTimestampChange(survey_id)
-                skip = True
+        # if correctTimestamps:
+        #     survey.status='Correcting Timestamps'
+        #     db.session.commit()
+        #     correct_timestamps(survey_id)
+        #     if addingImages:
+        #         from app.functions.admin import reclusterAfterTimestampChange
+        #         reclusterAfterTimestampChange(survey_id)
+        #         skip = True
         if not skip:
             task_id=cluster_survey(survey_id)
             survey = db.session.query(Survey).get(survey_id)

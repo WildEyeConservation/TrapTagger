@@ -1380,6 +1380,7 @@ def classifyTask(task,session = None,reClusters = None):
                                 .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
                                 .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
                                 .filter(Cluster.task==task)\
+                                .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))\
                                 .distinct().all()
 
             if reClusters != None:
@@ -2679,7 +2680,7 @@ def clean_up_redis():
                     if task.status not in ['PENDING','PROGRESS']:
                         GLOBALS.redisClient.delete(key)
 
-            elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims']):
+            elif any(name in key for name in ['clusters_allocated']): #,'user_individuals','user_indsims']):
                 user_id = key.split('_')[-1]
 
                 if user_id == 'None':
