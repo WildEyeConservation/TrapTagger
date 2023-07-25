@@ -2679,7 +2679,7 @@ def clean_up_redis():
                     if task.status not in ['PENDING','PROGRESS']:
                         GLOBALS.redisClient.delete(key)
 
-            elif any(name in key for name in ['clusters_allocated']) #,'user_individuals','user_indsims']):
+            elif any(name in key for name in ['clusters_allocated']): #,'user_individuals','user_indsims']):
                 user_id = key.split('_')[-1]
 
                 if user_id == 'None':
