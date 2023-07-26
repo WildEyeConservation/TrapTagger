@@ -99,7 +99,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=true
-        command: gunicorn -b 0.0.0.0:8000 -w 15 -k gevent app:app
+        command: gunicorn -b 0.0.0.0:8000 -w 15 -t 120 -k gevent app:app
         networks:
             my-network:
                 aliases:
@@ -153,7 +153,7 @@ services:
             - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
             - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
             - MONKEY_PATCH=true
-        command: gunicorn -b 0.0.0.0:8000 -w 3 -k gevent app:app
+        command: gunicorn -b 0.0.0.0:8000 -w 9 -t 120 -k gevent app:app
         networks:
             my-network:
                 aliases:
