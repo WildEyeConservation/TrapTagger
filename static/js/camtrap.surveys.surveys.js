@@ -98,6 +98,7 @@ var detailledStatusCount = 0
 var next_camera_url = null
 var prev_camera_url = null
 var global_corrected_timestamps = {}
+var global_original_timestamps = {}
 var checkingTrapgroupCode = false
 var next_classifier_url
 var prev_classifier_url
@@ -1639,6 +1640,7 @@ function buildCameras(camera_url='/getCameraStamps') {
                         input = document.createElement('input')
                         input.setAttribute('type','text')
                         input.classList.add('form-control')
+                        global_original_timestamps[reply[trapgroup].cameras[camera].id] = reply[trapgroup].cameras[camera].corrected_timestamp
                         if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
                             input.value = global_corrected_timestamps[reply[trapgroup].cameras[camera].id]
                         } else {
@@ -1679,6 +1681,7 @@ function buildEditTimestamp() {
     document.getElementById('addImagesAdvanced').disabled = true
 
     global_corrected_timestamps = {}
+    global_original_timestamps = {}
 
     addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
 
@@ -3095,7 +3098,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                     formData.append("kml", kmlFileUpload.files[0])
 
                                     if (document.getElementById('addImagesEditTimestamps').checked) {
-                                        formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
+                                        timestampData = {}
+                                        for (camera_id in global_corrected_timestamps) {
+                                            timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                                        }
+                                        formData.append("timestamps", JSON.stringify(timestampData))
                                     }
 
                                     addImagesSendRequest(formData)
@@ -3122,7 +3129,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                             formData.append("kml", kmlFileUpload.files[0])
                             
                             if (document.getElementById('addImagesEditTimestamps').checked) {
-                                formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
+                                timestampData = {}
+                                for (camera_id in global_corrected_timestamps) {
+                                    timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                                }
+                                formData.append("timestamps", JSON.stringify(timestampData))
                             }
 
                             addImagesSendRequest(formData)
@@ -3142,7 +3153,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             formData.append("checkbox", addImagesCheckboxChecked.toString())
 
             if (document.getElementById('addImagesEditTimestamps').checked) {
-                formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
+                timestampData = {}
+                for (camera_id in global_corrected_timestamps) {
+                    timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                }
+                formData.append("timestamps", JSON.stringify(timestampData))
             }                
 
             addImagesSendRequest(formData)

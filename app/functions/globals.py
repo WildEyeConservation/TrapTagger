@@ -2677,7 +2677,7 @@ def clean_up_redis():
                     GLOBALS.redisClient.delete(key)
                 else:
                     task = db.session.query(Task).get(int(task_id))
-                    if task.status not in ['PENDING','PROGRESS']:
+                    if (task==None) or (task.status not in ['PENDING','PROGRESS']):
                         GLOBALS.redisClient.delete(key)
 
             elif any(name in key for name in ['clusters_allocated']): #,'user_individuals','user_indsims']):
@@ -2687,7 +2687,7 @@ def clean_up_redis():
                     GLOBALS.redisClient.delete(key)
                 else:
                     user = db.session.query(User).get(int(user_id))
-                    if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                    if (user==None) or (datetime.utcnow() - user.last_ping > timedelta(minutes=3)):
                         GLOBALS.redisClient.delete(key)
 
             elif any(name in key for name in ['trapgroups']):
@@ -2708,7 +2708,7 @@ def clean_up_redis():
                     GLOBALS.redisClient.delete(key)
                 else:
                     task = db.session.query(Task).get(int(task_id))
-                    if task.status not in ['PROGRESS']:
+                    if (task==None) or (task.status not in ['PROGRESS']):
                         GLOBALS.redisClient.delete(key)
 
     except Exception as exc:

@@ -382,6 +382,7 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
     '''Clusters the specified trapgroup. Handles pre-existing clusters cleanly, reusing labels etc where possible.'''
     
     try:
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
         survey = trapgroup.survey
 
@@ -427,7 +428,6 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
 
         if previouslyClustered and not force:
             #Clustering an already-clustered survey, trying to preserve labels etc.
-            downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
             for task in survey.tasks:
                 sq = db.session.query(Image.id).join(Cluster, Image.clusters).filter(Cluster.task==task).subquery()
                 images = db.session.query(Image)\
@@ -534,26 +534,36 @@ def cluster_trapgroup(self,trapgroup_id,force=False):
 
         else:
             #Clustering with a clean slate
-            images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).all()
-            prev = None
-            if images != []:
-                for image in images:
-                    timestamp = image.corrected_timestamp
-                    if not (prev) or ((timestamp - prev).total_seconds() > 60):
-                        if prev is not None:
-                            for cluster in clusters:
+            if not force:
+                images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).all()
+
+            for task in survey.tasks:
+                if force:
+                    # If we are re-clustering after a timestamp change, we want to leave the knock-downs
+                    images = db.session.query(Image)\
+                                    .join(Camera)\
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Labelgroup.task==task)\
+                                    .filter(~Labelgroup.labels.contains(downLabel))\
+                                    .filter(Camera.trapgroup == trapgroup)\
+                                    .filter(Image.corrected_timestamp!=None)\
+                                    .order_by(Image.corrected_timestamp).distinct().all()
+                
+                prev = None
+                if images != []:
+                    for image in images:
+                        timestamp = image.corrected_timestamp
+                        if not (prev) or ((timestamp - prev).total_seconds() > 60):
+                            if prev is not None:
                                 cluster.images=imList
-                        clusters = []
-                        for task in survey.tasks:
                             cluster = Cluster(task_id=task.id)
                             db.session.add(cluster)
-                            clusters.append(cluster)
-                        imList = []
-                    prev = timestamp
-                    imList.append(image)
-                for cluster in clusters:
+                            imList = []
+                        prev = timestamp
+                        imList.append(image)
                     cluster.images=imList
-            # db.session.commit()
+                # db.session.commit()
 
             # # add task detection labels
             # for task in survey.tasks:
