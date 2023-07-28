@@ -5204,9 +5204,9 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<site_id>', methods=['POST'])
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<trapgroup_id>', methods=['POST'])
 @login_required
-def getClustersBySpecies(task_id, species, tag_id, site_id):
+def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
     Returns all clusters if species is 0.'''
 
@@ -5248,8 +5248,8 @@ def getClustersBySpecies(task_id, species, tag_id, site_id):
             tag = db.session.query(Tag).get(int(tag_id))
             clusters = clusters.filter(Labelgroup.tags.contains(tag))
 
-        if site_id != '0':
-            clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==site_id)
+        if trapgroup_id != '0':
+            clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
 
         if notes:
             if (notes==True) or (notes.lower() == 'true'):
@@ -5259,11 +5259,12 @@ def getClustersBySpecies(task_id, species, tag_id, site_id):
                 for search in searches:
                     clusters = clusters.filter(Cluster.notes.contains(search))
 
-        clusters = clusters.order_by(Image.corrected_timestamp).distinct().all()
+        clusters = [r[0] for r in clusters.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
+        if Config.DEBUGGING: app.logger.info(clusters[:50])
     else:
         clusters = []
 
-    return json.dumps(list(set(clusters)))
+    return json.dumps(clusters)
 
 @app.route('/getTrapgroups/<task_id>')
 @login_required

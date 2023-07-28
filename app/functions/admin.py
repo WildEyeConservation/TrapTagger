@@ -1404,6 +1404,10 @@ def changeTimestamps(self,survey_id,timestamps):
         if overlap_prior or overlap_after:
             overlaps = (overlap_prior+overlap_after)
             reclusterAfterTimestampChange.delay(survey_id=survey_id,trapgroup_ids=overlaps,camera_ids=camera_ids)
+        else:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = 'Ready'
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
