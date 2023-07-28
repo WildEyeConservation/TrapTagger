@@ -1305,7 +1305,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
     return None
 
-def classifyTask(task,session = None,reClusters = None):
+def classifyTask(task,session=None,reClusters=None,trapgroup_ids=None):
     '''
     Auto-classifies and labels the species contained in each cluster of a specified task, based on the species selected by the user. Can be given a specific subset of 
     clusters to classify.
@@ -1380,8 +1380,11 @@ def classifyTask(task,session = None,reClusters = None):
                                 .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
                                 .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
                                 .filter(Cluster.task==task)\
-                                .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))\
-                                .distinct().all()
+                                .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))
+
+            if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+
+            clusters = clusters.distinct().all()
 
             if reClusters != None:
                 clusters = [cluster for cluster in clusters if cluster in reClusters]

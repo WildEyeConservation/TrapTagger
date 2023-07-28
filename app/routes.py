@@ -5256,7 +5256,7 @@ def getClustersBySpecies(task_id, species, tag_id):
                 for search in searches:
                     clusters = clusters.filter(Cluster.notes.contains(search))
 
-        clusters = clusters.distinct().all()
+        clusters = clusters.order_by(Image.corrected_timestamp).distinct().all()
     else:
         clusters = []
 

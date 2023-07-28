@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
                                     retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
-from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
+from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters, removeHumans
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract
@@ -800,7 +800,8 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
 
         cluster_survey(survey_id,'default',True,trapgroup_ids)
 
-        tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
+        # just adding the legacy _o_l_d_ for now - we are moving away from this though
+        tasks = db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()
         admin = db.session.query(User).filter(User.username=='Admin').first()
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
@@ -847,7 +848,7 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
 
             # Remove auto-classifications as these may have changed
             # We are removing all auto-classifications because everything will be re-classified
-            labelgroups = db.session.query(Labelgroups)\
+            labelgroups = db.session.query(Labelgroup)\
                             .join(Detection)\
                             .join(Image)\
                             .join(Cluster,Image.clusters)\
@@ -889,7 +890,7 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
                             .distinct().all()
             for cluster in clusters:
                 labels = db.session.query(Label)\
-                                .join(Labelgroup, Labelgroup.labels)\
+                                .join(Labelgroup, Label.labelgroups)\
                                 .join(Detection)\
                                 .join(Image)\
                                 .filter(Image.clusters.contains(cluster))\
@@ -944,7 +945,7 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
 
         db.session.commit()
 
-        wrapUpAfterTimestampChange.delay(survey_id=survey_id)
+        wrapUpAfterTimestampChange.delay(survey_id=survey_id,trapgroup_ids=trapgroup_ids)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -960,16 +961,17 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def wrapUpAfterTimestampChange(self,survey_id):
+def wrapUpAfterTimestampChange(self,survey_id,trapgroup_ids):
     '''Wraps up a survey after a timestamp change by re-classifying & reclustering large clusters'''
 
     try:
-        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).all()]
+        # just adding the legacy _o_l_d_ for now - we are moving away from this though
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()]
         
         for task_id in task_ids:
-            removeHumans(task_id)
+            removeHumans(task_id,trapgroup_ids)
             recluster_large_clusters(task_id,True)
-            classifyTask(task_id)
+            classifyTask(task_id,None,None,trapgroup_ids)
 
         for task_id in task_ids:
             updateAllStatuses(task_id=task_id)
@@ -1290,6 +1292,8 @@ def changeTimestamps(self,survey_id,timestamps):
     '''
     
     try:
+        app.logger.info('changeTimestamps called for survey {} with timestamps {}'.format(survey_id,timestamps))
+
         # double check for edited cameras
         camera_ids = [int(r) for r in timestamps.keys() if (timestamps[r]['corrected']!=timestamps[r]['original'])]
 
@@ -1311,10 +1315,10 @@ def changeTimestamps(self,survey_id,timestamps):
                 camera_times2.remove(item)
                 camera1_id = item[0]
 
-                if camera1_id in timestamps.keys():
+                if str(camera1_id) in timestamps.keys():
                     try:
                         # original = intermediate
-                        camera1_original = datetime.strptime(timestamps[camera1_id]['original'],"%Y/%m/%d %H:%M:%S")
+                        camera1_original = datetime.strptime(timestamps[str(camera1_id)]['original'],"%Y/%m/%d %H:%M:%S")
                         camera1_delta = camera1_original - item[1]
                         camera1_min = item[1] + camera1_delta
                         camera1_max = item[2] + camera1_delta
@@ -1330,9 +1334,9 @@ def changeTimestamps(self,survey_id,timestamps):
                 for item2 in camera_times2:
                     camera2_id = item2[0]
 
-                    if camera2_id in timestamps.keys():
+                    if str(camera2_id) in timestamps.keys():
                         try:
-                            camera2_original = datetime.strptime(timestamps[camera2_id]['original'],"%Y/%m/%d %H:%M:%S")
+                            camera2_original = datetime.strptime(timestamps[str(camera2_id)]['original'],"%Y/%m/%d %H:%M:%S")
                             camera2_delta = camera2_original - item2[1]
                             camera2_min = item2[1] + camera2_delta
                             camera2_max = item2[2] + camera2_delta
@@ -1347,24 +1351,26 @@ def changeTimestamps(self,survey_id,timestamps):
 
                     if (camera1_min<=camera2_max<=camera1_max) or (camera1_min<=camera2_min<=camera1_max) or (camera2_min<=camera1_max<=camera2_max) or (camera2_min<=camera1_min<=camera2_max):
                         if (camera1_id in camera_ids) or (camera2_id in camera_ids):
+                            if Config.DEBUGGING: app.logger.info('Trapgroup {} overlapping prior to edit'.format(trapgroup.id))
                             overlap_prior.append(trapgroup.id)
                             break
 
         # Update timestamps
         for camera_id in camera_ids:
             try:
-                timestamp = datetime.strptime(timestamps[camera_id]['corrected'],"%Y/%m/%d %H:%M:%S")
+                timestamp = datetime.strptime(timestamps[str(camera_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
                 # folder = item['camera']
                 # trapTag = re.split('/',identifier)[0]
                 # folder = re.split(trapTag+'/',item['camera'])[-1]
 
                 images = db.session.query(Image)\
-                                .filter(Image.camera_id==int(camera_id))\
+                                .filter(Image.camera_id==camera_id)\
                                 .filter(Image.timestamp!=None)\
                                 .order_by(Image.timestamp).all()
 
                 if images:            
                     delta = timestamp-images[0].timestamp
+                    if Config.DEBUGGING: app.logger.info('Delta of {} for camera {}'.format(delta,camera_id))
                     for image in images:
                         image.corrected_timestamp = image.timestamp + delta
             except:
@@ -1389,10 +1395,12 @@ def changeTimestamps(self,survey_id,timestamps):
                 for item2 in camera_times2:
                     if (item[1]<=item2[2]<=item[2]) or (item[1]<=item2[1]<=item[2]) or (item2[1]<=item[2]<=item2[2]) or (item2[1]<=item[1]<=item2[2]):
                         if (item[0] in camera_ids) or (item2[0] in camera_ids):
+                            if Config.DEBUGGING: app.logger.info('Trapgroup {} overlapping after to edit'.format(trapgroup.id))
                             overlap_after.append(trapgroup.id)
                             break
 
         # Recluster if overlaps
+        if Config.DEBUGGING: app.logger.info('Overlaps found: trapgroups-{} cameras-{}'.format(overlap_prior+overlap_after,camera_ids))
         if overlap_prior or overlap_after:
             overlaps = (overlap_prior+overlap_after)
             reclusterAfterTimestampChange.delay(survey_id=survey_id,trapgroup_ids=overlaps,camera_ids=camera_ids)

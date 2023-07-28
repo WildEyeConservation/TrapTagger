@@ -241,7 +241,7 @@ def importKML(survey_id):
 
     return True
 
-def recluster_large_clusters(task,updateClassifications,session=None,reClusters = None):
+def recluster_large_clusters(task,updateClassifications,session=None,reClusters=None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -831,7 +831,7 @@ def processStaticDetections(survey_id):
 
     return True
 
-def removeHumans(task_id):
+def removeHumans(task_id,trapgroup_ids=None):
     '''Marks clusters from specified as containing humans if the majority of their detections are classified as non-animal by MegaDetector.'''
 
     admin = db.session.query(User.id).filter(User.username == 'Admin').first()
@@ -850,8 +850,11 @@ def removeHumans(task_id):
     
     clusters = db.session.query(Cluster)\
                                 .join(sq,sq.c.cluster_id==Cluster.id)\
-                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
-                                .all()
+                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)
+
+    if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids)).distinct()
+
+    clusters = clusters.all()
 
     labelgroups = db.session.query(Labelgroup)\
                                 .join(Detection)\
@@ -859,8 +862,11 @@ def removeHumans(task_id):
                                 .join(Cluster,Image.clusters)\
                                 .join(sq,sq.c.cluster_id==Cluster.id)\
                                 .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .distinct().all()
+                                .filter(Labelgroup.task_id==task_id)
+
+    if trapgroup_ids: labelgroups = labelgroups.join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+
+    labelgroups = labelgroups.distinct().all()
 
     for cluster in clusters:
         cluster.labels = [human_label]

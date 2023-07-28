@@ -3230,7 +3230,20 @@ function addImagesSendRequest(formData) {
                     } else if (document.getElementById('addImagesAddImages').checked) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
                     } else if (document.getElementById('addImagesEditTimestamps').checked) {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
+                        document.getElementById('modalAlertBody').innerHTML = `<p>Your camera timestamps will now be edited.</p><p>Please note that if you have muliple cameras per site, 
+                                                                                the images from the affected sites will need to be re-clustered if the operation periods of the edited 
+                                                                                cameras overlap with any others (before or after having  had their timestamps edited). In such a case, 
+                                                                                auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
+                                                                                In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
+                                                                                need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
+                                                                                any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
+                                                                                retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
+                                                                                upon completion of the processing required. Moreover, this process may take a while depending on the number 
+                                                                                of affected images.</p><p>In general, it is strongly recommended that camera timestamps should be corrected 
+                                                                                prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
+                                                                                this step should be peformed directly after data importation for best results. However, editing your 
+                                                                                timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
+                                                                                percentage it.</p>`
                     } else if (document.getElementById('addImagesEditClassifier').checked) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
