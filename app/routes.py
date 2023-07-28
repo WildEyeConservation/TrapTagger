@@ -5224,8 +5224,6 @@ def getClustersBySpecies(task_id, species, tag_id, site_id):
                             .join(Image,Cluster.images)\
                             .join(Detection)\
                             .join(Labelgroup)\
-                            .join(Camera)\
-                            .join(Trapgroup)\
                             .filter(Labelgroup.task==task)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
@@ -5251,7 +5249,7 @@ def getClustersBySpecies(task_id, species, tag_id, site_id):
             clusters = clusters.filter(Labelgroup.tags.contains(tag))
 
         if site_id != '0':
-            clusters = clusters.filter(Trapgroup.id==site_id)
+            clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==site_id)
 
         if notes:
             if (notes==True) or (notes.lower() == 'true'):
