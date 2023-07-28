@@ -16,8 +16,10 @@ var clusterIDs
 var clusterReadAheadIndex=0;
 var currentLabel = '0';
 var currentTag = '0';
+var currentSite = '0';
 var prevLabel = '0'
 var prevTag = '0'
+var prevSite = '0'
 isTagging = false
 isReviewing = true
 isKnockdown = false
@@ -142,6 +144,7 @@ function getClusterIDs(mapID = 'map1'){
                     }
                     currentLabel= prevLabel
                     currentTag = prevTag
+                    currentSite = prevSite
                     getClusterIDs()
                 }
                 else{
@@ -151,7 +154,7 @@ function getClusterIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite);
     xhttp.send(formData);
 }
 
@@ -204,6 +207,7 @@ function populateSpeciesSelector(label, mapID = 'map1'){
             }
             prevLabel = currentLabel
             prevTag = currentTag
+            prevSite = currentSite
             currentLabel = label
             clusterRequests[mapID] = [];
             getClusterIDs()
@@ -260,14 +264,72 @@ function populateTagSelector() {
     xhttp.send();
 }
 
+function populateSiteSelector() {
+    /** Populates the site selector. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            response = JSON.parse(this.responseText);
+
+           var divSiteSelector = document.getElementById('divSiteSelector')
+            while(divSiteSelector.firstChild){
+                divSiteSelector.removeChild(divSiteSelector.firstChild);
+            }
+
+            var newdiv = document.createElement('div');
+            newdiv.classList.add('dropdown');
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-danger');
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.classList.add('dropdown-toggle');
+            newbtn.setAttribute("type", 'button');
+            newbtn.setAttribute("data-toggle", 'dropdown');
+            newbtn.innerHTML = 'Select Site to be Explored';
+
+            var newul = document.createElement('div');
+            newul.classList.add('dropdown-menu');
+
+            for (let i=0;i<response.length;i++) {
+                var a = document.createElement('button');
+                a.classList.add('dropdown-item');
+                a.setAttribute('type', 'button')
+                a.setAttribute('onclick', 'selectSite('+response[i][0]+')');
+                a.innerHTML = "Show "+response[i][1];
+                newul.appendChild(a);
+            }
+
+            newdiv.appendChild(newbtn);
+            newdiv.appendChild(newul);
+
+            divSiteSelector.appendChild(newdiv);
+        }
+    }
+    xhttp.open("GET", '/populateSiteSelector');
+    xhttp.send();
+}
+
 function selectTag(tag) {
     prevTag = currentTag
     prevLabel = currentLabel
+    prevSite = currentSite
     currentTag = tag
     clusterRequests['map1'] = [];
     getClusterIDs()
 }
 
+function selectSite(site) {
+    prevTag = currentTag
+    prevLabel = currentLabel
+    prevSite = currentSite
+    currentSite = site
+    clusterRequests['map1'] = [];
+    getClusterIDs()
+}
 
 $("#onlyNotesCheckbox").change( function() {
     /** Checks when the checkbox for filtering the cluster by notes is checked */

@@ -5204,9 +5204,9 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>', methods=['POST'])
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<site_id>', methods=['POST'])
 @login_required
-def getClustersBySpecies(task_id, species, tag_id):
+def getClustersBySpecies(task_id, species, tag_id, site_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
     Returns all clusters if species is 0.'''
 
@@ -5224,6 +5224,8 @@ def getClustersBySpecies(task_id, species, tag_id):
                             .join(Image,Cluster.images)\
                             .join(Detection)\
                             .join(Labelgroup)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
                             .filter(Labelgroup.task==task)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
@@ -5247,6 +5249,9 @@ def getClustersBySpecies(task_id, species, tag_id):
         if tag_id != '0':
             tag = db.session.query(Tag).get(int(tag_id))
             clusters = clusters.filter(Labelgroup.tags.contains(tag))
+
+        if site_id != '0':
+            clusters = clusters.filter(Trapgroup.id==site_id)
 
         if notes:
             if (notes==True) or (notes.lower() == 'true'):
@@ -7917,5 +7922,18 @@ def getIndividualAssociations(individual_id, order):
 
     return json.dumps({'associations': reply, 'next': next_page, 'prev': prev_page})
 
+@app.route('/populateSiteSelector')
+@login_required
+def populateSiteSelector():
+    '''Returns site list for populating the site selector.'''
 
+    response = []
+    survey = current_user.turkcode[0].task.survey
 
+    if survey and (current_user==survey.user):
+        sites = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey.id).all()
+        response.append((0, 'All'))
+        for site in sites:
+            response.append(site)
+
+    return json.dumps(response)
