@@ -1420,6 +1420,7 @@ function switchToTask(task){
                     populateLevels()
                     populateSpeciesSelector(0)
                     populateTagSelector()
+                    populateSiteSelector()
                 } else if (isKnockdown) {
                     clusters['map1'] = []
                     clusterIndex['map1'] = 0
