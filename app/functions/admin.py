@@ -806,14 +806,6 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
         for task in tasks:
-            # Update cluster-level classifications
-            clusters = db.session.query(Cluster)\
-                                .filter(Cluster.task_id==task.id)\
-                                .filter(Cluster.id>highest_id)\
-                                .distinct().all()
-            for cluster in clusters:
-                cluster.classification = classifyCluster(cluster)
-
             # copy notes across to new clusters
             clusters = db.session.query(Cluster)\
                                 .join(Image,Cluster.images)\
@@ -897,12 +889,16 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
                             .filter(Cluster.id>highest_id)\
                             .distinct().all()
             for cluster in clusters:
+                # Also update cluster-level classification at the same time
+                cluster.classification = classifyCluster(cluster)
+
                 labels = db.session.query(Label)\
                                 .join(Labelgroup, Label.labelgroups)\
                                 .join(Detection)\
                                 .join(Image)\
                                 .filter(Image.clusters.contains(cluster))\
                                 .filter(Labelgroup.task_id==task.id)\
+                                .filter(~Label.id.in_([GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]))\
                                 .distinct().all()
 
                 cluster.labels = labels
