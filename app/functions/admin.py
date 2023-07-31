@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
                                     retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
-from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters, removeHumans
+from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract
@@ -796,15 +796,9 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
             highest_id = 0
 
         #we want a fresh session after clustering
-        task_ids = [r.id for r in db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()]
         db.session.close()
 
         cluster_survey(survey_id,'default',True,trapgroup_ids)
-
-        # Update the cluster-level classifications
-        for trapgroup_id in trapgroup_ids:
-            for task_id in task_ids:
-                classifyTrapgroup(task_id,trapgroup_id)
 
         # just adding the legacy _o_l_d_ for now - we are moving away from this though
         tasks = db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()
@@ -812,6 +806,14 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
         downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
 
         for task in tasks:
+            # Update cluster-level classifications
+            clusters = db.session.query(Cluster)\
+                                .filter(Cluster.task_id==task.id)\
+                                .filter(Cluster.id>highest_id)\
+                                .distinct().all()
+            for cluster in clusters:
+                cluster.classification = classifyCluster(cluster)
+
             # copy notes across to new clusters
             clusters = db.session.query(Cluster)\
                                 .join(Image,Cluster.images)\
