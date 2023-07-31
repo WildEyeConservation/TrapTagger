@@ -796,9 +796,15 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
             highest_id = 0
 
         #we want a fresh session after clustering
+        task_ids = [r.id for r in db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()]
         db.session.close()
 
         cluster_survey(survey_id,'default',True,trapgroup_ids)
+
+        # Update the cluster-level classifications
+        for trapgroup_id in trapgroup_ids:
+            for task_id in task_ids:
+                classifyTrapgroup(task_id,trapgroup_id)
 
         # just adding the legacy _o_l_d_ for now - we are moving away from this though
         tasks = db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()
