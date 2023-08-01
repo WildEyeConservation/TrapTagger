@@ -116,10 +116,10 @@ function getUserInfo(url=null) {
     users = activeUserSelect.options[activeUserSelect.selectedIndex].value
 
     if (url==null) {
-        url = '/getActiveUserData?page=1&order=total&users=active_users'
-    } else {
-        url= url.split('&order=')[0]+'&users='+users+'&order='+order
+        url = '/getActiveUserData?page=1'
     }
+    
+    url = url.split('&order=')[0]+'&users='+users+'&order='+order
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
