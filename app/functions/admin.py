@@ -1846,7 +1846,7 @@ def updateStatistics(self):
                 # Average daily logins
                 average_daily_logins = 0
                 average_daily_admin_logins = 0
-                statistics = db.sessioon.query(Statistic).filter(Statistic.timestamp>startDate).all()
+                statistics = db.session.query(Statistic).filter(Statistic.timestamp>startDate).all()
                 if statistics:
                     for stat in statistics:
                         average_daily_logins += stat.unique_daily_logins
