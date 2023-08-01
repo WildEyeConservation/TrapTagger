@@ -115,18 +115,21 @@ limitations under the License. -->
                   <tr>
                     <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
                     <th scope="col" style="border-bottom: 1px solid white">Last 24 Hours</th>
-                    <th scope="col" style="border-bottom: 1px solid white">This Month</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month (Daily Average)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month (Total)</th>
                   </tr>
                 </thead>
                 <tbody class="table-matrix stripe">
                   <tr>
                     <th scope="row">Unique Logins</th>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_logins_24h }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_logins }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_logins_this_month }}</td>
                   </tr>
                   <tr>
                     <th scope="row">Unique Admin Logins</th>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_admin_logins_24h }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_admin_logins }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_admin_logins_this_month }}</td>
                   </tr>
                 </tbody>
@@ -220,20 +223,18 @@ limitations under the License. -->
           <br>
 
           <div class="row">
-            <div class="col-lg-1"></div>
-            <div class="col-lg-10">
+            <div class="col-lg-12">
               <h4>User Summary</h4>
 
               <div class="row">
-                <div class="col-lg-2">Order:</div>
-                <div class="col-lg-2">
+                <div class="col-lg-3">
                   <select id="userOrderSelect" class='form-control'>
                     <option value="total">Total Images Imported</option>
                     <option value="this_month">Images Imported This Month</option>
                     <option value="last_month">Images Imported Last Month</option>
                   </select>
                 </div>
-                <div class="col-lg-2">
+                <div class="col-lg-3">
                   <select id="activeUserSelect" class='form-control'>
                     <option value="active_users">Show Active Users Only</option>
                     <option value="all_users">Show All Users</option>
@@ -256,17 +257,16 @@ limitations under the License. -->
                 <tbody class="table-matrix stripe" id="userInfoTableBody"></tbody>
               </table>
             </div>
-            <div class="col-lg-1"></div>
           </div>
           <div class="row">
             <div class="col-lg-1"></div>
-            <div class="col-lg-2">
+            <div class="col-lg-1">
               <button type='button' class='btn btn-info btn-block' id='btnPrevUsers' style="visibility: hidden;" onclick="getUserInfo(prev_url)">
                 Previous
               </button>  
             </div>
             <div class="col-lg-6"></div>
-            <div class="col-lg-2">
+            <div class="col-lg-1">
               <button type='button' class='btn btn-info btn-block' id='btnNextUsers' style="visibility: hidden;" onclick="getUserInfo(next_url)">
                 Next
               </button>  

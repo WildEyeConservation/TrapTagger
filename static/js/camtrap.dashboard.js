@@ -235,6 +235,16 @@ $("#periodSelect").change( function() {
     updateChart()
 })
 
+$("#userOrderSelect").change( function() {
+    /** updates the trand chart when the trend selection changes */
+    getUserInfo()
+})
+
+$("#activeUserSelect").change( function() {
+    /** updates the trand chart when the period selection changes */
+    getUserInfo()
+})
+
 function initPage() {
     /** Initialises the page info */
     initChart()

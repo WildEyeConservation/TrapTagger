@@ -7041,6 +7041,16 @@ def dashboard():
             unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
             unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).count()
 
+            average_logins = 0
+            average_admin_logins = 0
+            statistics = db.session.query(Statistic).filter(Statistic.timestamp>startDate).all()
+            if statistics:
+                for statistic in statistics:
+                    average_logins+=statistic.unique_daily_logins
+                    average_admin_logins+=statistic.unique_daily_admin_logins
+                average_logins = round(average_logins/len(statistics),2)
+                average_admin_logins = round(average_admin_logins/len(statistics),2)
+
             factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
             return render_template('html/dashboard.html', title='Dashboard', helpFile='dashboard',
@@ -7066,7 +7076,9 @@ def dashboard():
                         unique_logins_24h = unique_logins_24h,
                         unique_admin_logins_24h = unique_admin_logins_24h,
                         unique_logins_this_month = unique_logins_this_month,
-                        unique_admin_logins_this_month = unique_admin_logins_this_month
+                        unique_admin_logins_this_month = unique_admin_logins_this_month,
+                        average_logins = average_logins,
+                        average_admin_logins = average_admin_logins
             )
         else:
             if current_user.admin:
