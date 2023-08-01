@@ -1806,40 +1806,83 @@ def updateStatistics(self):
         check = db.session.query(Statistic)\
                         .filter(extract('year',Statistic.timestamp)==datetime.utcnow().year)\
                         .filter(extract('month',Statistic.timestamp)==datetime.utcnow().month)\
+                        .filter(extract('day',Statistic.timestamp)==datetime.utcnow().day)\
                         .first()
 
         if not check:
-            users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
-            image_count=0
-            for user in users:
-                for survey in user.surveys:
-                    image_count+=survey.image_count
-
-            sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-            active_user_count = db.session.query(User)\
-                                    .join(Survey)\
-                                    .join(Task)\
-                                    .join(sq,sq.c.user_id==User.id)\
-                                    .filter(Task.init_complete==True)\
-                                    .filter(sq.c.count>10000)\
-                                    .distinct().count()
-
-            # AWS Costs
-            startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1)
-            endDate = datetime.utcnow().replace(day=1)
-            costs = get_AWS_costs(startDate,endDate)
-
-            statistic = Statistic(
-                timestamp=datetime.utcnow(),
-                user_count=len(users),
-                active_user_count=active_user_count,
-                image_count=image_count,
-                server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
-                storage_cost=costs['Amazon Simple Storage Service'],
-                db_cost=costs['Amazon Relational Database Service'],
-                total_cost=costs['Total']
-            )
+            statistic = Statistic(timestamp=datetime.utcnow())
             db.session.add(statistic)
+
+            # Daily stats
+            statistic.unique_daily_logins = db.session.query(User)\
+                                                .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(User.email!=None).count()
+            statistic.unique_daily_admin_logins = db.session.query(User)\
+                                                .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(User.admin==True).count()
+
+            #Monthly stats
+            if datetime.utcnow().day==1:
+                users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+                image_count=0
+                for user in users:
+                    for survey in user.surveys:
+                        image_count+=survey.image_count
+
+                sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
+                active_user_count = db.session.query(User)\
+                                        .join(Survey)\
+                                        .join(Task)\
+                                        .join(sq,sq.c.user_id==User.id)\
+                                        .filter(Task.init_complete==True)\
+                                        .filter(sq.c.count>10000)\
+                                        .distinct().count()
+
+                # AWS Costs
+                startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1)
+                endDate = datetime.utcnow().replace(day=1)
+                costs = get_AWS_costs(startDate,endDate)
+
+                # Average daily logins
+                average_daily_logins = 0
+                average_daily_admin_logins = 0
+                statistics = db.sessioon.query(Statistic).filter(Statistic.timestamp>startDate).all()
+                if statistics:
+                    for stat in statistics:
+                        average_daily_logins += stat.unique_daily_logins
+                        average_daily_admin_logins += stat.unique_daily_admin_logins
+                    average_daily_logins = round(average_daily_logins/len(statistics),2)
+                    average_daily_admin_logins = round(average_daily_admin_logins/len(statistics),2)
+
+                # Unique monthly logins
+                unique_monthly_logins = db.session.query(User)\
+                                                    .filter(User.last_ping>startDate)\
+                                                    .filter(User.email!=None).count()
+                unique_monthly_admin_logins = db.session.query(User)\
+                                                    .filter(User.last_ping>startDate)\
+                                                    .filter(User.admin==True).count()
+
+                # Update DB object
+                statistic.user_count=len(users),
+                statistic.active_user_count=active_user_count,
+                statistic.image_count=image_count,
+                statistic.server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
+                statistic.storage_cost=costs['Amazon Simple Storage Service'],
+                statistic.db_cost=costs['Amazon Relational Database Service'],
+                statistic.total_cost=costs['Total']
+                statistic.average_daily_logins = average_daily_logins
+                statistic.average_daily_admin_logins = average_daily_admin_logins
+                statistic.unique_monthly_logins = unique_monthly_logins
+                statistic.unique_monthly_admin_logins = unique_monthly_admin_logins
+
+                # Update user image counts
+                data = db.session.query(User,func.sum(Survey.image_count)).join(Survey).filter(User.admin==True).group_by(User.id).all()
+                for item in data:
+                    user = item[0]
+                    count = int(item[1])
+                    user.previous_image_count = user.image_count
+                    user.image_count = count
+
             db.session.commit()
 
     except Exception as exc:

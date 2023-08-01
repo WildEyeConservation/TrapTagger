@@ -107,8 +107,18 @@ function initChart() {
 function getUserInfo(url=null) {
     /** Fetches and populates the user info table. */
 
+    userOrderSelect = document.getElementById('userOrderSelect')
+    userOrderSelect.disabled=true
+    order = userOrderSelect.options[userOrderSelect.selectedIndex].value
+
+    activeUserSelect = document.getElementById('activeUserSelect')
+    activeUserSelect.disabled=true
+    users = activeUserSelect.options[activeUserSelect.selectedIndex].value
+
     if (url==null) {
-        url = '/getActiveUserData'
+        url = '/getActiveUserData?page=1&order=total&users=active_users'
+    } else {
+        url= url.split('&order=')[0]+'&users='+users+'&order='+order
     }
 
     var xhttp = new XMLHttpRequest();
@@ -147,6 +157,16 @@ function getUserInfo(url=null) {
 
                     td=document.createElement('td')
                     td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[i]['images_this_month']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
+                    td.innerHTML = reply.data[i]['images_last_month']
+                    tr.appendChild(td)
+
+                    td=document.createElement('td')
+                    td.setAttribute('style','font-size: 100%; padding-left: 3px; padding-right: 3px;')
                     td.innerHTML = reply.data[i]['regions']
                     tr.appendChild(td)
 
@@ -166,6 +186,12 @@ function getUserInfo(url=null) {
                     btnPrevUsers.style.visibility = 'visible'
                     prev_url = reply.prev_url
                 }
+
+                userOrderSelect = document.getElementById('userOrderSelect')
+                userOrderSelect.disabled=false
+
+                activeUserSelect = document.getElementById('activeUserSelect')
+                activeUserSelect.disabled=false
             }
         }
     }

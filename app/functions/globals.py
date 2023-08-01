@@ -2729,6 +2729,9 @@ def clean_up_redis():
 
     return True
 
-
- 
-        
+def format_count(count):
+    '''Formats counts for display.'''
+    if count>=1000000:
+        return str(round((count/1000000),2))+'M'
+    else:
+        return '{:,}'.format(count).replace(',', ' ')

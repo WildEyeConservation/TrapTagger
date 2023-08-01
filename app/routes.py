@@ -7024,7 +7024,7 @@ def dashboard():
                                     .filter(~User.username.in_(Config.ADMIN_USERS))\
                                     .distinct().count()
             
-            latest_statistic = db.session.query(Statistic).order_by(Statistic.timestamp.desc()).first()
+            latest_statistic = db.session.query(Statistic).filter(Statistic.user_count!=None).order_by(Statistic.timestamp.desc()).first()
             users_added_this_month = len(users)-latest_statistic.user_count
             images_imported_this_month = image_count-latest_statistic.image_count
             active_users_this_month = active_users-latest_statistic.active_user_count
@@ -7032,9 +7032,14 @@ def dashboard():
             image_count = str(round((image_count/1000000),2))+'M'
             images_imported_this_month = str(round((images_imported_this_month/1000000),2))+'M'
             
-            startDate = datetime.utcnow().replace(day=1)
-            endDate = datetime.utcnow()
+            startDate = datetime.utcnow().replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+            endDate = datetime.utcnow()+timedelta(days=1)
             costs = get_AWS_costs(startDate,endDate)
+
+            unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).count()
+            unique_admin_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.admin==True).count()
+            unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
+            unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).count()
 
             factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
@@ -7058,6 +7063,10 @@ def dashboard():
                         storage_estimate = round(factor*costs['Amazon Simple Storage Service'],2),
                         db_estimate = round(factor*costs['Amazon Relational Database Service'],2),
                         total_estimate = round(factor*costs['Total'],2),
+                        unique_logins_24h = unique_logins_24h,
+                        unique_admin_logins_24h = unique_admin_logins_24h,
+                        unique_logins_this_month = unique_logins_this_month,
+                        unique_admin_logins_this_month = unique_admin_logins_this_month
             )
         else:
             if current_user.admin:
@@ -7084,10 +7093,20 @@ def getDashboardTrends():
         trend = request.form['trend']
         period = request.form['period']
 
-        if period=='max':
-            period = 60
+        if trend in ['unique_daily_logins','unique_daily_admin_logins']:
+            # Daily stats
+            if period=='max':
+                period = 365
 
-        statistics=list(reversed(db.session.query(Statistic).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
+            statistics=list(reversed(db.session.query(Statistic).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
+        
+        else:
+            # Monthly stats
+            if period=='max':
+                period = 60
+
+            statistics=list(reversed(db.session.query(Statistic).filter(Statistic.user_count!=None).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
+
         data = [getattr(statistic,trend) for statistic in statistics if getattr(statistic,trend)!=None]
         labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics if getattr(statistic,trend)!=None]
 
@@ -7110,35 +7129,57 @@ def getActiveUserData():
     
     if current_user.username=='Dashboard':
         page = request.args.get('page', 1, type=int)
+        order = request.args.get('order', 'total', type=str)
+        users = request.args.get('users', 'active_users', type=str)
 
-        sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-        active_users = db.session.query(User)\
-                                .join(Survey)\
-                                .join(Task)\
+        sq = db.session.query(
+                                User.id.label('user_id'),
+                                func.sum(Survey.image_count).label('count'),
+                                (func.sum(Survey.image_count)-User.image_count).label('this_month'),
+                                (User.image_count-User.previous_image_count).label('last_month')
+                            )\
+                            .join(Survey)\
+                            .group_by(User.id).subquery()
+
+        active_users = db.session.query(User,sq.c.count,sq.c.this_month,sq.c.last_month)\
                                 .join(sq,sq.c.user_id==User.id)\
+                                .filter(~User.username.in_(Config.ADMIN_USERS))
+
+        if users=='active_users':
+            active_users = active_users.join(Survey)\
+                                .join(Task)\
                                 .filter(Task.init_complete==True)\
-                                .filter(sq.c.count>10000)\
-                                .filter(~User.username.in_(Config.ADMIN_USERS))\
-                                .order_by(sq.c.count.desc())\
-                                .distinct().paginate(page, 20, False)
+                                .filter(sq.c.count>10000)
+        
+        if order=='total':
+            active_users = active_users.order_by(sq.c.count.desc())
+        elif order=='this_month':
+            active_users = active_users.order_by(sq.c.this_month.desc())
+        elif order=='last_month':
+            active_users = active_users.order_by(sq.c.last_month.desc())
+
+        active_users = active_users.distinct().paginate(page, 20, False)
 
         reply = []
-        for user in active_users.items:
-            image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
-            if image_count>=1000000:
-                image_count = str(round((image_count/1000000),2))+'M'
-            else:
-                image_count = str(image_count)[:-3]+' '+str(image_count)[-3:]
+        for item in active_users.items:
+            user = item[0]
+            image_count = int(item[1])
+            images_this_month = int(item[2])
+            images_last_month = int(item[3])
+            # image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
+
             reply.append({
-                'account':      user.username,
-                'affiliation':  user.affiliation,
-                'surveys':      len(user.surveys[:]),
-                'images':       image_count,
-                'regions':      user.regions
+                'account':              user.username,
+                'affiliation':          user.affiliation,
+                'surveys':              len(user.surveys[:]),
+                'images':               format_count(image_count),
+                'images_this_month':    format_count(images_this_month),
+                'images_last_month':    format_count(images_last_month),
+                'regions':              user.regions
             })
 
-        next_url = url_for('getActiveUserData', page=active_users.next_num) if active_users.has_next else None
-        prev_url = url_for('getActiveUserData', page=active_users.prev_num) if active_users.has_prev else None
+        next_url = url_for('getActiveUserData', page=active_users.next_num, order=order, users=users) if active_users.has_next else None
+        prev_url = url_for('getActiveUserData', page=active_users.prev_num, order=order, users=users) if active_users.has_prev else None
 
         return json.dumps({'status':'success','data':reply,'next_url':next_url,'prev_url':prev_url})
     
