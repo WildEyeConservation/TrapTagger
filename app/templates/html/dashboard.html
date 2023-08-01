@@ -114,9 +114,11 @@ limitations under the License. -->
                 <thead>
                   <tr>
                     <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Last 24 Hours</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Past 24 Hours</th>
                     <th scope="col" style="border-bottom: 1px solid white">This Month (Daily Average)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Last Month (Daily Average)</th>
                     <th scope="col" style="border-bottom: 1px solid white">This Month (Total)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Last Month (Total)</th>
                   </tr>
                 </thead>
                 <tbody class="table-matrix stripe">
@@ -124,13 +126,17 @@ limitations under the License. -->
                     <th scope="row">Unique Logins</th>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_logins_24h }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_logins }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_daily_logins }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_logins_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_monthly_logins }}</td>
                   </tr>
                   <tr>
                     <th scope="row">Unique Admin Logins</th>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_admin_logins_24h }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_admin_logins }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_daily_admin_logins }}</td>
                     <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_admin_logins_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_monthly_admin_logins }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -190,7 +196,7 @@ limitations under the License. -->
   
           <h4>Trends</h4>
           <div class="row">
-            <div class="col-lg-2">
+            <div class="col-lg-3">
               <select id="trendSelect" class='form-control'>
                 <option value="active_user_count">Active Users</option>
                 <option value="user_count">Users</option>
@@ -207,7 +213,7 @@ limitations under the License. -->
                 <option value="unique_monthly_admin_logins">Unique Monthly Admin Logins</option>
               </select>
             </div>
-            <div class="col-lg-2">
+            <div class="col-lg-3">
               <select id="periodSelect" class='form-control'>
                 <option value="max">Max Time Period</option>
                 <option value="year">Last Year</option>

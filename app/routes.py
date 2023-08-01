@@ -7079,6 +7079,10 @@ def dashboard():
                         unique_admin_logins_this_month = unique_admin_logins_this_month,
                         average_logins = average_logins,
                         average_admin_logins = average_admin_logins
+                        unique_monthly_logins = latest_statistic.unique_monthly_logins,
+                        unique_monthly_admin_logins = latest_statistic.unique_monthly_admin_logins,
+                        average_daily_logins = latest_statistic.average_daily_logins,
+                        average_daily_admin_logins = latest_statistic.average_daily_admin_logins
             )
         else:
             if current_user.admin:
