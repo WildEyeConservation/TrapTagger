@@ -1839,14 +1839,14 @@ def updateStatistics(self):
                                         .distinct().count()
 
                 # AWS Costs
-                startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1)
+                startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1,hour=0,minute=0,second=0,microsecond=0)
                 endDate = datetime.utcnow().replace(day=1)
                 costs = get_AWS_costs(startDate,endDate)
 
-                # Average daily logins
+                # Average daily logins (need the plus 1 hour here so as to not include the last day of the previous month)
                 average_daily_logins = 0
                 average_daily_admin_logins = 0
-                statistics = db.session.query(Statistic).filter(Statistic.timestamp>startDate).all()
+                statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
                 if statistics:
                     for stat in statistics:
                         average_daily_logins += stat.unique_daily_logins

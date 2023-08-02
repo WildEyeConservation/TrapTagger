@@ -7041,9 +7041,10 @@ def dashboard():
             unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
             unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).count()
 
+            # Need to add an hour to the start date so as to not grab the first statistic of the month which covers the last day of the previous month
             average_logins = 0
             average_admin_logins = 0
-            statistics = db.session.query(Statistic).filter(Statistic.timestamp>startDate).all()
+            statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
             if statistics:
                 for statistic in statistics:
                     average_logins+=statistic.unique_daily_logins
@@ -7079,8 +7080,8 @@ def dashboard():
                         unique_admin_logins_this_month = unique_admin_logins_this_month,
                         average_logins = average_logins,
                         average_admin_logins = average_admin_logins,
-                        unique_monthly_logins = latest_statistic.unique_monthly_logins,
-                        unique_monthly_admin_logins = latest_statistic.unique_monthly_admin_logins,
+                        unique_monthly_logins = int(latest_statistic.unique_monthly_logins),
+                        unique_monthly_admin_logins = int(latest_statistic.unique_monthly_admin_logins),
                         average_daily_logins = latest_statistic.average_daily_logins,
                         average_daily_admin_logins = latest_statistic.average_daily_admin_logins
             )
