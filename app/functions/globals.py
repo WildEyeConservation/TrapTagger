@@ -2527,17 +2527,8 @@ def generate_raw_image_hash(filename):
     else:
         output=io.BytesIO()
         with open(filename, "rb") as f:
-        #     piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),f.read(),output)
-        #     hash = hashlib.md5(output.getbuffer()).hexdigest()
-            img = pilImage.open(f)
-            img.load()
-            # Remove EXIF data
-            exif_dict = piexif.load(img.info.get("exif", b""))
-            exif_dict.clear()
-            exif_bytes = piexif.dump(exif_dict)
-
-            img.save(output, format='JPEG', exif=exif_bytes)
-            hash = hashlib.md5(output.getvalue()).hexdigest()
+            piexif.insert(piexif.dump({'0th': {}, '1st': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, 'thumbnail': None}),f.read(),output)
+            hash = hashlib.md5(output.getbuffer()).hexdigest()
         
     return hash
 
