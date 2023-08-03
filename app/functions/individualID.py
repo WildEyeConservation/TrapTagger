@@ -237,9 +237,9 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                                         or_(\
                                                             and_(\
                                                                 DetSimilarity.detection_1==detection1_id,\
-                                                                DetSimilarity.detection_2==non_covered.id),\
+                                                                DetSimilarity.detection_2==non_covered),\
                                                             and_(\
-                                                                DetSimilarity.detection_1==non_covered.id,\
+                                                                DetSimilarity.detection_1==non_covered,\
                                                                 DetSimilarity.detection_2==detection1_id)\
                                                         )).first()
 
