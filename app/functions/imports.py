@@ -1866,27 +1866,36 @@ def delete_duplicate_images(images):
 
     # If adding images - delete the new imports rather than the old ones
     candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).distinct().all()
-    if len(candidateImages) == len(images): candidateImages = candidateImages[1:]
+    
+    if len(candidateImages) == len(images):
+        # all are unclustered - delete all but one
+        candidateImages = candidateImages[1:]
+
+    elif len(candidateImages) < (len(images)-1):
+        # some are clustered
+        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).distinct().all()
+        candidateImages.extend(clusteredImages[1:])
     
     for image in candidateImages:
         for detection in image.detections:
 
-            # for labelgroup in detection.labelgroups:
-            #     labelgroup.labels = []
-            #     labelgroup.tags = []
-            #     db.session.delete(labelgroup)
+            for labelgroup in detection.labelgroups:
+                labelgroup.labels = []
+                labelgroup.tags = []
+                db.session.delete(labelgroup)
             
-            # detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-            # for detSimilarity in detSimilarities:
-            #     db.session.delete(detSimilarity)
+            detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+            for detSimilarity in detSimilarities:
+                db.session.delete(detSimilarity)
             
-            # detection.individuals = []
+            detection.individuals = []
             db.session.delete(detection)
         
-        # image.clusters = []
+        image.clusters = []
         db.session.delete(image)
     
-    # db.session.commit()
+    db.session.commit()
+    
     return True
 
 def remove_duplicate_videos(survey_id):
@@ -1963,6 +1972,14 @@ def remove_duplicate_images(survey_id):
                     .filter(Image.hash==hash[0])\
                     .distinct().all()
         delete_duplicate_images(images)
+
+    # delete any empty clusters
+    clusters = db.session.query(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
+    for cluster in clusters:
+        cluster.labels = []
+        cluster.tags = []
+        cluster.required_images = []
+        db.session.delete(cluster)
 
     #delete any empty cameras
     cameras = db.session.query(Camera).join(Trapgroup).filter(~Camera.images.any()).filter(Trapgroup.survey_id==survey_id).all()
@@ -3076,7 +3093,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
             addingImages = False
 
         user = db.session.query(User).get(user_id)
-        import_folder(user.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
+        import_folder(user.folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
         
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey_id = survey.id
