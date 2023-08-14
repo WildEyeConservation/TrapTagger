@@ -158,6 +158,36 @@ function getClusterIDs(mapID = 'map1'){
     xhttp.send(formData);
 }
 
+function searchNotes(mapID='map1'){
+    /** Searches for clusters with notes specified in explore page search bar */
+    var xhttp = new XMLHttpRequest();
+    var formData = new FormData()
+    notes = noteSearchTextBox.value
+    formData.append('notes', JSON.stringify(notes))
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                clusters[mapID]=[]
+                clusterReadAheadIndex = 0
+                clusterIndex[mapID] = 0
+                imageIndex[mapID] = 0
+                updateClusterLabels()
+                clusterIDs = JSON.parse(this.responseText);
+                if (clusterIDs[0]){
+                    for (let i=0;i<3;i++){
+                        loadNewCluster()
+                    }
+                    document.getElementById('notif1').innerHTML = ''
+                }
+                else{
+                    document.getElementById('notif1').innerHTML = 'No notes matches your search.'
+                }
+            }
+        };
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite);
+    xhttp.send(formData);
+}
+
 function populateSpeciesSelector(label, mapID = 'map1'){
     /** Populates the species-to-be-explored selector. Also builds sub-species selectors as needed. */
     var xhttp = new XMLHttpRequest();
