@@ -3093,7 +3093,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
             addingImages = False
 
         user = db.session.query(User).get(user_id)
-        import_folder(user.folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
+        import_folder(user.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
         
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
         survey_id = survey.id
