@@ -262,6 +262,7 @@ def launch_task(self,task_id):
                                     .first()
                     if check==None:
                         calculate_individual_similarities(task.id,species,None)
+                        task = db.session.query(Task).get(task_id)
 
                 #extract threshold
                 threshold = tL[2]
