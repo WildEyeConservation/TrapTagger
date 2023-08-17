@@ -184,16 +184,17 @@ def launchTask():
                                             'need to be calculated. For now, individual ID cannot be performed across more than 2000 sightings/boxes (2 million combinations). '+
                                             'Please try again after future updates, or reduce the size of your dataset.', 'status': 'Error'})
 
-        # Prevent individual ID across fewer than 2 individuals
-        indCount = db.session.query(Individual)\
-                            .join(Task,Individual.tasks)\
-                            .filter(Task.id.in_(task_ids))\
-                            .filter(Individual.species==species)\
-                            .filter(Individual.name!='unidentifiable')\
-                            .distinct().count()
+        if '-5' in taggingLevel:
+            # Prevent individual ID across fewer than 2 individuals
+            indCount = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
+                                .filter(Individual.name!='unidentifiable')\
+                                .distinct().count()
 
-        if indCount < 2:
-            return json.dumps({'message': 'There are too few individuals for your selection. Individual ID requires at least 2 individuals.', 'status': 'Error'})
+            if indCount < 2:
+                return json.dumps({'message': 'There are too few individuals for your selection. Individual ID requires at least 2 individuals.', 'status': 'Error'})
 
     if (len(task_ids)>1) and ('-5' in taggingLevel):
         # species = re.split(',',taggingLevel)[1]
