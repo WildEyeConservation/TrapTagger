@@ -3731,7 +3731,7 @@ function clearResults(){
     }
 }
 
-async function exportResults(){
+function exportResults(){
     /** Exports the charts to an image */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
@@ -3840,20 +3840,16 @@ async function exportResults(){
         }
     }
     else if (analysisSelection == '6') {
-        // Export all the images in activeImages except for the key mapDiv
-        console.log(activeImage)
-        for (let key in activeImage) {
-            if (key != 'mapDiv' && activeImage[key] && activeImage[key]._url != '') {
-                var imageUrl = activeImage[key]._url;
-                var link = document.createElement('a');
-                link.href = imageUrl;
-                link.click();
-
-                // Add a delay to allow the image to download (otherwise it will only download the last image)
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-            }    
+        // Get active tab and export selected graph 
+        occu_name = tabActiveResults.split('occuTab')[1]
+        map_id = 'mapDiv_' + occu_name
+        if (activeImage[map_id] && activeImage[map_id]._url != '') {
+            var imageUrl = activeImage[map_id]._url;
+            var link = document.createElement('a');
+            link.href = imageUrl;
+            link.click();
         }
+
     }
     else{
         var canvas = document.getElementById('statisticsChart');
@@ -4185,7 +4181,7 @@ function buildSummaryTab(summary, tab){
             // table.classList.add('table-striped');
             // table.classList.add('table-bordered');
             // table.classList.add('table')
-            // table.classList.add('table-bordered')
+            table.classList.add('table-bordered')
             // table.classList.add('table-striped')
             table.classList.add('table-hover')
             var thead = table.createTHead();
@@ -4196,19 +4192,19 @@ function buildSummaryTab(summary, tab){
             var nameTitleCell = titleRow.insertCell();
             nameTitleCell.innerHTML = 'Name';
             nameTitleCell.style.fontWeight = 'bold';
-            nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             nameTitleCell.style.padding = '10px';
 
             var descTitleCell = titleRow.insertCell();
             descTitleCell.innerHTML = 'Description';
             descTitleCell.style.fontWeight = 'bold';
-            descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             descTitleCell.style.padding = '10px';
             
             var valueTitleCell = titleRow.insertCell();
             valueTitleCell.innerHTML = 'Value';
             valueTitleCell.style.fontWeight = 'bold';
-            valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             valueTitleCell.style.padding = '10px';
 
             var data = summary.summary_counts
@@ -4217,17 +4213,17 @@ function buildSummaryTab(summary, tab){
                 var row = tbody.insertRow();
                 var nameCell = row.insertCell();
                 nameCell.innerHTML = key;
-                nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
+                // nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
                 nameCell.style.padding = '10px';
             
                 var descCell = row.insertCell();
                 descCell.innerHTML = data[key].description;
-                descCell.style.border = '1px solid rgba(0,0,0,0.2)';
+                // descCell.style.border = '1px solid rgba(0,0,0,0.2)';
                 descCell.style.padding = '10px';
             
                 var valueCell = row.insertCell();
                 valueCell.innerHTML = data[key].value;
-                valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
+                // valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
                 valueCell.style.padding = '10px';
             }
             
@@ -4262,6 +4258,9 @@ function buildSummaryTab(summary, tab){
             table.id = 'diversityTable'
             table.style.borderCollapse = 'collapse';
             table.classList.add('table-hover')
+            // table.classList.add('table')
+            table.classList.add('table-bordered')
+            // table.classList.add('table-striped')
 
             var thead = table.createTHead();
             var tbody = table.createTBody();
@@ -4271,19 +4270,19 @@ function buildSummaryTab(summary, tab){
             var nameTitleCell = titleRow.insertCell();
             nameTitleCell.innerHTML = 'Name';
             nameTitleCell.style.fontWeight = 'bold';
-            nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             nameTitleCell.style.padding = '10px';
             
             var descTitleCell = titleRow.insertCell();
             descTitleCell.innerHTML = 'Description';
             descTitleCell.style.fontWeight = 'bold';
-            descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             descTitleCell.style.padding = '10px';
             
             var valueTitleCell = titleRow.insertCell();
             valueTitleCell.innerHTML = 'Value';
             valueTitleCell.style.fontWeight = 'bold';
-            valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             valueTitleCell.style.padding = '10px';
             
             data = summary.summary_indexes;
@@ -4292,17 +4291,17 @@ function buildSummaryTab(summary, tab){
             var row = tbody.insertRow();
             var nameCell = row.insertCell();
             nameCell.innerHTML = key;
-            nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
             nameCell.style.padding = '10px';
             
             var descCell = row.insertCell();
             descCell.innerHTML = data[key].description;
-            descCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // descCell.style.border = '1px solid rgba(0,0,0,0.2)';
             descCell.style.padding = '10px';
             
             var valueCell = row.insertCell();
             valueCell.innerHTML = data[key].value.toFixed(2);
-            valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            // valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
             valueCell.style.padding = '10px';
             }
             
@@ -5746,7 +5745,7 @@ function buildOccupancyTabs(results){
     if (results.model_formula == "~1 ~ 1"){
         var btnNullOccuTab = document.createElement('button')
         btnNullOccuTab.classList.add('tablinks')
-        btnNullOccuTab.innerHTML = 'Model Results'
+        btnNullOccuTab.innerHTML = 'Covariates: None'
         resultsTab.appendChild(btnNullOccuTab)
 
         var nullOccuTab = document.createElement('div')
@@ -5804,7 +5803,7 @@ function buildOccupancyResults(results, tab){
             summaryOccuTab.appendChild(h5)
 
             h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following table displays a summary of the occupancy analysis for the selected species. </i></div>'
+            h5.innerHTML = '<div><i> The following table displays a summary of the occupancy analysis for the selected species. Naive occupancy is the proportion of sites occupied by the species. The best model formula is the covariate formula that best explains the occupancy of the species. </i></div>'
             h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             summaryOccuTab.appendChild(h5)
 
@@ -5837,7 +5836,7 @@ function buildOccupancyResults(results, tab){
             tr.appendChild(th)
 
             var th = document.createElement('th')
-            th.innerHTML = 'Model Formula'
+            th.innerHTML = 'Best Model Formula'
             tr.appendChild(th)
 
             var tbody = document.createElement('tbody')
@@ -5858,8 +5857,15 @@ function buildOccupancyResults(results, tab){
             td.innerHTML = naive_occupancy
             tr.appendChild(td)
 
+            model_formula = model_formula.split('~')
+            for (let i = 0; i < model_formula.length; i++){
+                if (model_formula[i].includes('1')){
+                    model_formula[i] = 'None'
+                }
+            }
+            var new_model_formula = 'Det covs: ' + model_formula[1] + ' | ' + 'Site covs: ' + model_formula[2]
             var td = document.createElement('td')
-            td.innerHTML = model_formula
+            td.innerHTML = new_model_formula
             tr.appendChild(td)
 
             summaryOccuTab.appendChild(table)
@@ -5882,7 +5888,7 @@ function buildOccupancyResults(results, tab){
             summaryOccuTab.appendChild(h5)
 
             h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following table displays the AICc results for the best model selection. </i></div>'
+            h5.innerHTML = '<div><i> The following table displays the AICc results for the best model selection. The best model is the model with the lowest AICc value. The delta AICc is the difference between the best model and the other models. The weight is the probability that the model is the best model. </i></div>'
             h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             summaryOccuTab.appendChild(h5)
 
@@ -5953,15 +5959,26 @@ function buildOccupancyResults(results, tab){
                 for (let j = 0; j < keys.length; j++) {
                     var td = document.createElement('td');
                     var value = result[keys[j]]
-                    if (isNaN(value)){
-                        td.innerHTML = value
-                    } else {
-                        if (keys[j] == 'K'){
-                            td.innerHTML = value.toFixed(0)
-                        } else {
-                            td.innerHTML = value.toFixed(4)
-                        }
+
+                    if (keys[j] == 'K'){
+                        td.innerHTML = value.toFixed(0)
                     }
+                    else if (keys[j] == 'Modnames'){
+                        value = value.replace(/\s/g, '')
+                        formula = value.split('~')
+                        console.log(formula)
+                        for (let k=0; k<formula.length; k++){
+                            if (formula[k].includes('1')){
+                                formula[k] = 'None'
+                            }
+                        }
+                        td.innerHTML = 'Det Covs: ' + formula[1] + ' | ' + 'Site Covs: ' + formula[2]
+                        
+                    }
+                    else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    
                     trBody.appendChild(td);
                 }
             }
@@ -5977,7 +5994,7 @@ function buildOccupancyResults(results, tab){
             summaryOccuTab.appendChild(h5)
 
             h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following table displays the occupancy estimate summary for the selected best model. Please note that the values are in logit scale. </i></div>'
+            h5.innerHTML = '<div><i> The following table displays the occupancy estimate summary for the selected best model. The occupancy estimate is the probability that a site is occupied given that the species is present. Please note the values are in logit scale. </i></div>'
             h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             summaryOccuTab.appendChild(h5)
 
@@ -6041,7 +6058,7 @@ function buildOccupancyResults(results, tab){
             summaryOccuTab.appendChild(h5)
 
             h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following table displays the detection estimate summary for the selected best model. Please note that the values are in logit scale. </i></div>'
+            h5.innerHTML = '<div><i> The following table displays the detection estimate summary for the selected best model. The detection estimate is the probability that the species is detected given that the species is present. Please note the values are in logit scale.</i></div>'
             h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             summaryOccuTab.appendChild(h5)
 
@@ -6111,7 +6128,11 @@ function buildOccupancyResults(results, tab){
                 if (occuTab.firstChild == null){
 
                     var h5 = document.createElement('h5')
-                    h5.innerHTML = 'Covariate Results: ' + occu_files[i].name
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        h5.innerHTML = 'Covariate Results: No Covariates'
+                    } else {
+                        h5.innerHTML = 'Covariate Results: ' + occu_files[i].name
+                    }
                     h5.setAttribute('style','margin-bottom: 2px')
                     occuTab.appendChild(h5)
 
@@ -6944,7 +6965,7 @@ function onload(){
     getLabelsAndSites()
     generateResults()
     // Run summary analysis (uncomment for prod)
-    document.getElementById('btnRunScript').click()
+    // document.getElementById('btnRunScript').click()
 }
 
 window.addEventListener('load', onload, false);
