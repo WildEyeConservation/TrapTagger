@@ -18,5 +18,8 @@ ggplot2
 lubridate
 activity
 overlap
-vegan 
-suncalc
+ggrepel
+ggpubr
+camtrapR
+unmarked
+AICcmodavg

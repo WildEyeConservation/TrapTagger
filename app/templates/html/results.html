@@ -22,9 +22,9 @@ limitations under the License. -->
                 <h3>Generate Analysis</h3>
             </div>
             <div class="tab">
-                <button id='openAnalysisTab' class="tablinks" onclick="openAnalysisEdit(event, 'baseAnalysisDiv')">Analysis</button>
-                <button id='openChartTab'class="tablinks" onclick="openAnalysisEdit(event, 'baseChartDiv')">Chart</button>
-                <button id="openTasksTab" class="tablinks" onclick="openAnalysisEdit(event, 'baseTasksDiv')">Tasks</button>
+                <button id='openAnalysisTab' class="tablinks" onclick="openAnalysisEdit(event, 'baseAnalysisDiv')">Analysis Options</button>
+                <button id='openChartTab'class="tablinks" onclick="openAnalysisEdit(event, 'baseChartDiv')">Chart Options</button>
+                <button id="openTasksTab" class="tablinks" onclick="openAnalysisEdit(event, 'baseTasksDiv')">Task Selection</button>
             </div>
 
             <div class="card-body" id="filterCardDiv">
@@ -34,19 +34,20 @@ limitations under the License. -->
                     <div class="row">
                         <div class='col-lg-10'>
                             <select id="analysisSelector" class='form-control'>
-                                <option value="-1"selected>None</option>
-                                <option value="0">Summary</option>
+                                <option value="-1">None</option>
+                                <option value="0" selected>Summary</option>
                                 <option value="1">Temporal Analysis</option>
                                 <option value="2">Spatial Analysis</option>
                                 <option value="3">Numerical Analysis</option>
                                 <option value="4">Time Analysis</option>
                                 <option value="5">Activity Pattern</option>
+                                <option value="6">Occupancy Analysis</option>
                             </select>
                         </div>
                     </div>
                     <br>
                     
-                    <div id="chartTypeDiv">
+                    <div id="chartTypeDiv" hidden>
                         <h5 style="margin-bottom: 2px">Chart</h5>
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select the chart type you would like to see your results in.</i></div>
                         <div class="row">
@@ -94,6 +95,31 @@ limitations under the License. -->
                     <!-- <button class="btn btn-primary" id="btnManageAnnotationSets">Manage Annotation Sets</button>
                     <br>
                     <br>	 -->
+
+                    <div id="cameraTrapDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Camera Trap</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Please select whether you want to evaluate by site or by camera for the camera trap summaryresults.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <select id="cameraSelector" class='form-control'>
+                                    <option value="0">Site</option>
+                                    <option value="1">Camera</option>
+                                </select>
+                            </div>
+                        </div>
+                        <br>
+                    </div>
+
+                    <div id="observationWindowDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Observation Window</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the observation window in days for the analysis.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <input type="number" class="form-control" id="observationWindow" value="1" min="1" step="1" default="1"></input>
+                            </div>
+                        </div>
+                        <br>
+                    </div>
 
                     <div id="comparisonDiv" hidden>
                         <h5 style="margin-bottom: 2px">Comparison</h5>
@@ -201,6 +227,17 @@ limitations under the License. -->
                         <br>
                     </div>
 
+                    <div id="speciesDataDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Species</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px">
+                        <i>Select the species you would like to see results for.</i>
+                        </div>
+                        <div id="speciesSelectorDiv"></div>
+                        <button class="btn btn-info" type="button" id="btnAddSpecie" onclick=buildRSpeciesRows()>+</button>
+                        <br>
+                        <br>
+                    </div>
+
                     <div id="siteDataDiv" hidden>
                         <h5 style="margin-bottom: 2px">Site</h5>
                         <div style="font-size: 80%; margin-bottom: 2px">
@@ -212,7 +249,7 @@ limitations under the License. -->
                         <br>
                     </div>
 
-                    <div id="groupButtonsDiv">
+                    <div id="groupButtonsDiv" hidden>
                         <div class="row">
                             <div class="col-lg-6">
                                 <button type='button' class='btn btn-primary btn-block' id='btnViewGroups' onclick=viewGroups()>View Groups</button>  
@@ -224,14 +261,14 @@ limitations under the License. -->
                         <br>
                     </div>
 
-                    <div id="speciesDataDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Species</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px">
-                        <i>Select the species you would like to see results for.</i>
+                    <div id="covariatesDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Covariates</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Fill in the covariates you would like to see results for.</i></div>
+                        <div class="row">
+                            <div class="col-lg-12">
+                                <button type='button' class='btn btn-primary btn-block' id='btnCreateCovariates' onclick=buildCovariates()>Enter Covariates</button>
+                            </div>
                         </div>
-                        <div id="speciesSelectorDiv"></div>
-                        <button class="btn btn-info" type="button" id="btnAddSpecie" onclick=buildRSpeciesRows()>+</button>
-                        <br>
                         <br>
                     </div>
 
@@ -526,7 +563,7 @@ limitations under the License. -->
                 </div>
             </div>
             </div>
-
+            <div id="resultsTab" class="tab"></div>
             <div class="card-body" id="resultsCard">
                 <div id="statisticsErrors" style="color: #DF691A"></div>
                 <div id="loadingDiv" style="display: none;">
@@ -778,6 +815,183 @@ limitations under the License. -->
     </div>
 </div>
 
+<!-- Covariates Modal -->
+<div id="modalCovariates" class="modal fade" role="dialog" tabindex="-1" style="overflow-y: auto;">
+    <div class="modal-dialog" style="max-width: 80%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 id= 'covariatesHeader' style="margin-bottom: 2px;">Covariates</h4>                   
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right'>Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Instructions:</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the covariates you would like to use in your analysis. All sites must have values for all covariates. Covariates can either be numeric or categorical. Choose if you would like to scale your numeric covariates. </i></div>    
+                <br>
+                <h5 style="margin-bottom: 2px">Site Covariates:</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Site covariates are covariates which are constant for all detections at a site. These covariates are used to model the site level effects.</i></div>
+                <div class="row">
+                    <div class="col-lg-9" style="padding-right: 0px">
+                        <div id="siteCovariatesDiv" style="overflow-x: auto;"></div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div id="siteCovariatesExtraDiv"></div>
+                    </div>
+                </div>
+                <button id="btnAddSiteCovariate" type="button" class="btn btn-primary btn-info" onclick="buildCovRow('site')">+</button>
+                <br>    
+                <br>
+                <h5 style="margin-bottom: 2px">Detection Covariates:</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Detection covariates are covariates which are specific to each detection. These covariates are used to model the detection level effects.</i></div>
+                <div class="row">
+                    <div class="col-lg-9" style="padding-right: 0px;">
+                        <div id="detectionCovariatesDiv" style="overflow-x: auto;"></div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div id="detectionCovariatesExtraDiv"></div>
+                    </div>
+                </div>
+                <button id="btnAddDetCovariate" type='button' class='btn btn-primary btn-info' onclick="buildCovRow('det')">+</button>
+                <br>
+                <br>
+                <div class="row">
+                    <div class="col-lg-2">
+                        <button id="importCovCSV" type='button' class='btn btn-primary btn-block' onclick="importCSV()">Import CSV</button>
+                    </div>
+                </div>
+                <div id="covariatesError" style="font-size: 80%; color: #DF691A"></div>
+            </div>
+            <div class="modal-footer">
+                <div class='col-lg-2'>
+                    <button id="btnSaveCovariates" type='button' class='btn btn-primary btn-block' onclick="saveCovariates()">Save</button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="btnCloseCovariates" type='button' class='btn btn-info btn-block' data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Covariates Import Modal -->
+<div id="modalImportCovariates" class="modal fade" role="dialog" tabindex="-1"  style="overflow-y: auto;">
+    <div class="modal-dialog" style="max-width: 40%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-11' style="padding: 0px">
+                    <h4 id= 'covariatesHeader' style="margin-bottom: 2px;">Import Covariates</h4>                   
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <div class="row">
+                        <div class='col-lg-6' style="padding: 0px">
+                            <button class='btn btn-primary btn-sm pull-right'>Help</button>
+                        </div>
+                        <div class='col-lg-5' style="padding: 0px">
+                            <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class='col-lg-1' style="padding: 0px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Instructions:</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i> Upload a CSV file containing the covariates you would like to use in your analysis. Please note that your csv must contain a column with your site tags and columns for your site coordinates (latitude and longitude). Each covariate must be in its own column. </i></div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Upload CSV:</h5>
+                <div class="row">
+                    <div class="col-lg-8" style="padding-right: 0px">
+                        <input type="file" id="covariatesFile" name="covariatesFile" accept=".csv">
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Site</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Choose the column in your CSV file which contains the site names.</i></div>
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class='row'>
+                            <div class="col-lg-10">
+                                <select id="siteCol" class="form-control"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>  
+                <br>
+
+                <h5 style="margin-bottom: 2px">Latitude</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Choose the column in your CSV file which contains the site latitude.</i></div>
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class='row'>
+                            <div class="col-lg-10">
+                                <select id="latCol" class="form-control"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Longitude</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Choose the column in your CSV file which contains the site longitude.</i></div>
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class='row'>
+                            <div class="col-lg-10">
+                                <select id="longCol" class="form-control"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Site Covariates</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Choose the columns in your CSV file which contain the site covariates.</i></div>
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div id="siteCovColsDiv"></div>
+                        <button id="btnAddSiteCovCol" type="button" class="btn btn-primary btn-info" onclick="addSiteCovCol()">+</button>
+                    </div>
+                </div>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Detection Covariates</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Choose the columns in your CSV file which contain the detection covariates.</i></div>
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div id="detCovColsDiv"></div>
+                        <button id="btnAddDetCovCol" type="button" class="btn btn-primary btn-info" onclick="addDetCovCol()">+</button>
+                    </div>
+                </div>
+                <br>
+
+                <div id="covariatesImportError" style="font-size: 80%; color: #DF691A"></div>
+            </div>
+            <div class="modal-footer">
+                <div class='col-lg-2'>
+                    <button id="btnImportCovariates" type='button' class='btn btn-primary btn-block' onclick="importCovariates()">Import</button>
+                </div>
+                <div class='col-lg-2'>
+                    <button id="btnCloseImportCovariates" type='button' class='btn btn-info btn-block' data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 <!-- <div id="modalAnnotationsSets" class="modal fade" role="dialog" tabindex="-1">
     <div class="modal-dialog" style="max-width: 40%;">
   
@@ -847,4 +1061,8 @@ limitations under the License. -->
 <link rel="stylesheet" href="js/Leaflet.BigImage.css">
 <script src="js/Leaflet.BigImage.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/regression/2.0.1/regression.js"></script>
+<!-- <script src="https://cdn.plot.ly/plotly-2.24.1.min.js" charset="utf-8"></script> -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.24.1/plotly.min.js"></script>
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script> -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.11/jquery.csv.min.js"></script>
 {% endblock %}

@@ -8658,6 +8658,8 @@ def getActivityPattern():
     
     status = 'FAILURE'
     activity_img_url = None
+    message = None
+    celery_result = None
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
             if GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id)):
@@ -8682,12 +8684,23 @@ def getActivityPattern():
                 app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
-                    activity_img_url = result.result
-                    app.logger.info('Task {} result: {}'.format(result_id, activity_img_url))
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        activity_img_url = celery_result['activity_url']
+                        app.logger.info('Task {} result: {}'.format(result_id, activity_img_url))
+                        result.forget()
+                        GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
+                    else:
+                        message = celery_result['error']
+                        status = 'FAILURE'
+                        result.forget()
+                        GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
+                elif status == 'FAILURE':
+                    message = 'Task {} failed'.format(result_id)
                     result.forget()
                     GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
 
-    return json.dumps({'status': status, 'activity_img_url': activity_img_url})
+    return json.dumps({'status': status, 'activity_img_url': activity_img_url, 'message': message})
 
 @app.route('/getActivityPatternCSV', methods=['POST'])
 @login_required
@@ -8718,6 +8731,8 @@ def getActivityPatternCSV():
     
     status = 'FAILURE'
     activity_csv_url = None
+    message = None
+    celery_result = None
     if current_user.is_authenticated and current_user.admin:
         if task_ids:
             if GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id)):
@@ -8742,12 +8757,28 @@ def getActivityPatternCSV():
                 app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
-                    activity_csv_url = result.result
-                    app.logger.info('Task {} result: {}'.format(result_id, activity_csv_url))
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        activity_csv_url = celery_result['activity_url']
+                        app.logger.info('Task {} result: {}'.format(result_id, activity_csv_url))
+                        result.forget()
+                        GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
+                    else:
+                        message = celery_result['error']
+                        status = celery_result['status']
+                        activity_csv_url = None
+                        result.forget()
+                        GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
+                        
+                elif status == 'FAILURE':
+                    message = 'Task {} failed'.format(result_id)
+                    activity_csv_url = None
                     result.forget()
                     GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
+            
+                        
 
-    return json.dumps({'status': status, 'activity_csv_url': activity_csv_url})
+    return json.dumps({'status': status, 'activity_csv_url': activity_csv_url, 'message': message})
 
 @app.route('/getRScript', methods=['POST'])
 @login_required
@@ -8762,129 +8793,224 @@ def getRScript():
         
     return json.dumps({'status': 'success', 'script': script})
 
-
 @app.route('/getResultsSummary', methods=['POST'])
 @login_required
 def getResultsSummary():
     ''' Get the results summary of your data'''
-    task_ids = ast.literal_eval(request.form['task_ids'])
-    baseUnit = ast.literal_eval(request.form['baseUnit'])
-    if 'startDate' in request.form:
-        startDate = ast.literal_eval(request.form['startDate'])
-    else:
-        startDate = None
-    if 'endDate' in request.form:	
-        endDate = ast.literal_eval(request.form['endDate'])
-    else:
-        endDate = None
-
-    if Config.DEBUGGING: app.logger.info('Results summary for {} {} {} {}'.format(task_ids,baseUnit,startDate,endDate))
-    
-
-    if task_ids:
-        if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        baseUnit = ast.literal_eval(request.form['baseUnit'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
-
-        task_ids = [r[0] for r in tasks]
-
-        # if baseUnit == '1': # Image
-        #     baseQuery = db.session.query(
-        #                     Label.id,
-        #                     Label.description,
-        #                     func.count(Image.id)
-        #                 )\
-        #                 .outerjoin(Detection) \
-        #                 .join(Labelgroup)\
-        #                 .outerjoin(Label,Labelgroup.labels)\
-        #                 .filter(Labelgroup.task_id.in_(task_ids))\
-        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-        #                 .filter(Detection.static==False)\
-        #                 .filter(~Detection.status.in_(['deleted','hidden']))
-
-        # elif baseUnit == '2': # Cluster
-        #     baseQuery = db.session.query(
-        #                     Label.id,
-        #                     Label.description,
-        #                     func.count(Cluster.id)
-        #                 )\
-        #                 .join(Image,Cluster.images)\
-        #                 .outerjoin(Detection) \
-        #                 .join(Labelgroup)\
-        #                 .outerjoin(Label,Labelgroup.labels)\
-        #                 .filter(Cluster.task_id.in_(task_ids))\
-        #                 .filter(Labelgroup.task_id.in_(task_ids))\
-        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-        #                 .filter(Detection.static==False)\
-        #                 .filter(~Detection.status.in_(['deleted','hidden']))
-
-        # elif baseUnit == '3':  # Detection
-        #     baseQuery = db.session.query(
-        #                     Label.id,
-        #                     Label.description,
-        #                     func.count(Detection.id)
-        #                 )\
-        #                 .join(Image)\
-        #                 .join(Labelgroup)\
-        #                 .outerjoin(Label,Labelgroup.labels)\
-        #                 .filter(Labelgroup.task_id.in_(task_ids))\
-        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-        #                 .filter(Detection.static==False)\
-        #                 .filter(~Detection.status.in_(['deleted','hidden']))
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        trapUnit = ast.literal_eval(request.form['trapUnit'])
+        
+        if Config.DEBUGGING: app.logger.info('Results summary for {} {} {} {}'.format(task_ids,baseUnit,startDate,endDate))
+    else:
+        task_ids = None
 
 
-        # vhl = db.session.query(Label).get(GLOBALS.vhl_id)
-        # label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id]
-        # for task_id in task_ids:
-        #     label_list.extend(getChildList(vhl,int(task_id)))
-        # baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+    status = 'FAILURE'
+    summary = None
+    celery_result = None
+    message = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('results_summary_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('results_summary_' + str(current_user.id))
+                try:
+                    app.logger.info('Revoking task {}'.format(result_id))
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
 
-        # if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'trapUnit': trapUnit})
+            GLOBALS.redisClient.set('results_summary_' + str(user_id), result.id)
+            app.logger.info('Task {} started'.format(result.id))
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('results_summary_' + str(current_user.id))
+            if result_id:
+                result = calculate_results_summary.AsyncResult(result_id)
+                app.logger.info('Task {} status: {}'.format(result_id, result.state))
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    app.logger.info('Celery result: {}'.format(celery_result))
+                    if celery_result['status'] == 'SUCCESS':
+                        summary = celery_result['summary']
+                        result.forget()
+                        GLOBALS.redisClient.delete('results_summary_' + str(current_user.id))
+                    else:
+                        status = celery_result['status']
+                        message = celery_result['error']
+                        summary = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('results_summary_' + str(current_user.id))
+                elif status == 'FAILURE':
+                    message = 'Task {} failed'.format(result_id)
+                    summary = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('results_summary_' + str(current_user.id))
 
-        # if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
-
-        # labels = baseQuery.group_by(Label.id).distinct().all()
-
-        # app.logger.info(baseQuery)
-
-        if baseUnit == '1': # Image
-            labels = db.session.query(Label.id, Label.description, Label.image_count).filter(Label.task_id.in_(task_ids)).all()
-        elif baseUnit == '2': # Cluster
-            labels = db.session.query(Label.id, Label.description, Label.cluster_count).filter(Label.task_id.in_(task_ids)).all()
-        elif baseUnit == '3':  # Detection
-            labels = db.session.query(Label.id, Label.description, Label.sighting_count).filter(Label.task_id.in_(task_ids)).all()
-
-
-        df = pd.DataFrame(labels, columns=['id', 'species', 'count'])
-        species_count = df.groupby('species').sum().reset_index().drop('id', axis=1)
-
-        r = robjects.r
-        try:
-            vegan = importr('vegan')
-        except:
-            utils = importr('utils')
-            utils.install_packages('vegan')
-            vegan = importr('vegan')
-
-        r.source('R/summary.R')
-
-        app.logger.info(df)
-        app.logger.info(species_count)
-
-        species_count_r = robjects.conversion.py2rpy(species_count)
-
-        indexes = r.calculate_summary_indexes(species_count_r)
-
-        summary_indexes = {'Shannon-Wiener Index': float(indexes.rx2('shannon_index')[0]),
-                       "Simpson's Index": float(indexes.rx2('simpsons_index')[0]),
-                       'Hill Number': float(indexes.rx2('hill_number')[0]),
-                       "Pielou's Evenness": float(indexes.rx2('pielous_evenness')[0]),
-                       'Species Richness': float(indexes.rx2('species_richness')[0])}
-
-        species_count_dict = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
-        app.logger.info(species_count_dict)
-
-    return json.dumps({'status': 'success', 'indexes': summary_indexes, 'species_count': species_count_dict})
+    return json.dumps({'status': status, 'summary': summary, 'message': message})
 
 
+@app.route('/getOccupancy', methods=['POST'])
+@login_required
+def getOccupancy():
+    ''' Get the occupancy analysis for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        baseUnit = ast.literal_eval(request.form['baseUnit'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        window = ast.literal_eval(request.form['window'])
+        siteCovs = ast.literal_eval(request.form['siteCovs'])
+        detCovs = ast.literal_eval(request.form['detCovs'])
+        covOptions = ast.literal_eval(request.form['covOptions'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+
+        if Config.DEBUGGING: app.logger.info('Occupancy data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,window,siteCovs,detCovs,covOptions))
+    else:
+        task_ids = None
+    
+    status = 'FAILURE'
+    celery_result = None
+    occupancy_results = None
+    message = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id))
+                try:
+                    app.logger.info('Revoking task {}'.format(result_id))
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
+
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = calculateOccupancyAnalysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
+            GLOBALS.redisClient.set('occupancy_analysis_' + str(user_id), result.id)
+            app.logger.info('Task {} started'.format(result.id))
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id))
+            if result_id:
+                result = calculateOccupancyAnalysis.AsyncResult(result_id)
+                app.logger.info('Task {} status: {}'.format(result_id, result.state))
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        occupancy_results = celery_result['occupancy_results']
+                        app.logger.info('Task {} result: {}'.format(result_id, occupancy_results))
+                        result.forget()
+                        GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
+                    else:
+                        status = celery_result['status']
+                        message = celery_result['error']
+                        occupancy_results = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
+                elif status == 'FAILURE':
+                    message = 'Task {} failed'.format(result_id)
+                    occupancy_results = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
+
+
+    return json.dumps({'status': status, 'results': occupancy_results, 'message': message})
+
+
+@app.route('/getOccupancyCSV', methods=['POST'])
+@login_required
+def getOccupancyCSV():
+    ''' Get the occupancy analysis (CSV) for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        baseUnit = ast.literal_eval(request.form['baseUnit'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        window = ast.literal_eval(request.form['window'])
+        siteCovs = ast.literal_eval(request.form['siteCovs'])
+        detCovs = ast.literal_eval(request.form['detCovs'])
+        covOptions = ast.literal_eval(request.form['covOptions'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        csv = True
+
+        if Config.DEBUGGING: app.logger.info('Occupancy data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,window,siteCovs,detCovs,covOptions))
+    else:
+        task_ids = None
+    
+    status = 'FAILURE'
+    celery_result = None
+    occupancy_results = None
+    csv_urls = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id))
+                try:
+                    app.logger.info('Revoking task {}'.format(result_id))
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
+
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = calculateOccupancyAnalysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            GLOBALS.redisClient.set('occupancy_csv_' + str(user_id), result.id)
+            app.logger.info('Task {} started'.format(result.id))
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id))
+            if result_id:
+                result = calculateOccupancyAnalysis.AsyncResult(result_id)
+                app.logger.info('Task {} status: {}'.format(result_id, result.state))
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        occupancy_results = celery_result['occupancy_results']
+                        csv_urls = occupancy_results['csv_urls']
+                        app.logger.info('Task {} result: {}'.format(result_id, csv_urls))
+                        result.forget()
+                        GLOBALS.redisClient.delete('occupancy_csv_' + str(current_user.id))
+                    else:
+                        status = celery_result['status']
+                        csv_urls = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('occupancy_csv_' + str(current_user.id))
+                elif status == 'FAILURE':
+                    csv_urls = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('occupancy_csv_' + str(current_user.id))
+
+
+    return json.dumps({'status': status, 'csv_urls': csv_urls})

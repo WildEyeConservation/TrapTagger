@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-calculate_activity_pattern <- function(data, file_name, species, centre, unit, time, overlap, lat, lng) {
+calculate_activity_pattern <- function(data, file_name, species, centre, unit, time, overlap, lat, lng, utc_offset_hours,tz) {
   library(overlap)
   library(activity)
   library(lubridate)
   library(ggplot2)
-  library(suncalc)
+  # library(suncalc)
+  library(solartime)
   
   dat <- data
 
@@ -25,7 +26,6 @@ calculate_activity_pattern <- function(data, file_name, species, centre, unit, t
   jpeg(file = file_name, quality = 100, width = 800, height = 800, units = "px", pointsize = 16)
 
   max_result <- 0
-  timezone <- 0
 
   if (overlap == 'true' && length(species) == 2){
     dat1 <- dat[dat$species == species[1],]
@@ -33,11 +33,11 @@ calculate_activity_pattern <- function(data, file_name, species, centre, unit, t
 
     if (time == "solar"){
       pos.time1 <- as.POSIXct(dat1$timestamp)
-      time_solar1 <- solartime(pos.time1,  lat, lng, timezone)
+      time_solar1 <- solartime(pos.time1,  lat, lng, utc_offset_hours)
       time.rad1 <- time_solar1$solar
 
       pos.time2 <- as.POSIXct(dat2$timestamp)
-      time_solar2 <- solartime(pos.time2,  lat, lng, timezone)
+      time_solar2 <- solartime(pos.time2,  lat, lng, utc_offset_hours)
       time.rad2 <- time_solar2$solar
     }
     else{
@@ -78,7 +78,7 @@ calculate_activity_pattern <- function(data, file_name, species, centre, unit, t
       dat_s <- dat[dat$species == s,]
 
       if (time == "solar") {
-        time_solar <- solartime(dat_s$timestamp, lat, lng, timezone)
+        time_solar <- solartime(dat_s$timestamp, lat, lng, utc_offset_hours)
         time.rad <- time_solar$solar
       } else {
         pos.time <- as.POSIXct(dat_s$timestamp)
@@ -102,9 +102,16 @@ calculate_activity_pattern <- function(data, file_name, species, centre, unit, t
   sunset = c()
   sunrise = c()
   for (i in seq_along(dat$timestamp)) {
-    sunlight <- getSunlightTimes(as.Date(dat$timestamp[i]), lat, lng, keep = c("sunrise", "sunset"), tz = "UTC")
-    sunrise <- append(sunrise, gettime(sunlight$sunrise, scale = 'hour'))
-    sunset <- append(sunset, gettime(sunlight$sunset, scale = 'hour'))
+    # sunlight <- getSunlightTimes(as.Date(dat$timestamp[i]), lat, lng, keep = c("sunrise", "sunset"), tz = tz)
+    # sunrise <- append(sunrise, gettime(sunlight$sunrise, scale = 'hour'))
+    # sunset <- append(sunset, gettime(sunlight$sunset, scale = 'hour'))
+
+    # Use solartime package instead of suncalc package
+    rise <- computeSunriseHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
+    set <- computeSunsetHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
+
+    sunrise <- append(sunrise, rise)
+    sunset <- append(sunset, set)
 
   } 
 
@@ -162,8 +169,14 @@ get_activity_from_csv <- function(){
   # Longitude
   lng <- 28.187
 
+  # UTC offset hours with sign (South Africa is UTC+2) 
+  utc_offset_hours <- 2
+
+  # Timezone
+  tz <- 'Africa/Johannesburg'
+
   # Calculate activity pattern
-  image_file_name <- calculate_activity_pattern(species_data, file_name, species, centre, unit, time, overlap, lat, lng)
+  image_file_name <- calculate_activity_pattern(species_data, file_name, species, centre, unit, time, overlap, lat, lng, utc_offset_hours, tz)
 
   return(image_file_name)
 }

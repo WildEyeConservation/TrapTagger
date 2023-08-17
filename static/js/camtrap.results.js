@@ -104,7 +104,7 @@ var trapgroupValues
 var polarData = {}
 var barData = {}
 var lineData = {}
-var map = null
+var map = {}
 var trapgroupInfo
 var heatmapLayer = null
 var markers = null
@@ -131,12 +131,20 @@ var includeRadialAxisLabels = true
 var includeGridLines = true
 var backgroundColour = null 
 var tabActive = 'baseAnalysisDiv'
+var tabActiveResults = 'dataSummaryTab'
 var selectedAnnotationSets = {}
 var suveysAndSets = []
 var globalAnnotationSets = []
-var activeImage = null
+var activeImage = {}
+var summaryTrapUnit = '0'
+var globalSiteCovariates = []
+var globalDetectionCovariates = []
+var globalCovariateOptions = []
+var globalCSVData = []
 
 const modalExportAlert = $('#modalExportAlert')
+const modalCovariates = $('#modalCovariates')
+const modalImportCovariates = $('#modalImportCovariates')
 // const modalAnnotationsSets = $('#modalAnnotationsSets')
 
 function getLabelsAndSites(){
@@ -249,10 +257,16 @@ function generateResults(){
     /** Updates the generate results div based on the selected analysis type */
     var analysisType = document.getElementById('analysisSelector').value
     var resultsDiv = document.getElementById('resultsDiv')
+    var resultsTab = document.getElementById('resultsTab')
 
     while(resultsDiv.firstChild){
         resultsDiv.removeChild(resultsDiv.firstChild)
-    }    
+    }   
+    
+    resultsTab = document.getElementById('resultsTab')
+    while(resultsTab.firstChild){
+        resultsTab.removeChild(resultsTab.firstChild);
+    }
 
     barData = {}
     polarData = {}
@@ -263,9 +277,9 @@ function generateResults(){
 
     if (analysisType=='0') {
         //Builds the selectors for the summary analysis
-        document.getElementById('btnExportResults').disabled = true
-        document.getElementById('chartTypeDiv').hidden = false
-        document.getElementById('chartTypeSelector').value = 'bar'
+        document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeDiv').hidden = true
+        // document.getElementById('chartTypeSelector').value = 'bar'
         document.getElementById('normalisationDiv').hidden = true
         document.getElementById('timeUnitSelectionDiv').hidden = true 
         document.getElementById('spatialOptionsDiv').hidden = true
@@ -278,9 +292,18 @@ function generateResults(){
         document.getElementById('siteDataDiv').hidden = true
         document.getElementById('speciesDataDiv').hidden = true
         document.getElementById('optionsDiv').hidden = true
-        document.getElementById('buttonsR').hidden = true
+        document.getElementById('buttonsR').hidden = false
+        document.getElementById('btnViewScript').hidden = true
+        document.getElementById('btnDownloadResultsCSV').hidden = true
         document.getElementById('scriptDiv').hidden = true
-        getSummary()
+        document.getElementById('groupButtonsDiv').hidden = true
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = false
+        resultsDiv = document.getElementById('resultsDiv')
+        while(resultsDiv.firstChild){
+            resultsDiv.removeChild(resultsDiv.firstChild)
+        }
     }
     else if (analysisType=='1') {
         //Builds the selectors for the temporal analysis
@@ -301,6 +324,10 @@ function generateResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = false
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
         generateTemporal()
     }
     else if (analysisType=='2') {
@@ -321,6 +348,10 @@ function generateResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = false
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
         generateSpatial()
     }
     else if (analysisType=='3') {
@@ -342,6 +373,10 @@ function generateResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = false
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
         generateNumerical()
     }
     else if (analysisType=='4') {
@@ -363,6 +398,10 @@ function generateResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = true
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
         generateTime()
     }
     else if (analysisType=='5') {
@@ -382,8 +421,37 @@ function generateResults(){
         document.getElementById('speciesDataDiv').hidden = false
         document.getElementById('optionsDiv').hidden = false
         document.getElementById('buttonsR').hidden = false
-        document.getElementById('scriptDiv').hidden = true
+        document.getElementById('btnViewScript').hidden = false
+        document.getElementById('btnDownloadResultsCSV').hidden = false
+        document.getElementById('groupButtonsDiv').hidden = false
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
         generateActivity()
+    }
+    else if (analysisType=='6') {
+        //Builds the selectors for the occupancy analysis
+        document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeDiv').hidden = true
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = false
+        document.getElementById('speciesDataDiv').hidden = false
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = false
+        document.getElementById('btnViewScript').hidden = false
+        document.getElementById('btnDownloadResultsCSV').hidden = false
+        document.getElementById('groupButtonsDiv').hidden = false
+        document.getElementById('covariatesDiv').hidden = false
+        document.getElementById('observationWindowDiv').hidden = false
+        document.getElementById('cameraTrapDiv').hidden = true
     }
     else{
         document.getElementById('btnExportResults').disabled = true
@@ -402,6 +470,10 @@ function generateResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
         document.getElementById('scriptDiv').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = true
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
     }
 
 }
@@ -1517,7 +1589,15 @@ function updateResults(update=false){
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
-    if (analysisSelection == '1') {
+    if (analysisSelection == '0') {
+        // document.getElementById('resultsDiv').style.display = 'none'
+        // document.getElementById('loadingDiv').style.display = 'block'
+        // document.getElementById('loadingCircle').style.display = 'block'
+        document.getElementById('btnExportResults').disabled = true
+        analysisSelector.disabled = true
+        getSummary()
+    }
+    else if (analysisSelection == '1') {
         updatePolar()
     }
     else if (analysisSelection == '2') {
@@ -1539,10 +1619,12 @@ function updateResults(update=false){
         updateLine()
     }
     else if (analysisSelection == '5') {
-        document.getElementById('resultsDiv').style.display = 'none'
-        document.getElementById('loadingDiv').style.display = 'block'
-        document.getElementById('loadingCircle').style.display = 'block'
+        analysisSelector.disabled = true
         updateActivity()
+    }
+    else if (analysisSelection == '6') {
+        analysisSelector.disabled = true
+        updateOccupancy()
     }
 }
 
@@ -1737,25 +1819,64 @@ function updateActivity(check=false){
 
     if (species != '-1' && validActivity) {
 
+        if (!check) {
+            document.getElementById('resultsDiv').style.display = 'none'
+            document.getElementById('loadingDiv').style.display = 'block'
+            document.getElementById('loadingCircle').style.display = 'block'
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
+                resultsDiv = document.getElementById('resultsDiv')
                 if(reply.status == 'SUCCESS'){
                     image_url = reply.activity_img_url
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
-                    document.getElementById('resultsDiv').style.display = 'block'
-                    if (activeImage) {
-                        activeImage.setUrl(image_url)
+                    resultsDiv.style.display = 'block'
+                    document.getElementById('analysisSelector').disabled = false
+                    if (image_url){
+                        if (activeImage['mapDiv']) {
+                            activeImage['mapDiv'].setUrl(image_url)
+                        }
+                        else{
+                            while(resultsDiv.firstChild){
+                                resultsDiv.removeChild(resultsDiv.firstChild);
+                            }
+                            generateActivity()
+                            initialiseImageMap(image_url)
+                        }
                     }
                     else{
-                        initialiseImageMap(image_url)
+
+                        while (resultsDiv.firstChild) {
+                            resultsDiv.removeChild(resultsDiv.firstChild);
+                        }
+                        activeImage['mapDiv'] = null
+                        var h5 = document.createElement('h5')
+                        h5.innerHTML = 'No data available for this analysis. Please try again.'
+                        resultsDiv.appendChild(h5)
                     }
+
                 }
-                else if(reply.status != 'FAILURE'){
+                else if(reply.status == 'FAILURE'){
+
+                    while (resultsDiv.firstChild) {
+                        resultsDiv.removeChild(resultsDiv.firstChild);
+                    }
+
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    resultsDiv.style.display = 'block'
+                    var h5 = document.createElement('h5')
+                    h5.innerHTML = 'An error occurred while running the analysis. Please try again.'
+                    resultsDiv.appendChild(h5)
+                    document.getElementById('analysisSelector').disabled = false
+                }
+                else {
                     setTimeout(function(){updateActivity(true)}, 10000);
                 }
 
@@ -1799,12 +1920,15 @@ function checkActivity(species, overlap){
 }
 
 
-function initialiseImageMap(image_url){
+function initialiseImageMap(image_url, map_id='mapDiv'){
     /**Initialises the image map */
-    var mapDiv = document.getElementById('mapDiv')
+    var mapDiv = document.getElementById(map_id)
     var imageUrl = image_url
     var img = new Image();
     img.onload = function(){
+
+        mapDiv = document.getElementById(map_id)
+
         w = this.width
         h = this.height
 
@@ -1818,7 +1942,7 @@ function initialiseImageMap(image_url){
 
         L.Browser.touch = true
         console.log(mapDiv)
-        map = new L.map(mapDiv, {
+        map[map_id] = new L.map(mapDiv, {
             crs: L.CRS.Simple,
             maxZoom: 10,
             center: [0, 0],
@@ -1828,41 +1952,47 @@ function initialiseImageMap(image_url){
         var h1 = mapDiv.clientHeight
         var w1 = mapDiv.clientWidth
 
-        var southWest = map.unproject([0, h1], 2);
-        var northEast = map.unproject([w1, 0], 2);
+        var southWest = map[map_id].unproject([0, h1], 2);
+        var northEast = map[map_id].unproject([w1, 0], 2);
         var bounds = new L.LatLngBounds(southWest, northEast);
 
         mapWidth = northEast.lng
         mapHeight = southWest.lat
 
-        activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
-        map.setMaxBounds(bounds);
-        map.fitBounds(bounds)
-        map.setMinZoom(map.getZoom())
+        activeImage[map_id] = L.imageOverlay(imageUrl, bounds).addTo(map[map_id]);
+        map[map_id].setMaxBounds(bounds);
+        map[map_id].fitBounds(bounds)
+        map[map_id].setMinZoom(map[map_id].getZoom())
 
         
-        map.on('resize', function(){
-            mapDiv = document.getElementById('mapDiv')
-            h1 = mapDiv.clientHeight
-            w1 = mapDiv.clientWidth
+        map[map_id].on('resize', function(wrap_map_id) {
+            return function() {
+                mapDiv = document.getElementById(wrap_map_id)
+                if (mapDiv) {
+                    h1 = mapDiv.clientHeight
+                    w1 = mapDiv.clientWidth
 
-            southWest = map.unproject([0, h1], 2);
-            northEast = map.unproject([w1, 0], 2);
-            bounds = new L.LatLngBounds(southWest, northEast);
+                    southWest = map[wrap_map_id].unproject([0, h1], 2);
+                    northEast = map[wrap_map_id].unproject([w1, 0], 2);
+                    bounds = new L.LatLngBounds(southWest, northEast);
 
-            mapWidth = northEast.lng
-            mapHeight = southWest.lat
+                    mapWidth = northEast.lng
+                    mapHeight = southWest.lat
 
-            map.invalidateSize()
-            map.setMaxBounds(bounds)
-            map.fitBounds(bounds)
-            map.setMinZoom(map.getZoom())
-            activeImage.setBounds(bounds)
-        });
+                    map[wrap_map_id].invalidateSize()
+                    map[wrap_map_id].setMaxBounds(bounds)
+                    map[wrap_map_id].fitBounds(bounds)
+                    map[wrap_map_id].setMinZoom(map[wrap_map_id].getZoom())
+                    activeImage[wrap_map_id].setBounds(bounds)
+                }
+            }
+        }(map_id));
 
-        map.on('drag', function() {
-            map.panInsideBounds(bounds, { animate: false });
-        });
+        map[map_id].on('drag', function(wrap_map_id) {
+            return function() {
+                map[wrap_map_id].panInsideBounds(bounds, { animate: false });
+            }
+        }(map_id));
 
     }
     console.log(img)
@@ -1918,7 +2048,7 @@ function getActivityPatternCSV(check=false){
     }
 
     if (species != '-1' && validActivity) {
-
+        document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -1934,8 +2064,13 @@ function getActivityPatternCSV(check=false){
                     link.setAttribute('href', csv_url);
                     link.click();
 
+                    document.getElementById('rErrors').innerHTML = ''
+
                 }
-                else if(reply.status != 'FAILURE'){
+                else if(reply.status == 'FAILURE'){
+                    document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                }
+                else{
                     setTimeout(function(){getActivityPatternCSV(true)}, 10000);
                 }
 
@@ -2011,7 +2146,7 @@ function getSelectedSites(text=false){
     else if (analysis == '3'){
         allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
-    else if (analysis=='5'){
+    else if (analysis=='5' || analysis=='6'){
         allSites = document.querySelectorAll('[id^=siteSelector-]')
     }
     else if (analysis=='0' || analysis=='-1'){
@@ -2020,7 +2155,7 @@ function getSelectedSites(text=false){
     else {
         allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
     }
-    console.log(allSites)
+    // console.log(allSites)
     if (text) {
         for (let i=0;i<allSites.length;i++) {
             if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
@@ -2057,7 +2192,7 @@ function getSelectedSites(text=false){
     // }
 
 
-    console.log(sites)
+    // console.log(sites)
     return sites
 }
 
@@ -2505,7 +2640,7 @@ function checkTimeUnit(){
 
 function updateChartStyle(){
     // Updates the chart style based on the selected style
-
+    analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
     textColour = document.getElementById('textColourSelector').value
     var axisColourSelector = document.getElementById('axisColourSelector').value
     includeLegend = document.getElementById('includeLegend').checked
@@ -2531,7 +2666,12 @@ function updateChartStyle(){
         var chartOptions = chart.options
         var chartType = chart.config.type
 
-        chartOptions.legend.display = includeLegend
+        if (analysisSelection == '0'){
+            chartOptions.legend.display = false
+        }
+        else{
+            chartOptions.legend.display = includeLegend
+        }
         chartOptions.legend.labels.fontColor = textColour
         chartOptions.legend.onClick = null
 
@@ -2591,6 +2731,211 @@ function updateChartStyle(){
         });
 
         document.getElementById('statisticsChart').style.backgroundColor = backgroundColour
+
+
+        if (analysisSelection == '0'){
+            if(chart1 && document.getElementById('ct_canvas1')){
+                var chartData1 = chart1.data
+                var chartOptions1 = chart1.options
+                var chartType1 = chart1.config.type
+
+                chartOptions1.legend.display = false
+                chartOptions1.legend.labels.fontColor = textColour
+                chartOptions1.legend.onClick = null
+
+                if (axisColourSelector == '1') {
+                    axisColour = 'rgba(255,255,255,0.2)'
+                }
+                else {
+                    axisColour = 'rgba(0,0,0,0.2)'
+                }
+
+                if (chartOptions1.scale != undefined) {
+                    if (chartOptions1.scale.pointLabels != undefined) {
+                        chartOptions1.scale.pointLabels.display = includeLabels
+                        chartOptions1.scale.pointLabels.fontColor = textColour
+                    }
+                    if (chartOptions1.scale.ticks != undefined) {
+                        chartOptions1.scale.ticks.display = includeRadialAxisLabels
+                        chartOptions1.scale.ticks.fontColor = textColour
+                    }
+                    if (chartOptions1.scale.gridLines != undefined) {
+                        chartOptions1.scale.gridLines.display = includeGridLines
+                        chartOptions1.scale.gridLines.color = axisColour
+                    }
+                }
+                else if (chartOptions1.scales != undefined){
+                    if (chartOptions1.scales.xAxes != undefined) {
+                        chartOptions1.scales.xAxes[0].ticks.display = includeLabels
+                        chartOptions1.scales.xAxes[0].ticks.fontColor = textColour
+                        chartOptions1.scales.xAxes[0].gridLines.drawOnChartArea = includeGridLines
+                        chartOptions1.scales.xAxes[0].gridLines.color = axisColour
+                    }
+
+                    if (chartOptions1.scales.yAxes != undefined) {
+                        chartOptions1.scales.yAxes[0].ticks.display = includeLabels
+                        chartOptions1.scales.yAxes[0].ticks.fontColor = textColour
+                        chartOptions1.scales.yAxes[0].gridLines.drawOnChartArea = includeGridLines
+                        chartOptions1.scales.yAxes[0].gridLines.color = axisColour
+                    }
+
+                }
+
+                if (chartType1 != 'line') {
+                    for (let i=0;i<chartData1.datasets.length;i++) {
+                        chartData1.datasets[i].borderColor = borderColour
+                        chartData1.datasets[i].borderWidth = includeBorders ? 1 : 0
+                    }
+                }
+
+                chart1.destroy()
+
+                var ctx1 = document.getElementById('ct_canvas1').getContext('2d');
+
+                chart1 = new Chart(ctx1, {
+                    data: chartData1,
+                    type: chartType1,
+                    options: chartOptions1
+                });
+
+                document.getElementById('ct_canvas1').style.backgroundColor = backgroundColour
+
+            }
+
+            if(chart2 && document.getElementById('ct_canvas2')){
+                var chartData2 = chart2.data
+                var chartOptions2 = chart2.options
+                var chartType2 = chart2.config.type
+
+                chartOptions2.legend.display = false
+
+                if (axisColourSelector == '1') {
+                    axisColour = 'rgba(255,255,255,0.2)'
+                }
+                else {
+                    axisColour  = 'rgba(0,0,0,0.2)'
+                }
+
+                if (chartOptions2.scale != undefined) {
+                    if (chartOptions2.scale.pointLabels != undefined) {
+                        chartOptions2.scale.pointLabels.display = includeLabels
+                        chartOptions2.scale.pointLabels.fontColor = textColour
+                    }
+
+                    if (chartOptions2.scale.ticks != undefined) {
+                        chartOptions2.scale.ticks.display = includeRadialAxisLabels
+                        chartOptions2.scale.ticks.fontColor = textColour
+                    }
+
+                    if (chartOptions2.scale.gridLines != undefined) {
+                        chartOptions2.scale.gridLines.display = includeGridLines
+                        chartOptions2.scale.gridLines.color = axisColour
+                    }
+
+                }
+                else if (chartOptions2.scales != undefined){
+                    if (chartOptions2.scales.xAxes != undefined) {
+                        chartOptions2.scales.xAxes[0].ticks.display = includeLabels
+                        chartOptions2.scales.xAxes[0].ticks.fontColor = textColour
+                        chartOptions2.scales.xAxes[0].gridLines.drawOnChartArea = includeGridLines
+                        chartOptions2.scales.xAxes[0].gridLines.color = axisColour
+                    }
+
+                    if (chartOptions2.scales.yAxes != undefined) {
+                        chartOptions2.scales.yAxes[0].ticks.display = includeLabels
+                        chartOptions2.scales.yAxes[0].ticks.fontColor = textColour
+                        chartOptions2.scales.yAxes[0].gridLines.drawOnChartArea = includeGridLines
+                        chartOptions2.scales.yAxes[0].gridLines.color = axisColour
+                    }
+
+                }
+
+                if (chartType2 != 'line') {
+                    for (let i=0;i<chartData2.datasets.length;i++) {
+                        chartData2.datasets[i].borderColor = borderColour
+                        chartData2.datasets[i].borderWidth = includeBorders ? 1 : 0
+                    }
+                }
+
+                chart2.destroy()
+
+                var ctx2 = document.getElementById('ct_canvas2').getContext('2d');
+
+                chart2 = new Chart(ctx2, {
+                    data: chartData2,
+                    type: chartType2,
+                    options: chartOptions2
+                });
+
+                document.getElementById('ct_canvas2').style.backgroundColor = backgroundColour
+
+            }
+
+
+            if (document.getElementById('div_ct3')){
+                chart3 = document.getElementById('div_ct3')
+                // CHart 3 is a PLotly chart and the style needs to be updated 
+                var chartData3 = chart3.data
+                var chartLayout3 = chart3.layout
+
+                chartLayout3.font.color = textColour
+
+                if (axisColourSelector == '1') {
+                    axisColour = 'rgba(255,255,255,0.2)'
+                }
+                else{
+                    axisColour = 'rgba(0,0,0,0.2)'
+                }
+
+                if (chartLayout3.xaxis != undefined) {
+                    chartLayout3.xaxis.color = textColour
+                    chartLayout3.xaxis.showgrid = includeGridLines
+                    chartLayout3.xaxis.gridcolor = axisColour
+                }
+
+                if (chartLayout3.yaxis != undefined) {
+                    chartLayout3.yaxis.color = textColour
+                    chartLayout3.yaxis.showgrid = includeGridLines
+                    chartLayout3.yaxis.gridcolor = axisColour
+                }
+
+                // CHange the background colour
+                if (backgroundColour != null) {
+                    chartLayout3.plot_bgcolor = backgroundColour
+                    chartLayout3.paper_bgcolor = backgroundColour
+                }
+                else{
+                    chartLayout3.paper_bgcolor= 'rgb(78,93,108)'
+                    chartLayout3.plot_bgcolor= 'rgb(78,93,108'
+                }
+
+                // Show or don't show the labels
+                if (includeLabels) {
+                    if (chartLayout3.xaxis != undefined) {
+                        chartLayout3.xaxis.showticklabels = true
+                    }
+
+                    if (chartLayout3.yaxis != undefined) {
+                        chartLayout3.yaxis.showticklabels = true
+                    }
+                }
+                else{
+                    if (chartLayout3.xaxis != undefined) {
+                        chartLayout3.xaxis.showticklabels = false
+                    }
+
+                    if (chartLayout3.yaxis != undefined) {
+                        chartLayout3.yaxis.showticklabels = false
+                    }
+                }
+
+
+                Plotly.react('div_ct3', chartData3, chartLayout3, {displayModeBar: false});
+                
+            }
+
+        }
+
     }
 }
 
@@ -2845,6 +3190,7 @@ function buildRSiteRows(){
 }
 
 function buildRSpeciesRows(){
+    var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
     var speciesSelectorDiv = document.getElementById('speciesSelectorDiv')
     var IDNum = getIdNumforNext('speciesSelector-')
 
@@ -2896,7 +3242,7 @@ function buildRSpeciesRows(){
 
 
 $('#analysisSelector').on('change', function() {
-    activeImage = null
+    activeImage = {}
     generateResults()
 });
 
@@ -2904,10 +3250,7 @@ $('#baseUnitSelector').on('change', function() {
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
-    if (analysisSelection == '0') {
-        getSummary()
-    }
-    else if (analysisSelection == '1') {
+    if (analysisSelection == '1') {
         updateBaseUnitPolar()
     }
     else if (analysisSelection == '2') {
@@ -2921,25 +3264,22 @@ $('#baseUnitSelector').on('change', function() {
     }
 });
 
-$('#startDate').on('change', function() {
+$('#startDate, #endDate').on('change', function() {
     var vaild = checkDates()
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+    
     if (vaild) {
-        updateResults()
+        if(analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6'){
+            updateResults()
+        }
     }
     else{
         document.getElementById('dateErrors').innerHTML = 'Start date must be before end date.'
     }
+    
 });
 
-$('#endDate').on('change', function() {
-    var vaild = checkDates()
-    if (vaild) {
-        updateResults()
-    }
-    else{
-        document.getElementById('dateErrors').innerHTML = 'Start date must be before end date.'
-    }
-});
 
 $('#chartTypeSelector').on('change', function() {
     var chartTypeSelector = document.getElementById('chartTypeSelector')
@@ -3237,24 +3577,29 @@ $('#btnViewScript').click( function() {
         if (analysisSelection == '5') {
             filename = 'activity_pattern'
         }
+        else if (analysisSelection == '6') {
+            filename = 'occupancy'
+        }
         else{
-            filename = ''
+            filename = null
         }
 
-        var formData = new FormData()
-        formData.append('filename', JSON.stringify(filename))
+        if (filename){
+            var formData = new FormData()
+            formData.append('filename', JSON.stringify(filename))
 
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                document.getElementById('scriptTextArea').innerHTML = reply.script
-                document.getElementById('scriptDiv').hidden = false
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    document.getElementById('scriptTextArea').innerHTML = reply.script
+                    document.getElementById('scriptDiv').hidden = false
+                }
             }
+            xhttp.open("POST", '/getRScript');
+            xhttp.send(formData);
         }
-        xhttp.open("POST", '/getRScript');
-        xhttp.send(formData);
     }
     else {
         document.getElementById('scriptDiv').hidden = true
@@ -3269,6 +3614,9 @@ $('#btnDownloadResultsCSV').click( function() {
 
     if (analysisSelection == '5') {
         getActivityPatternCSV()
+    }
+    else if (analysisSelection == '6') {
+        getOccupancyCSV()
     }
 });
 
@@ -3299,6 +3647,15 @@ function clearResults(){
         while(speciesDiv.firstChild){
             speciesDiv.removeChild(speciesDiv.firstChild);
         }
+
+        var resultsTab = document.getElementById('resultsTab')
+        while(resultsTab.firstChild){
+            resultsTab.removeChild(resultsTab.firstChild);
+        }
+
+        document.getElementById('loadingDiv').style.display = 'none'
+        document.getElementById('loadingCircle').style.display = 'none'
+        document.getElementById('resultsDiv').style.display = 'block'
         
         document.getElementById('normalisationDiv').hidden = true
         document.getElementById('timeUnitSelectionDiv').hidden = true 
@@ -3325,6 +3682,10 @@ function clearResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
         document.getElementById('scriptDiv').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = true
+        document.getElementById('covariatesDiv').hidden = true
+        document.getElementById('observationWindowDiv').hidden = true
+        document.getElementById('cameraTrapDiv').hidden = true
 
         clearChartColours()
 
@@ -3370,12 +3731,97 @@ function clearResults(){
     }
 }
 
-function exportResults(){
+async function exportResults(){
     /** Exports the charts to an image */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
-    if (analysisSelection == '2') {
+    if (analysisSelection == '0') {
+        // Export each element on the summary page
+        // if (tabActiveResults == 'dataSummaryTab'){
+        //     var table = document.getElementById('summaryTable')
+            
+        //     // Create image from table
+        //     html2canvas(table, {
+        //         onrendered: function(canvas) {
+        //             var image = canvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+        //             var link = document.createElement('a');
+        //             link.download = 'summary.png';
+        //             link.href = image;
+        //             link.click();
+        //         }
+        //     });
+
+        // }
+        if (tabActiveResults == 'abundanceTab'){
+            var canvas = document.getElementById('statisticsChart');
+            var newCanvas = document.createElement('canvas');
+            newCanvas.width = canvas.width;
+            newCanvas.height = canvas.height;
+            var newContext = newCanvas.getContext('2d');
+            if (backgroundColour) {
+                newContext.fillStyle = backgroundColour;
+                newContext.fillRect(0, 0, newCanvas.width, newCanvas.height);
+            }
+            newContext.drawImage(canvas, 0, 0);
+
+            var image = newCanvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+            var link = document.createElement('a');
+            link.download = 'chart.png';
+            link.href = image;
+            link.click();
+        }
+        else if (tabActiveResults == 'effortDaysTab'){
+            var canvas = document.getElementById('ct_canvas1');
+            var newCanvas = document.createElement('canvas');
+            newCanvas.width = canvas.width;
+            newCanvas.height = canvas.height;
+
+            var newContext = newCanvas.getContext('2d');
+            if (backgroundColour) {
+                newContext.fillStyle = backgroundColour;
+                newContext.fillRect(0, 0, newCanvas.width, newCanvas.height);
+            }
+
+            newContext.drawImage(canvas, 0, 0);
+
+            var image = newCanvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+            var link = document.createElement('a');
+            link.download = 'chart1.png';
+            link.href = image;
+            link.click();
+
+        }
+        else if (tabActiveResults == 'cameraTrapDataCountsTab'){
+
+            var canvas = document.getElementById('ct_canvas2');
+            var newCanvas = document.createElement('canvas');
+
+            newCanvas.width = canvas.width;
+            newCanvas.height = canvas.height;
+
+            var newContext = newCanvas.getContext('2d');
+            if (backgroundColour) {
+                newContext.fillStyle = backgroundColour;
+                newContext.fillRect(0, 0, newCanvas.width, newCanvas.height);
+            }
+
+            newContext.drawImage(canvas, 0, 0);
+
+            var image = newCanvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
+            var link = document.createElement('a');
+            link.download = 'chart2.png';
+            link.href = image;
+            link.click();
+        }
+        else if (tabActiveResults == 'cameraTrapActivityTab'){
+
+            downloadButton = document.querySelector('[data-title="Download plot as a png"]');
+            downloadButton.click();
+        }
+
+    }    
+    else if (analysisSelection == '2') {
         if (spatialExportControl){
             if (activeBaseLayer.name.includes('Google')){
                 modalExportAlert.modal({keyboard: true})
@@ -3386,12 +3832,27 @@ function exportResults(){
         }
     }
     else if (analysisSelection == '5') {
-        if (activeImage && activeImage._url != '') {
-            var imageUrl = activeImage._url;
+        if (activeImage['mapDiv'] && activeImage['mapDiv']._url != '') {
+            var imageUrl = activeImage['mapDiv']._url;
             var link = document.createElement('a');
-            link.download = 'image.png';
             link.href = imageUrl;
             link.click();
+        }
+    }
+    else if (analysisSelection == '6') {
+        // Export all the images in activeImages except for the key mapDiv
+        console.log(activeImage)
+        for (let key in activeImage) {
+            if (key != 'mapDiv' && activeImage[key] && activeImage[key]._url != '') {
+                var imageUrl = activeImage[key]._url;
+                var link = document.createElement('a');
+                link.href = imageUrl;
+                link.click();
+
+                // Add a delay to allow the image to download (otherwise it will only download the last image)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+            }    
         }
     }
     else{
@@ -3418,15 +3879,15 @@ function exportResults(){
 function openAnalysisEdit(evt, editName) {
     // Declare all variables
     var i, tabcontent, tablinks;
-  
+    var filterCard = document.getElementById('filterCard')
     // Get all elements with class="tabcontent" and hide them
-    tabcontent = document.getElementsByClassName("tabcontent");
+    tabcontent = filterCard.getElementsByClassName("tabcontent");
     for (i = 0; i < tabcontent.length; i++) {
       tabcontent[i].style.display = "none";
     }
   
     // Get all elements with class="tablinks" and remove the class "active"
-    tablinks = document.getElementsByClassName("tablinks");
+    tablinks = filterCard.getElementsByClassName("tablinks");
     for (i = 0; i < tablinks.length; i++) {
       tablinks[i].className = tablinks[i].className.replace(" active", "");
     }
@@ -3439,25 +3900,77 @@ function openAnalysisEdit(evt, editName) {
     if (tabActive == 'baseTasksDiv') {
         getSurveysAndAnnotationSets()
     }
-  }
+}
 
-function getSummary(){
-    /** Gets the summary of the results */
-    var task_ids = getSelectedTasks()
-    var baseUnit = document.getElementById('baseUnitSelector').value
-    var start_date = document.getElementById('startDate').value
-    var end_date = document.getElementById('endDate').value
-
-    var formData = new FormData()
-    formData.append('task_ids', JSON.stringify(task_ids))
-    formData.append('baseUnit', JSON.stringify(baseUnit))
-    if (start_date != '') {	
-        start_date = start_date + ' 00:00:00'
-        formData.append('startDate', JSON.stringify(start_date))
+function openResultsTab(evt, tabName, results) {
+    // Declare all variables
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value;
+    var resultsCard = document.getElementById('mainCard')
+    var tabcontent = resultsCard.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
     }
-    if (end_date != '') {
-        end_date = end_date + ' 23:59:59'
-        formData.append('endDate', JSON.stringify(end_date))
+
+    var tablinks = resultsCard.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveResults = tabName
+
+    if (analysisSelection == '0'){
+        buildSummaryTab(results, tabName)
+    }
+    else if (analysisSelection == '6'){
+        buildOccupancyResults(results, tabName)
+    }
+}
+
+
+
+function getSummary(check){
+    /** Gets the summary of the results */
+
+    if (check) {
+        var formData = new FormData()
+    }
+    else{
+        var task_ids = getSelectedTasks()
+        var baseUnit = document.getElementById('baseUnitSelector').value
+        var start_date = document.getElementById('startDate').value
+        var end_date = document.getElementById('endDate').value
+        if (document.getElementById('cameraSelector')){
+            var trap_unit = document.getElementById('cameraSelector').value
+        }
+        else{
+            var trap_unit = '0'
+        }
+        summaryTrapUnit = trap_unit
+    
+        var formData = new FormData()
+        formData.append('task_ids', JSON.stringify(task_ids))
+        formData.append('baseUnit', JSON.stringify(baseUnit))
+        if (start_date != '') {	
+            start_date = start_date + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(start_date))
+        }
+        if (end_date != '') {
+            end_date = end_date + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(end_date))
+        }
+        formData.append('trapUnit', JSON.stringify(trap_unit))
+
+        document.getElementById('resultsDiv').style.display = 'none'
+        document.getElementById('loadingDiv').style.display = 'block'
+        document.getElementById('loadingCircle').style.display = 'block'
+
+        resultsTab = document.getElementById('resultsTab')
+        while(resultsTab.firstChild){
+            resultsTab.removeChild(resultsTab.firstChild)
+        }
     }
 
     var xhttp = new XMLHttpRequest();
@@ -3466,11 +3979,50 @@ function getSummary(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             console.log(reply)
-            resultsDiv = document.getElementById('resultsDiv')
-            while(resultsDiv.firstChild){
-                resultsDiv.removeChild(resultsDiv.firstChild);
+            if (reply.status == 'SUCCESS') {
+                console.log(reply)
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+                document.getElementById('btnExportResults').disabled = false
+                document.getElementById('analysisSelector').disabled = false
+
+                resultsDiv = document.getElementById('resultsDiv')
+                while(resultsDiv.firstChild){
+                    resultsDiv.removeChild(resultsDiv.firstChild);
+                }
+                
+                resultsTab = document.getElementById('resultsTab')
+                while(resultsTab.firstChild){
+                    resultsTab.removeChild(resultsTab.firstChild);
+                }
+
+                buildSummary(reply.summary)
             }
-            buildSummary(reply)
+            else if (reply.status == 'FAILURE'){
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+                document.getElementById('btnExportResults').disabled = true
+
+                resultsDiv = document.getElementById('resultsDiv')
+                while(resultsDiv.firstChild){
+                    resultsDiv.removeChild(resultsDiv.firstChild);
+                }
+
+                resultsTab = document.getElementById('resultsTab')
+                while(resultsTab.firstChild){
+                    resultsTab.removeChild(resultsTab.firstChild)
+                }
+
+                var h5 = document.createElement('h5')
+                h5.innerHTML = 'An error occurred while running the analysis. Please try again.'
+                resultsDiv.appendChild(h5)
+                document.getElementById('analysisSelector').disabled = false
+            }
+            else {
+                setTimeout(function(){getSummary(true)}, 10000);
+            }
         }
     }
     xhttp.open("POST", '/getResultsSummary');
@@ -3480,153 +4032,2908 @@ function getSummary(){
 function buildSummary(summary){
     /** Builds the summary div */
     var resultsDiv = document.getElementById('resultsDiv')
+    var resultsTab = document.getElementById('resultsTab')
+
+    // Create the tab buttons and tabs for summary results
+
+    // Data summary tab
+    var dataSummaryTabButton = document.createElement('button')
+    dataSummaryTabButton.classList.add('tablinks')
+    dataSummaryTabButton.classList.add('active')
+    dataSummaryTabButton.innerHTML = 'Data Summary'
+    resultsTab.appendChild(dataSummaryTabButton)
+
+    var dataSummaryTab = document.createElement('div')
+    dataSummaryTab.classList.add('tabcontent')
+    dataSummaryTab.setAttribute('id', 'dataSummaryTab')
+    dataSummaryTab.style.display = 'none'
+    resultsDiv.appendChild(dataSummaryTab)
+
+    dataSummaryTabButton.addEventListener('click', function(event){
+        openResultsTab(event, 'dataSummaryTab', summary)
+    });
+
+
+    // Diversity tab
+
+    var diversityTabButton = document.createElement('button')
+    diversityTabButton.classList.add('tablinks')
+    diversityTabButton.innerHTML = 'Diversity Indices'
+    resultsTab.appendChild(diversityTabButton)
+
+    var diversityTab = document.createElement('div')
+    diversityTab.classList.add('tabcontent')
+    diversityTab.setAttribute('id', 'diversityTab')
+    diversityTab.style.display = 'none'
+    resultsDiv.appendChild(diversityTab)
+
+    diversityTabButton.addEventListener('click', function(event){
+        openResultsTab(event, 'diversityTab', summary)
+    });
+    
+    // Species abundance tab
+    var abundanceTabButton = document.createElement('button')
+    abundanceTabButton.classList.add('tablinks')
+    abundanceTabButton.innerHTML = 'Species Abundance'
+    resultsTab.appendChild(abundanceTabButton)
+
+    var abundanceTab = document.createElement('div')
+    abundanceTab.classList.add('tabcontent')
+    abundanceTab.setAttribute('id', 'abundanceTab')
+    abundanceTab.style.display = 'none'
+    resultsDiv.appendChild(abundanceTab)
+
+    abundanceTabButton.addEventListener('click', function(event){
+        openResultsTab(event, 'abundanceTab', summary)
+    });
+
+
+    // Effort Days tab
+
+    var effortDaysButton = document.createElement('button')
+    effortDaysButton.classList.add('tablinks')
+    effortDaysButton.innerHTML = 'Camera Trap Effort'
+    resultsTab.appendChild(effortDaysButton)
+
+    var effortDaysTab = document.createElement('div')
+    effortDaysTab.classList.add('tabcontent')
+    effortDaysTab.setAttribute('id', 'effortDaysTab')
+    effortDaysTab.style.display = 'none'
+    resultsDiv.appendChild(effortDaysTab)
+
+    effortDaysButton.addEventListener('click', function(event){
+        openResultsTab(event, 'effortDaysTab', summary)
+    });
+        
+
+    // Camera Trap Data Counts tab
+
+    var cameraTrapDataCountsButton = document.createElement('button')
+    cameraTrapDataCountsButton.classList.add('tablinks')
+    cameraTrapDataCountsButton.innerHTML = 'Camera Trap Data Counts'
+    resultsTab.appendChild(cameraTrapDataCountsButton)
+
+    var cameraTrapDataCountsTab = document.createElement('div')
+    cameraTrapDataCountsTab.classList.add('tabcontent')
+    cameraTrapDataCountsTab.setAttribute('id', 'cameraTrapDataCountsTab')
+    cameraTrapDataCountsTab.style.display = 'none'
+    resultsDiv.appendChild(cameraTrapDataCountsTab)
+
+    cameraTrapDataCountsButton.addEventListener('click', function(event){
+        openResultsTab(event, 'cameraTrapDataCountsTab', summary)
+    });
+
+    // Camera Trap Activity tab
+
+    var cameraTrapActivityButton = document.createElement('button')
+    cameraTrapActivityButton.classList.add('tablinks')
+    cameraTrapActivityButton.innerHTML = 'Camera Trap Activity'
+    resultsTab.appendChild(cameraTrapActivityButton)
+
+    var cameraTrapActivityTab = document.createElement('div')
+    cameraTrapActivityTab.classList.add('tabcontent')
+    cameraTrapActivityTab.setAttribute('id', 'cameraTrapActivityTab')
+    cameraTrapActivityTab.style.display = 'none'
+    resultsDiv.appendChild(cameraTrapActivityTab)
+
+    cameraTrapActivityButton.addEventListener('click', function(event){
+        openResultsTab(event, 'cameraTrapActivityTab', summary)
+    });
+
+
+    dataSummaryTabButton.click()
+}
+
+
+function buildSummaryTab(summary, tab){
+    /** Builds the summary div */
+
+    // Create the tab buttons and tabs for summary results
+    console.log('Building summary tab')
+    console.log(summary)
+    console.log(tab)
+
+    if (tab == 'dataSummaryTab') {
+    // Data summary tab
+        dataSummaryTab = document.getElementById('dataSummaryTab')
+        if (dataSummaryTab.firstChild == null) {
+            console.log('Building data summary tab')
+            var row = document.createElement('div')
+            row.classList.add('row')
+            dataSummaryTab.appendChild(row)
+
+            var col0 = document.createElement('div')
+            col0.classList.add('col-lg-12')
+            row.appendChild(col0)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Data Summary';
+            h5.setAttribute('style','margin-bottom: 2px')
+            col0.appendChild(h5);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following table shows the number of images, clusters and sightings for your surveys.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col0.appendChild(h5)
+
+            //Data summary table
+            var table = document.createElement('table');
+            table.id = 'summaryTable'
+            table.style.borderCollapse = 'collapse';
+            // table.classList.add('table');
+            // // table.classList.add('table-sm');
+            // table.classList.add('table-striped');
+            // table.classList.add('table-bordered');
+            // table.classList.add('table')
+            // table.classList.add('table-bordered')
+            // table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            var thead = table.createTHead();
+            var tbody = table.createTBody();
+
+            // Add the title row for column headers (Name, Description, Value)
+            var titleRow = thead.insertRow();
+            var nameTitleCell = titleRow.insertCell();
+            nameTitleCell.innerHTML = 'Name';
+            nameTitleCell.style.fontWeight = 'bold';
+            nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            nameTitleCell.style.padding = '10px';
+
+            var descTitleCell = titleRow.insertCell();
+            descTitleCell.innerHTML = 'Description';
+            descTitleCell.style.fontWeight = 'bold';
+            descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            descTitleCell.style.padding = '10px';
+            
+            var valueTitleCell = titleRow.insertCell();
+            valueTitleCell.innerHTML = 'Value';
+            valueTitleCell.style.fontWeight = 'bold';
+            valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            valueTitleCell.style.padding = '10px';
+
+            var data = summary.summary_counts
+
+            for (var key in data) {
+                var row = tbody.insertRow();
+                var nameCell = row.insertCell();
+                nameCell.innerHTML = key;
+                nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
+                nameCell.style.padding = '10px';
+            
+                var descCell = row.insertCell();
+                descCell.innerHTML = data[key].description;
+                descCell.style.border = '1px solid rgba(0,0,0,0.2)';
+                descCell.style.padding = '10px';
+            
+                var valueCell = row.insertCell();
+                valueCell.innerHTML = data[key].value;
+                valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
+                valueCell.style.padding = '10px';
+            }
+            
+            col0.appendChild(table);
+        }
+    }
+    else if (tab == 'diversityTab') {
+    // Diversity tab
+        var diversityTab = document.getElementById('diversityTab')
+
+        if (diversityTab.firstChild == null) {
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            diversityTab.appendChild(row)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-12')
+            row.appendChild(col1)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Diversity Indices';
+            h5.setAttribute('style','margin-bottom: 2px')
+            col1.appendChild(h5);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following indices are a measure of diversity in a community.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col1.appendChild(h5)
+
+            var table = document.createElement('table');
+            table.id = 'diversityTable'
+            table.style.borderCollapse = 'collapse';
+            table.classList.add('table-hover')
+
+            var thead = table.createTHead();
+            var tbody = table.createTBody();
+            
+            // Add the title row for column headers (Name, Description, Value)
+            var titleRow = thead.insertRow();
+            var nameTitleCell = titleRow.insertCell();
+            nameTitleCell.innerHTML = 'Name';
+            nameTitleCell.style.fontWeight = 'bold';
+            nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            nameTitleCell.style.padding = '10px';
+            
+            var descTitleCell = titleRow.insertCell();
+            descTitleCell.innerHTML = 'Description';
+            descTitleCell.style.fontWeight = 'bold';
+            descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            descTitleCell.style.padding = '10px';
+            
+            var valueTitleCell = titleRow.insertCell();
+            valueTitleCell.innerHTML = 'Value';
+            valueTitleCell.style.fontWeight = 'bold';
+            valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            valueTitleCell.style.padding = '10px';
+            
+            data = summary.summary_indexes;
+            
+            for (var key in data) {
+            var row = tbody.insertRow();
+            var nameCell = row.insertCell();
+            nameCell.innerHTML = key;
+            nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            nameCell.style.padding = '10px';
+            
+            var descCell = row.insertCell();
+            descCell.innerHTML = data[key].description;
+            descCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            descCell.style.padding = '10px';
+            
+            var valueCell = row.insertCell();
+            valueCell.innerHTML = data[key].value.toFixed(2);
+            valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
+            valueCell.style.padding = '10px';
+            }
+            
+            col1.appendChild(table);
+        }
+    }
+    else if (tab == 'abundanceTab') {
+    // Species abundance tab
+        var abundanceTab = document.getElementById('abundanceTab')
+
+        if (abundanceTab.firstChild == null) {
+
+            var row1 = document.createElement('div')
+            row1.classList.add('row')
+            abundanceTab.appendChild(row1)
+
+            var col2 = document.createElement('div')
+            col2.classList.add('col-lg-12')
+            row1.appendChild(col2)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Species Abundance';
+            h5.setAttribute('style','margin-bottom: 2px')
+            col2.appendChild(h5);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph shows the abundance of each species in your data.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col2.appendChild(h5)
+
+            var rowc = document.createElement('div')
+            rowc.classList.add('row')
+            col2.appendChild(rowc)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+            col.setAttribute('style','padding:10px;margin:0px')
+            rowc.appendChild(col)
+
+            canvas = document.createElement('canvas')
+            canvas.setAttribute('id','statisticsChart')
+            canvas.setAttribute('style','width:100%;height:750px')
+            col.appendChild(canvas)
+
+            var ctx = document.getElementById('statisticsChart').getContext('2d');
+
+            var species = []
+            var abundance = []
+
+            for (i=0;i<summary.species_count.length;i++) {
+                if (summary.species_count[i]['count'] > 0) {
+                    species.push(summary.species_count[i]['species'])
+                    abundance.push(summary.species_count[i]['count'])
+                }
+            }
+
+            var data = {
+                datasets: [{
+                    id: 'data-abundance',
+                    data: abundance,
+                    hoverBackgroundColor: 'rgba(255,255,255,0.1)',
+                    borderColor: 'rgba(255,255,255,1)',
+                    borderWidth: 1,
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0,
+                    backgroundColor: 'rgba(223, 105, 26, 0.6)',
+                }],
+                labels: species
+            };
+
+            var options_bar = {
+                maintainAspectRatio: false,
+                legend: {
+                    display: false
+                },
+                tooltips: {
+                    displayColors: false,
+                    callbacks: {
+                        title: function(tooltipItems, data) {
+                            return '';
+                        },
+                        label: function(tooltipItem, data) {
+                            var label = data.labels[tooltipItem.index];
+                            return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                        }           
+                    }
+                },
+                ticks: {
+                    min: 0
+                },
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            fontColor : textColour,
+                            beginAtZero: true,
+                            display: includeLabels
+                        },
+                        gridLines: {
+                            drawOnChartArea: includeGridLines,
+                            color: axisColour
+                        }
+                    }],
+                    xAxes: [{
+                        ticks: {
+                            fontColor : textColour,
+                            display: includeLabels
+                        },
+                        gridLines: {
+                            drawOnChartArea: includeGridLines,
+                            color: axisColour
+                        }
+                    }] 
+                }
+            }
+
+            chart = new Chart(ctx, {
+                data: data,
+                type: 'bar',
+                options: options_bar
+            });
+        }
+    }
+    else if (tab == 'effortDaysTab') {
+        // Effort days  tab
+        var effortDaysTab = document.getElementById('effortDaysTab')
+
+        if (effortDaysTab.firstChild == null) {
+            var row = document.createElement('div')
+            row.classList.add('row')
+            effortDaysTab.appendChild(row)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+            row.appendChild(col)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Effort Days';
+            h5.setAttribute('style','margin-bottom: 2px')
+            col.appendChild(h5);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph shows the total number of days that each site/camera was active.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col.appendChild(h5)
+
+            var row_ct1 = document.createElement('div')
+            row_ct1.classList.add('row')
+            effortDaysTab.appendChild(row_ct1)
+
+            var col_ct1 = document.createElement('div')
+            col_ct1.classList.add('col-lg-12')
+            col_ct1.setAttribute('style','padding:10px;margin:0px')
+            row_ct1.appendChild(col_ct1)
+
+            row_ct1.appendChild(document.createElement('br'))
+
+            var ct_canvas1 = document.createElement('canvas')	
+            ct_canvas1.setAttribute('id','ct_canvas1')
+            ct_canvas1.setAttribute('height','750')
+            col_ct1.appendChild(ct_canvas1)
+
+            // Effort Days
+            var ctx1 = document.getElementById('ct_canvas1').getContext('2d');
+
+            var effort_labels = []
+            var effort_count = []
+            for (i=0;i<summary.effort_days.length;i++) {
+                if (summary.effort_days[i]['count'] > 0) {
+                    effort_labels.push(summary.effort_days[i]['name'])
+                    effort_count.push(summary.effort_days[i]['count'])
+                }
+            }
+
+            var data1 = {
+                datasets: [{
+                    id: 'data-effort',
+                    data: effort_count,
+                    hoverBackgroundColor: 'rgba(255,255,255,0.1)',
+                    borderColor: 'rgba(255,255,255,1)',
+                    borderWidth: 1,
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0,
+                    backgroundColor: 'rgba(223, 105, 26, 0.6)',
+                }],
+                labels: effort_labels
+            };
+
+            var options_bar = {
+                maintainAspectRatio: false,
+                legend: {
+                    display: false
+                },
+                tooltips: {
+                    displayColors: false,
+                    callbacks: {
+                        title: function(tooltipItems, data) {
+                            return '';
+                        },
+                        label: function(tooltipItem, data) {
+                            var label = data.labels[tooltipItem.index];
+                            return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                        }           
+                    }
+                },
+                ticks: {
+                    min: 0
+                },
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            fontColor : textColour,
+                            beginAtZero: true,
+                            display: includeLabels
+                        },
+                        gridLines: {
+                            drawOnChartArea: includeGridLines,
+                            color: axisColour
+                        }
+                    }],
+                    xAxes: [{
+                        ticks: {
+                            fontColor : textColour,
+                            display: includeLabels
+                        },
+                        gridLines: {
+                            drawOnChartArea: includeGridLines,
+                            color: axisColour
+                        }
+                    }] 
+                }
+            };
+
+            chart1 = new Chart(ctx1, {
+                data: data1,
+                type: 'bar',
+                options: options_bar
+            });
+        }
+    }
+    else if (tab == 'cameraTrapDataCountsTab') {
+
+        // Camera trap data counts tab
+        var cameraTrapDataCountsTab = document.getElementById('cameraTrapDataCountsTab')
+
+        if (cameraTrapDataCountsTab.firstChild == null) {
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            cameraTrapDataCountsTab.appendChild(row)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+            row.appendChild(col)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = ' Data Unit Counts'; 
+            h5.setAttribute('style','margin-bottom: 2px')
+            col.appendChild(h5);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph shows the total cluster/image/sighting count of each site/camera.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col.appendChild(h5)
+
+            var row_ct2 = document.createElement('div')
+            row_ct2.classList.add('row')
+            cameraTrapDataCountsTab.appendChild(row_ct2)
+
+            var col_ct2 = document.createElement('div')
+            col_ct2.classList.add('col-lg-12')
+            col_ct2.setAttribute('style','padding:10px;margin:0px')
+            row_ct2.appendChild(col_ct2)
+
+            row_ct2.appendChild(document.createElement('br'))
+
+            var ct_canvas2 = document.createElement('canvas')
+            ct_canvas2.setAttribute('id','ct_canvas2')
+            ct_canvas2.setAttribute('height','750')
+            col_ct2.appendChild(ct_canvas2)
+
+            // Camera unit counts
+
+            var ctx2 = document.getElementById('ct_canvas2').getContext('2d');
+
+            var unit_labels = []
+            var unit_count = []
+
+            for (i=0;i<summary.unit_counts.length;i++) {
+                if (summary.unit_counts[i]['count'] > 0) {
+                    unit_labels.push(summary.unit_counts[i]['name'])
+                    unit_count.push(summary.unit_counts[i]['count'])
+                }
+            }
+
+            var data2 = {
+                datasets: [{
+                    id: 'data-camera',
+                    data: unit_count,
+                    hoverBackgroundColor: 'rgba(255,255,255,0.1)',
+                    borderColor: 'rgba(255,255,255,1)',
+                    borderWidth: 1,
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0,
+                    backgroundColor: 'rgba(223, 105, 26, 0.6)',
+                }],
+                labels: unit_labels
+            };
+
+            var options_bar = {
+                maintainAspectRatio: false,
+                legend: {
+                    display: false
+                },
+                tooltips: {
+                    displayColors: false,
+                    callbacks: {
+                        title: function(tooltipItems, data) {
+                            return '';
+                        },
+                        label: function(tooltipItem, data) {
+                            var label = data.labels[tooltipItem.index];
+                            return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                        }           
+                    }
+                },
+                ticks: {
+                    min: 0
+                },
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            fontColor : textColour,
+                            beginAtZero: true,
+                            display: includeLabels
+                        },
+                        gridLines: {
+                            drawOnChartArea: includeGridLines,
+                            color: axisColour
+                        }
+                    }],
+                    xAxes: [{
+                        ticks: {
+                            fontColor : textColour,
+                            display: includeLabels
+                        },
+                        gridLines: {
+                            drawOnChartArea: includeGridLines,
+                            color: axisColour
+                        }
+                    }] 
+                }
+            };
+
+            chart2 = new Chart(ctx2, {
+                data: data2,
+                type: 'bar',
+                options: options_bar
+            });
+
+        }
+    }
+    else if (tab == 'cameraTrapActivityTab') {
+
+        // Camera trap activity tab
+
+        var cameraTrapActivityTab = document.getElementById('cameraTrapActivityTab')
+
+        if (cameraTrapActivityTab.firstChild == null) {
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            cameraTrapActivityTab.appendChild(row)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+            row.appendChild(col)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Active Days';
+            h5.setAttribute('style','margin-bottom: 2px')
+            col.appendChild(h5);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph indicates on which days each site/camera was active. The heatmap represents the image count of each site/camera on each day.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col.appendChild(h5)
+
+            var row_ct3 = document.createElement('div')
+            row_ct3.classList.add('row')
+            cameraTrapActivityTab.appendChild(row_ct3)
+
+            var col_ct3 = document.createElement('div')
+            col_ct3.classList.add('col-lg-12')
+            col_ct3.setAttribute('style','padding:10px;margin:0px')
+            row_ct3.appendChild(col_ct3)
+
+            row_ct3.appendChild(document.createElement('br'))	
+
+            var div_ct3 = document.createElement('div')
+            div_ct3.setAttribute('id','div_ct3')
+            div_ct3.setAttribute('style','height:750px')
+            col_ct3.appendChild(div_ct3)
+
+            // Camera active days
+            var active_dict = summary.active_days.active_dict
+            var start_date = summary.active_days.start_date
+            var end_date = summary.active_days.end_date
+            var unit_names = summary.active_days.unit_names
+
+            var activeMap = new Map()
+            for (let i=0; i < active_dict.length; i++) {
+                const {name, date, count} = active_dict[i]
+                const dateKey = date.split('T')[0]
+                activeMap.set(name + dateKey, count)
+            }
+
+            start_date = start_date.split('T')[0] + ' 00:00:00'
+            end_date = end_date.split('T')[0] + ' 23:59:59'
+
+            date_labels = []
+            var date = new Date(start_date)
+            while (date <= new Date(end_date)) {
+                date_labels.push(new Date(date))
+                date.setDate(date.getDate() + 1)
+            }
+
+            var active_data = []
+            for (let i=0; i < unit_names.length; i++) {
+                var unit_data = []
+                for (let j=0; j < date_labels.length; j++) {
+                    var count = null
+                    var dateKey = date_labels[j].toISOString().split('T')[0]
+                    if (activeMap.has(unit_names[i] + dateKey)) {
+                        count = activeMap.get(unit_names[i] + dateKey)
+                    }
+                    unit_data.push(count)
+                }
+                active_data.push(unit_data)
+            }
+
+
+            var plot_active_data = [{
+                type: 'heatmap',
+                y: unit_names,
+                x: date_labels,
+                z: active_data,
+                colorscale: 'Jet',
+                showscale: true,
+                hoverongaps: false
+            }];
+
+            var layout = {
+                paper_bgcolor: 'rgb(78,93,108)',
+                plot_bgcolor: 'rgb(78,93,108',
+                font : {
+                    color: textColour
+                },
+                xaxis: {
+                    gridcolor: axisColour,
+                },
+                yaxis: {
+                    gridcolor: axisColour,
+                    automargin: true
+                },
+                margin: {
+                    l: 40,
+                    r: 40,
+                    b: 40,
+                    t: 40,
+                    pad: 0
+                }
+            }
+
+            Plotly.newPlot('div_ct3', plot_active_data, layout);
+
+        }
+    }
+
+}
+
+
+function buildCovariates(){
+    /** Builds the covariates modal for occuancy analysis  */
+    var siteCovariatesDiv = document.getElementById('siteCovariatesDiv')
+    var detectionCovariatesDiv = document.getElementById('detectionCovariatesDiv')
+    document.getElementById('covariatesError').innerHTML = ''
+    var siteCovariatesExtraDiv = document.getElementById('siteCovariatesExtraDiv')
+    var detectionCovariatesExtraDiv = document.getElementById('detectionCovariatesExtraDiv')
+
+    while(siteCovariatesDiv.firstChild){
+        siteCovariatesDiv.removeChild(siteCovariatesDiv.firstChild);
+    }
+
+    while(detectionCovariatesDiv.firstChild){
+        detectionCovariatesDiv.removeChild(detectionCovariatesDiv.firstChild);
+    }
+
+    while(siteCovariatesExtraDiv.firstChild){
+        siteCovariatesExtraDiv.removeChild(siteCovariatesExtraDiv.firstChild);
+    }
+
+    while(detectionCovariatesExtraDiv.firstChild){
+        detectionCovariatesExtraDiv.removeChild(detectionCovariatesExtraDiv.firstChild);
+    }
+
+    var sites = getSelectedSites(true)
+    // console.log(sites)
+    if (sites == '0'){
+        sites = []
+        for (let i=0; i<globalSites.length; i++){
+            let split = globalSites[i].split(' ')
+            let site = split[0] + '_' + split[1].split('(')[1].split(',')[0] + '_' + split[2].split(')')[0]
+            sites.push(site)
+        }
+    }
+    else{
+        for (let i=0; i<sites.length; i++){
+            // sites[i] = sites[i].replace('/,','_')
+            // replace all commas with underscores
+            sites[i] = sites[i].replace(/,/g,'_')
+        }
+    }
+    // console.log(sites)
+
+    // Site covariates
+    var table = document.createElement('table')
+    table.style.borderCollapse = 'collapse'
+    table.style.width = '100%'
+    table.style.tableLayout = 'fixed'
+    table.id = 'siteCovariatesTable'
+    siteCovariatesDiv.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+
+    var tr = document.createElement('tr')
+    thead.appendChild(tr)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Covariates'
+    th.style.width = '250px'
+    tr.appendChild(th)
+
+    for (let i = 0; i < sites.length; i++) {
+        var th = document.createElement('th')
+        th.innerHTML = sites[i].split('_')[0]
+        th.style.width = '150px'
+        tr.appendChild(th)
+    }
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+
+    // Site covariates Extra table
+    var table = document.createElement('table')
+    table.style.borderCollapse = 'collapse'
+    table.style.width = '100%'
+    // table.style.tableLayout = 'fixed'
+    table.id = 'siteCovariatesTableExtra'
+    siteCovariatesExtraDiv.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+
+    var tr = document.createElement('tr')
+    thead.appendChild(tr)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Type'
+    tr.appendChild(th)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Scale'
+    tr.appendChild(th)
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+    // var tr = document.createElement('tr')
+    // tbody.appendChild(tr)
+
+    // var td = document.createElement('td')
+    // var input = document.createElement('input')
+    // input.setAttribute('class','form-control')
+    // input.setAttribute('type','text')
+    // input.setAttribute('id','siteCovariatesCol')
+    // input.setAttribute('style','width:100%')
+
+    // td.appendChild(input)
+    // tr.appendChild(td)
+
+    // for (let i = 0; i < sites.length; i++) {
+    //     var td = document.createElement('td')
+    //     td.style.width = '150px'
+    //     var input = document.createElement('input')
+    //     input.setAttribute('class','form-control')
+    //     input.setAttribute('type','text')
+    //     input.setAttribute('id','siteCov-' + sites[i])
+    //     input.setAttribute('style','width:100%')
+    //     td.appendChild(input)
+    //     tr.appendChild(td)
+    // }
+
+    // var td = document.createElement('td')
+    // var button = document.createElement('button')
+    // button.setAttribute('class','btn btn-info')
+    // button.setAttribute('onclick','removeCovariateRow(this)')
+    // button.innerHTML = '&times;'
+    // td.appendChild(button)
+    // tr.appendChild(td)
+
+    // Detection covariates
+    var table = document.createElement('table')
+    table.style.borderCollapse = 'collapse'
+    table.style.width = '100%'
+    table.style.tableLayout = 'fixed'
+    table.id = 'detectionCovariatesTable'
+    detectionCovariatesDiv.appendChild(table)
+    
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+
+    var tr = document.createElement('tr')
+    thead.appendChild(tr)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Covariates'
+    th.style.width = '250px'
+
+    tr.appendChild(th)
+
+    for (let i = 0; i < sites.length; i++) {
+        var th = document.createElement('th')
+        th.style.width = '150px'
+        th.innerHTML = sites[i].split('_')[0]
+        tr.appendChild(th)
+    }
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+
+    // Detection covariates Extra table
+    var table = document.createElement('table')
+    table.style.borderCollapse = 'collapse'
+    table.style.width = '100%'
+    // table.style.tableLayout = 'fixed'
+    table.id = 'detectionCovariatesTableExtra'
+    detectionCovariatesExtraDiv.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+
+    var tr = document.createElement('tr')
+    thead.appendChild(tr)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Type'
+    tr.appendChild(th)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Scale'
+    tr.appendChild(th)
+
+
+    // var th = document.createElement('th')
+    // th.innerHTML = ''
+    // th.style.height = '26px'
+    // tr.appendChild(th)
+
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+
+
+    // var tr = document.createElement('tr')
+    // tbody.appendChild(tr)
+
+    // var td = document.createElement('td')
+    // td.style.width = '250px'
+    // var input = document.createElement('input')
+    // input.setAttribute('class','form-control')
+    // input.setAttribute('type','text')
+    // input.setAttribute('id','detCovariatesCol')
+    // input.setAttribute('style','width:100%')
+
+    // td.appendChild(input)
+    // tr.appendChild(td)
+
+    // for (let i = 0; i < sites.length; i++) {
+    //     var td = document.createElement('td')
+    //     td.style.width = '150px'
+    //     var input = document.createElement('input')
+    //     input.setAttribute('class','form-control')
+    //     input.setAttribute('type','text')
+    //     input.setAttribute('id','detCov-' + sites[i])
+    //     input.setAttribute('style','width:100%')
+    //     td.appendChild(input)
+    //     tr.appendChild(td)
+    // }
+
+
+
+    // var sRow = document.createElement('div')
+    // // sRow.classList.add('row')
+    // sRow.style.display = 'flex'
+    // sRow.style.overflowX = 'auto'
+    // sRow.style.whiteSpace = 'nowrap'
+    // siteCovariatesDiv.appendChild(sRow)
+
+    // var dRow = document.createElement('div')
+    // // dRow.classList.add('row')
+    // dRow.style.display = 'flex'
+    // dRow.style.overflowX = 'auto'
+    // dRow.style.whiteSpace = 'nowrap'
+    // detectionCovariatesDiv.appendChild(dRow)
+
+    // var sCol = document.createElement('div')
+    // sCol.classList.add('col-lg-3')
+    // sCol.id = 'siteCovariatesCol'
+    // sCol.innerHTML = 'Covariates'
+    // sCol.style.width = '200px'
+    // sCol.style.display = 'inline-block'
+    // sCol.style.verticalAlign = 'top'
+    // sRow.appendChild(sCol)
+
+    // var dCol = document.createElement('div')
+    // dCol.classList.add('col-lg-3')
+    // dCol.id = 'detectionCovariatesCol'
+    // dCol.innerHTML = 'Covariates'
+    // dCol.style.width = '200px'
+    // dCol.style.display = 'inline-block'
+    // dCol.style.verticalAlign = 'top'
+    // dRow.appendChild(dCol)
+
+    // // Create a column for each site
+    // for (let i = 0; i < sites.length; i++) {
+    //     var col = document.createElement('div')
+    //     col.classList.add('col-lg-2')
+    //     col.id = 'siteCovCol-' + sites[i]
+    //     col.innerHTML = sites[i]
+    //     col.style.width = '200px'
+    //     col.style.display = 'inline-block'
+    //     col.style.verticalAlign = 'top'
+    //     sRow.appendChild(col)
+
+    //     col = document.createElement('div')
+    //     col.classList.add('col-lg-2')
+    //     col.id = 'detectionCovCol-' + sites[i]
+    //     col.innerHTML = sites[i]
+    //     col.style.width = '200px'
+    //     col.style.display = 'inline-block'
+    //     col.style.verticalAlign = 'top'
+    //     dRow.appendChild(col)
+    // }
+
+    // Create a row for each covariate
+    // for (let i = 0; i < sites.length; i++) {
+    //     var siteCovCol = document.getElementById('siteCovCol-' + sites[i])
+    //     var detectionCovCol = document.getElementById('detectionCovCol-' + sites[i])
+
+    //     var input = document.createElement('input')
+    //     input.setAttribute('type','text')
+    //     input.setAttribute('id','siteCov-' + sites[i])
+    //     input.setAttribute('placeholder','Site Covariate')
+    //     input.setAttribute('style','width:100%')
+    //     siteCovCol.appendChild(input)
+
+    //     var input = document.createElement('input')
+    //     input.setAttribute('type','text')
+    //     input.setAttribute('id','detectionCov-' + sites[i])
+    //     input.setAttribute('placeholder','Detection Covariate')
+    //     input.setAttribute('style','width:100%')
+    //     detectionCovCol.appendChild(input)
+
+    // }
+
+
+    if (globalSiteCovariates.length > 0){
+        fillCovariatesTable('site', sites)
+    }
+    else{
+        // buildCovRow('site')
+    }
+
+    if (globalDetectionCovariates.length > 0){
+        fillCovariatesTable('detection', sites)
+    }
+    else{
+        // buildCovRow('detection')
+    }
+
+    modalCovariates.modal({keyboard: true})
+
+}
+
+function fillCovariatesTable(type, sites){
+    /** Fills the covariates table with the global covariates */
+    if (type == 'site'){
+        var table = document.getElementById('siteCovariatesTable')
+        var tableR = document.getElementById('siteCovariatesTableExtra')
+        var covariates = globalSiteCovariates
+    }
+    else {
+        var table = document.getElementById('detectionCovariatesTable')
+        var tableR = document.getElementById('detectionCovariatesTableExtra')
+        var covariates = globalDetectionCovariates
+    }
+    var options = globalCovariateOptions
+    var tbody = table.getElementsByTagName('tbody')[0]
+    var tbodyR = tableR.getElementsByTagName('tbody')[0]
+
+    for (let i = 0; i < covariates.length; i++) {
+        var tr = document.createElement('tr')
+        tbody.appendChild(tr)
+
+        var td = document.createElement('td')
+        var input = document.createElement('input')
+        input.setAttribute('class','form-control')
+        input.setAttribute('type','text')
+        input.setAttribute('style','width:100%')
+        input.value = covariates[i]['covariate']
+        td.appendChild(input)
+        tr.appendChild(td)
+
+        for (let j = 0; j < sites.length; j++) {
+            var td = document.createElement('td')
+            td.style.width = '150px'
+            var input = document.createElement('input')
+            input.setAttribute('class','form-control')
+            input.setAttribute('type','text')
+            input.setAttribute('id',type + 'cov-' + sites[j])
+            input.classList.add(sites[j])
+            input.setAttribute('style','width:100%')
+            if (covariates[i][sites[j]] != undefined){
+                input.value = covariates[i][sites[j]]
+            }
+            td.appendChild(input)
+            tr.appendChild(td)
+        }
+
+        idx_options = options.findIndex(x => x['covariate'] == covariates[i]['covariate'])
+        var tr = document.createElement('tr')
+        tbodyR.appendChild(tr)
+
+        var td = document.createElement('td')
+        var select = document.createElement('select')
+        select.setAttribute('class','form-control')
+        select.setAttribute('style','width:100%')
+    
+        var sOptions = ['Numeric','Categorical']
+        var sTexts = ['Numeric','Categorical']
+    
+        clearSelect(select)
+        fillSelect(select,sOptions,sTexts)
+
+        select.value = options[idx_options]['type']
+
+        td.appendChild(select)
+        tr.appendChild(td)
+    
+        var td = document.createElement('td')
+        var select = document.createElement('select')
+        select.setAttribute('class','form-control')
+        select.setAttribute('style','width:100%')
+    
+        var sOptions = ['No','Yes']
+        var sTexts = ['No','Yes']
+    
+        clearSelect(select)
+        fillSelect(select,sOptions,sTexts)
+
+        select.value = options[idx_options]['scale']
+
+        td.appendChild(select)
+        tr.appendChild(td)
+
+
+        var td = document.createElement('td')
+        var button = document.createElement('button')
+        button.setAttribute('class','btn btn-info')
+        button.setAttribute('onclick','removeCovariateRow(this,\'' + type + '\')')
+        button.innerHTML = '&times;'
+        td.appendChild(button)
+        tr.appendChild(td)
+
+    }
+
+}
+
+function buildCovRow(type){
+    /** Builds a row in the site covariates table*/
+    if (type == 'site'){
+        var table = document.getElementById('siteCovariatesTable')
+        var tableR = document.getElementById('siteCovariatesTableExtra')
+    } else {
+        var table = document.getElementById('detectionCovariatesTable')
+        var tableR = document.getElementById('detectionCovariatesTableExtra')
+    }
+    var tbody = table.getElementsByTagName('tbody')[0]
+    var tr = document.createElement('tr')
+    tbody.appendChild(tr)
+
+    var td = document.createElement('td')
+    var input = document.createElement('input')
+    input.setAttribute('class','form-control')
+    input.setAttribute('type','text')
+    input.setAttribute('style','width:100%')
+
+    td.appendChild(input)
+    tr.appendChild(td)
+
+    var sites = getSelectedSites(true)
+    if (sites == '0'){
+        sites = []
+        for (let i=0; i<globalSites.length; i++){
+            let split = globalSites[i].split(' ')
+            let site = split[0] + '_' + split[1].split('(')[1].split(',')[0] + '_' + split[2].split(')')[0]
+            sites.push(site)
+        }
+    }
+    else{
+        for (let i=0; i<sites.length; i++){
+            // sites[i] = sites[i].replace(',','_')
+            sites[i] = sites[i].replace(/,/g,'_')
+        }
+    }
+
+    for (let i = 0; i < sites.length; i++) {
+        var td = document.createElement('td')
+        td.style.width = '150px'
+        var input = document.createElement('input')
+        input.setAttribute('class','form-control')
+        input.setAttribute('type','text')
+        input.setAttribute('id','cov-' + sites[i])
+        input.classList.add(sites[i])
+        input.setAttribute('style','width:100%')
+        td.appendChild(input)
+        tr.appendChild(td)
+    }
+
+    var tbodyR = tableR.getElementsByTagName('tbody')[0]    
+    var tr = document.createElement('tr')
+    tbodyR.appendChild(tr)
+
+    var td = document.createElement('td')
+    var select = document.createElement('select')
+    select.setAttribute('class','form-control')
+    select.setAttribute('style','width:100%')
+
+    sOptions = ['Numeric','Categorical']
+    sTexts = ['Numeric','Categorical']
+
+    clearSelect(select)
+    fillSelect(select,sOptions,sTexts)
+    td.appendChild(select)
+    tr.appendChild(td)
+
+    var td = document.createElement('td')
+    var select = document.createElement('select')
+    select.setAttribute('class','form-control')
+    select.setAttribute('style','width:100%')
+
+    sOptions = ['No','Yes']
+    sTexts = ['No','Yes']
+
+    clearSelect(select)
+    fillSelect(select,sOptions,sTexts)
+    td.appendChild(select)
+    tr.appendChild(td)
+
+    var td = document.createElement('td')
+    var button = document.createElement('button')
+    button.setAttribute('class','btn btn-info')
+    button.setAttribute('onclick','removeCovariateRow(this,\'' + type + '\')')
+    button.innerHTML = '&times;'
+    td.appendChild(button)
+    tr.appendChild(td)
+
+    
+}
+
+function removeCovariateRow(button, type){
+    /** Removes a row from the covariates table */
+
+    // Remove button from button table first
+
+    var row = button.parentNode.parentNode
+    row_index = row.rowIndex
+    row.parentNode.removeChild(row)
+
+    // Romove row from covariate table
+    if (type == 'site'){
+        var table = document.getElementById('siteCovariatesTable')
+    }
+    else {
+        var table = document.getElementById('detectionCovariatesTable')
+    }
+
+    var tbody = table.getElementsByTagName('tbody')[0]
+    var rows = tbody.getElementsByTagName('tr')
+    var row = rows[row_index-1]
+    row.parentNode.removeChild(row)
+
+}
+
+function saveCovariates(){
+    /** Saves the covariates to the global variables */
+    var valid = validateCovariates()
+    // valid = true
+    if (valid){
+        
+        var siteCovariates = []
+        var detectionCovariates = []
+        var covariateOptions = []
+
+        var siteCovariatesTable = document.getElementById('siteCovariatesTable')
+        var detectionCovariatesTable = document.getElementById('detectionCovariatesTable')
+        var siteCovariatesTableExtra = document.getElementById('siteCovariatesTableExtra')
+        var detectionCovariatesTableExtra = document.getElementById('detectionCovariatesTableExtra')
+
+        var siteCovariatesRows = siteCovariatesTable.getElementsByTagName('tr')
+        var detectionCovariatesRows = detectionCovariatesTable.getElementsByTagName('tr')
+        var siteCovariatesRowsExtra = siteCovariatesTableExtra.getElementsByTagName('tr')
+        var detectionCovariatesRowsExtra = detectionCovariatesTableExtra.getElementsByTagName('tr')
+
+        var tableExtraHeadings = ['type', 'scale']
+
+        for (let i = 0; i < siteCovariatesRows.length; i++) {
+            var row = siteCovariatesRows[i]
+            var cells = row.getElementsByTagName('td')
+            if (cells.length > 0){
+                var covariate = cells[0].getElementsByTagName('input')[0].value.trim()
+                var siteCovariate = {}
+                siteCovariate['covariate'] = covariate
+                for (let j = 1; j < cells.length; j++) {
+                    var site = cells[j].getElementsByTagName('input')[0].id.split('-')[1]
+                    var value = cells[j].getElementsByTagName('input')[0].value
+                    siteCovariate[site] = value
+                }
+                siteCovariates.push(siteCovariate)
+                
+                var rowExtra = siteCovariatesRowsExtra[i]
+                var cellsExtra = rowExtra.getElementsByTagName('td')
+                var covariateOption = {}
+                covariateOption['covariate'] = covariate
+                for (let j = 0; j < cellsExtra.length -1 ; j++) {
+                    var option = cellsExtra[j].getElementsByTagName('select')[0].value
+                    covariateOption[tableExtraHeadings[j]] = option
+                }
+                covariateOptions.push(covariateOption)
+
+            }
+        }
+
+        for (let i = 0; i < detectionCovariatesRows.length; i++) {
+            var row = detectionCovariatesRows[i]
+            var cells = row.getElementsByTagName('td')
+            if (cells.length > 0){
+                var covariate = cells[0].getElementsByTagName('input')[0].value.trim()
+                var detectionCovariate = {}
+                detectionCovariate['covariate'] = covariate
+                for (let j = 1; j < cells.length; j++) {
+                    var site = cells[j].getElementsByTagName('input')[0].id.split('-')[1]
+                    var value = cells[j].getElementsByTagName('input')[0].value
+                    detectionCovariate[site] = value
+                }
+                detectionCovariates.push(detectionCovariate)
+
+                var rowExtra = detectionCovariatesRowsExtra[i]
+                var cellsExtra = rowExtra.getElementsByTagName('td')
+                var covariateOption = {}
+                covariateOption['covariate'] = covariate
+                for (let j = 0; j < cellsExtra.length -1 ; j++) {
+                    var option = cellsExtra[j].getElementsByTagName('select')[0].value
+                    covariateOption[tableExtraHeadings[j]] = option
+                }
+                covariateOptions.push(covariateOption)
+            }
+        }
+
+        globalSiteCovariates = siteCovariates
+        globalDetectionCovariates = detectionCovariates
+        globalCovariateOptions = covariateOptions
+
+        modalCovariates.modal('hide')
+    } 
+}
+
+function validateCovariates(){
+    /** Validates the covariates by checking if any cells are empty and cov inputs are numeric*/
+    var siteCovariatesTable = document.getElementById('siteCovariatesTable')
+    var detectionCovariatesTable = document.getElementById('detectionCovariatesTable')
+    var siteCovariatesTableExtra = document.getElementById('siteCovariatesTableExtra')
+    var detectionCovariatesTableExtra = document.getElementById('detectionCovariatesTableExtra')
+
+    var siteCovariatesRows = siteCovariatesTable.getElementsByTagName('tr')
+    var detectionCovariatesRows = detectionCovariatesTable.getElementsByTagName('tr')
+    var siteCovariatesRowsExtra = siteCovariatesTableExtra.getElementsByTagName('tr')
+    var detectionCovariatesRowsExtra = detectionCovariatesTableExtra.getElementsByTagName('tr')
+
+    var emptyCells = false
+    var notNumeric = false
+    var cannotScale = false
+    var duplicateCovariates = false
+    var covariateNames = []
+
+    var error = ''
+
+    for (let i = 1; i < siteCovariatesRows.length; i++) {
+        var row = siteCovariatesRows[i]
+        var cells = row.getElementsByTagName('td')
+        var rowExtra = siteCovariatesRowsExtra[i]
+        var cellsExtra = rowExtra.getElementsByTagName('td')
+        var type = cellsExtra[0].getElementsByTagName('select')[0].value
+        var scale = cellsExtra[1].getElementsByTagName('select')[0].value
+
+        if (type == 'Categorical' && scale == 'Yes'){
+            cannotScale = true
+        }
+
+        if (cells.length > 0){
+            for (let j = 0; j < cells.length ; j++) {
+                if (cells[j].getElementsByTagName('input')[0].id != undefined  && cells[j].getElementsByTagName('input')[0].id.includes('cov-')){
+                    var value = cells[j].getElementsByTagName('input')[0].value
+                    if (value == ''){
+                        emptyCells = true
+                    }
+                    else if (type == 'Numeric' && isNaN(value)){
+                        notNumeric = true
+                    }
+                }
+                else{
+                    var value = cells[j].getElementsByTagName('input')[0].value
+                    if (value == ''){
+                        emptyCells = true
+                    }
+                    else{
+                        if (covariateNames.includes(value)){
+                            duplicateCovariates = true
+                        }
+                        else{
+                            covariateNames.push(value)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (let i = 1; i < detectionCovariatesRows.length; i++) {
+        var row = detectionCovariatesRows[i]
+        var cells = row.getElementsByTagName('td')
+        var rowExtra = detectionCovariatesRowsExtra[i]
+        var cellsExtra = rowExtra.getElementsByTagName('td')
+        var type = cellsExtra[0].getElementsByTagName('select')[0].value
+        var scale = cellsExtra[1].getElementsByTagName('select')[0].value
+
+        if (type == 'Categorical' && scale == 'Yes'){
+            cannotScale = true
+        }
+
+        if (cells.length > 0){
+            for (let j = 0; j < cells.length ; j++) {
+                if (cells[j].getElementsByTagName('input')[0].id != undefined  && cells[j].getElementsByTagName('input')[0].id.includes('cov-')){
+                    var value = cells[j].getElementsByTagName('input')[0].value
+                    if (value == ''){
+                        emptyCells = true
+                    }
+                    else if (type == 'Numeric' && isNaN(value)){
+                        notNumeric = true
+                    }
+
+                }
+                else{
+                    var value = cells[j].getElementsByTagName('input')[0].value
+                    if (value == ''){
+                        emptyCells = true
+                    }
+                    else{
+                        if (covariateNames.includes(value)){
+                            duplicateCovariates = true
+                        }
+                        else{
+                            covariateNames.push(value)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (emptyCells){
+        error = 'Please ensure all cells are filled. '
+    }
+    
+    if (notNumeric){
+        error += 'Please ensure all covariates which are of type Numeric contain only numeric values. '
+    }
+
+    if (duplicateCovariates){
+        error += 'Please ensure all covariate names are unique. '
+    }
+
+    if (cannotScale){
+        error += 'Categorical covariates cannot be scaled. Please ensure all categorical covariates are not scaled.'
+    }
+
+    if (emptyCells || notNumeric || duplicateCovariates || cannotScale){
+        document.getElementById('covariatesError').innerHTML = error
+        return false
+    }
+    else{
+        document.getElementById('covariatesError').innerHTML = ''
+        return true
+    }
+
+}
+
+function updateOccupancy(check=false){
+    /** Updates the activity chart  */
+    if (check) {
+        var species = '0'
+        var validOccupancy = true 
+        var formData = new FormData();
+    }
+    else{
+        var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
+        var species = getSelectedSpecies()
+        var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var observationWindow = document.getElementById('observationWindow').value
+
+
+        var validOccupancy = checkOccupancy(observationWindow, globalSiteCovariates, globalDetectionCovariates)
+    
+    
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
+        formData.append('species', JSON.stringify(species));
+        formData.append('baseUnit', JSON.stringify(baseUnit));
+        formData.append('window', JSON.stringify(observationWindow));
+        formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
+        formData.append('detCovs', JSON.stringify(globalDetectionCovariates));
+        formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+
+        if(startDate != ''){
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate));
+        }
+    
+        if(endDate != ''){
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate));
+        }
+    }
+
+    if (species != '-1' && validOccupancy) {
+
+        if (!check) {
+            document.getElementById('resultsDiv').style.display = 'none'
+            document.getElementById('loadingDiv').style.display = 'block'
+            document.getElementById('loadingCircle').style.display = 'block'
+
+            resultsTab = document.getElementById('resultsTab')
+            while(resultsTab.firstChild){
+                resultsTab.removeChild(resultsTab.firstChild)
+            }
+        }
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if(reply.status == 'SUCCESS'){
+                    results = reply.results
+                    console.log(results)
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+                    document.getElementById('analysisSelector').disabled = false
+                    while(document.getElementById('resultsDiv').firstChild){
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+                    resultsTab = document.getElementById('resultsTab')
+                    while(resultsTab.firstChild){
+                        resultsTab.removeChild(resultsTab.firstChild)
+                    }
+                    buildOccupancyTabs(results)
+                    // buildOccupancyResults(results)
+
+                }
+                else if(reply.status == 'FAILURE'){
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+
+                    while(document.getElementById('resultsDiv').firstChild){
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+
+                    resultsTab = document.getElementById('resultsTab')
+                    while(resultsTab.firstChild){
+                        resultsTab.removeChild(resultsTab.firstChild)
+                    }
+
+                    var h5 = document.createElement('h5')
+                    h5.innerHTML = 'An error occurred while running the analysis. Please try again. Please ensure that your selected analysis options are valid.'
+                    document.getElementById('resultsDiv').appendChild(h5)
+                    document.getElementById('analysisSelector').disabled = false
+                }
+                else {
+                    setTimeout(function(){updateOccupancy(true)}, 10000);
+                }
+
+            }
+        }
+        xhttp.open("POST", '/getOccupancy');
+        xhttp.send(formData);
+
+    }
+
+}
+
+
+function getOccupancyCSV(check=false){
+    /** Updates the activity chart  */
+    if (check) {
+        var species = '0'
+        var validOccupancy = true 
+        var formData = new FormData();
+    }
+    else{
+        var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
+        var species = getSelectedSpecies()
+        var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var observationWindow = document.getElementById('observationWindow').value
+
+
+        var validOccupancy = checkOccupancy(observationWindow, globalSiteCovariates, globalDetectionCovariates)
+    
+    
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
+        formData.append('species', JSON.stringify(species));
+        formData.append('baseUnit', JSON.stringify(baseUnit));
+        formData.append('window', JSON.stringify(observationWindow));
+        formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
+        formData.append('detCovs', JSON.stringify(globalDetectionCovariates));
+        formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+
+        if(startDate != ''){
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate));
+        }
+    
+        if(endDate != ''){
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate));
+        }
+    }
+
+    if (species != '-1' && validOccupancy) {
+
+        document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if(reply.status == 'SUCCESS'){
+                    csv_urls = reply.csv_urls
+                    console.log(csv_urls)
+                    downloadCSV(csv_urls)      
+                    document.getElementById('rErrors').innerHTML = ''
+                }
+                else if(reply.status == 'FAILURE'){
+                    document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                }
+                else {
+                    setTimeout(function(){getOccupancyCSV(true)}, 10000);
+                }
+
+            }
+        }
+        xhttp.open("POST", '/getOccupancyCSV');
+        xhttp.send(formData);
+
+    }
+}
+
+async function downloadCSV(csv_urls){
+    /** Downloads the CSVs */
+    for (var i=0; i<csv_urls.length; i++){
+        csv_url = csv_urls[i]
+        filename = csv_url.split('/')[csv_url.split('/').length-1]
+
+        var link = document.createElement('a');
+        link.setAttribute('download', filename);
+        link.setAttribute('href', csv_url);
+        link.click();
+
+        // Add a delay to allow the csv to download (otherwise it will only download the last csv)
+        await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+}
+
+function buildOccupancyTabs(results){
+    // Builds the occupancy tabs 
+    var resultsDiv = document.getElementById('resultsDiv')
+    var resultsTab = document.getElementById('resultsTab')
+
+    var btnSummaryOccuTab = document.createElement('button')
+    btnSummaryOccuTab.classList.add('tablinks')
+    btnSummaryOccuTab.classList.add('active')
+    btnSummaryOccuTab.innerHTML = 'Summary'
+    resultsTab.appendChild(btnSummaryOccuTab)
+
+    var summaryOccuTab = document.createElement('div')
+    summaryOccuTab.classList.add('tabcontent')
+    summaryOccuTab.setAttribute('id', 'summaryOccuTab')
+    summaryOccuTab.style.display = 'none'
+    resultsDiv.appendChild(summaryOccuTab)
+
+    btnSummaryOccuTab.addEventListener('click', function(event){
+        openResultsTab(event, 'summaryOccuTab', results)
+    });
+
+    if (results.model_formula == "~1 ~ 1"){
+        var btnNullOccuTab = document.createElement('button')
+        btnNullOccuTab.classList.add('tablinks')
+        btnNullOccuTab.innerHTML = 'Model Results'
+        resultsTab.appendChild(btnNullOccuTab)
+
+        var nullOccuTab = document.createElement('div')
+        nullOccuTab.classList.add('tabcontent')
+        nullOccuTab.setAttribute('id', 'occuTab' + results.model_formula)
+        nullOccuTab.style.display = 'none'
+        resultsDiv.appendChild(nullOccuTab)
+
+        btnNullOccuTab.addEventListener('click', function(event){
+            var tabName = 'occuTab' + results.model_formula
+            openResultsTab(event, tabName, results)
+        });
+    }
+    else{
+        for (let i = 0; i < results.occu_files.length; i++){
+            var btnOccuTab = document.createElement('button')
+            btnOccuTab.classList.add('tablinks')
+            btnOccuTab.innerHTML = 'Covariate: ' + results.occu_files[i].name
+            resultsTab.appendChild(btnOccuTab)
+
+            var occuTab = document.createElement('div')
+            occuTab.classList.add('tabcontent')
+            occuTab.setAttribute('id', 'occuTab' + results.occu_files[i].name)
+            occuTab.style.display = 'none'
+            resultsDiv.appendChild(occuTab)
+
+            btnOccuTab.addEventListener('click', function(event){
+                tabName = 'occuTab' + results.occu_files[i].name
+                openResultsTab(event, tabName, results)
+            });
+        }
+    }
+
+    btnSummaryOccuTab.click()
+
+}
+
+function buildOccupancyResults(results, tab){
+    /** Builds the occupancy results */
+    // var resultsDiv = document.getElementById('resultsDiv')
+    console.log('Building tab: ' + tab)
+    if (tab == 'summaryOccuTab'){
+        var summaryOccuTab = document.getElementById('summaryOccuTab')
+        if (summaryOccuTab.firstChild == null){
+            var occu_files = results.occu_files
+            var naive_occupancy = results.naive_occupancy
+            naive_occupancy = Math.round(naive_occupancy * 1000) / 1000
+            var model_formula = results.model_formula
+            var total_sites = results.total_sites
+            var total_sites_occupied = results.total_sites_occupied
+
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Occupancy Summary'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summaryOccuTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays a summary of the occupancy analysis for the selected species. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summaryOccuTab.appendChild(h5)
+
+            // Create table to display naive occupancy and model formula
+            var table = document.createElement('table')
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            // table.classList.add('border-collapse')
+            table.style.borderCollapse = 'collapse';
+
+
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Total Sites'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Total Sites Occupied'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Naive Occupancy'
+            tr.appendChild(th)
+
+            var th = document.createElement('th')
+            th.innerHTML = 'Model Formula'
+            tr.appendChild(th)
+
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            var tr = document.createElement('tr')
+            tbody.appendChild(tr)
+
+            var td = document.createElement('td')
+            td.innerHTML = total_sites
+            tr.appendChild(td)
+
+            var td = document.createElement('td')
+            td.innerHTML = total_sites_occupied
+            tr.appendChild(td)
+
+            var td = document.createElement('td')
+            td.innerHTML = naive_occupancy
+            tr.appendChild(td)
+
+            var td = document.createElement('td')
+            td.innerHTML = model_formula
+            tr.appendChild(td)
+
+            summaryOccuTab.appendChild(table)
+
+
+            // // Create table to display AIC results
+            // var table = document.createElement('table')
+            // table.classList.add('table')
+            // table.classList.add('table-bordered')
+            // table.classList.add('table-striped')
+            // table.classList.add('table-hover')
+            // table.classList.add('border-collapse')
+            summaryOccuTab.appendChild(document.createElement('br'))
+
+            aic = results.aic
+
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'AICc Results'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summaryOccuTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the AICc results for the best model selection. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summaryOccuTab.appendChild(h5)
+
+            // var thead = document.createElement('thead')
+            // table.appendChild(thead)
+
+            // var tr = document.createElement('tr')
+            // thead.appendChild(tr)
+
+            // for (let i=0; i<aic.length; i++){
+            //     var th = document.createElement('th')
+            //     th.innerHTML = aic[i][0]
+            //     tr.appendChild(th)
+            // }
+
+            // var tbody = document.createElement('tbody')
+            // table.appendChild(tbody)
+
+            // for (let i=0; i<aic[0][1].length; i++){
+            //     var tr = document.createElement('tr')
+            //     tbody.appendChild(tr)
+
+            //     for (let j=0; j<aic.length; j++){
+            //         var td = document.createElement('td')
+            //         td.innerHTML = aic[j][1][i]
+            //         tr.appendChild(td)
+            //     }
+            // }
+
+            // resultsDiv.appendChild(table)
+
+            // Create a single table to display all AIC results
+            var table = document.createElement('table');
+            table.classList.add('table');
+            table.classList.add('table-bordered');
+            table.classList.add('table-striped');
+            table.classList.add('table-hover');
+            // table.classList.add('border-collapse');
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%';
+
+
+            var keys = Object.keys(aic[0]); // Assuming all aic objects have the same keys
+
+            // Create table header
+            var thead = document.createElement('thead');
+            table.appendChild(thead);
+
+            var tr = document.createElement('tr');
+            thead.appendChild(tr);
+
+            for (let i = 0; i < keys.length; i++) {
+                var th = document.createElement('th');
+                th.innerHTML = keys[i];
+                tr.appendChild(th);
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody');
+            table.appendChild(tbody);
+
+            // Loop through each aic result and create table rows
+            for (let i = 0; i < aic.length; i++) {
+                var result = aic[i];
+                var trBody = document.createElement('tr');
+                tbody.appendChild(trBody);
+
+                for (let j = 0; j < keys.length; j++) {
+                    var td = document.createElement('td');
+                    var value = result[keys[j]]
+                    if (isNaN(value)){
+                        td.innerHTML = value
+                    } else {
+                        if (keys[j] == 'K'){
+                            td.innerHTML = value.toFixed(0)
+                        } else {
+                            td.innerHTML = value.toFixed(4)
+                        }
+                    }
+                    trBody.appendChild(td);
+                }
+            }
+
+            // Append the table to the resultsDiv element
+            summaryOccuTab.appendChild(table);
+
+            summaryOccuTab.appendChild(document.createElement('br'))
+
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Best Model Occupancy Summary'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summaryOccuTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the occupancy estimate summary for the selected best model. Please note that the values are in logit scale. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summaryOccuTab.appendChild(h5)
+
+            // Create a table to display the model summaries
+            var table = document.createElement('table')
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            // table.classList.add('border-collapse')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+            
+            best_model_summary_state = results.best_model_summary_state
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(best_model_summary_state[0]) // Assuming all model summaries have the same keys
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<best_model_summary_state.length; i++){
+                var model_summary = best_model_summary_state[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = model_summary[keys[j]]
+                    if (isNaN(value)){
+                        td.innerHTML = value
+                    } else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    trBody.appendChild(td)
+                }
+            }
+
+            // Append the table to the resultsDiv element
+            summaryOccuTab.appendChild(table)
+
+            summaryOccuTab.appendChild(document.createElement('br'))
+
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Best Model Detection Summary'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summaryOccuTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the detection estimate summary for the selected best model. Please note that the values are in logit scale. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summaryOccuTab.appendChild(h5)
+
+            // Create a table to display the model summaries
+            var table = document.createElement('table')
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            // table.classList.add('border-collapse')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+
+
+            best_model_summary_det = results.best_model_summary_det
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(best_model_summary_det[0]) // Assuming all model summaries have the same keys
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<best_model_summary_det.length; i++){
+                var model_summary = best_model_summary_det[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = model_summary[keys[j]]
+                    if (isNaN(value)){
+                        td.innerHTML = value
+                    } else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    trBody.appendChild(td)
+                }
+            }
+
+            // Append the table to the resultsDiv element
+            summaryOccuTab.appendChild(table)
+
+        }
+    }
+    else {
+        if (results.occu_files.length > 0){
+            var occu_files = results.occu_files
+            for (let i=0; i<occu_files.length; i++){
+                
+                var tabName = 'occuTab' + occu_files[i].name
+                var occuTab = document.getElementById(tabName)
+
+                if (occuTab.firstChild == null){
+
+                    var h5 = document.createElement('h5')
+                    h5.innerHTML = 'Covariate Results: ' + occu_files[i].name
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    occuTab.appendChild(h5)
+
+                    // h5 = document.createElement('h5')
+                    // h5.innerHTML = '<div><i> The following graphs showcases the occupancy or detection probability of the species in relation to the covariates and sites. </i></div>'
+                    // h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    // occuTab.appendChild(h5)
+
+                    // Create a radio button to select the type of graph
+                    var divRadio = document.createElement('div')
+                    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+                
+                    var radio = document.createElement('input')
+                    radio.setAttribute('type', 'radio')
+                    radio.setAttribute('id', 'siteProbGraph')
+                    radio.setAttribute('name', 'occuGraph')
+                    radio.setAttribute('class', 'custom-control-input')
+                    radio.setAttribute('value', '0')
+                    radio.checked = true
+                    divRadio.appendChild(radio)
+                
+                    var label = document.createElement('label')
+                    label.setAttribute('class', 'custom-control-label')
+                    label.setAttribute('for', 'siteProbGraph')
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        label.innerHTML = 'Occupancy Probability Plot per Site'
+                    }
+                    else {
+                        label.innerHTML = 'Probability Plot per Site'
+                    }
+                    divRadio.appendChild(label)
+                
+                    occuTab.appendChild(divRadio)
+
+                    divRadio = document.createElement('div')
+                    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+                    radio = document.createElement('input')
+                    radio.setAttribute('type', 'radio')
+                    radio.setAttribute('id', 'covarProbGraph')
+                    radio.setAttribute('name', 'occuGraph')
+                    radio.setAttribute('class', 'custom-control-input')
+                    radio.setAttribute('value', '1')
+                    divRadio.appendChild(radio)
+
+                    label = document.createElement('label')
+                    label.setAttribute('class', 'custom-control-label')
+                    label.setAttribute('for', 'covarProbGraph')
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        label.innerHTML = 'Detection Probability Plot per Site'
+                    }
+                    else {
+                        label.innerHTML = 'Covariate Probability Plot'
+                    }
+                    divRadio.appendChild(label)
+
+                    occuTab.appendChild(divRadio)
+
+                    // EVent listener for the radio buttons
+                    radio = document.getElementById('siteProbGraph')
+                    radio.addEventListener('change', function(occuFiles){
+                        // Set active image on map to be the first image
+                        return function(){
+                            if (this.checked){
+                                // Display correct heading
+                                var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
+                                headingDiv.style.display = 'block'
+                                headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
+                                headingDiv.style.display = 'none'
+                                var map_id = 'mapDiv_' + occuFiles.name
+                                activeImage[map_id].setUrl(occuFiles.images[0])
+                            }
+                        }
+                    }(occu_files[i]))
+
+                    radio = document.getElementById('covarProbGraph')
+                    radio.addEventListener('change', function(occuFiles){
+                        // Set active image on map to be the second image
+                        return function(){
+                            if (this.checked){
+                                // Display correct heading
+                                var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
+                                headingDiv.style.display = 'none'
+                                headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
+                                headingDiv.style.display = 'block'
+                                var map_id = 'mapDiv_' + occuFiles.name
+                                activeImage[map_id].setUrl(occuFiles.images[1])
+                            }
+                        }
+                    }(occu_files[i]))
+
+                    occuTab.appendChild(document.createElement('br'))
+                    occuTab.appendChild(document.createElement('br'))
+
+                    var headingDiv = document.createElement('div')
+                    headingDiv.classList.add('row')
+                    headingDiv.id = 'headingDiv_' + occu_files[i].name + '_site'
+                    occuTab.appendChild(headingDiv)
+
+                    var col = document.createElement('div')
+                    col.classList.add('col-lg-12')
+                    headingDiv.appendChild(col)
+
+                    var h5 = document.createElement('h5')
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        h5.innerHTML = 'Occupancy Probability Plot per Site'
+                    }
+                    else {
+                        h5.innerHTML = 'Probability Plot per Site'
+                    }
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    col.appendChild(h5)
+
+                    h5 = document.createElement('h5')
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        h5.innerHTML = '<div><i> The following plot displays the occupancy probability of the species in relation to the sites. </i></div>'
+                    }
+                    else {
+                        h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the sites. The covariate value for each site is used to calculate the probability. </i></div>'
+                    }
+                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    col.appendChild(h5)
+
+                    // headingDiv.appendChild(document.createElement('br'))
+
+                    headingDiv = document.createElement('div')
+                    headingDiv.classList.add('row')
+                    headingDiv.id = 'headingDiv_' + occu_files[i].name + '_covar'
+                    headingDiv.setAttribute('style','display: none')
+                    occuTab.appendChild(headingDiv)
+
+                    var col = document.createElement('div')
+                    col.classList.add('col-lg-12')
+                    headingDiv.appendChild(col)
+
+                    h5 = document.createElement('h5')
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        h5.innerHTML = 'Detection Probability Plot per Site'
+                    }
+                    else {
+                        h5.innerHTML = 'Covariate Probability Plot'
+                    }
+                    h5.setAttribute('style','margin-bottom: 2px')
+                    col.appendChild(h5)
+
+                    h5 = document.createElement('h5')
+                    if (occu_files[i].name == '~1 ~ 1'){
+                        h5.innerHTML = '<div><i> The following plot displays the detection probability of the species in relation to the sites. </i></div>'
+                    }
+                    else {
+                        h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the covariates. The plot displays the effect of the covariate on the probability. </i></div>'
+                    }
+                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+                    col.appendChild(h5)
+
+                    // headingDiv.appendChild(document.createElement('br'))
+
+                    occuTab.appendChild(document.createElement('br'))
+
+                    var occu_images = occu_files[i].images
+
+                    div = document.createElement('div')
+                    div.classList.add('row')
+                    occuTab.appendChild(div)
+
+                    space = document.createElement('div')
+                    space.classList.add('col-lg-1')
+                    div.appendChild(space)
+
+                    col1 = document.createElement('div')
+                    col1.classList.add('col-lg-10')
+                    div.appendChild(col1)
+
+                    center = document.createElement('center')
+                    col1.appendChild(center)
+
+                    map_id = 'mapDiv_' + occu_files[i].name
+                    mapDiv = document.createElement('div')
+                    mapDiv.setAttribute('id',map_id)
+                    mapDiv.setAttribute('style','height: 750px')
+                    center.appendChild(mapDiv)
+
+                    space = document.createElement('div')
+                    space.classList.add('col-lg-1')
+                    div.appendChild(space)
+
+                    occuTab.appendChild(document.createElement('br'))
+
+                    initialiseImageMap(occu_images[0], map_id)
+                    
+                }
+
+            }
+
+        }
+
+    }
+
+}
+
+
+function checkOccupancy(observationWindow, siteCovariates, detectionCovariates){
+    /** Checks if the occupancy analysis is valid */
+    var valid = false
+    var windowEmpty = false
+    var windowNotNum = false
+    var siteCovsNotMatch = false
+    var detCovsNotMatch = false
+    var error = ''
+
+    if (observationWindow == ''){
+        windowEmpty = true
+    }
+    else if (isNaN(observationWindow)){
+        windowNotNum = true
+    }
+    else if (observationWindow.includes('.') || observationWindow.includes(',')){
+        windowNotNum = true
+    }
+
+    var sites = getSelectedSites(true)
+    if (sites == '0'){
+        sites = []
+        for (let i=0; i<globalSites.length; i++){
+            let split = globalSites[i].split(' ')
+            let site = split[0] + '_' + split[1].split('(')[1].split(',')[0] + '_' + split[2].split(')')[0]
+            sites.push(site)
+        }
+    }
+    else{
+        for (let i=0; i<sites.length; i++){
+            // sites[i] = sites[i].replace(',','_')
+            sites[i] = sites[i].replace(/,/g,'_')
+        }
+    }
+
+    if (siteCovariates.length != 0){
+        for (let i=0; i<siteCovariates.length; i++){
+            var cov = siteCovariates[i]
+            if (cov['covariate'] == ''){
+                siteCovsNotMatch = true
+            }
+            else{
+                for (let j=0; j<sites.length; j++){
+                    if (cov[sites[j]] == undefined){
+                        siteCovsNotMatch = true
+                    }
+                }
+            }
+        }   
+    }
+
+
+    if (detectionCovariates.length != 0){
+        for (let i=0; i<detectionCovariates.length; i++){
+            var cov = detectionCovariates[i]
+            if (cov['covariate'] == ''){
+                detCovsNotMatch = true
+            }
+            else{
+                for (let j=0; j<sites.length; j++){
+                    if (cov[sites[j]] == undefined){
+                        detCovsNotMatch = true
+                    }
+                }
+            }
+        }   
+    }
+
+    if(windowEmpty){
+        error += 'Please enter an observation window. '
+    }
+
+    if(windowNotNum){
+        error += 'Please enter a valid observation window. '
+    }
+
+    if(siteCovsNotMatch){
+        error += 'Please ensure that all site covariates have a value. '
+    }
+
+    if(detCovsNotMatch){
+        error += 'Please ensure that all detection covariates have a value. '
+    }
+
+    if (windowEmpty || windowNotNum || siteCovsNotMatch || detCovsNotMatch){
+        valid = false
+        document.getElementById('rErrors').innerHTML = error
+    }
+    else{
+        valid = true
+        document.getElementById('rErrors').innerHTML = ''
+    }
+
+    return valid
+
+}
+
+function importCSV(){
+    modalCovariates.modal('hide')
+    // modalImportCovariates.modal({keyboard: true})
+
+    siteColDiv = document.getElementById('siteCovColsDiv')
+    while (siteColDiv.firstChild){
+        siteColDiv.removeChild(siteColDiv.firstChild)
+    }
+
+    detColDiv = document.getElementById('detCovColsDiv')
+    while (detColDiv.firstChild){
+        detColDiv.removeChild(detColDiv.firstChild)
+    }
+
+    addSiteCovCol()
+    addDetCovCol()
+
+    // Clear selects
+    var select = document.getElementById('siteCol')
+    clearSelect(select)
+
+    var select = document.getElementById('latCol')
+    clearSelect(select)
+
+    var select = document.getElementById('longCol')
+    clearSelect(select)
+
+    var selects = document.getElementsByClassName('siteColSelect')
+    for (let i=0; i<selects.length; i++){
+        clearSelect(selects[i])
+    }
+
+    var selects = document.getElementsByClassName('detColSelect')
+    for (let i=0; i<selects.length; i++){
+        clearSelect(selects[i])
+    }
+
+    // Clear file input
+    covariatesFile = document.getElementById('covariatesFile')
+    covariatesFile.value = ''
+
+    modalImportCovariates.modal({keyboard: true})
+
+}
+
+modalCovariates.on('show.bs.modal', function(){
+    document.body.style.overflowY = 'hidden'
+})
+
+modalCovariates.on('hidden.bs.modal', function(){
+    if (modalImportCovariates.hasClass('show')){
+        document.body.style.overflowY = 'hidden'
+    } else {	
+        document.body.style.overflowY = 'auto'
+    }
+})
+
+
+modalImportCovariates.on('hidden.bs.modal', function(){
+    modalCovariates.modal({keyboard: true})
+})
+
+function importCovariates(){
+    /** Imports the covariates from the csv file and populates the Covariates inputs on modalCovariates. */
+    // Get csv data
+    var csv_data = globalCSVData
+    var siteCol = '' 
+    var latCol = ''
+    var longCol = ''
+
+    if (csv_data.length == 0){
+        document.getElementById('covariatesImportError').innerHTML = 'Please import a csv file.'
+    }
+    else {
+        document.getElementById('covariatesImportError').innerHTML = ''
+
+        // Get site tag
+        var siteColIdx = document.getElementById('siteCol').value
+        if (siteColIdx != ''){
+            siteCol = csv_data[0][siteColIdx]
+        }
+
+        //Get lat col
+        var latColIdx = document.getElementById('latCol').value
+        if (latColIdx != ''){
+            latCol = csv_data[0][latColIdx]
+        }
+
+        //Get lon col
+        var longColIdx = document.getElementById('longCol').value
+        if (longColIdx != ''){
+            longCol = csv_data[0][longColIdx]
+        }
+
+
+        // Get site covariates
+        var siteCovariates = []
+        var siteCovariateNames = []
+        var selects = document.getElementsByClassName('siteColSelect')
+        for (let i=0; i<selects.length; i++){
+            var select = selects[i]
+            var cov = select.options[select.selectedIndex].value
+            if (cov != '-1'){
+                siteCovariates.push(cov)
+                siteCovariateNames.push(csv_data[0][cov])
+            }
+        }
+
+        // Get detection covariates
+        var detectionCovariates = []
+        var detectionCovariateNames = []
+        var selects = document.getElementsByClassName('detColSelect')
+        for (let i=0; i<selects.length; i++){
+            var select = selects[i]
+            var cov = select.options[select.selectedIndex].value
+            if (cov != '-1'){
+                detectionCovariates.push(cov)
+                detectionCovariateNames.push(csv_data[0][cov])
+            }
+        }
+
+        var validCols = validateCovColumns(siteCol, latCol, longCol, siteCovariateNames, detectionCovariateNames)
+
+        if (validCols){
+            var siteCovValues = {}
+            var detCovValues = {}
+            var csv_sites = []
+            var csv_lat = []
+            var csv_long = []
+
+            for (let i=0; i<siteCovariates.length; i++){
+                var cov = csv_data[0][siteCovariates[i]]
+                siteCovValues[cov] = []
+            }
+
+            for (let i=0; i<detectionCovariates.length; i++){
+                var cov = csv_data[0][detectionCovariates[i]]
+                detCovValues[cov] = []
+            }
+
+            for (let i=1; i<csv_data.length; i++){
+                var row = csv_data[i]
+
+                var site = row[siteColIdx]
+                csv_sites.push(site)
+
+                var lat = row[latColIdx]
+                var long = row[longColIdx]
+
+                csv_lat.push(lat)
+                csv_long.push(long)
+
+                for (let j=0; j<siteCovariates.length; j++){
+                    var idx = siteCovariates[j]
+                    siteCovValues[siteCovariateNames[j]].push(row[idx])
+                }
+
+                for (let j=0; j<detectionCovariates.length; j++){
+                    var idx = detectionCovariates[j]
+                    detCovValues[detectionCovariateNames[j]].push(row[idx])
+                }
+            }
+
+            // Populate covariate inputs
+            var site_ids = []
+            for (let i=0; i<csv_sites.length; i++){
+                var site = csv_sites[i]
+                // Covert lat and long to 4 decimal places
+                var lat = parseFloat(csv_lat[i]).toFixed(4)
+                var long = parseFloat(csv_long[i]).toFixed(4)
+                var site_id = site + '_' + lat + '_' + long
+                site_ids.push(site_id)
+            }
+
+            // Populate site covariates
+            var siteTable = document.getElementById('siteCovariatesTable')
+            var tbody = siteTable.getElementsByTagName('tbody')[0]
+            var siteTableExtra = document.getElementById('siteCovariatesTableExtra')
+            var tbodyExtra = siteTableExtra.getElementsByTagName('tbody')[0]
+
+            // Remove existing rows
+            var rows = tbody.getElementsByTagName('tr')
+            for (let i=rows.length-1; i>=0; i--){
+                tbody.removeChild(rows[i])
+            }
+
+            // Remove existing extra rows
+            var rows = tbodyExtra.getElementsByTagName('tr')
+            for (let i=rows.length-1; i>=0; i--){
+                tbodyExtra.removeChild(rows[i])
+            }
+
+            // Add new rows
+            for (let i=0; i<siteCovariateNames.length; i++){
+                buildCovRow('site')
+                var row = tbody.getElementsByTagName('tr')[i]
+                var inputs = row.getElementsByTagName('input')
+                var cov = siteCovariateNames[i]
+                var values = siteCovValues[cov]
+
+                inputs[0].value = cov
+                for (let j=0; j<values.length; j++){
+                    input_id = 'cov-' + site_ids[j]
+                    var input = row.getElementsByClassName(site_ids[j])[0]
+                    if (input != undefined && input.id == input_id){
+                        input.value = values[j]
+                    }
+                }
+            }
+
+            // Populate detection covariates
+            var detTable = document.getElementById('detectionCovariatesTable')
+            var tbody = detTable.getElementsByTagName('tbody')[0]
+            var detTableExtra = document.getElementById('detectionCovariatesTableExtra')
+            var tbodyExtra = detTableExtra.getElementsByTagName('tbody')[0]
+
+            // Remove existing rows
+            var rows = tbody.getElementsByTagName('tr')
+            for (let i=rows.length-1; i>=0; i--){
+                tbody.removeChild(rows[i])
+            }
+
+            // Remove existing extra rows
+            var rows = tbodyExtra.getElementsByTagName('tr')
+            for (let i=rows.length-1; i>=0; i--){
+                tbodyExtra.removeChild(rows[i])
+            }
+
+            // Add new rows
+            for (let i=0; i<detectionCovariateNames.length; i++){
+                buildCovRow('detection')
+                var row = tbody.getElementsByTagName('tr')[i]
+                var inputs = row.getElementsByTagName('input')
+                var cov = detectionCovariateNames[i]
+                var values = detCovValues[cov]
+
+                inputs[0].value = cov
+                for (let j=0; j<values.length; j++){
+                    input_id = 'cov-' + site_ids[j]
+                    var input = row.getElementsByClassName(site_ids[j])[0]
+                    if (input != undefined && input.id == input_id){
+                        input.value = values[j]
+                    }
+                }
+                
+            }
+
+
+            modalImportCovariates.modal('hide')
+
+        }
+
+    }
+    
+}
+
+
+function validateCovColumns(siteCol, latCol, longCol, siteCovariates, detectionCovariates){
+    /** Validates the covariate columns. */
+
+    var valid = true
+    var isEmpty = false
+    var bothCovs = false
+    var hasDuplicates = false
+    var error = ''
+
+    // Check for empty columns
+    if (siteCol == ''){
+        isEmpty = true
+    }
+
+    if (latCol == ''){
+        isEmpty = true
+    }
+
+    if (longCol == ''){
+        isEmpty = true
+    }
+
+    // Check for empty covariates
+    if (siteCovariates.length == 0 && detectionCovariates.length == 0){
+        bothCovs = true
+    }
+
+    // Check for duplicates
+    var allCovs = siteCovariates.concat(detectionCovariates)
+    allCovs.push(siteCol)
+    allCovs.push(latCol)
+    allCovs.push(longCol)
+
+    var uniqueCovs = [...new Set(allCovs)]
+    if (uniqueCovs.length != allCovs.length){
+        hasDuplicates = true
+    }
+
+    if (isEmpty){
+        error += 'One or more columns are empty. '
+        valid = false
+    }
+
+    if (hasDuplicates){
+        error += 'One or more columns are duplicated. '
+        valid = false
+    }
+    
+    if (bothCovs){
+        error += 'Please select at least one site covariate or detection covariate. '
+        valid = false
+    }
+
+    if (valid){
+        document.getElementById('covariatesImportError').innerHTML = ''
+    } else {
+        document.getElementById('covariatesImportError').innerHTML = error
+    }
+
+    return valid
+}
+
+
+function addSiteCovCol(){
+    /** Adds a select to the div */
+    var selectorColumn = document.getElementById('siteCovColsDiv')
+    var IDNum = getIdNumforNext('siteColSelect-')
+
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','siteColDiv-'+String(IDNum))
+    selectorColumn.appendChild(containingDiv)
 
     var row = document.createElement('div')
     row.classList.add('row')
-    resultsDiv.appendChild(row)
+    containingDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-12')
+    col1.classList.add('col-lg-10')
     row.appendChild(col1)
 
-    resultsDiv.appendChild(document.createElement('br'))
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    // col3.style.padding = '0px'
+    row.appendChild(col3)
 
-    var row1 = document.createElement('div')
-    row1.classList.add('row')
-    resultsDiv.appendChild(row1)
+    selectorColumn.appendChild(row)
+    
+    var siteSelector = document.createElement('select')
+    siteSelector.classList.add('form-control')
+    siteSelector.id = 'siteColSelect-'+String(IDNum)
+    siteSelector.classList.add('siteColSelect')
+    col1.appendChild(siteSelector)
 
-    var col2 = document.createElement('div')
-    col2.classList.add('col-lg-12')
-    row1.appendChild(col2)
+    var siteOptionTexts = ['None']
+    var siteOptionValues = ['-1']
 
-    resultsDiv.appendChild(document.createElement('br'))
+    if(globalCSVData.length > 0){
+        var csv_columns = globalCSVData[0]
 
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Summary Indexes'
-    col1.appendChild(h5)
-
-    var h5 = document.createElement('h5')
-    h5.innerHTML = 'Species Abundance'
-    col2.appendChild(h5)
-
-    var table = document.createElement('table')
-    table.style.borderCollapse = 'collapse'
-    var tbody = table.createTBody()
-
-    console.log(summary.indexes)
-    data = summary.indexes
-
-    var keysRow = tbody.insertRow();
-    for (var key in data) {
-    var cell = keysRow.insertCell();
-    cell.innerHTML = key;
-    cell.style.border = '1px solid rgba(0,0,0,0.2)';
-    cell.style.padding = '10px';
-    }
-
-    var valuesRow = tbody.insertRow();
-    for (var key in data) {
-    var cell = valuesRow.insertCell();
-    cell.innerHTML = data[key];
-    cell.style.border = '1px solid rgba(0,0,0,0.2)';
-    cell.style.padding = '10px';
-    }
-
-    col1.appendChild(table)
-
-    var rowc = document.createElement('div')
-    rowc.classList.add('row')
-    col2.appendChild(rowc)
-
-    var col = document.createElement('div')
-    col.classList.add('col-lg-12')
-    col.setAttribute('style','padding:4px;margin:0px')
-    rowc.appendChild(col)
-
-    canvas = document.createElement('canvas')
-    canvas.setAttribute('id','statisticsChart')
-    canvas.setAttribute('height','650')
-    col.appendChild(canvas)
-
-    var ctx = document.getElementById('statisticsChart').getContext('2d');
-
-    var species = []
-    var abundance = []
-
-    for (i=0;i<summary.species_count.length;i++) {
-        if (summary.species_count[i]['count'] > 0) {
-            species.push(summary.species_count[i]['species'])
-            abundance.push(summary.species_count[i]['count'])
+        for (let i=0; i<csv_columns.length; i++){
+            siteOptionValues.push(i)
+            siteOptionTexts.push(csv_columns[i])
         }
     }
 
-    var data = {
-        datasets: [{
-            id: 'data-abundance',
-            data: abundance,
-            hoverBackgroundColor: 'rgba(255,255,255,0.1)',
-            borderColor: 'rgba(255,255,255,1)',
-            borderWidth: 1,
-            barPercentage: 1.0,
-            categoryPercentage: 1.0,
-            backgroundColor: 'rgba(223, 105, 26, 0.6)',
-        }],
-        // datasets: [],
-        labels: species
-    };
+    fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
 
-    var options = {
-        maintainAspectRatio: false,
-        legend: {
-            display: false
-        },
-        tooltips: {
-            displayColors: false,
-            callbacks: {
-                title: function(tooltipItems, data) {
-                    return '';
-                },
-                label: function(tooltipItem, data) {
-                    var label = data.labels[tooltipItem.index];
-                    return label+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                }           
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.id = 'btnRemoveSiteCov-'+IDNum;
+        btnRemove.setAttribute("class",'btn btn-info');
+        btnRemove.innerHTML = '&times;';
+        col3.appendChild(btnRemove);
+        btnRemove.addEventListener('click', function(wrapIDNum) {
+            return function() {
+                btnRemove = document.getElementById('btnRemoveSiteCov-'+wrapIDNum)
+                btnRemove.parentNode.parentNode.remove();
+
             }
-        },
-        ticks: {
-            min: 0
-        },
-        scales: {
-            yAxes: [{
-                ticks: {
-                    fontColor : textColour,
-                    beginAtZero: true,
-                    display: includeLabels
-                },
-                gridLines: {
-                    drawOnChartArea: includeGridLines,
-                    color: axisColour
-                }
-            }],
-            xAxes: [{
-                ticks: {
-                    fontColor : textColour,
-                    display: includeLabels
-                },
-                gridLines: {
-                    drawOnChartArea: includeGridLines,
-                    color: axisColour
-                }
-            }] 
-        }
+        }(IDNum));
     }
-
-    chart = new Chart(ctx, {
-        data: data,
-        type: 'bar',
-        options: options
-    });
 
 }
+
+function addDetCovCol(){
+    /** Adds a select to the div */
+    var selectorColumn = document.getElementById('detCovColsDiv')
+    var IDNum = getIdNumforNext('detColSelect-')
+
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','detColDiv-'+String(IDNum))
+    selectorColumn.appendChild(containingDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    containingDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.padding = '0px'
+    row.appendChild(col3)
+
+    selectorColumn.appendChild(row)
+
+    var detSelector = document.createElement('select')
+    detSelector.classList.add('form-control')
+    detSelector.id = 'detColSelect-'+String(IDNum)
+    detSelector.classList.add('detColSelect')
+    col1.appendChild(detSelector)
+
+    var detOptionTexts = ['None']
+    var detOptionValues = ['-1']
+
+    if (globalCSVData.length > 0){
+        var csv_columns = globalCSVData[0]
+
+        for (let i=0; i<csv_columns.length; i++){
+            detOptionValues.push(i)
+            detOptionTexts.push(csv_columns[i])
+        }
+    }
+
+    fillSelect(detSelector, detOptionTexts, detOptionValues)
+
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.id = 'btnRemoveDetCov-'+IDNum;
+        btnRemove.setAttribute("class",'btn btn-info');
+        btnRemove.innerHTML = '&times;';
+        col3.appendChild(btnRemove);
+        btnRemove.addEventListener('click', function(wrapIDNum) {
+            return function() {
+                btnRemove = document.getElementById('btnRemoveDetCov-'+wrapIDNum)
+                btnRemove.parentNode.parentNode.remove();
+
+            }
+        }(IDNum));
+    }
+
+}
+
+$('#covariatesFile').change(function(){
+    /** Function for when the covariates csv file is changed. */
+    var file = document.getElementById('covariatesFile').files[0];
+    var reader = new FileReader();
+
+    reader.onload = function(event){
+        var csv = event.target.result;
+        var data = $.csv.toArrays(csv);
+
+        if (data.length > 0) {
+            var columns = data[0];
+
+            // Fill site select with columns
+            var siteSelect = document.getElementById('siteCol');
+            clearSelect(siteSelect);
+            var cOptions = [];
+            var cTexts = [];
+            for (let i = 0; i < columns.length; i++){
+                cOptions.push(i)
+                cTexts.push(columns[i])
+            }
+            fillSelect(siteSelect, cTexts, cOptions);
+
+            // Fill latitude select with columns
+            var latSelect = document.getElementById('latCol');
+            clearSelect(latSelect);
+            var cOptions = [];
+            var cTexts = [];
+            for (let i = 0; i < columns.length; i++){
+                cOptions.push(i)
+                cTexts.push(columns[i])
+            }    
+            fillSelect(latSelect, cTexts, cOptions);
+
+            // Fill longitude select with columns
+            var longSelect = document.getElementById('longCol');
+            clearSelect(longSelect);
+            var cOptions = [];
+            var cTexts = [];
+            for (let i = 0; i < columns.length; i++){
+                cOptions.push(i)
+                cTexts.push(columns[i])
+            }
+            fillSelect(longSelect, cTexts, cOptions);
+
+            // Fill all site covariates selectors with columns
+            var siteCovSelects = document.getElementsByClassName('siteColSelect');
+            for (let i = 0; i < siteCovSelects.length; i++){
+                var select = siteCovSelects[i];
+                var cOptions = ['-1'];
+                var cTexts = ['None'];
+                for (let j = 0; j < columns.length; j++){
+                    cOptions.push(j)
+                    cTexts.push(columns[j])
+                }
+                clearSelect(select);
+                fillSelect(select, cTexts, cOptions);
+            }
+
+            // Fill detection covariate selectors with columns
+            var detColSelects = document.getElementsByClassName('detColSelect');
+            for (let i = 0; i < detColSelects.length; i++){
+                var select = detColSelects[i];
+                var cOptions = ['-1'];
+                var cTexts = ['None'];
+                for (let j = 0; j < columns.length; j++){
+                    cOptions.push(j)
+                    cTexts.push(columns[j])
+                }
+                
+                clearSelect(select);
+                fillSelect(select, cTexts, cOptions);
+            }
+
+            globalCSVData = data;
+        } else {
+            console.error("CSV file is empty.");
+        }
+    };
+
+    reader.readAsText(file);
+});
 
 function onload(){
     /**Function for initialising the page on load.*/
@@ -3635,6 +6942,9 @@ function onload(){
     polarData = {}
     lineData = {}
     getLabelsAndSites()
+    generateResults()
+    // Run summary analysis (uncomment for prod)
+    document.getElementById('btnRunScript').click()
 }
 
 window.addEventListener('load', onload, false);
