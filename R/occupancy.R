@@ -309,19 +309,32 @@ plot_occupancy <- function(idx, file_name, cov_name){
         }
         else{
             newdata1 <- all_covs 
-            # for (site_cov_name in site_cov_names){
-            #     if (site_cov_name != cov_name){
-            #         newdata1[,site_cov_name] <- mean(all_covs[,site_cov_name])
-            #     }
-            # }
-            # for (det_cov_name in det_cov_names){
-            #     if (det_cov_name != cov_name){
-            #         newdata1[,det_cov_name] <- mean(all_covs[,det_cov_name])
-            #     }
-            # }
+            for (site_cov_name in site_cov_names){
+                if (site_cov_name != cov_name){
+                    if (cov_options[site_cov_name,'type'] == 'Numeric') {
+                        newdata1[,site_cov_name] <- mean(all_covs[,site_cov_name])
+                    }
+                    else{
+                        newdata1[,site_cov_name] <- all_covs[1,site_cov_name]
+                    }
+                }
+            }
+            for (det_cov_name in det_cov_names){
+                if (det_cov_name != cov_name){
+                    if (cov_options[det_cov_name,'type'] == 'Numeric') {
+                        newdata1[,det_cov_name] <- mean(all_covs[,det_cov_name])
+                    }
+                    else{
+                        newdata1[,det_cov_name] <- all_covs[1,det_cov_name]
+                    }
+                }
+            }
 
             pred1 <- predict(best_model, type = pred_type, newdata = newdata1, appendData = T)
         }
+
+        # Extract the first part of site_id before the first underscore
+        pred1$site_label <- sapply(strsplit(as.character(pred1$site_id), "_"), "[", 1)
 
         # Plot and save image locally 
         file_name <- paste0(file_name, ".JPG")
@@ -330,7 +343,7 @@ plot_occupancy <- function(idx, file_name, cov_name){
         # print(pred1)
         y_lab <- paste0("Predicted ", label , " for ", species, " (", cov_name, ")")
         # Plot occupancy per site for covariate
-        b <- ggplot(pred1, aes(x=reorder(site_id, -Predicted), y= Predicted)) +
+        b <- ggplot(pred1, aes(x=reorder(site_label, -Predicted), y= Predicted)) +
             geom_point(pred1$predicted) +
             geom_errorbar(aes(ymin=lower, ymax=upper), width=.2, size =1) +
             theme(axis.text.x  = element_text(angle = 90,hjust = 1, vjust = 0.5)) +
@@ -349,18 +362,29 @@ plot_occupancy <- function(idx, file_name, cov_name){
 
         # Check if covariate is either numerical or categorical
         isnum <- is.numeric(all_covs[,cov_name])
-        # print(isnum)
+
         if (isnum) {
-            newdata2 <- data.frame(covariate = seq(min(all_covs[,cov_name]), max(all_covs[,cov_name]),length = length(all_covs[,cov_name])))
-            # for (site_cov_name in site_cov_names){
-            #     newdata2[,site_cov_name] <- mean(all_covs[,site_cov_name])
-            # }
-            # for (det_cov_name in det_cov_names){
-            #     newdata2[,det_cov_name] <- mean(all_covs[,det_cov_name])
-            # }
+            newdata2 <- all_covs
+            for (site_cov_name in site_cov_names){
+                if (cov_options[site_cov_name,'type'] == 'Numeric') {
+                    newdata2[,site_cov_name] <- mean(all_covs[,site_cov_name])
+                }
+                else {
+                    newdata2[,site_cov_name] <- all_covs[1,site_cov_name]
+                }
+            }
+            for (det_cov_name in det_cov_names){
+                if (cov_options[det_cov_name,'type'] == 'Numeric') {
+                    newdata2[,det_cov_name] <- mean(all_covs[,det_cov_name])
+                }
+                else {
+                    newdata2[,det_cov_name] <- all_covs[1,det_cov_name]
+                }
+            }
             newdata2[,cov_name] <- seq(min(all_covs[,cov_name]), max(all_covs[,cov_name]),length = length(all_covs[,cov_name]))
+
             pred2 <- predict(best_model, type = pred_type, newdata = newdata2, appendData = T)
-            # print(pred2)
+
             # Plot predicted occupancy per covariate
             f2 <- ggplot(pred2, aes_string(cov_name, 'Predicted', ymin='lower',ymax='upper')) +
             geom_line(colour = "blue") + 
@@ -372,10 +396,26 @@ plot_occupancy <- function(idx, file_name, cov_name){
         }
         else {
             newdata2 <- data.frame(covariate = unique(all_covs[,cov_name]))
+            for (site_cov_name in site_cov_names){
+                if (cov_options[site_cov_name,'type'] == 'Numeric') {
+                    newdata2[,site_cov_name] <- mean(all_covs[,site_cov_name])
+                }
+                else {
+                    newdata2[,site_cov_name] <- all_covs[1,site_cov_name]
+                }
+            }
+
+            for (det_cov_name in det_cov_names){
+                if (cov_options[det_cov_name,'type'] == 'Numeric') {
+                    newdata2[,det_cov_name] <- mean(all_covs[,det_cov_name])
+                }
+                else {
+                    newdata2[,det_cov_name] <- all_covs[1,det_cov_name]
+                }
+            }
             newdata2[,cov_name] <- unique(all_covs[,cov_name])
 
             pred2 <- predict(best_model, type = pred_type, newdata = newdata2, appendData = T)
-            # print(pred2)
 
             # Plot predicted occupancy per covariate
             f2 <- ggplot(pred2, aes_string(cov_name, 'Predicted', ymin='lower',ymax='upper')) +
@@ -387,19 +427,6 @@ plot_occupancy <- function(idx, file_name, cov_name){
             ylim(0,1)
         }
         
-        
-
-        
-        # pred2 <- predict(best_model, type = pred_type, newdata = newdata2, appendData = T)
-        # # print(pred2)
-        # # Plot predicted occupancy per covariate
-        # f2 <- ggplot(pred2, aes_string(cov_name, 'Predicted', ymin='lower',ymax='upper')) +
-        # geom_line(colour = "blue") + 
-        # geom_ribbon(alpha=0.2,colour=NA) + 
-        # labs(x = cov_name, y = label) +
-        # theme_bw() +
-        # theme(axis.text=element_text(size=15),axis.line=element_line(colour="black"))+
-        # ylim(0,1)
 
         print(f2)
         dev.off()

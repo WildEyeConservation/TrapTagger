@@ -272,6 +272,9 @@ function generateResults(){
     polarData = {}
     lineData = {}
 
+    map = {}
+    activeImage = {}
+
     clearChartColours()
     clearButtonColours()
 
@@ -1168,7 +1171,7 @@ function buildDataSelectorRow(){
 
             selectColour.style.backgroundColor = rgba;
 
-            console.log(selectedColor, rgba)
+            // console.log(selectedColor, rgba)
             // colourPicker.hidden = true;
             // selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
@@ -1375,7 +1378,7 @@ function buildSpeciesSelectorRow(){
 
             selectColour.style.backgroundColor = rgba;
 
-            console.log(selectedColor, rgba)
+            // console.log(selectedColor, rgba)
             // colourPicker.hidden = true;
             // selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
@@ -1900,7 +1903,7 @@ function checkActivity(species, overlap){
         valid = false
     }
 
-    console.log(overlap)
+    // console.log(overlap)
 
     if (overlap){
         if (species.length != 2){
@@ -1932,7 +1935,7 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
         w = this.width
         h = this.height
 
-        console.log(w,h)
+        // console.log(w,h)
     
         if (w>h) {
             mapDiv.setAttribute('style','height: calc(45vw *'+(h/w)+');  width:45vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
@@ -1941,14 +1944,14 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
         }
 
         L.Browser.touch = true
-        console.log(mapDiv)
+        // console.log(mapDiv)
         map[map_id] = new L.map(mapDiv, {
             crs: L.CRS.Simple,
             maxZoom: 10,
             center: [0, 0],
             zoomSnap: 0
         })
-        console.log(map)
+        // console.log(map)
         var h1 = mapDiv.clientHeight
         var w1 = mapDiv.clientWidth
 
@@ -1994,8 +1997,7 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
             }
         }(map_id));
 
-    }
-    console.log(img)
+    };
     img.src = imageUrl
 }
 
@@ -2160,7 +2162,7 @@ function getSelectedSites(text=false){
         for (let i=0;i<allSites.length;i++) {
             if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
                 let split = allSites[i].options[allSites[i].selectedIndex].text.split(' ')
-                console.log(split)  
+                // console.log(split)  
                 let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
                 if(sites.indexOf(site) == -1){
                     sites.push(site)
@@ -3841,7 +3843,7 @@ function exportResults(){
     }
     else if (analysisSelection == '6') {
         // Get active tab and export selected graph 
-        occu_name = tabActiveResults.split('occuTab')[1]
+        occu_name = tabActiveResults.split('occuTab_')[1]
         map_id = 'mapDiv_' + occu_name
         if (activeImage[map_id] && activeImage[map_id]._url != '') {
             var imageUrl = activeImage[map_id]._url;
@@ -3976,7 +3978,6 @@ function getSummary(check){
             reply = JSON.parse(this.responseText);
             console.log(reply)
             if (reply.status == 'SUCCESS') {
-                console.log(reply)
                 document.getElementById('loadingDiv').style.display = 'none'
                 document.getElementById('loadingCircle').style.display = 'none'
                 document.getElementById('resultsDiv').style.display = 'block'
@@ -4145,15 +4146,12 @@ function buildSummaryTab(summary, tab){
     /** Builds the summary div */
 
     // Create the tab buttons and tabs for summary results
-    console.log('Building summary tab')
-    console.log(summary)
-    console.log(tab)
 
     if (tab == 'dataSummaryTab') {
     // Data summary tab
         dataSummaryTab = document.getElementById('dataSummaryTab')
         if (dataSummaryTab.firstChild == null) {
-            console.log('Building data summary tab')
+
             var row = document.createElement('div')
             row.classList.add('row')
             dataSummaryTab.appendChild(row)
@@ -5750,12 +5748,12 @@ function buildOccupancyTabs(results){
 
         var nullOccuTab = document.createElement('div')
         nullOccuTab.classList.add('tabcontent')
-        nullOccuTab.setAttribute('id', 'occuTab' + results.model_formula)
+        nullOccuTab.setAttribute('id', 'occuTab_' + results.model_formula)
         nullOccuTab.style.display = 'none'
         resultsDiv.appendChild(nullOccuTab)
 
         btnNullOccuTab.addEventListener('click', function(event){
-            var tabName = 'occuTab' + results.model_formula
+            var tabName = 'occuTab_' + results.model_formula
             openResultsTab(event, tabName, results)
         });
     }
@@ -5768,12 +5766,12 @@ function buildOccupancyTabs(results){
 
             var occuTab = document.createElement('div')
             occuTab.classList.add('tabcontent')
-            occuTab.setAttribute('id', 'occuTab' + results.occu_files[i].name)
+            occuTab.setAttribute('id', 'occuTab_' + results.occu_files[i].name)
             occuTab.style.display = 'none'
             resultsDiv.appendChild(occuTab)
 
             btnOccuTab.addEventListener('click', function(event){
-                tabName = 'occuTab' + results.occu_files[i].name
+                tabName = 'occuTab_' + results.occu_files[i].name
                 openResultsTab(event, tabName, results)
             });
         }
@@ -5785,8 +5783,7 @@ function buildOccupancyTabs(results){
 
 function buildOccupancyResults(results, tab){
     /** Builds the occupancy results */
-    // var resultsDiv = document.getElementById('resultsDiv')
-    console.log('Building tab: ' + tab)
+
     if (tab == 'summaryOccuTab'){
         var summaryOccuTab = document.getElementById('summaryOccuTab')
         if (summaryOccuTab.firstChild == null){
@@ -5966,7 +5963,7 @@ function buildOccupancyResults(results, tab){
                     else if (keys[j] == 'Modnames'){
                         value = value.replace(/\s/g, '')
                         formula = value.split('~')
-                        console.log(formula)
+                        // console.log(formula)
                         for (let k=0; k<formula.length; k++){
                             if (formula[k].includes('1')){
                                 formula[k] = 'None'
@@ -6118,215 +6115,222 @@ function buildOccupancyResults(results, tab){
         }
     }
     else {
-        if (results.occu_files.length > 0){
+        var occuTab = document.getElementById(tab)
+        if (occuTab.firstChild == null){
+            // Only split the first underscore
+            var split = tab.split('_')
+            split.shift()
+            var cov_name = split.join('_')
             var occu_files = results.occu_files
+            var cov_idx = 0
             for (let i=0; i<occu_files.length; i++){
-                
-                var tabName = 'occuTab' + occu_files[i].name
-                var occuTab = document.getElementById(tabName)
-
-                if (occuTab.firstChild == null){
-
-                    var h5 = document.createElement('h5')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        h5.innerHTML = 'Covariate Results: No Covariates'
-                    } else {
-                        h5.innerHTML = 'Covariate Results: ' + occu_files[i].name
-                    }
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    occuTab.appendChild(h5)
-
-                    // h5 = document.createElement('h5')
-                    // h5.innerHTML = '<div><i> The following graphs showcases the occupancy or detection probability of the species in relation to the covariates and sites. </i></div>'
-                    // h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    // occuTab.appendChild(h5)
-
-                    // Create a radio button to select the type of graph
-                    var divRadio = document.createElement('div')
-                    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
-                
-                    var radio = document.createElement('input')
-                    radio.setAttribute('type', 'radio')
-                    radio.setAttribute('id', 'siteProbGraph')
-                    radio.setAttribute('name', 'occuGraph')
-                    radio.setAttribute('class', 'custom-control-input')
-                    radio.setAttribute('value', '0')
-                    radio.checked = true
-                    divRadio.appendChild(radio)
-                
-                    var label = document.createElement('label')
-                    label.setAttribute('class', 'custom-control-label')
-                    label.setAttribute('for', 'siteProbGraph')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        label.innerHTML = 'Occupancy Probability Plot per Site'
-                    }
-                    else {
-                        label.innerHTML = 'Probability Plot per Site'
-                    }
-                    divRadio.appendChild(label)
-                
-                    occuTab.appendChild(divRadio)
-
-                    divRadio = document.createElement('div')
-                    divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
-
-                    radio = document.createElement('input')
-                    radio.setAttribute('type', 'radio')
-                    radio.setAttribute('id', 'covarProbGraph')
-                    radio.setAttribute('name', 'occuGraph')
-                    radio.setAttribute('class', 'custom-control-input')
-                    radio.setAttribute('value', '1')
-                    divRadio.appendChild(radio)
-
-                    label = document.createElement('label')
-                    label.setAttribute('class', 'custom-control-label')
-                    label.setAttribute('for', 'covarProbGraph')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        label.innerHTML = 'Detection Probability Plot per Site'
-                    }
-                    else {
-                        label.innerHTML = 'Covariate Probability Plot'
-                    }
-                    divRadio.appendChild(label)
-
-                    occuTab.appendChild(divRadio)
-
-                    // EVent listener for the radio buttons
-                    radio = document.getElementById('siteProbGraph')
-                    radio.addEventListener('change', function(occuFiles){
-                        // Set active image on map to be the first image
-                        return function(){
-                            if (this.checked){
-                                // Display correct heading
-                                var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
-                                headingDiv.style.display = 'block'
-                                headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
-                                headingDiv.style.display = 'none'
-                                var map_id = 'mapDiv_' + occuFiles.name
-                                activeImage[map_id].setUrl(occuFiles.images[0])
-                            }
-                        }
-                    }(occu_files[i]))
-
-                    radio = document.getElementById('covarProbGraph')
-                    radio.addEventListener('change', function(occuFiles){
-                        // Set active image on map to be the second image
-                        return function(){
-                            if (this.checked){
-                                // Display correct heading
-                                var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
-                                headingDiv.style.display = 'none'
-                                headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
-                                headingDiv.style.display = 'block'
-                                var map_id = 'mapDiv_' + occuFiles.name
-                                activeImage[map_id].setUrl(occuFiles.images[1])
-                            }
-                        }
-                    }(occu_files[i]))
-
-                    occuTab.appendChild(document.createElement('br'))
-                    occuTab.appendChild(document.createElement('br'))
-
-                    var headingDiv = document.createElement('div')
-                    headingDiv.classList.add('row')
-                    headingDiv.id = 'headingDiv_' + occu_files[i].name + '_site'
-                    occuTab.appendChild(headingDiv)
-
-                    var col = document.createElement('div')
-                    col.classList.add('col-lg-12')
-                    headingDiv.appendChild(col)
-
-                    var h5 = document.createElement('h5')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        h5.innerHTML = 'Occupancy Probability Plot per Site'
-                    }
-                    else {
-                        h5.innerHTML = 'Probability Plot per Site'
-                    }
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    col.appendChild(h5)
-
-                    h5 = document.createElement('h5')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        h5.innerHTML = '<div><i> The following plot displays the occupancy probability of the species in relation to the sites. </i></div>'
-                    }
-                    else {
-                        h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the sites. The covariate value for each site is used to calculate the probability. </i></div>'
-                    }
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    col.appendChild(h5)
-
-                    // headingDiv.appendChild(document.createElement('br'))
-
-                    headingDiv = document.createElement('div')
-                    headingDiv.classList.add('row')
-                    headingDiv.id = 'headingDiv_' + occu_files[i].name + '_covar'
-                    headingDiv.setAttribute('style','display: none')
-                    occuTab.appendChild(headingDiv)
-
-                    var col = document.createElement('div')
-                    col.classList.add('col-lg-12')
-                    headingDiv.appendChild(col)
-
-                    h5 = document.createElement('h5')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        h5.innerHTML = 'Detection Probability Plot per Site'
-                    }
-                    else {
-                        h5.innerHTML = 'Covariate Probability Plot'
-                    }
-                    h5.setAttribute('style','margin-bottom: 2px')
-                    col.appendChild(h5)
-
-                    h5 = document.createElement('h5')
-                    if (occu_files[i].name == '~1 ~ 1'){
-                        h5.innerHTML = '<div><i> The following plot displays the detection probability of the species in relation to the sites. </i></div>'
-                    }
-                    else {
-                        h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the covariates. The plot displays the effect of the covariate on the probability. </i></div>'
-                    }
-                    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-                    col.appendChild(h5)
-
-                    // headingDiv.appendChild(document.createElement('br'))
-
-                    occuTab.appendChild(document.createElement('br'))
-
-                    var occu_images = occu_files[i].images
-
-                    div = document.createElement('div')
-                    div.classList.add('row')
-                    occuTab.appendChild(div)
-
-                    space = document.createElement('div')
-                    space.classList.add('col-lg-1')
-                    div.appendChild(space)
-
-                    col1 = document.createElement('div')
-                    col1.classList.add('col-lg-10')
-                    div.appendChild(col1)
-
-                    center = document.createElement('center')
-                    col1.appendChild(center)
-
-                    map_id = 'mapDiv_' + occu_files[i].name
-                    mapDiv = document.createElement('div')
-                    mapDiv.setAttribute('id',map_id)
-                    mapDiv.setAttribute('style','height: 750px')
-                    center.appendChild(mapDiv)
-
-                    space = document.createElement('div')
-                    space.classList.add('col-lg-1')
-                    div.appendChild(space)
-
-                    occuTab.appendChild(document.createElement('br'))
-
-                    initialiseImageMap(occu_images[0], map_id)
-                    
+                if (occu_files[i].name == cov_name){
+                    cov_idx = i
+                    break
                 }
-
             }
 
+
+            var h5 = document.createElement('h5')
+            if (cov_name == '~1 ~ 1'){
+                h5.innerHTML = 'Covariate Results: No Covariates'
+            } else {
+                h5.innerHTML = 'Covariate Results: ' + cov_name
+            }
+            h5.setAttribute('style','margin-bottom: 2px')
+            occuTab.appendChild(h5)
+
+            // h5 = document.createElement('h5')
+            // h5.innerHTML = '<div><i> The following graphs showcases the occupancy or detection probability of the species in relation to the covariates and sites. </i></div>'
+            // h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            // occuTab.appendChild(h5)
+
+            // Create a radio button to select the type of graph
+            var divRadio = document.createElement('div')
+            divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+        
+            var radio = document.createElement('input')
+            radio.setAttribute('type', 'radio')
+            radio.setAttribute('id', 'siteProbGraph_' + cov_name)
+            radio.setAttribute('name', 'occuGraph_' + cov_name)
+            radio.setAttribute('class', 'custom-control-input')
+            radio.setAttribute('value', '0')
+            radio.checked = true
+            divRadio.appendChild(radio)
+                
+            var label = document.createElement('label')
+            label.setAttribute('class', 'custom-control-label')
+            label.setAttribute('for', 'siteProbGraph_' + cov_name)
+            if (cov_name == '~1 ~ 1'){
+                label.innerHTML = 'Occupancy Probability Plot per Site'
+            }
+            else {
+                label.innerHTML = 'Probability Plot per Site'
+            }
+            divRadio.appendChild(label)
+        
+            occuTab.appendChild(divRadio)
+
+            divRadio = document.createElement('div')
+            divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+            radio = document.createElement('input')
+            radio.setAttribute('type', 'radio')
+            radio.setAttribute('id', 'covarProbGraph_' + cov_name)
+            radio.setAttribute('name', 'occuGraph_' + cov_name)
+            radio.setAttribute('class', 'custom-control-input')
+            radio.setAttribute('value', '1')
+            divRadio.appendChild(radio)
+
+            label = document.createElement('label')
+            label.setAttribute('class', 'custom-control-label')
+            label.setAttribute('for', 'covarProbGraph_' + cov_name)
+            if (cov_name == '~1 ~ 1'){
+                label.innerHTML = 'Detection Probability Plot per Site'
+            }
+            else {
+                label.innerHTML = 'Covariate Probability Plot'
+            }
+            divRadio.appendChild(label)
+
+            occuTab.appendChild(divRadio)
+
+            // EVent listener for the radio buttons
+            radio = document.getElementById('siteProbGraph_' + cov_name)
+            radio.addEventListener('change', function(occuFiles){
+                // Set active image on map to be the first image
+                return function(){
+                    if (this.checked){
+                        // Display correct heading
+                        var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
+                        headingDiv.style.display = 'block'
+                        headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
+                        headingDiv.style.display = 'none'
+                        var map_id = 'mapDiv_' + occuFiles.name
+                        activeImage[map_id].setUrl(occuFiles.images[0])
+                    }
+                }
+            }(occu_files[cov_idx]))
+
+            radio = document.getElementById('covarProbGraph_' + cov_name)
+            radio.addEventListener('change', function(occuFiles){
+                // Set active image on map to be the second image
+                return function(){
+                    if (this.checked){
+                        // Display correct heading
+                        var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
+                        headingDiv.style.display = 'none'
+                        headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
+                        headingDiv.style.display = 'block'
+                        var map_id = 'mapDiv_' + occuFiles.name
+                        activeImage[map_id].setUrl(occuFiles.images[1])
+                    }
+                }
+            }(occu_files[cov_idx]))
+
+            occuTab.appendChild(document.createElement('br'))
+            occuTab.appendChild(document.createElement('br'))
+
+            var headingDiv = document.createElement('div')
+            headingDiv.classList.add('row')
+            headingDiv.id = 'headingDiv_' + cov_name + '_site'
+            occuTab.appendChild(headingDiv)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+            headingDiv.appendChild(col)
+
+            var h5 = document.createElement('h5')
+            if (cov_name == '~1 ~ 1'){
+                h5.innerHTML = 'Occupancy Probability Plot per Site'
+            }
+            else {
+                h5.innerHTML = 'Probability Plot per Site'
+            }
+            h5.setAttribute('style','margin-bottom: 2px')
+            col.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            if (cov_name == '~1 ~ 1'){
+                h5.innerHTML = '<div><i> The following plot displays the occupancy probability of the species in relation to the sites. </i></div>'
+            }
+            else {
+                h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the sites. The covariate value for each site is used to calculate the probability. </i></div>'
+            }
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col.appendChild(h5)
+
+            // headingDiv.appendChild(document.createElement('br'))
+
+            headingDiv = document.createElement('div')
+            headingDiv.classList.add('row')
+            headingDiv.id = 'headingDiv_' + cov_name + '_covar'
+            headingDiv.setAttribute('style','display: none')
+            occuTab.appendChild(headingDiv)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-12')
+            headingDiv.appendChild(col)
+
+            h5 = document.createElement('h5')
+            if (cov_name == '~1 ~ 1'){
+                h5.innerHTML = 'Detection Probability Plot per Site'
+            }
+            else {
+                h5.innerHTML = 'Covariate Probability Plot'
+            }
+            h5.setAttribute('style','margin-bottom: 2px')
+            col.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            if (cov_name == '~1 ~ 1'){
+                h5.innerHTML = '<div><i> The following plot displays the detection probability of the species in relation to the sites. </i></div>'
+            }
+            else {
+                h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the covariates. The plot displays the effect of the covariate on the probability. </i></div>'
+            }
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            col.appendChild(h5)
+
+            // headingDiv.appendChild(document.createElement('br'))
+
+            occuTab.appendChild(document.createElement('br'))
+
+            var occu_images = occu_files[cov_idx].images
+
+            div = document.createElement('div')
+            div.classList.add('row')
+            occuTab.appendChild(div)
+
+            space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            col1 = document.createElement('div')
+            col1.classList.add('col-lg-10')
+            div.appendChild(col1)
+
+            center = document.createElement('center')
+            col1.appendChild(center)
+
+            map_id = 'mapDiv_' + cov_name
+            mapDiv = document.createElement('div')
+            mapDiv.setAttribute('id',map_id)
+            mapDiv.setAttribute('style','height: 750px')
+            center.appendChild(mapDiv)
+
+            space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            occuTab.appendChild(document.createElement('br'))
+            initialiseImageMap(occu_images[0], map_id)
+
+            // if (activeImage[map_id] != null){
+            //     activeImage[map_id].setUrl(occu_images[0])
+            // }
+                    
+        
         }
 
     }
