@@ -1251,11 +1251,17 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(Cluster.examined==False)
-                        
-        clusters = clusters.filter(Labelgroup.task_id == task_id) \
+        
+        # This need to be ordered by Cluster ID otherwise the a max request will drop random info
+        clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
-                        .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp))\
-                        .distinct().all()
+                        .order_by(desc(Cluster.classification), Cluster.id)\
+                        ).distinct().limit(25000).all()
+
+        if len(clusters) == 25000:
+            max_request = True
+        else:
+            max_request = False
 
         for row in clusters:
             # Handle clusters
@@ -1291,18 +1297,18 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
-                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
-                        'id': row[9],
-                        'top': row[10],
-                        'bottom': row[11],
-                        'left': row[12],
-                        'right': row[13],
-                        'category': row[14],
-                        'individuals': [],
-                        'static': row[15],
-                        'labels': []
-                    }
+                # if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
+                clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
+                    'id': row[9],
+                    'top': row[10],
+                    'bottom': row[11],
+                    'left': row[12],
+                    'right': row[13],
+                    'category': row[14],
+                    'individuals': [],
+                    'static': row[15],
+                    'labels': []
+                }
 
             # Handle video
             if id and row[22] and (row[22] not in clusterInfo[row[0]]['videos'].keys()):
@@ -1332,8 +1338,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                 # Handle individuals
                 if row[-1] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[-1]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
+
+        # If its a max request, the last cluster is probably missing info
+        if max_request and (len(clusterInfo.keys())>1): del clusterInfo[clusters[-1][0]]
     
-        return clusterInfo
+        return clusterInfo, max_request
 
 # def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
 #     '''

@@ -1865,7 +1865,7 @@ def delete_duplicate_images(images):
     '''Helper function for remove_duplicate_images that deletes the specified image objects and their detections from the database.'''
 
     # If adding images - delete the new imports rather than the old ones
-    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).distinct().all()
+    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
     
     if len(candidateImages) == len(images):
         # all are unclustered - delete all but one
@@ -1873,7 +1873,7 @@ def delete_duplicate_images(images):
 
     elif len(candidateImages) < (len(images)-1):
         # some are clustered
-        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).distinct().all()
+        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
         candidateImages.extend(clusteredImages[1:])
     
     for image in candidateImages:

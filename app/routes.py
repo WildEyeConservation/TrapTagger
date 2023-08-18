@@ -4791,7 +4791,7 @@ def get_clusters():
         label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
 
     else:
 
@@ -4837,10 +4837,10 @@ def get_clusters():
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
-                if len(clusterInfo) <= limit:
+                if (len(clusterInfo) <= limit) and not max_request:
                     clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
                     trapgroup.active = False
                     GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
@@ -5737,10 +5737,10 @@ def assignLabel(clusterID):
                                 newClusters = []
                             else:
                                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
-                                if len(clusterInfo) <= limit:
+                                if (len(clusterInfo) <= limit) and not max_request:
                                     clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
                                     trapgroup.active = False
                                     GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
