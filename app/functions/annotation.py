@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications, checkForIdWork, numify_timestamp
+                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
 from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
