@@ -6960,6 +6960,86 @@ $('#covariatesFile').change(function(){
     reader.readAsText(file);
 });
 
+function exportCSV(){
+    /** Function for exporting the covariates as a csv file. */
+    
+    var siteCovariates = []
+    var detectionCovariates = []
+    var siteCovariatesTable = document.getElementById('siteCovariatesTable')
+    var detectionCovariatesTable = document.getElementById('detectionCovariatesTable')
+    var siteCovariatesRows = siteCovariatesTable.getElementsByTagName('tr')
+    var detectionCovariatesRows = detectionCovariatesTable.getElementsByTagName('tr')
+    document.getElementById('covariatesError').innerHTML = ''
+
+    for (let i = 0; i < siteCovariatesRows.length; i++) {
+        var row = siteCovariatesRows[i]
+        var cells = row.getElementsByTagName('td')
+        if (cells.length > 0){
+            var covariate = cells[0].getElementsByTagName('input')[0].value.trim()
+            var siteCovariate = {}
+            siteCovariate['covariate'] = covariate
+            for (let j = 1; j < cells.length; j++) {
+                var site = cells[j].getElementsByTagName('input')[0].id.split('-')[1]
+                var value = cells[j].getElementsByTagName('input')[0].value
+                siteCovariate[site] = value
+            }
+            siteCovariates.push(siteCovariate)
+        }
+    }
+
+    for (let i = 0; i < detectionCovariatesRows.length; i++) {
+        var row = detectionCovariatesRows[i]
+        var cells = row.getElementsByTagName('td')
+        if (cells.length > 0){
+            var covariate = cells[0].getElementsByTagName('input')[0].value.trim()
+            var detectionCovariate = {}
+            detectionCovariate['covariate'] = covariate
+            for (let j = 1; j < cells.length; j++) {
+                var site = cells[j].getElementsByTagName('input')[0].id.split('-')[1]
+                var value = cells[j].getElementsByTagName('input')[0].value
+                detectionCovariate[site] = value
+            }
+            detectionCovariates.push(detectionCovariate)
+        }
+    }
+
+    if (siteCovariates.length == 0 && detectionCovariates.length == 0){
+        document.getElementById('covariatesError').innerHTML = 'No covariates to export.'
+    }
+    else {
+        var formData = new FormData();
+        formData.append('siteCovs', JSON.stringify(siteCovariates));
+        formData.append('detCovs', JSON.stringify(detectionCovariates));
+        
+        document.getElementById('covariatesError').innerHTML = 'Downloading CSV...'
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/getCovariateCSV');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                var csv_url = reply.cov_url
+                if (csv_url){
+                    var filename = csv_url.split('/')[csv_url.split('/').length-1]
+                    var link = document.createElement('a');
+                    link.setAttribute('download', filename);
+                    link.setAttribute('href', csv_url);
+                    link.click();
+    
+                    document.getElementById('covariatesError').innerHTML = ''
+                }
+                else{
+                    document.getElementById('covariatesError').innerHTML = 'Error downloading CSV.'
+                }
+            }
+        }
+        xhttp.send(formData);
+
+    }
+
+}
+
 function onload(){
     /**Function for initialising the page on load.*/
     document.getElementById("openAnalysisTab").click();
@@ -6969,7 +7049,7 @@ function onload(){
     getLabelsAndSites()
     generateResults()
     // Run summary analysis (uncomment for prod)
-    // document.getElementById('btnRunScript').click()
+    document.getElementById('btnRunScript').click()
 }
 
 window.addEventListener('load', onload, false);

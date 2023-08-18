@@ -3574,7 +3574,7 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                 dfs_names = ['detection', 'site_cov', 'det_cov', 'all_cov', 'site', 'cov_options']
                 occu_urls = []
                 for i in range(len(dfs)):
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
                         df = dfs[i]
                         df_name = dfs_names[i]
                         if df_name == 'cov_options':

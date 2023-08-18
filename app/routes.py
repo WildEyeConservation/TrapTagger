@@ -9014,3 +9014,49 @@ def getOccupancyCSV():
 
 
     return json.dumps({'status': status, 'csv_urls': csv_urls})
+
+
+@app.route('/getCovariateCSV', methods=['POST'])
+@login_required
+def getCovariateCSV():
+    ''' Converts the covariate data to CSV '''
+    siteCovs = ast.literal_eval(request.form['siteCovs'])
+    detCovs = ast.literal_eval(request.form['detCovs'])
+    cov_url = None
+
+    if current_user.is_authenticated and current_user.admin:
+        if (len(siteCovs) > 0):
+            site_covs = pd.DataFrame(siteCovs)
+            site_covs = site_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+            site_covs = site_covs.rename_axis('site_id').reset_index()
+            site_covs = site_covs.rename_axis(None, axis=1)
+        else:
+            site_covs = pd.DataFrame()
+            site_covs['site_id'] = None
+
+        if (len(detCovs) > 0):
+            det_covs = pd.DataFrame(detCovs)
+            det_covs = det_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+            det_covs = det_covs.rename_axis('site_id').reset_index()
+            det_covs = det_covs.rename_axis(None, axis=1)
+        else:
+            det_covs = pd.DataFrame()
+            det_covs['site_id'] = None
+
+        covs = pd.merge(site_covs, det_covs, on='site_id', how='outer')
+
+        if (len(covs) > 0):
+            covs[['site_id', 'latitude', 'longitude']] = covs['site_id'].str.split('_', expand=True)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            covs.to_csv(temp_file.name, index=False)
+            fileName = current_user.folder +'/docs/Occupancy_Covariates.csv'
+            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+            cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+
+            # Schedule deletion
+            deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+
+
+    return json.dumps({'cov_url': cov_url})
+
