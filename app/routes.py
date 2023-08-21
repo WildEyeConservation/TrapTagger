@@ -5545,8 +5545,6 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 def assignNote():
     '''Assigns a note to the given cluster or individual.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     try:
         note = ast.literal_eval(request.form['note'])
         typeID = ast.literal_eval(request.form['type'])
@@ -5571,14 +5569,17 @@ def assignNote():
     except:
         pass
 
-    return json.dumps('')
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return json.dumps('')
 
 @app.route('/assignLabel/<clusterID>', methods=['POST'])
 @login_required
 def assignLabel(clusterID):
     '''Assigned the specified list of labels to the cluster. Returns progress numbers of an error status.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+    # if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     try:
         labels = ast.literal_eval(request.form['labels'])
@@ -5764,7 +5765,10 @@ def assignLabel(clusterID):
                         session.commit()
                         session.close()
 
-        return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
+        if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+            return {'redirect': url_for('done')}, 278
+        else:
+            return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
 
     except:
         return json.dumps('error')
@@ -5914,8 +5918,6 @@ def getOtherTasks(task_id):
 def reviewClassification():
     '''Endpoint for the review of classifications in the AI check workflow.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
     turkcode = current_user.turkcode[0]
     num2 = turkcode.task.size + turkcode.task.test_size
@@ -5993,7 +5995,10 @@ def reviewClassification():
 
     if Config.DEBUGGING: app.logger.info('{}: {}'.format(cluster.id, cluster.labels))
 
-    return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
 
 @app.route('/getAllTaskLabels/<task_id1>/<task_id2>')
 @login_required
@@ -6296,8 +6301,6 @@ def submitTags(task_id):
 def editSightings(image_id,task_id):
     '''Handles the editing of bounding boxes on the specified image, and labels for the associated labelgroup for the given task.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     detDbIDs = {}
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
@@ -6433,7 +6436,10 @@ def editSightings(image_id,task_id):
                     cluster.timestamp = datetime.utcnow()
                     db.session.commit()
 
-    return json.dumps({'detIDs':detDbIDs,'progress':(num, num2)})
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return json.dumps({'detIDs':detDbIDs,'progress':(num, num2)})
 
 @app.route('/done')
 @login_required
@@ -6817,8 +6823,6 @@ def checkDownload(fileType,selectedTask):
 def undoknockdown(imageId, clusterId, label):
     '''Undoes the knock-down categorisation of the specified image. The cluster label is replaced with the supplied label.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     image = db.session.query(Image).get(int(imageId))
     task = current_user.turkcode[0].task
     if image and (image.corrected_timestamp) and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user==task.survey.user)) and (task.survey_id == image.camera.trapgroup.survey_id):
@@ -6836,8 +6840,11 @@ def undoknockdown(imageId, clusterId, label):
             db.session.commit()
             app.logger.info('Unknocking cluster for image {}'.format(imageId))
             unknock_cluster.apply_async(kwargs={'image_id':int(imageId), 'label_id':label, 'user_id':current_user.id, 'task_id':current_user.turkcode[0].task_id})
-
-    return ""
+    
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return ""
 
 @app.route('/knockdown/<imageId>/<clusterId>')
 @login_required
@@ -6845,8 +6852,6 @@ def knockdown(imageId, clusterId):
     '''Marks the camera of the specified image as marked down by moving all images to a knocked-down cluster.'''
     
     app.logger.info('Knockdown initiated for image {}'.format(imageId))
-
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     #Check if they have permission to work on this survey
     image = db.session.query(Image).get(imageId)
@@ -6953,7 +6958,10 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
                     finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':current_user.id})
 
-    return ""
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return ""
 
 @app.route('/getHelp')
 @login_required
