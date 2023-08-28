@@ -5606,6 +5606,8 @@ def assignLabel(clusterID):
         cluster = session.query(Cluster).get(int(clusterID))
         isBounding = task.is_bounding
         task_id = task.id
+        current_user_admin = current_user.admin
+        current_user_username = current_user.username
 
         if 'taggingLevel' in request.form:
             taggingLevel = str(request.form['taggingLevel'])
@@ -5765,7 +5767,7 @@ def assignLabel(clusterID):
                         session.commit()
                         session.close()
 
-        if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        if (not current_user_admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user_username)):
             return {'redirect': url_for('done')}, 278
         else:
             return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
