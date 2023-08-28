@@ -98,6 +98,7 @@ var chartColours = {
 var globalLabels = []
 var globalSites = []
 var globalSitesIDs = []
+var globalTags = []
 var chart = null
 var trapgroupNames
 var trapgroupValues
@@ -141,6 +142,7 @@ var globalSiteCovariates = []
 var globalDetectionCovariates = []
 var globalCovariateOptions = []
 var globalCSVData = []
+var mapResize = {}
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -155,13 +157,14 @@ function getLabelsAndSites(){
     formData.append('task_ids', JSON.stringify(tasks))
 
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/getAllLabelsAndSites');
+    xhttp.open("POST", '/getAllLabelsTagsAndSites');
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             console.log(reply)
             globalLabels = reply.labels
+            globalTags = reply.tags
             globalSites = []
             for (let i=0;i<reply.sites.length;i++) {
                 let site = reply.sites[i].tag + ' (' + (parseFloat(reply.sites[i].latitude).toFixed(4)).toString() + ', ' +  (parseFloat(reply.sites[i].longitude).toFixed(4)).toString() + ')'
@@ -303,6 +306,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = false
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
         resultsDiv = document.getElementById('resultsDiv')
         while(resultsDiv.firstChild){
             resultsDiv.removeChild(resultsDiv.firstChild)
@@ -331,6 +336,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
         generateTemporal()
     }
     else if (analysisType=='2') {
@@ -355,6 +362,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
         generateSpatial()
     }
     else if (analysisType=='3') {
@@ -380,6 +389,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
         generateNumerical()
     }
     else if (analysisType=='4') {
@@ -405,6 +416,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
         generateTime()
     }
     else if (analysisType=='5') {
@@ -430,6 +443,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
         generateActivity()
     }
     else if (analysisType=='6') {
@@ -455,6 +470,34 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = false
         document.getElementById('observationWindowDiv').hidden = false
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
+    }
+    else if (analysisType=='7') {
+        //Builds the selectors for spatial capture recapture analysis
+        document.getElementById('btnExportResults').disabled = false
+        document.getElementById('chartTypeDiv').hidden = true
+        document.getElementById('normalisationDiv').hidden = true
+        document.getElementById('timeUnitSelectionDiv').hidden = true
+        document.getElementById('spatialOptionsDiv').hidden = true
+        document.getElementById('spatialDataDiv').hidden = true
+        document.getElementById('analysisDataDiv').hidden = true
+        document.getElementById('comparisonDiv').hidden = true
+        document.getElementById('numericalDataDiv').hidden = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
+        document.getElementById('trendlineDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = false
+        document.getElementById('speciesDataDiv').hidden = false
+        document.getElementById('optionsDiv').hidden = true
+        document.getElementById('buttonsR').hidden = false
+        document.getElementById('btnViewScript').hidden = false
+        document.getElementById('btnDownloadResultsCSV').hidden = false
+        document.getElementById('groupButtonsDiv').hidden = false
+        document.getElementById('covariatesDiv').hidden = false
+        document.getElementById('observationWindowDiv').hidden = false
+        document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = true
+        document.getElementById('indivCharacteristicsDiv').hidden = false
     }
     else{
         document.getElementById('btnExportResults').disabled = true
@@ -477,6 +520,8 @@ function generateResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
     }
 
 }
@@ -1629,6 +1674,10 @@ function updateResults(update=false){
         analysisSelector.disabled = true
         updateOccupancy()
     }
+    else if (analysisSelection == '7') {
+        analysisSelector.disabled = true
+        updateSCR()
+    }
 }
 
 function updatePolar(){
@@ -1826,6 +1875,7 @@ function updateActivity(check=false){
             document.getElementById('resultsDiv').style.display = 'none'
             document.getElementById('loadingDiv').style.display = 'block'
             document.getElementById('loadingCircle').style.display = 'block'
+            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a few minutes to run. Do not navigate away from this page until the analysis is complete.'
         }
 
         var xhttp = new XMLHttpRequest();
@@ -1841,6 +1891,7 @@ function updateActivity(check=false){
                     document.getElementById('loadingCircle').style.display = 'none'
                     resultsDiv.style.display = 'block'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('statisticsErrors').innerHTML = ''
                     if (image_url){
                         if (activeImage['mapDiv']) {
                             activeImage['mapDiv'].setUrl(image_url)
@@ -1858,10 +1909,9 @@ function updateActivity(check=false){
                         while (resultsDiv.firstChild) {
                             resultsDiv.removeChild(resultsDiv.firstChild);
                         }
-                        activeImage['mapDiv'] = null
-                        var h5 = document.createElement('h5')
-                        h5.innerHTML = 'No data available for this analysis. Please try again.'
-                        resultsDiv.appendChild(h5)
+
+                        document.getElementById('statisticsErrors').innerHTML = 'No data available for this analysis. Please try again.'
+
                     }
 
                 }
@@ -1874,9 +1924,7 @@ function updateActivity(check=false){
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
                     resultsDiv.style.display = 'block'
-                    var h5 = document.createElement('h5')
-                    h5.innerHTML = 'An error occurred while running the analysis. Please try again.'
-                    resultsDiv.appendChild(h5)
+                    document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
                     document.getElementById('analysisSelector').disabled = false
                 }
                 else {
@@ -1987,6 +2035,16 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
                     map[wrap_map_id].fitBounds(bounds)
                     map[wrap_map_id].setMinZoom(map[wrap_map_id].getZoom())
                     activeImage[wrap_map_id].setBounds(bounds)
+                    mapResize[wrap_map_id] = false
+
+                    // Set resize true for all other maps
+                    for (let map_id in mapResize) {
+                        if (map_id != wrap_map_id) {
+                            mapResize[map_id] = true
+                        }
+                    }
+
+                    // console.log(mapResize)
                 }
             }
         }(map_id));
@@ -1999,6 +2057,8 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
 
     };
     img.src = imageUrl
+
+    mapResize[map_id] = false
 }
 
 function getActivityPatternCSV(check=false){
@@ -2148,7 +2208,7 @@ function getSelectedSites(text=false){
     else if (analysis == '3'){
         allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
-    else if (analysis=='5' || analysis=='6'){
+    else if (analysis=='5' || analysis=='6' || analysis=='7'){
         allSites = document.querySelectorAll('[id^=siteSelector-]')
     }
     else if (analysis=='0' || analysis=='-1'){
@@ -3272,7 +3332,7 @@ $('#startDate, #endDate').on('change', function() {
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
     
     if (vaild) {
-        if(analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6'){
+        if(analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6' && analysisSelection != '7'){
             updateResults()
         }
     }
@@ -3521,8 +3581,10 @@ $("#btnSaveSets").click( function() {
     }
 
     // modalAnnotationsSets.modal('hide')
-
-    updateResults()
+    analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
+    if(analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6' && analysisSelection != '7'){
+        updateResults()
+    }
 });
 
 $('#trendlineSelector').change( function() {
@@ -3582,6 +3644,9 @@ $('#btnViewScript').click( function() {
         else if (analysisSelection == '6') {
             filename = 'occupancy'
         }
+        else if (analysisSelection == '7') {
+            filename = 'spatial_capture_recapture'
+        }
         else{
             filename = null
         }
@@ -3619,6 +3684,9 @@ $('#btnDownloadResultsCSV').click( function() {
     }
     else if (analysisSelection == '6') {
         getOccupancyCSV()
+    }
+    else if (analysisSelection == '7') {
+        getSCRcsv()
     }
 });
 
@@ -3688,6 +3756,8 @@ function clearResults(){
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
+        document.getElementById('dataUnitDiv').hidden = false
+        document.getElementById('indivCharacteristicsDiv').hidden = true 
 
         clearChartColours()
 
@@ -3853,6 +3923,31 @@ function exportResults(){
         }
 
     }
+    else if (analysisSelection == '7') {
+        // Get active tab and export selected graph
+        scr_name = tabActiveResults.split('Tab')[0]
+        map_id = 'mapDiv_' + scr_name
+
+        if (map_id == 'mapDiv_srcHeatmap') {
+            if (spatialExportControl){
+                if (activeBaseLayer.name.includes('Google')){
+                    modalExportAlert.modal({keyboard: true})
+                }
+                else{
+                    spatialExportControl._print();
+                }  
+            }
+        }
+        else{
+            if (activeImage[map_id] && activeImage[map_id]._url != '') {
+                var imageUrl = activeImage[map_id]._url;
+                var link = document.createElement('a');
+                link.href = imageUrl;
+                link.click();
+            }
+        }
+
+    }
     else{
         var canvas = document.getElementById('statisticsChart');
         var newCanvas = document.createElement('canvas');
@@ -3925,9 +4020,10 @@ function openResultsTab(evt, tabName, results) {
     else if (analysisSelection == '6'){
         buildOccupancyResults(results, tabName)
     }
+    else if (analysisSelection == '7'){
+        buildSCR(results, tabName)
+    }
 }
-
-
 
 function getSummary(check){
     /** Gets the summary of the results */
@@ -3964,6 +4060,7 @@ function getSummary(check){
         document.getElementById('resultsDiv').style.display = 'none'
         document.getElementById('loadingDiv').style.display = 'block'
         document.getElementById('loadingCircle').style.display = 'block'
+        document.getElementById('statisticsErrors').innerHTML = ''
 
         resultsTab = document.getElementById('resultsTab')
         while(resultsTab.firstChild){
@@ -3983,6 +4080,7 @@ function getSummary(check){
                 document.getElementById('resultsDiv').style.display = 'block'
                 document.getElementById('btnExportResults').disabled = false
                 document.getElementById('analysisSelector').disabled = false
+                document.getElementById('statisticsErrors').innerHTML = ''
 
                 resultsDiv = document.getElementById('resultsDiv')
                 while(resultsDiv.firstChild){
@@ -4012,9 +4110,7 @@ function getSummary(check){
                     resultsTab.removeChild(resultsTab.firstChild)
                 }
 
-                var h5 = document.createElement('h5')
-                h5.innerHTML = 'An error occurred while running the analysis. Please try again.'
-                resultsDiv.appendChild(h5)
+                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
                 document.getElementById('analysisSelector').disabled = false
             }
             else {
@@ -4783,6 +4879,8 @@ function buildSummaryTab(summary, tab){
 
 function buildCovariates(){
     /** Builds the covariates modal for occuancy analysis  */
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
     var siteCovariatesDiv = document.getElementById('siteCovariatesDiv')
     var detectionCovariatesDiv = document.getElementById('detectionCovariatesDiv')
     document.getElementById('covariatesError').innerHTML = ''
@@ -4879,38 +4977,6 @@ function buildCovariates(){
     var tbody = document.createElement('tbody')
     table.appendChild(tbody)
 
-    // var tr = document.createElement('tr')
-    // tbody.appendChild(tr)
-
-    // var td = document.createElement('td')
-    // var input = document.createElement('input')
-    // input.setAttribute('class','form-control')
-    // input.setAttribute('type','text')
-    // input.setAttribute('id','siteCovariatesCol')
-    // input.setAttribute('style','width:100%')
-
-    // td.appendChild(input)
-    // tr.appendChild(td)
-
-    // for (let i = 0; i < sites.length; i++) {
-    //     var td = document.createElement('td')
-    //     td.style.width = '150px'
-    //     var input = document.createElement('input')
-    //     input.setAttribute('class','form-control')
-    //     input.setAttribute('type','text')
-    //     input.setAttribute('id','siteCov-' + sites[i])
-    //     input.setAttribute('style','width:100%')
-    //     td.appendChild(input)
-    //     tr.appendChild(td)
-    // }
-
-    // var td = document.createElement('td')
-    // var button = document.createElement('button')
-    // button.setAttribute('class','btn btn-info')
-    // button.setAttribute('onclick','removeCovariateRow(this)')
-    // button.innerHTML = '&times;'
-    // td.appendChild(button)
-    // tr.appendChild(td)
 
     // Detection covariates
     var table = document.createElement('table')
@@ -4965,132 +5031,27 @@ function buildCovariates(){
     th.innerHTML = 'Scale'
     tr.appendChild(th)
 
-
-    // var th = document.createElement('th')
-    // th.innerHTML = ''
-    // th.style.height = '26px'
-    // tr.appendChild(th)
-
     var tbody = document.createElement('tbody')
     table.appendChild(tbody)
 
 
 
-    // var tr = document.createElement('tr')
-    // tbody.appendChild(tr)
-
-    // var td = document.createElement('td')
-    // td.style.width = '250px'
-    // var input = document.createElement('input')
-    // input.setAttribute('class','form-control')
-    // input.setAttribute('type','text')
-    // input.setAttribute('id','detCovariatesCol')
-    // input.setAttribute('style','width:100%')
-
-    // td.appendChild(input)
-    // tr.appendChild(td)
-
-    // for (let i = 0; i < sites.length; i++) {
-    //     var td = document.createElement('td')
-    //     td.style.width = '150px'
-    //     var input = document.createElement('input')
-    //     input.setAttribute('class','form-control')
-    //     input.setAttribute('type','text')
-    //     input.setAttribute('id','detCov-' + sites[i])
-    //     input.setAttribute('style','width:100%')
-    //     td.appendChild(input)
-    //     tr.appendChild(td)
-    // }
-
-
-
-    // var sRow = document.createElement('div')
-    // // sRow.classList.add('row')
-    // sRow.style.display = 'flex'
-    // sRow.style.overflowX = 'auto'
-    // sRow.style.whiteSpace = 'nowrap'
-    // siteCovariatesDiv.appendChild(sRow)
-
-    // var dRow = document.createElement('div')
-    // // dRow.classList.add('row')
-    // dRow.style.display = 'flex'
-    // dRow.style.overflowX = 'auto'
-    // dRow.style.whiteSpace = 'nowrap'
-    // detectionCovariatesDiv.appendChild(dRow)
-
-    // var sCol = document.createElement('div')
-    // sCol.classList.add('col-lg-3')
-    // sCol.id = 'siteCovariatesCol'
-    // sCol.innerHTML = 'Covariates'
-    // sCol.style.width = '200px'
-    // sCol.style.display = 'inline-block'
-    // sCol.style.verticalAlign = 'top'
-    // sRow.appendChild(sCol)
-
-    // var dCol = document.createElement('div')
-    // dCol.classList.add('col-lg-3')
-    // dCol.id = 'detectionCovariatesCol'
-    // dCol.innerHTML = 'Covariates'
-    // dCol.style.width = '200px'
-    // dCol.style.display = 'inline-block'
-    // dCol.style.verticalAlign = 'top'
-    // dRow.appendChild(dCol)
-
-    // // Create a column for each site
-    // for (let i = 0; i < sites.length; i++) {
-    //     var col = document.createElement('div')
-    //     col.classList.add('col-lg-2')
-    //     col.id = 'siteCovCol-' + sites[i]
-    //     col.innerHTML = sites[i]
-    //     col.style.width = '200px'
-    //     col.style.display = 'inline-block'
-    //     col.style.verticalAlign = 'top'
-    //     sRow.appendChild(col)
-
-    //     col = document.createElement('div')
-    //     col.classList.add('col-lg-2')
-    //     col.id = 'detectionCovCol-' + sites[i]
-    //     col.innerHTML = sites[i]
-    //     col.style.width = '200px'
-    //     col.style.display = 'inline-block'
-    //     col.style.verticalAlign = 'top'
-    //     dRow.appendChild(col)
-    // }
-
-    // Create a row for each covariate
-    // for (let i = 0; i < sites.length; i++) {
-    //     var siteCovCol = document.getElementById('siteCovCol-' + sites[i])
-    //     var detectionCovCol = document.getElementById('detectionCovCol-' + sites[i])
-
-    //     var input = document.createElement('input')
-    //     input.setAttribute('type','text')
-    //     input.setAttribute('id','siteCov-' + sites[i])
-    //     input.setAttribute('placeholder','Site Covariate')
-    //     input.setAttribute('style','width:100%')
-    //     siteCovCol.appendChild(input)
-
-    //     var input = document.createElement('input')
-    //     input.setAttribute('type','text')
-    //     input.setAttribute('id','detectionCov-' + sites[i])
-    //     input.setAttribute('placeholder','Detection Covariate')
-    //     input.setAttribute('style','width:100%')
-    //     detectionCovCol.appendChild(input)
-
-    // }
-
-
     if (globalSiteCovariates.length > 0){
         fillCovariatesTable('site', sites)
     }
-    else{
-        // buildCovRow('site')
-    }
+
 
     if (globalDetectionCovariates.length > 0){
         fillCovariatesTable('detection', sites)
     }
-    else{
-        // buildCovRow('detection')
+
+    if (analysisSelection == '6'){
+        document.getElementById('detCovDiv').hidden = false
+        document.getElementById('iDetCovDiv').hidden = false
+    }
+    else if (analysisSelection == '7'){
+        document.getElementById('detCovDiv').hidden = true
+        document.getElementById('iDetCovDiv').hidden = true
     }
 
     modalCovariates.modal({keyboard: true})
@@ -5132,7 +5093,7 @@ function fillCovariatesTable(type, sites){
             var input = document.createElement('input')
             input.setAttribute('class','form-control')
             input.setAttribute('type','text')
-            input.setAttribute('id',type + 'cov-' + sites[j])
+            input.setAttribute('id',type + 'cov@' + sites[j])
             input.classList.add(sites[j])
             input.setAttribute('style','width:100%')
             if (covariates[i][sites[j]] != undefined){
@@ -5235,7 +5196,7 @@ function buildCovRow(type){
         var input = document.createElement('input')
         input.setAttribute('class','form-control')
         input.setAttribute('type','text')
-        input.setAttribute('id','cov-' + sites[i])
+        input.setAttribute('id','cov@' + sites[i])
         input.classList.add(sites[i])
         input.setAttribute('style','width:100%')
         td.appendChild(input)
@@ -5337,7 +5298,7 @@ function saveCovariates(){
                 var siteCovariate = {}
                 siteCovariate['covariate'] = covariate
                 for (let j = 1; j < cells.length; j++) {
-                    var site = cells[j].getElementsByTagName('input')[0].id.split('-')[1]
+                    var site = cells[j].getElementsByTagName('input')[0].id.split('@')[1]
                     var value = cells[j].getElementsByTagName('input')[0].value
                     siteCovariate[site] = value
                 }
@@ -5364,7 +5325,7 @@ function saveCovariates(){
                 var detectionCovariate = {}
                 detectionCovariate['covariate'] = covariate
                 for (let j = 1; j < cells.length; j++) {
-                    var site = cells[j].getElementsByTagName('input')[0].id.split('-')[1]
+                    var site = cells[j].getElementsByTagName('input')[0].id.split('@')[1]
                     var value = cells[j].getElementsByTagName('input')[0].value
                     detectionCovariate[site] = value
                 }
@@ -5424,7 +5385,7 @@ function validateCovariates(){
 
         if (cells.length > 0){
             for (let j = 0; j < cells.length ; j++) {
-                if (cells[j].getElementsByTagName('input')[0].id != undefined  && cells[j].getElementsByTagName('input')[0].id.includes('cov-')){
+                if (cells[j].getElementsByTagName('input')[0].id != undefined  && cells[j].getElementsByTagName('input')[0].id.includes('cov@')){
                     var value = cells[j].getElementsByTagName('input')[0].value
                     if (value == ''){
                         emptyCells = true
@@ -5465,7 +5426,7 @@ function validateCovariates(){
 
         if (cells.length > 0){
             for (let j = 0; j < cells.length ; j++) {
-                if (cells[j].getElementsByTagName('input')[0].id != undefined  && cells[j].getElementsByTagName('input')[0].id.includes('cov-')){
+                if (cells[j].getElementsByTagName('input')[0].id != undefined  && cells[j].getElementsByTagName('input')[0].id.includes('cov@')){
                     var value = cells[j].getElementsByTagName('input')[0].value
                     if (value == ''){
                         emptyCells = true
@@ -5521,7 +5482,7 @@ function validateCovariates(){
 }
 
 function updateOccupancy(check=false){
-    /** Updates the activity chart  */
+    /** Updates the occupancy results */
     if (check) {
         var species = '0'
         var validOccupancy = true 
@@ -5567,6 +5528,7 @@ function updateOccupancy(check=false){
             document.getElementById('resultsDiv').style.display = 'none'
             document.getElementById('loadingDiv').style.display = 'block'
             document.getElementById('loadingCircle').style.display = 'block'
+            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a while to run. Please do not navigate away from this page until the analysis has completed.'
 
             resultsTab = document.getElementById('resultsTab')
             while(resultsTab.firstChild){
@@ -5582,11 +5544,11 @@ function updateOccupancy(check=false){
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     results = reply.results
-                    console.log(results)
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
                     document.getElementById('resultsDiv').style.display = 'block'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('statisticsErrors').innerHTML = ''
                     while(document.getElementById('resultsDiv').firstChild){
                         document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
                     }
@@ -5612,9 +5574,7 @@ function updateOccupancy(check=false){
                         resultsTab.removeChild(resultsTab.firstChild)
                     }
 
-                    var h5 = document.createElement('h5')
-                    h5.innerHTML = 'An error occurred while running the analysis. Please try again. Please ensure that your selected analysis options are valid.'
-                    document.getElementById('resultsDiv').appendChild(h5)
+                    document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
                     document.getElementById('analysisSelector').disabled = false
                 }
                 else {
@@ -5684,7 +5644,6 @@ function getOccupancyCSV(check=false){
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     csv_urls = reply.csv_urls
-                    console.log(csv_urls)
                     downloadCSV(csv_urls)      
                     document.getElementById('rErrors').innerHTML = ''
                 }
@@ -6116,20 +6075,25 @@ function buildOccupancyResults(results, tab){
     }
     else {
         var occuTab = document.getElementById(tab)
-        if (occuTab.firstChild == null){
-            // Only split the first underscore
-            var split = tab.split('_')
-            split.shift()
-            var cov_name = split.join('_')
-            var occu_files = results.occu_files
-            var cov_idx = 0
-            for (let i=0; i<occu_files.length; i++){
-                if (occu_files[i].name == cov_name){
-                    cov_idx = i
-                    break
+        // Only split the first underscore
+        var split = tab.split('_')
+        split.shift()
+        var cov_name = split.join('_')
+        var occu_files = results.occu_files
+        var cov_idx = 0
+        for (let i=0; i<occu_files.length; i++){
+            if (occu_files[i].name == cov_name){
+                cov_idx = i
+                break
+            }
+        }
+        
+        if (occuTab.firstChild == null || mapResize['mapDiv_' + cov_name]){
+            if (mapResize['mapDiv_' + cov_name]){
+                while(occuTab.firstChild){
+                    occuTab.removeChild(occuTab.firstChild)
                 }
             }
-
 
             var h5 = document.createElement('h5')
             if (cov_name == '~1 ~ 1'){
@@ -7039,6 +7003,1568 @@ function exportCSV(){
     }
 
 }
+
+function updateSCR(check=false){
+    // Function for generating the capture recapture analysis
+
+    if (check) {
+        var species = '0'
+        var validSCR = true 
+        var formData = new FormData();
+    }
+    else{
+        var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
+        var species = getSelectedSpecies()
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var observationWindow = document.getElementById('observationWindow').value
+        var indivCharSelect = document.getElementById('indivCharSelector').value
+
+        if (indivCharSelect != '-1'){
+            var tags = [document.getElementById('maleSelector').value, document.getElementById('femaleSelector').value]
+        }
+        else{
+            tags = '-1'
+        }
+
+
+        // Add validation for capture recapture
+        sites_text = getSelectedSites(true)
+        var validSCR = validateSCR(species, sites_text, tags, startDate, endDate, observationWindow)
+
+        // console.log(sites)
+    
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
+        formData.append('species', JSON.stringify(species));
+        formData.append('window', JSON.stringify(observationWindow));
+        formData.append('tags', JSON.stringify(tags));
+        formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
+        formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+
+        if(startDate != ''){
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate));
+        }
+    
+        if(endDate != ''){
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate));
+        }
+    }
+
+    if (species != '-1' && validSCR) {
+
+        if (!check) {
+            document.getElementById('resultsDiv').style.display = 'none'
+            document.getElementById('loadingDiv').style.display = 'block'
+            document.getElementById('loadingCircle').style.display = 'block'
+            document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a while to run. Please do not navigate away from this page until the analysis is complete.'
+
+            resultsTab = document.getElementById('resultsTab')
+            while(resultsTab.firstChild){
+                resultsTab.removeChild(resultsTab.firstChild)
+            }
+        }
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if(reply.status == 'SUCCESS'){
+                    results = reply.results
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+                    document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('statisticsErrors').innerHTML = ''
+                    while(document.getElementById('resultsDiv').firstChild){
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+                    resultsTab = document.getElementById('resultsTab')
+                    while(resultsTab.firstChild){
+                        resultsTab.removeChild(resultsTab.firstChild)
+                    }
+
+                    // Build cap recap results
+                    buildSCRtabs(results)
+
+                }
+                else if(reply.status == 'FAILURE'){
+                    document.getElementById('loadingDiv').style.display = 'none'
+                    document.getElementById('loadingCircle').style.display = 'none'
+                    document.getElementById('resultsDiv').style.display = 'block'
+                    document.getElementById('statisticsErrors').innerHTML =  'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
+
+                    while(document.getElementById('resultsDiv').firstChild){
+                        document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                    }
+
+                    resultsTab = document.getElementById('resultsTab')
+                    while(resultsTab.firstChild){
+                        resultsTab.removeChild(resultsTab.firstChild)
+                    }
+
+                    document.getElementById('analysisSelector').disabled = false
+                }
+                else {
+                    setTimeout(function(){updateSCR(true)}, 10000);
+                }
+
+            }
+        }
+        xhttp.open("POST", '/getSpatialCaptureRecapture');
+        xhttp.send(formData);
+
+    }
+
+
+}
+
+function validateSCR(species, sites, tags, startDate, endDate, observationWindow){
+    /** Validates the capture recapture inputs. */
+    var validSpecies = true
+    var validWindow = true
+    var validDates = true 
+    var vaildTags = true
+    var validSites = true
+    var error = ''
+
+    // Check that species is not -1
+    if (species == '-1'){
+        validSpecies = false
+        error += 'You must select a species. '
+    }
+
+    // Check that window is greater than one and a integer value
+    if (observationWindow != ''){
+        if (isNaN(observationWindow)){
+            validWindow = false
+        }
+        else if (parseInt(observationWindow) < 1){
+            validWindow = false
+        }
+        else if (parseInt(observationWindow) != parseFloat(observationWindow)){
+            validWindow = false
+        }
+
+        if (!validWindow){
+            error += 'The observation window must be a positive integer. '
+        }
+    }
+    else{
+        validWindow = false
+        error += 'The observation window must be a positive integer. '
+    }
+
+    // Check that start date is before end date if both are provided
+    if (startDate != '' && endDate != ''){
+        if (startDate > endDate){
+            validDates = false
+            error += 'The start date must be before the end date. '
+        }
+    }
+
+    // Check that there are no duplicate tags
+    if (tags != '-1'){
+        if (tags[0] == tags[1]){
+            vaildTags = false
+            error += 'You cannot have the same tag for both Male and Female. '
+        }
+    }
+
+    // Check that sites are either '0' or more than one site
+    if (sites != '0'){
+        if (sites.length < 2){
+            validSites = false
+            error += 'You must select more than one site or all sites. '
+        }
+    }
+
+    if (validSpecies && validWindow && validDates && vaildTags && validSites){
+        document.getElementById('rErrors').innerHTML = ''
+        return true
+    }
+    else{
+        document.getElementById('rErrors').innerHTML = error
+        return false
+    }
+
+}
+
+function buildSCRtabs(results){
+    /**Function for building the tabs for the SCR results.*/
+    var resultsDiv = document.getElementById('resultsDiv')
+    var resultsTab = document.getElementById('resultsTab')
+
+    // SCR Summary
+    var btnSummarySCRtab = document.createElement('button')
+    btnSummarySCRtab.classList.add('tablinks')
+    btnSummarySCRtab.classList.add('active')
+    btnSummarySCRtab.innerHTML = 'SCR Summary'
+    resultsTab.appendChild(btnSummarySCRtab)
+
+    var summarySCRtab = document.createElement('div')
+    summarySCRtab.classList.add('tabcontent')
+    summarySCRtab.setAttribute('id', 'summarySCRtab')
+    summarySCRtab.style.display = 'none'
+    resultsDiv.appendChild(summarySCRtab)
+
+    btnSummarySCRtab.addEventListener('click', function(event){
+        openResultsTab(event, 'summarySCRtab', results)
+    });
+
+
+    // SCR Spatial Captures Plot
+    var btnSpatialCapturesTab = document.createElement('button')
+    btnSpatialCapturesTab.classList.add('tablinks')
+    btnSpatialCapturesTab.innerHTML = 'Spatial Captures'
+    resultsTab.appendChild(btnSpatialCapturesTab)
+
+    var spatialCapturesTab = document.createElement('div')
+    spatialCapturesTab.classList.add('tabcontent')
+    spatialCapturesTab.setAttribute('id', 'spatialCapturesTab')
+    spatialCapturesTab.style.display = 'none'
+    resultsDiv.appendChild(spatialCapturesTab)
+
+    btnSpatialCapturesTab.addEventListener('click', function(event){
+        openResultsTab(event, 'spatialCapturesTab', results)
+    });
+
+    // SCR State space plot 
+    var btnStateSpaceTab = document.createElement('button')
+    btnStateSpaceTab.classList.add('tablinks')
+    btnStateSpaceTab.innerHTML = 'State Space'
+    resultsTab.appendChild(btnStateSpaceTab)
+
+    var stateSpaceTab = document.createElement('div')
+    stateSpaceTab.classList.add('tabcontent')
+    stateSpaceTab.setAttribute('id', 'stateSpaceTab')
+    stateSpaceTab.style.display = 'none'
+    resultsDiv.appendChild(stateSpaceTab)
+
+    btnStateSpaceTab.addEventListener('click', function(event){
+        openResultsTab(event, 'stateSpaceTab', results)
+    });
+
+    // SCR Density Map 
+    var btnDensityMapTab = document.createElement('button')
+    btnDensityMapTab.classList.add('tablinks')
+    btnDensityMapTab.innerHTML = 'Density Map'
+    resultsTab.appendChild(btnDensityMapTab)
+
+    var densityMapTab = document.createElement('div')
+    densityMapTab.classList.add('tabcontent')
+    densityMapTab.setAttribute('id', 'densityMapTab')
+    densityMapTab.style.display = 'none'
+    resultsDiv.appendChild(densityMapTab)
+
+    btnDensityMapTab.addEventListener('click', function(event){
+        openResultsTab(event, 'densityMapTab', results)
+    });
+
+
+    //SCR Heatmap
+    var btnHeatmapTab = document.createElement('button')
+    btnHeatmapTab.classList.add('tablinks')
+    btnHeatmapTab.innerHTML = 'Heatmap'
+    resultsTab.appendChild(btnHeatmapTab)
+
+    var heatmapTab = document.createElement('div')
+    heatmapTab.classList.add('tabcontent')
+    heatmapTab.setAttribute('id', 'srcHeatmapTab')
+    heatmapTab.style.display = 'none'
+    resultsDiv.appendChild(heatmapTab)
+
+    btnHeatmapTab.addEventListener('click', function(event){
+        openResultsTab(event, 'srcHeatmapTab', results)
+    });
+
+
+    
+    btnSummarySCRtab.click()
+
+}
+
+function buildSCR(results, tab){
+    /**Function for build sing the spatial capture-recapture results */
+
+    document.getElementById('statisticsErrors').innerHTML = ''
+    if (tab == 'summarySCRtab'){
+        var summarySCRtab = document.getElementById('summarySCRtab')
+        if (summarySCRtab.firstChild == null){
+            var density = results.density
+            var abundance = results.abundance
+            var det_prob = results.det_prob
+            var sigma = results.sigma
+            var summary = results.summary
+            var aic = results.aic
+            var cr = results.cr
+            var message = results.message
+
+            // Capture Recapture
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Capture Recapture'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            var h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the Capture Recapture results. It displays abundance estimates for your species calculated by different models without the use of any spatial information. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            var table = document.createElement('table')
+            table.id = 'summaryCRTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            if (cr.length > 0){
+
+                keys = Object.keys(cr[0])
+
+                for (let i=0; i<keys.length; i++){
+                    var th = document.createElement('th')
+                    th.innerHTML = keys[i]
+                    tr.appendChild(th)
+                }
+
+                // Create table body
+                var tbody = document.createElement('tbody')
+                table.appendChild(tbody)
+
+                // Loop through each model summary and create table rows
+                for (let i=0; i<cr.length; i++){
+                    var cr_estimate = cr[i]
+                    var trBody = document.createElement('tr')
+                    tbody.appendChild(trBody)
+
+                    for (let j=0; j<keys.length; j++){
+                        var td = document.createElement('td')
+                        var value = cr_estimate[keys[j]]
+                        if (isNaN(value)){
+                            td.innerHTML = value
+                        }
+                        else{
+                            if (parseFloat(value) != parseInt(value)){
+                                td.innerHTML = parseFloat(value).toFixed(4)
+                            }
+                            else{
+                                td.innerHTML = parseInt(value)
+                            }
+                        }
+                        trBody.appendChild(td)
+                    }
+                }
+
+                summarySCRtab.appendChild(table)
+            }
+            else{
+                var h5 = document.createElement('h5')
+                h5.innerHTML = 'No capture recapture results could be generated. Please ensure that your data is correct. '
+                h5.setAttribute('style','font-size: 80%; margin-bottom: 2px; color: #DF691A;')
+                summarySCRtab.appendChild(h5)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+            summarySCRtab.appendChild(document.createElement('br'))
+
+            // Spatial Capture Recapture
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Spatial Capture Recapture'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            if (message != ''){
+                var h5 = document.createElement('h5')
+                h5.innerHTML = message
+                h5.setAttribute('style','font-size: 80%; margin-bottom: 2px; color: #DF691A;')
+                summarySCRtab.appendChild(h5)
+            }
+
+            // Spatial Capture RecaptureSummary 
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'SCR Data Summary'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the data summary for the SCR analysis. Individuals and sites indicate the number of individuals and sites in the analysis. Occasions indicate the number of sampling occasions. MMDM and HMMDM indicate the mean and half mean maximum distances moved. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            if (summary.length > 0){
+
+            var table = document.createElement('table')
+            table.id = 'summarySRCTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+            
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(summary[0]) // Assuming all model summaries have the same keys
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<summary.length; i++){
+                var summary_estimate = summary[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = summary_estimate[keys[j]]
+                    if (keys[j] == 'MMDM' || keys[j] == 'HMMDM'){
+                        if(keys[j] == 'MMDM'){
+                            // console.log('mmdm')
+                            // console.log(value)
+                            if (parseInt(value) == 0){
+                                document.getElementById('statisticsErrors').innerHTML = 'The MMDM is 0 for your indiviual data. For the analysis it was set to 1. The results may not be accurate. A MMDM of 0 indicates that no individuals moved between sites or that you have not specified coordinates for your sites. Please ensure that your data is correct.'
+                            }
+                        }
+                        td.innerHTML = value.toFixed(2)
+                    }
+                    else{
+                        td.innerHTML = value
+                    }
+                    trBody.appendChild(td)
+                }
+            }
+
+            summarySCRtab.appendChild(table)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+            // AIC
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'AIC'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the AIC for each model. The AIC is a measure of the relative quality of a statistical model for a given set of data. The model with the lowest AIC is considered the best model. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            if (aic.length > 0){
+
+            var table = document.createElement('table')
+            table.id = 'aicTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(aic[0])
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<aic.length; i++){
+                var aic_estimate = aic[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = aic_estimate[keys[j]]
+                    td.innerHTML = value
+                    trBody.appendChild(td)
+                }
+            }
+
+            summarySCRtab.appendChild(table)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+            // Density
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Density per 100km<sup>2</sup>'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the estimated density per 100km<sup>2</sup> of the specified species for each session. The estimate indiciates the average number of individuals per 100km<sup>2</sup> of the population. The standard error is the standard deviation of the estimated density. The lower and upper bounds are the lower and upper bounds of the 95% confidence interval of the estimated density. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            if (density.length > 0){
+
+            var table = document.createElement('table')
+            table.id = 'densityTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+        
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(density[0]) // Assuming all model summaries have the same keys
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+            var float_keys = ['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound']
+            // Loop through each model summary and create table rows
+            for (let i=0; i<density.length; i++){
+                var density_estimate = density[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = density_estimate[keys[j]]
+                    if (isNaN(value) || !float_keys.includes(keys[j])){
+                        td.innerHTML = value
+                    } else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    trBody.appendChild(td)
+                }
+            }
+
+            summarySCRtab.appendChild(table)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+
+            // Abundance
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Abundance'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the estimated abundance of the specified species for each session. The estimate indiciates the average number of individuals of the population. The standard error is the standard deviation of the estimated abundance. The lower and upper bounds are the lower and upper bounds of the 95% confidence interval of the estimated abundance. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            if (abundance.length > 0){
+
+            var table = document.createElement('table')
+            table.id = 'abundanceTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(abundance[0]) 
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<abundance.length; i++){
+                var abundance_estimate = abundance[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = abundance_estimate[keys[j]]
+                    if (isNaN(value) || keys[j] == 'Session'){
+                        td.innerHTML = value
+                    } else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    trBody.appendChild(td)
+                }
+            }
+
+            summarySCRtab.appendChild(table)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+            // Detection Probability 
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Detection Probability'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the estimated detection probability of the specified species for each session. The estimate indiciates the average detection probability of the species. The standard error is the standard deviation of the estimated detection probability. The lower and upper bounds are the lower and upper bounds of the 95% confidence interval of the estimated detection probability. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            if (det_prob.length > 0){
+
+            var table = document.createElement('table')
+            table.id = 'detProbTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(det_prob[0])
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            var float_keys = ['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound']
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<det_prob.length; i++){
+                var detProb_estimate = det_prob[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = detProb_estimate[keys[j]]
+                    if (isNaN(value) || !float_keys.includes(keys[j])){
+                        td.innerHTML = value
+                    } else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    trBody.appendChild(td)
+                }
+            }
+
+            summarySCRtab.appendChild(table)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+        // Sigma
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Space use (&sigma;)'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            summarySCRtab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following table displays the estimated space use (&sigma;) in km of the specified species for each session. The estimate indiciates the average space use (&sigma;) of the individuals. The standard error is the standard deviation of the estimated space use (&sigma;). The lower and upper bounds are the lower and upper bounds of the 95% confidence interval of the estimated space use (&sigma;). </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            summarySCRtab.appendChild(h5)
+
+            if (sigma.length > 0){
+
+            var table = document.createElement('table')
+            table.id = 'sigmaTable'
+            table.classList.add('table')
+            table.classList.add('table-bordered')
+            table.classList.add('table-striped')
+            table.classList.add('table-hover')
+            table.style.borderCollapse = 'collapse';
+            table.style.width = '100%'
+
+            // Create table header
+            var thead = document.createElement('thead')
+            table.appendChild(thead)
+
+            var tr = document.createElement('tr')
+            thead.appendChild(tr)
+
+            keys = Object.keys(sigma[0])
+
+            for (let i=0; i<keys.length; i++){
+                var th = document.createElement('th')
+                th.innerHTML = keys[i]
+                tr.appendChild(th)
+            }
+
+            // Create table body
+            var tbody = document.createElement('tbody')
+            table.appendChild(tbody)
+
+            // Loop through each model summary and create table rows
+            for (let i=0; i<sigma.length; i++){
+                var sigma_estimate = sigma[i]
+                var trBody = document.createElement('tr')
+                tbody.appendChild(trBody)
+
+                for (let j=0; j<keys.length; j++){
+                    var td = document.createElement('td')
+                    var value = sigma_estimate[keys[j]]
+                    if (isNaN(value) || keys[j] == 'Session' || keys[j] == 'Sex'){
+                        td.innerHTML = value
+                    } else {
+                        td.innerHTML = value.toFixed(4)
+                    }
+                    trBody.appendChild(td)
+                }
+
+            }
+
+            summarySCRtab.appendChild(table)
+            }
+            summarySCRtab.appendChild(document.createElement('br'))
+
+        }
+    }
+    else if (tab == 'spatialCapturesTab'){
+        var spatialCapturesTab = document.getElementById('spatialCapturesTab')
+        if (spatialCapturesTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
+            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
+                while(spatialCapturesTab.firstChild){
+                    spatialCapturesTab.removeChild(spatialCapturesTab.firstChild)
+                }
+            }
+            // Builds the tab for the spatial captures plot
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Spatial Captures'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            spatialCapturesTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following plot displays the spatial captures of the species. The circles indicate the average spatial location of the individual. The crosses indicate the site locations. The lines indicate the sites visited by the individual (if an individual is detected at more than one site). </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            spatialCapturesTab.appendChild(h5)
+
+            var div = document.createElement('div')
+            div.classList.add('row')
+            spatialCapturesTab.appendChild(div)
+
+            var space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-10')
+            div.appendChild(col1)
+
+            var center = document.createElement('center')
+            col1.appendChild(center)
+
+            var map_id = 'mapDiv_spatialCaptures'
+            var mapDiv = document.createElement('div')
+            mapDiv.setAttribute('id',map_id)
+            mapDiv.setAttribute('style','height: 750px')
+            center.appendChild(mapDiv)
+
+            space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            spatialCapturesTab.appendChild(document.createElement('br'))
+
+            var sc_image = results.scr_files[0]
+            initialiseImageMap(sc_image, map_id)
+
+        }
+        else{
+            var map_id = 'mapDiv_spatialCaptures'
+            activeImage[map_id].setUrl(results.scr_files[0])
+        }
+    }
+    else if (tab == 'stateSpaceTab'){
+        var stateSpaceTab = document.getElementById('stateSpaceTab')
+        if (stateSpaceTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
+            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
+                while(stateSpaceTab.firstChild){
+                    stateSpaceTab.removeChild(stateSpaceTab.firstChild)
+                }
+            }
+            // Builds the tab for the state space plot
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'State Space'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            stateSpaceTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following plot displays the state space of the population. All the grey pixels indicate your state space (including the buffer). The state space is dicretised reprensentation of the sites. The circles or points indicate your sites. The red S\'s indicate the area where individuals were detected (sites or average spatial location). The lines indicate whether individuals were seen at multiple sites. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            stateSpaceTab.appendChild(h5)
+
+            var div = document.createElement('div')
+            div.classList.add('row')
+            stateSpaceTab.appendChild(div)
+
+            var space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-10')
+            div.appendChild(col1)
+
+            var center = document.createElement('center')
+            col1.appendChild(center)
+
+            var map_id = 'mapDiv_stateSpace'
+            var mapDiv = document.createElement('div')
+            mapDiv.setAttribute('id',map_id)
+            mapDiv.setAttribute('style','height: 750px')
+            center.appendChild(mapDiv)
+
+            space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            stateSpaceTab.appendChild(document.createElement('br'))
+
+            var ss_image = results.scr_files[1]
+            initialiseImageMap(ss_image, map_id)
+        }
+        else{
+            var map_id = 'mapDiv_stateSpace'
+            activeImage[map_id].setUrl(results.scr_files[1])
+        }
+    }
+    else if (tab == 'densityMapTab'){
+        var densityMapTab = document.getElementById('densityMapTab')
+
+        if (densityMapTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
+            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
+                while(densityMapTab.firstChild){
+                    densityMapTab.removeChild(densityMapTab.firstChild)
+                }
+            }
+            // Builds the tab for the density map plot
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Density Map'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            densityMapTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following plot displays the density map of the species. The density map displays the predicted density per pixel of the species in relation to the state space.</i></div>'            
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            densityMapTab.appendChild(h5)
+
+            var div = document.createElement('div')
+            div.classList.add('row')
+            densityMapTab.appendChild(div)
+
+            var space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-10')
+            div.appendChild(col1)
+
+            var center = document.createElement('center')
+            col1.appendChild(center)
+
+            var map_id = 'mapDiv_densityMap'
+            var mapDiv = document.createElement('div')
+            mapDiv.setAttribute('id',map_id)
+            mapDiv.setAttribute('style','height: 750px')
+            center.appendChild(mapDiv)
+
+            space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            densityMapTab.appendChild(document.createElement('br'))
+
+            var dm_image = results.scr_files[2]
+            initialiseImageMap(dm_image, map_id)
+
+        }
+        else{
+            var map_id = 'mapDiv_densityMap'
+            activeImage[map_id].setUrl(results.scr_files[2])
+        }
+    }
+    else if (tab == 'srcHeatmapTab'){
+        var max_count = results.individual_counts[results.individual_counts.length - 1].max_count
+        var indiv_counts = results.individual_counts.slice(0, -1)
+        var srcHeatmapTab = document.getElementById('srcHeatmapTab')
+        if (srcHeatmapTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
+            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
+                while(srcHeatmapTab.firstChild){
+                    srcHeatmapTab.removeChild(srcHeatmapTab.firstChild)
+                }
+            }
+
+
+            // Builds the tab for the heatmap plot
+            var h5 = document.createElement('h5')
+            h5.innerHTML = 'Heatmap'
+            h5.setAttribute('style', 'margin-bottom: 2px;')
+            srcHeatmapTab.appendChild(h5)
+
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following map displays a heatmap of the individual counts at each site. The heatmap is a representation of the density of the individuals at each site. The darker the colour, the higher the density of individuals. </i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            srcHeatmapTab.appendChild(h5)
+
+            // SLider and checkboxex
+            var div = document.createElement('div')
+            div.classList.add('row')
+            srcHeatmapTab.appendChild(div)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-1')
+            div.appendChild(col)
+
+            var label = document.createElement('label')
+            label.setAttribute('for','radiusSliderSRC')
+            label.innerHTML = 'Radius: '
+            col.appendChild(label)
+
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-2')
+            col.setAttribute('style','padding-left: 0px')
+            col.setAttribute('align','center')
+            div.appendChild(col)
+
+            var div1 = document.createElement('div')
+            div1.classList.add('justify-content-center')
+            col.appendChild(div1)
+
+            var div2 = document.createElement('div')
+            div2.classList.add('w-75')
+            div1.appendChild(div2)
+
+            var input = document.createElement('input')
+            input.setAttribute('type','range')
+            input.setAttribute('class','custom-range')
+            input.setAttribute('id','radiusSliderSRC')
+            input.setAttribute('min','0')
+            input.setAttribute('max','100')
+            input.setAttribute('value','54')
+            div2.appendChild(input)
+
+            $("#radiusSliderSRC").change( function(counts, max_count){
+                
+                return function(){
+                    scale = document.getElementById('radiusSliderSRC').value
+                    scale = logslider(scale)
+                    
+                    if (document.getElementById('nomaliseCxSRC').checked){
+                        var mapSRC = map['mapDiv_srcHeatmap']
+
+                        var heatmap_data = []
+                        for (let i=0;i<counts.length;i++) {
+                            var tag = counts[i].site_id.split('_')[0]
+                            var latitude = counts[i].site_id.split('_')[1]
+                            var longitude = counts[i].site_id.split('_')[2]
+                            var count = counts[i].count
+                            if (count > 0){
+                                heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+                            } 
+                        }
+
+                        mapSRC.removeLayer(heatmapLayer)
+                        mapSRC.addLayer(invHeatmapLayer)
+
+                        invHeatmapLayer.cfg.radius = scale
+                        invHeatmapLayer._update()
+
+                        var maxVal = 0
+                        var hm_data = heatmap_data
+                        for (let i=0;i<hm_data.length;i++) {
+                            value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                            if (value!=0) {
+                                hm_data[i].count = (1000*hm_data[i].count)/value
+                                if (hm_data[i].count>maxVal) {
+                                    maxVal = hm_data[i].count
+                                }
+                            }
+                        }
+
+                        hm_max = 1.25*maxVal
+                        mapSRC.removeLayer(invHeatmapLayer)
+                        mapSRC.addLayer(heatmapLayer)
+
+                        heatmapLayer._data = []
+                        var data = {max:hm_max,data:hm_data}
+                        heatmapLayer.setData(data)
+                        heatmapLayer.cfg.radius = scale
+                        heatmapLayer._update()
+    
+                    }
+                    else{
+                        heatmapLayer.cfg.radius = scale
+                        heatmapLayer._update()
+                    }
+                }
+                
+            }(indiv_counts, max_count));
+
+            var div = document.createElement('div')
+            div.classList.add('row')
+            srcHeatmapTab.appendChild(div)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-4')
+            div.appendChild(col)
+
+            var cxDiv = document.createElement('div')
+            cxDiv.classList.add('custom-control')
+            cxDiv.classList.add('custom-checkbox')
+            col.appendChild(cxDiv)
+
+            var input = document.createElement('input')
+            input.setAttribute('type','checkbox')
+            input.setAttribute('class','custom-control-input')
+            input.setAttribute('id','showSitesSRC')
+            input.setAttribute('name','showSitesSRC')
+            cxDiv.appendChild(input)
+
+            
+            var label = document.createElement('label')
+            label.setAttribute('class','custom-control-label')
+            label.setAttribute('for','showSitesSRC')
+            label.innerHTML = 'Show Sites'
+            cxDiv.appendChild(label)
+
+            document.getElementById('showSitesSRC').addEventListener('change', function(){
+                if (document.getElementById('showSitesSRC').checked) {
+                    for (let i=0;i<markers.length;i++) {
+                        if (!map['mapDiv_srcHeatmap'].hasLayer(markers[i])) {
+                            map['mapDiv_srcHeatmap'].addLayer(markers[i])
+                        }
+                    }
+                } else {
+                    for (let i=0;i<markers.length;i++) {
+                        if (map['mapDiv_srcHeatmap'].hasLayer(markers[i])) {
+                            map['mapDiv_srcHeatmap'].removeLayer(markers[i])
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('showSitesSRC').checked = true
+
+            var div = document.createElement('div')
+            div.classList.add('row')
+            srcHeatmapTab.appendChild(div)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-4')
+            div.appendChild(col)
+
+            var cxDiv = document.createElement('div')
+            cxDiv.classList.add('custom-control')
+            cxDiv.classList.add('custom-checkbox')
+            col.appendChild(cxDiv)
+
+            var input = document.createElement('input')
+            input.setAttribute('type','checkbox')
+            input.setAttribute('class','custom-control-input')
+            input.setAttribute('id','nomaliseCxSRC')
+            input.setAttribute('name','nomaliseCxSRC')
+            cxDiv.appendChild(input)
+
+            
+            var label = document.createElement('label')
+            label.setAttribute('class','custom-control-label')
+            label.setAttribute('for','nomaliseCxSRC')
+            label.innerHTML = 'Normalise for Site Density'
+            cxDiv.appendChild(label)
+
+            document.getElementById('nomaliseCxSRC').addEventListener('change', function(counts, max_count){
+                return function(){
+                    var checkbox = document.getElementById('nomaliseCxSRC')
+                    var mapSRC = map['mapDiv_srcHeatmap']
+
+                    var heatmap_data = []
+                    for (let i=0;i<counts.length;i++) {
+                        var tag = counts[i].site_id.split('_')[0]
+                        var latitude = counts[i].site_id.split('_')[1]
+                        var longitude = counts[i].site_id.split('_')[2]
+                        var count = counts[i].count
+                        if (count > 0){
+                            heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+                        } 
+                    }
+
+                    if (checkbox.checked){
+                        mapSRC.removeLayer(heatmapLayer)
+                        mapSRC.addLayer(invHeatmapLayer)
+
+                        var maxVal = 0
+                        var hm_data = heatmap_data
+                        for (let i=0;i<hm_data.length;i++) {
+                            value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                            if (value!=0) {
+                                hm_data[i].count = (1000*hm_data[i].count)/value
+                                if (hm_data[i].count>maxVal) {
+                                    maxVal = hm_data[i].count
+                                }
+                            }
+                        }
+
+                        hm_max = 1.25*maxVal
+                        mapSRC.removeLayer(invHeatmapLayer)
+                        mapSRC.addLayer(heatmapLayer)
+
+                        var data = {max:hm_max,data:hm_data}
+                        heatmapLayer.setData(data)
+
+                    }
+                    else{
+                        mapSRC.removeLayer(heatmapLayer)
+                        mapSRC.addLayer(invHeatmapLayer)
+           
+                        var data = {max:max_count,data:heatmap_data}
+                        heatmapLayer.setData(data)
+
+                        mapSRC.removeLayer(invHeatmapLayer)
+                        mapSRC.addLayer(heatmapLayer)
+                        
+                    }
+                }
+            }(indiv_counts, max_count));
+
+            var div = document.createElement('div')
+            div.classList.add('row')
+            srcHeatmapTab.appendChild(div)
+
+            var col = document.createElement('div')
+            col.classList.add('col-lg-4')
+            div.appendChild(col)
+
+            var cxDiv = document.createElement('div')
+            cxDiv.classList.add('custom-control')
+            cxDiv.classList.add('custom-checkbox')
+            col.appendChild(cxDiv)
+
+            var input = document.createElement('input')
+            input.setAttribute('type','checkbox')
+            input.setAttribute('class','custom-control-input')
+            input.setAttribute('id','showHeatMapSRC')
+            input.setAttribute('name','showHeatMapSRC')
+            cxDiv.appendChild(input)
+
+            
+            var label = document.createElement('label')
+            label.setAttribute('class','custom-control-label')
+            label.setAttribute('for','showHeatMapSRC')
+            label.innerHTML = 'Show Heatmap'
+            cxDiv.appendChild(label)
+
+            document.getElementById('showHeatMapSRC').addEventListener('change', function(){
+                if (document.getElementById('showHeatMapSRC').checked) {
+                    map['mapDiv_srcHeatmap'].addLayer(heatmapLayer)
+                } else {
+                    map['mapDiv_srcHeatmap'].removeLayer(heatmapLayer)
+                }
+            });
+
+            document.getElementById('showHeatMapSRC').checked = true
+
+            srcHeatmapTab.appendChild(document.createElement('br'))
+
+            // Map
+            var div = document.createElement('div')
+            div.classList.add('row')
+            srcHeatmapTab.appendChild(div)
+
+            var space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-10')
+            div.appendChild(col1)
+
+            // var center = document.createElement('center')
+            // col1.appendChild(center)
+
+            var map_id = 'mapDiv_srcHeatmap'
+            var mapDiv = document.createElement('div')
+            mapDiv.setAttribute('id',map_id)
+            mapDiv.setAttribute('style','height: 750px')
+            col1.appendChild(mapDiv)
+
+            space = document.createElement('div')
+            space.classList.add('col-lg-1')
+            div.appendChild(space)
+
+            var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 18,
+            id: 'mapbox/satellite-v9',
+            tileSize: 512,
+            zoomOffset: -1,
+            accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+            })
+
+            var osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/streets-v11',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+            })
+
+            var gSat = L.gridLayer.googleMutant({type: 'satellite'})
+            var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+            var cfg = {
+                "radius": 0.05,
+                "maxOpacity": .8,
+                "scaleRadius": true,
+                "useLocalExtrema": false,
+                latField: 'lat',
+                lngField: 'lng',
+                valueField: 'count'
+            };
+
+            var invCfg = {
+                "radius": 0.05,
+                "maxOpacity": 0,
+                "scaleRadius": true,
+                "useLocalExtrema": false,
+                latField: 'lat',
+                lngField: 'lng',
+                valueField: 'count'
+            };
+
+            heatmapLayer = new HeatmapOverlay(cfg);
+            invHeatmapLayer = new HeatmapOverlay(invCfg);
+
+            map[map_id] = new L.map('mapDiv_srcHeatmap', {
+                layers: [gSat, heatmapLayer]
+            });
+
+            baseMaps = {
+                "Google Satellite": gSat,
+                "Google Hybrid": gHyb,
+                "OpenStreetMaps Satellite": osmSat,
+                "OpenStreetMaps Roadmap": osmSt,
+            };
+
+            L.control.layers(baseMaps).addTo(map[map_id]);
+            L.control.scale().addTo(map[map_id]);
+            map[map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+            map[map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
+
+            map[map_id].on('baselayerchange', function(wrap_map_id) {
+                return function(e) {
+                    if (e.name.includes('Google')) {
+                        map[wrap_map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+                        map[wrap_map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
+                    }
+                    activeBaseLayer = e;
+                }
+            }(map_id));
+
+            map[map_id].on('resize', function(wrap_map_id) {
+                return function(e) {
+                    mapResize[wrap_map_id] = false
+                    for (let map_id in mapResize) {
+                        if (map_id != wrap_map_id) {
+                            mapResize[map_id] = true
+                        }
+                    }
+                }
+            }(map_id));
+
+            markers = []
+            var refMarkers = []
+            for (let i=0;i<indiv_counts.length;i++) {
+                var tag = indiv_counts[i].site_id.split('_')[0]
+                var latitude = indiv_counts[i].site_id.split('_')[1]
+                var longitude = indiv_counts[i].site_id.split('_')[2]
+
+                marker = L.marker([latitude, longitude]).addTo(map[map_id])
+                markers.push(marker)
+                map[map_id].addLayer(marker)
+                text = '<b>Site: </b>' + tag + '<br><b>Count: </b>' + indiv_counts[i].count
+                marker.bindPopup(text);
+                // marker.bindPopup(tag);
+                marker.on('mouseover', function (e) {
+                    this.openPopup();
+                });
+                marker.on('mouseout', function (e) {
+                    this.closePopup();
+                });
+                refMarkers.push({lat:latitude,lng:longitude,count:1000,tag:tag})
+            }
+            var refData = {max:2000,data:refMarkers}
+            invHeatmapLayer.setData(refData)
+
+            var group = new L.featureGroup(markers);
+            map[map_id].fitBounds(group.getBounds().pad(0.1))
+            if(markers.length == 1) {
+                map[map_id].setZoom(10)
+            }
+
+            spatialExportControl = L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map[map_id]);
+
+            var heatmap_data = []
+            for (let i=0;i<indiv_counts.length;i++) {
+                var tag = indiv_counts[i].site_id.split('_')[0]
+                var latitude = indiv_counts[i].site_id.split('_')[1]
+                var longitude = indiv_counts[i].site_id.split('_')[2]
+                var count = indiv_counts[i].count
+                if (count > 0){
+                    heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+                } 
+            }
+
+            var data = {max:max_count,data:heatmap_data}
+
+            heatmapLayer.setData(data)
+
+
+            mapResize['mapDiv_' + tab.split('Tab')[0]] = false
+
+        
+
+
+            srcHeatmapTab.appendChild(document.createElement('br'))
+
+        }
+        else{
+
+        }
+        
+    }
+
+}
+
+function getSCRcsv(check=false){
+    /** Updates the activity chart  */
+    if (check) {
+        var species = '0'
+        var validSCR = true 
+        var formData = new FormData();
+    }
+    else{
+        var tasks = getSelectedTasks()
+        var sites = getSelectedSites()
+        var species = getSelectedSpecies()
+        var startDate = document.getElementById('startDate').value
+        var endDate = document.getElementById('endDate').value
+        var observationWindow = document.getElementById('observationWindow').value
+        var indivCharSelect = document.getElementById('indivCharSelector').value
+
+        if (indivCharSelect != '-1'){
+            var tags = [document.getElementById('maleSelector').value, document.getElementById('femaleSelector').value]
+        }
+        else{
+            tags = '-1'
+        }
+
+        sites_text = getSelectedSites(true)
+        var validSCR = validateSCR(species, sites_text, tags, startDate, endDate, observationWindow)
+    
+    
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
+        formData.append('trapgroups', JSON.stringify(sites));
+        formData.append('species', JSON.stringify(species));
+        formData.append('window', JSON.stringify(observationWindow));
+        formData.append('tags', JSON.stringify(tags));
+        formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
+        formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+
+        if(startDate != ''){
+            startDate = startDate + ' 00:00:00'
+            formData.append('startDate', JSON.stringify(startDate));
+        }
+    
+        if(endDate != ''){
+            endDate = endDate + ' 23:59:59'
+            formData.append('endDate', JSON.stringify(endDate));
+        }
+    }
+
+    if (species != '-1' && validSCR) {
+
+        document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                if(reply.status == 'SUCCESS'){
+                    csv_urls = reply.csv_urls
+                    downloadCSV(csv_urls)      
+                    document.getElementById('rErrors').innerHTML = ''
+                }
+                else if(reply.status == 'FAILURE'){
+                    document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                }
+                else {
+                    setTimeout(function(){getSCRcsv(true)}, 10000);
+                }
+
+            }
+        }
+        xhttp.open("POST", '/getSpatialCaptureRecaptureCSV');
+        xhttp.send(formData);
+
+    }
+}
+
+$('#indivCharSelector').on('change', function(){
+    /**Function for updating the individual characteristics div. */
+
+    var selected = $(this).val()
+    var indivCharDiv = document.getElementById('indivCharDiv')
+
+    while(indivCharDiv.firstChild){
+        indivCharDiv.removeChild(indivCharDiv.firstChild)
+    }
+
+    if (selected != '-1'){	
+
+        var row1 = document.createElement('div')
+        row1.classList.add('row')
+        indivCharDiv.appendChild(row1)
+
+        var col11 = document.createElement('div')
+        col11.classList.add('col-lg-2')
+        row1.appendChild(col11)
+
+        var col12 = document.createElement('div')
+        col12.classList.add('col-lg-10')
+        row1.appendChild(col12)
+
+        var row2 = document.createElement('div')
+        row2.classList.add('row')
+        indivCharDiv.appendChild(row2)
+
+        var col21 = document.createElement('div')
+        col21.classList.add('col-lg-2')
+        row2.appendChild(col21)
+
+        var col22 = document.createElement('div')
+        col22.classList.add('col-lg-10')
+        row2.appendChild(col22)
+
+        var sOptions = globalTags
+        var sTexts = globalTags
+
+        if (selected == 'sex') {
+            var maleLabel = document.createElement('label')
+            maleLabel.innerHTML = 'Male: '
+            col11.appendChild(maleLabel)
+
+            var maleSelector = document.createElement('select')
+            maleSelector.classList.add('form-control')
+            maleSelector.setAttribute('id', 'maleSelector')
+            col12.appendChild(maleSelector)
+
+            clearSelect(maleSelector)
+            fillSelect(maleSelector, sOptions, sTexts)
+
+            for (let i=0; i<sOptions.length; i++){
+                if (sOptions[i].toLowerCase() == 'male'){
+                    maleSelector.selectedIndex = i
+                    break
+                }
+            }
+
+
+            var femaleLabel = document.createElement('label')
+            femaleLabel.innerHTML = 'Female: '
+            col21.appendChild(femaleLabel)
+
+            var femaleSelector = document.createElement('select')
+            femaleSelector.classList.add('form-control')
+            femaleSelector.setAttribute('id', 'femaleSelector')
+            col22.appendChild(femaleSelector)
+
+            clearSelect(femaleSelector)
+            fillSelect(femaleSelector, sOptions, sTexts)
+
+            for (let i=0; i<sOptions.length; i++){
+                if (sOptions[i].toLowerCase() == 'female'){
+                    femaleSelector.selectedIndex = i
+                    break
+                }
+            }
+
+        }
+    }
+
+})
 
 function onload(){
     /**Function for initialising the page on load.*/

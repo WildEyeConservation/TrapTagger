@@ -42,6 +42,7 @@ limitations under the License. -->
                                 <option value="4">Time Analysis</option>
                                 <option value="5">Activity Pattern</option>
                                 <option value="6">Occupancy Analysis</option>
+                                <option value="7">Spatial Capture-Recapture</option>
                             </select>
                         </div>
                     </div>
@@ -64,18 +65,20 @@ limitations under the License. -->
                         <br>
                     </div>
 
-                    <h5 style="margin-bottom: 2px">Data Unit</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which data unit you would like to see results for.</i></div>
-                    <div class="row">
-                        <div class='col-lg-10'>
-                            <select id="baseUnitSelector" class='form-control'>
-                                <option value="2">Clusters</option>
-                                <option value="3">Sightings</option>
-                                <option value="1">Images</option>
-                            </select>
+                    <div id="dataUnitDiv">
+                        <h5 style="margin-bottom: 2px">Data Unit</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which data unit you would like to see results for.</i></div>
+                        <div class="row">
+                            <div class='col-lg-10'>
+                                <select id="baseUnitSelector" class='form-control'>
+                                    <option value="2">Clusters</option>
+                                    <option value="3">Sightings</option>
+                                    <option value="1">Images</option>
+                                </select>
+                            </div>
                         </div>
+                        <br>
                     </div>
-                    <br>
 
                     <h5 style="margin-bottom: 2px">Date range</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see results for.</i></div>
@@ -269,6 +272,22 @@ limitations under the License. -->
                                 <button type='button' class='btn btn-primary btn-block' id='btnCreateCovariates' onclick=buildCovariates()>Enter Covariates</button>
                             </div>
                         </div>
+                        <br>
+                    </div>
+
+                    <div id="indivCharacteristicsDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Individual Characteristics</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the individual characteristics you would like to add to your analysis. Select what individual tags are associated with the selected characteristics.</i></div>
+                        <div class="row">
+                            <div class="col-lg-10">
+                                <select class="form-control" id="indivCharSelector">
+                                    <option value="-1">None</option>
+                                    <option value="sex">Sex</option>
+                                </select>
+                                <div id="indivCharDiv"></div>
+                            </div>
+                        </div>
+                        <div id="indivCharErrors" style="font-size: 80%; color: #DF691A"></div>
                         <br>
                     </div>
 
@@ -555,7 +574,7 @@ limitations under the License. -->
         </div>
     </div>
     <div class='col-lg-9' style="padding-right: 30px;">
-        <div class="card" style='min-height:400px' id="mainCard">
+        <div class="card" style='min-height:600px' id="mainCard">
             <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
             <div class='row' style="margin-top: 0px; margin-bottom: 0px">
                 <div class='col-lg-4'>
@@ -839,6 +858,7 @@ limitations under the License. -->
                 <h5 style="margin-bottom: 2px">Instructions:</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the covariates you would like to use in your analysis. All sites must have values for all covariates. Covariates can either be numeric or categorical. Choose if you would like to scale your numeric covariates. </i></div>    
                 <br>
+                <div id="siteCovDiv">
                 <h5 style="margin-bottom: 2px">Site Covariates:</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Site covariates are covariates which are constant for all detections at a site. These covariates are used to model the site level effects.</i></div>
                 <div class="row">
@@ -850,8 +870,10 @@ limitations under the License. -->
                     </div>
                 </div>
                 <button id="btnAddSiteCovariate" type="button" class="btn btn-primary btn-info" onclick="buildCovRow('site')">+</button>
+                </div>
                 <br>    
                 <br>
+                <div id="detCovDiv">
                 <h5 style="margin-bottom: 2px">Detection Covariates:</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Detection covariates are covariates which are specific to each detection. These covariates are used to model the detection level effects.</i></div>
                 <div class="row">
@@ -865,6 +887,8 @@ limitations under the License. -->
                 <button id="btnAddDetCovariate" type='button' class='btn btn-primary btn-info' onclick="buildCovRow('det')">+</button>
                 <br>
                 <br>
+                </div>
+
                 <div class="row">
                     <div class="col-lg-2">
                         <button id="importCovCSV" type='button' class='btn btn-primary btn-block' onclick="importCSV()">Import CSV</button>
@@ -969,7 +993,8 @@ limitations under the License. -->
                     </div>
                 </div>
                 <br>
-
+                
+                <div id="iDetCovDiv">
                 <h5 style="margin-bottom: 2px">Detection Covariates</h5>
                 <div style="font-size: 80%; margin-bottom: 2px"><i>Choose the columns in your CSV file which contain the detection covariates.</i></div>
                 <div class="row">
@@ -979,6 +1004,8 @@ limitations under the License. -->
                     </div>
                 </div>
                 <br>
+                </div>
+
 
                 <div id="covariatesImportError" style="font-size: 80%; color: #DF691A"></div>
             </div>

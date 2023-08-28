@@ -45,6 +45,7 @@ from rpy2.robjects.packages import importr
 import pytz
 import timezonefinder
 import numpy as np
+import utm
 
 def translate(labels, dictionary):
     '''
@@ -2554,7 +2555,7 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
         activity_url = None
         if task_ids:
             if task_ids[0] == '0':
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id== user_id).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
             else:
                 tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id==user_id).filter(Task.id.in_(task_ids)).all()
             task_ids = [r[0] for r in tasks]
@@ -2714,22 +2715,16 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
                     fileName += '.csv'
                     GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
                     activity_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
-                    app.logger.info(activity_url)
 
-                # Schedule deletion
-                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
+                    # Schedule deletion
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
 
             else: 
                 if len(df)> 0:
                     # Convert to R dataframe and run R script and upload to bucket
                     r_df = robjects.conversion.py2rpy(df)
-
                     r = robjects.r
                     r.source('R/activity_pattern.R')
-
-                    # Install solartime R package (will remove with new image build)
-                    utils = importr('utils')
-                    utils.install_packages('solartime')
 
                     with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
                         fileName = user_folder+'/docs/' + 'Activity_Pattern' 
@@ -2747,10 +2742,9 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
                         temp_file = open(temp_file.name, 'rb')
                         GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
                         activity_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
-                        app.logger.info(activity_url)
 
-                    # Schedule deletion
-                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
+                        # Schedule deletion
+                        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
                 else:
                     activity_url = None
 
@@ -2779,7 +2773,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
 
         if task_ids:
             if task_ids[0] == '0':
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
             else:
                 tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.id.in_(task_ids)).all()
 
@@ -2919,7 +2913,6 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
         }
 
         species_count_dict = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
-        # app.logger.info(species_count_dict)
 
         summary['summary_indexes'] = summary_indexes
         summary['species_count'] = species_count_dict
@@ -3329,7 +3322,7 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
 
         if task_ids:
             if task_ids[0] == '0':
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
             else:
                 tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.id.in_(task_ids)).all()
 
@@ -3587,8 +3580,8 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                         app.logger.info(occupancy_url)
                         occu_urls.append(occupancy_url)
 
-                    # Schedule deletion
-                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                        # Schedule deletion
+                        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
 
                 occupancy_results = {
                     'csv_urls': occu_urls
@@ -3610,28 +3603,13 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                     r.source('R/occupancy.R')
                     occupancy_results = r.occupancy(detection_df_r, site_df_r, setup_col, retrieval_col, station_col, window, site_cov_r, det_cov_r, all_cov_r, species, cov_options_r)
 
-                    app.logger.info(occupancy_results)
-
                     nr_plots = int(occupancy_results.rx2('nr_plots')[0])
-                    app.logger.info('Nr of plots: ' + str(nr_plots))
-
                     best_model_cov_names = list(occupancy_results.rx2('best_model_cov_names'))
-                    app.logger.info('Best model names: ' + str(best_model_cov_names))
-
                     naive_occupancy = float(occupancy_results.rx2('naive_occu')[0])
-                    app.logger.info('Naive occupancy: ' + str(naive_occupancy))
-
                     total_sites = int(occupancy_results.rx2('total_sites')[0])
-                    app.logger.info('Total sites: ' + str(total_sites))
-
                     total_sites_occupied = int(occupancy_results.rx2('total_sites_occupied')[0])
-                    app.logger.info('Total sites occupied: ' + str(total_sites_occupied))
-
                     model_name = str(occupancy_results.rx2('model_sel_name')[0])
-                    app.logger.info('Model name: ' + str(model_name))
-
                     model_formula = str(occupancy_results.rx2('best_model_formula')[0])
-                    app.logger.info('Model formula: ' + str(model_formula))
 
                     aic = pd.DataFrame(occupancy_results.rx2('aic'))
                     aic = aic.replace([np.inf, -np.inf], 'Inf')
@@ -3647,7 +3625,6 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                     best_model_summary_det = best_model_summary_det.replace([np.inf, -np.inf], 'Inf')
                     best_model_summary_det = best_model_summary_det.replace([np.nan], 'NA')
                     best_model_summary_det = best_model_summary_det.to_dict(orient='records')
-
 
                     # Get the temp files
 
@@ -3666,11 +3643,10 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                                     temp_file = open(temp_file.name, 'rb')
                                     GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
                                     occupancy_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
-                                    app.logger.info(occupancy_url)
                                     occu['images'].append(occupancy_url)
 
-                                # Schedule deletion
-                                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                                    # Schedule deletion
+                                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
                             occu_files.append(occu)
 
                     else:
@@ -3688,14 +3664,12 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                                     temp_file = open(temp_file.name, 'rb')
                                     GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
                                     occupancy_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
-                                    app.logger.info(occupancy_url)
                                     occu['images'].append(occupancy_url)
 
-                                # Schedule deletion
-                                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                                    # Schedule deletion
+                                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
                             occu_files.append(occu)
 
-                    app.logger.info(aic)
 
                     occupancy_results = {
                         'naive_occupancy': naive_occupancy,
@@ -3737,3 +3711,381 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
 
     return { 'status': status, 'error': error, 'occupancy_results': occupancy_results }
 
+
+@celery.task(bind=True,max_retries=1)
+def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, startDate, endDate, window, tags, siteCovs, covOptions, bucket, user_folder, csv=False):
+    try:
+        pandas2ri.activate()
+        results = {}
+        status = None
+        error = None
+        temp_files = []
+
+        if task_ids:
+            if task_ids[0] == '0':
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            else:
+                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.id.in_(task_ids)).all()
+
+            task_ids = [r[0] for r in tasks]
+            survey_ids = list(set([r[1] for r in tasks]))
+
+            sites = db.session.query(Trapgroup.id, 
+                                Trapgroup.tag, 
+                                Trapgroup.latitude, 
+                                Trapgroup.longitude,
+                                func.min(Image.corrected_timestamp),
+                                func.max(Image.corrected_timestamp))\
+                            .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                            .join(Image)\
+                            .filter(Trapgroup.survey_id.in_(survey_ids))
+
+    
+            individuals = db.session.query(Individual.id,
+                                                Individual.species,
+                                                Tag.description,
+                                                Image.corrected_timestamp,
+                                                Trapgroup.tag,
+                                                Trapgroup.latitude,
+                                                Trapgroup.longitude)\
+                                        .join(Detection,Individual.detections)\
+                                        .join(Image)\
+                                        .join(Task,Individual.tasks)\
+                                        .outerjoin(Tag, Individual.tags)\
+                                        .join(Camera)\
+                                        .join(Trapgroup)\
+                                        .filter(Task.id.in_(task_ids))\
+                                        .filter(Individual.name!='unidentifiable')\
+                                        .filter(Individual.active==True)\
+                                        .filter(Trapgroup.survey_id.in_(survey_ids))\
+                                        .filter(Image.corrected_timestamp!=None)
+
+            if species !='0': individuals = individuals.filter(Individual.species.in_(species))
+
+            if trapgroups != '0': 
+                individuals = individuals.filter(Trapgroup.id.in_(trapgroups))
+                sites = sites.filter(Trapgroup.id.in_(trapgroups))
+
+            if startDate: 
+                individuals = individuals.filter(Image.corrected_timestamp >= startDate)
+                sites = sites.filter(Image.corrected_timestamp >= startDate)
+
+            if endDate: 
+                individuals = individuals.filter(Image.corrected_timestamp <= endDate)       
+                sites = sites.filter(Image.corrected_timestamp <= endDate)          
+
+
+            individuals_df = pd.DataFrame(individuals.all(), columns=['individual_id', 'species', 'indiv_tags' ,'timestamp', 'tag', 'latitude', 'longitude'])   
+            sites_df = pd.DataFrame(sites.group_by(Trapgroup.id).all(), columns=['id', 'tag', 'latitude', 'longitude', 'first_date', 'last_date'])
+
+            if tags != '-1':
+                individuals_df['indiv_tags'] = individuals_df['indiv_tags'].fillna('NA')
+                tags.append('NA') # add NA to the list of tags (uncomment later)
+                individuals_df = individuals_df[individuals_df['indiv_tags'].isin(tags)]
+
+            # add column for session and set to 1
+            individuals_df['session'] = 1
+
+            # Add site_id column
+            individuals_df['site_id'] = (individuals_df['tag'] + '_' + individuals_df['latitude'].apply(lambda lat: f'{lat:.4f}') + '_' + individuals_df['longitude'].apply(lambda lng: f'{lng:.4f}'))
+
+            sites_df = sites_df.groupby(['tag', 'latitude', 'longitude']).agg({'first_date': 'min', 'last_date': 'max'}).reset_index()
+            sites_df['site_id'] = (sites_df['tag'] + '_' + sites_df['latitude'].apply(lambda lat: f'{lat:.4f}') + '_' + sites_df['longitude'].apply(lambda lng: f'{lng:.4f}'))
+
+            # create individaul count df that has all sites same as sites_df and counts set to 0
+            individual_counts = sites_df[['site_id']].copy()
+            individual_counts['count'] = 0
+
+            # Add UTM X and Y columns to sites_df and scale to km
+            sites_df['utm_x'] = sites_df.apply(lambda row: utm.from_latlon(row['latitude'], row['longitude'])[0]/1000, axis=1)
+            sites_df['utm_y'] = sites_df.apply(lambda row: utm.from_latlon(row['latitude'], row['longitude'])[1]/1000, axis=1)
+
+            # Add a date column
+            individuals_df['date'] = individuals_df['timestamp'].dt.date
+            sites_df['first_date'] = sites_df['first_date'].dt.date
+            sites_df['last_date'] = sites_df['last_date'].dt.date
+
+            # Get min_date and max_date
+            if startDate:
+                min_date = datetime.strptime(startDate.split(' ')[0], '%Y-%m-%d').date()
+            else:
+                min_date = individuals_df['timestamp'].min()
+
+            if endDate:
+                max_date = datetime.strptime(endDate.split(' ')[0], '%Y-%m-%d').date()
+            else:
+                max_date = individuals_df['timestamp'].max()
+
+            # set df_dh to unique individuals
+            df_dh = individuals_df[['individual_id']].drop_duplicates()
+
+
+            # Create a list of dates (YYYY-MM-DD) based on the window (no time)
+            dates = pd.date_range(min_date, max_date, freq=f'{window}D').date
+
+            for i, date in enumerate(dates):
+                col_name = 'occasion.' + str(i+1)
+                sites_df[col_name] = 0
+                df_dh[col_name] = 0
+                date_filter = (sites_df['first_date'] <= date) & (sites_df['last_date'] >= date)
+                sites_df.loc[date_filter, col_name] = 1
+
+            for i, date in enumerate(dates):
+                col_name = 'occasion.' + str(i+1)
+                if i < len(dates)-1:
+                    date_filter = (individuals_df['date'] >= date) & (individuals_df['date'] < dates[i+1])
+                else:
+                    date_filter = (individuals_df['date'] >= date)
+                individuals_df.loc[date_filter, 'occasion'] = i+1
+
+                df_dh.loc[df_dh['individual_id'].isin(individuals_df[date_filter]['individual_id']), col_name] = 1
+                
+
+            individuals_df['occasion'] = individuals_df['occasion'].astype(int)
+
+
+            # Only keep entries where there is unique individual_id, occasion, and site_id
+            individuals_df = individuals_df.drop_duplicates(subset=['individual_id', 'occasion', 'site_id'])
+
+            # Only keep columns: session, occasion, site_id, individual_id
+            if tags != '-1':
+                edf = edf = individuals_df[['session', 'occasion', 'site_id', 'individual_id', 'indiv_tags']]
+
+                # If all tags are NA then remove the indiv_tags column
+                if len(individuals_df['indiv_tags'].unique()) == 1 and individuals_df['indiv_tags'].unique()[0] == 'NA':
+                    edf = edf.drop(columns=['indiv_tags'])
+                    tags = '-1'
+
+            else:
+                edf = individuals_df[['session', 'occasion', 'site_id', 'individual_id']]
+
+
+            # Only keep columns: site_id, utm_x, utm_y,  occasion.1, occasion.2, occasion.3, etc.
+            tdf = sites_df[['site_id', 'utm_x', 'utm_y'] + [col for col in sites_df.columns if 'occasion' in col]]
+
+            # drop sites that only has 0s in occasion columns (sites that weren't open during the survey)
+            tdf = tdf[tdf[[col for col in tdf.columns if 'occasion' in col]].sum(axis=1) > 0]
+
+            if len(siteCovs) > 0:
+                # Create df of siteCovs
+                site_cov = pd.DataFrame(siteCovs)
+                site_cov = site_cov.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+
+                # Remove rows which site_id is not in the site_df
+                site_cov = site_cov[site_cov.index.isin(tdf['site_id'])]
+
+                # rename site_id to index
+                site_cov = site_cov.rename_axis('site_id').reset_index()
+                site_cov = site_cov.rename_axis(None, axis=1)
+
+                tdf['sep'] = '/'
+
+                app.logger.info(site_cov)
+                
+                #merge site_cov with tdf
+                tdf = pd.merge(tdf, site_cov, on='site_id', how='left')
+
+                # get all col names except site_id
+                cov_names = [col for col in site_cov.columns if col != 'site_id']
+
+            else:
+                site_cov = pd.DataFrame()
+                cov_names = []
+
+            if len(covOptions) > 0:
+                cov_options = pd.DataFrame(covOptions)
+                cov_options = cov_options.set_index('covariate')
+            else:
+                cov_options = pd.DataFrame()
+
+
+            # count number of unique individuals per site 
+            site_grouped = edf.groupby('site_id')['individual_id'].nunique()
+            for site_id, count in site_grouped.items():
+                mask = individual_counts['site_id'] == site_id
+                individual_counts.loc[mask, 'count'] = count
+
+            max_count = individual_counts['count'].max()
+            individual_counts = individual_counts.to_dict(orient='records')
+            individual_counts.append({'max_count': str(max_count)})
+
+
+            if csv:
+                dfs = [edf, tdf, df_dh]
+                dfs_names = ['edf', 'tdf', 'dh']
+                scr_urls = []
+                for i in range(len(dfs)):
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                        df = dfs[i]
+                        df_name = dfs_names[i]
+                        df.to_csv(temp_file.name, index=False)
+                        fileName = user_folder+'/docs/' + 'SCR' + '_' 
+                        for specie in species:
+                            fileName += specie + '_'
+                        fileName += df_name + '.csv'
+                        GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
+                        scr_url = "https://"+ bucket + ".s3.amazonaws.com/" + fileName
+                        app.logger.info(scr_url)
+                        scr_urls.append(scr_url)
+
+                        # Schedule deletion
+                        deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
+
+                results = scr_urls
+                status = 'SUCCESS'
+                error = None
+
+            else:
+                # Convert to R dataframes
+                edf_r = robjects.conversion.py2rpy(edf)
+                tdf_r = robjects.conversion.py2rpy(tdf)
+                cov_names_r = robjects.conversion.py2rpy(cov_names)
+                cov_options_r = robjects.conversion.py2rpy(cov_options)
+                df_dh_r = robjects.conversion.py2rpy(df_dh)
+
+                session_col = 'session'
+                id_col = 'individual_id'
+                occ_col = 'occasion'
+                site_col = 'site_id'
+                if tags != '-1':
+                    tag_col = 'indiv_tags'	
+                else:
+                    tag_col = 'none'
+                sep = '/'
+
+                # Run the R function	
+                r = robjects.r
+                r.source('R/spatial_capture_recapture.R')
+
+                plots = ['captures', 'state-space', 'density_map']
+                temp_files = []
+                temp_file_names = []
+                for i in range(len(plots)):
+                    temp_files.append(tempfile.NamedTemporaryFile(suffix='.JPG', delete=True))
+                    temp_file_names.append(temp_files[i].name.split('.JPG')[0])
+
+                # file_names_r = robjects.StrVector(temp_file_names)
+                file_names_r = robjects.conversion.py2rpy(temp_file_names)
+
+                # Run the R function
+                scr_results = r.spatial_capture_recapture(edf_r, tdf_r, session_col, id_col, occ_col, site_col, tag_col, sep, cov_names_r, cov_options_r, df_dh_r, file_names_r)
+
+                density = pd.DataFrame(scr_results.rx2('density'))
+                if density.empty:
+                    density = []
+                else:
+                    if 'sex' in density.columns:
+                        density.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound', 'sex': 'Sex'}, inplace=True)
+                        density = density[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound', 'Sex']]
+                    else:
+                        density.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound'}, inplace=True)
+                        density = density[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound']]
+                    density = density.replace([np.inf, -np.inf], 'Inf')
+                    density = density.replace([np.nan], 'NA')
+                    density = density.to_dict(orient='records')
+
+                abundance = pd.DataFrame(scr_results.rx2('abundance'))
+                if abundance.empty:
+                    abundance = []
+                else:
+                    if 'sex' in abundance.columns:
+                        abundance.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound', 'sex': 'Sex', 'state_space': 'State space (km2)'}, inplace=True)
+                        abundance = abundance[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound', 'Sex','State space (km2)']]
+                    else:
+                        abundance.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound', 'state_space': 'State space (km2)'}, inplace=True)
+                        abundance = abundance[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound', 'State space (km2)']]
+
+                    abundance = abundance.replace([np.inf, -np.inf], 'Inf')
+                    abundance = abundance.replace([np.nan], 'NA')
+                    abundance = abundance.to_dict(orient='records')
+
+                det_prob = pd.DataFrame(scr_results.rx2('det_prob'))
+                if det_prob.empty:
+                    det_prob = []
+                else:
+                    if 'sex' in det_prob.columns:
+                        det_prob.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound', 'sex': 'Sex'}, inplace=True)
+                        det_prob = det_prob[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound', 'Sex']]
+                    else:
+                        det_prob.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound'}, inplace=True)
+                        det_prob = det_prob[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound'] + [col for col in det_prob.columns if 'session' not in col.lower()]]
+                    det_prob = det_prob.replace([np.inf, -np.inf], 'Inf')
+                    det_prob = det_prob.replace([np.nan], 'NA')
+                    det_prob = det_prob.to_dict(orient='records')
+
+                sigma = pd.DataFrame(scr_results.rx2('sigma'))
+                if sigma.empty:
+                    sigma = []
+                else:          
+                    if 'sex' in sigma.columns:
+                        sigma.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound', 'sex': 'Sex'}, inplace=True)
+                        sigma = sigma[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound', 'Sex']]
+                    else:
+                        sigma.rename(columns={'estimate': 'Estimate', 'se': 'Standard Error', 'lwr': 'Lower Bound', 'upr': 'Upper Bound'}, inplace=True)
+                        sigma = sigma[['Estimate', 'Standard Error', 'Lower Bound', 'Upper Bound']]
+                    sigma = sigma.replace([np.inf, -np.inf], 'Inf')
+                    sigma = sigma.replace([np.nan], 'NA')
+                    sigma = sigma.to_dict(orient='records')
+
+                summary = pd.DataFrame(scr_results.rx2('summary'))
+                summary.rename(columns={'best_model': 'Best Model', 'best_model_formula': 'Best Model Formula'}, inplace=True)
+                summary = summary.replace([np.inf, -np.inf], 'Inf')
+                summary = summary.replace([np.nan], 'NA')
+                summary = summary.to_dict(orient='records')
+
+                aic = pd.DataFrame(scr_results.rx2('aic'))
+                aic = aic.replace([np.inf, -np.inf], 'Inf')
+                aic = aic.replace([np.nan], 'NA')
+                aic = aic.to_dict(orient='records')
+
+                cr = pd.DataFrame(scr_results.rx2('cr'))
+                cr = cr.replace([np.inf, -np.inf], 'Inf')
+                cr = cr.replace([np.nan], 'NA')
+                cr = cr.to_dict(orient='records')
+
+                message = str(scr_results.rx2('message')[0])
+
+                # Upload the files to S3
+                scr_files = []
+                for i in range(len(plots)):
+                    fileName = user_folder+'/docs/' + 'SCR_' + plots[i] + '_' + datetime.now().strftime('%Y-%m-%d_%H:%M:%S') + '.JPG'
+                    temp_file = open(temp_files[i].name, 'rb')
+                    GLOBALS.s3client.put_object(Bucket=bucket,Key=fileName,Body=temp_file)
+                    scr_files.append("https://"+ bucket + ".s3.amazonaws.com/" + fileName)
+                    temp_files[i].close()
+
+                    # Schedule deletion
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
+
+
+                results = {
+                    'scr_files': scr_files,
+                    'density': density,
+                    'abundance': abundance,
+                    'det_prob': det_prob,
+                    'sigma': sigma,
+                    'summary': summary,
+                    'aic': aic,
+                    'cr': cr,
+                    'message': message,
+                    'individual_counts': individual_counts
+                }
+
+                status = 'SUCCESS'
+                error = None
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        status = 'FAILURE'
+        error = str(exc)
+
+    finally:
+        db.session.remove()
+        for temp_file in temp_files:
+            temp_file.close()
+
+    return { 'status': status, 'error': error, 'scr_results': results }

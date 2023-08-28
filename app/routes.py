@@ -1880,7 +1880,7 @@ def getPolarData():
     reply = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
         else:
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
@@ -2012,7 +2012,7 @@ def getBarData():
     labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
         else:
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
@@ -8075,10 +8075,10 @@ def results():
         return render_template('html/results.html', title='Analysis', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 
-@app.route('/getAllLabelsAndSites', methods=['POST'])
+@app.route('/getAllLabelsTagsAndSites', methods=['POST'])
 @login_required
-def getAllLabelsAndSites():
-    '''Returns all the labels and sites for the specified tasks.'''
+def getAllLabelsTagsAndSites():
+    '''Returns all the labels, sites, and tags for the specified tasks.'''
     task_ids = ast.literal_eval(request.form['task_ids'])
     sites_data = []
     sites_ids = []
@@ -8086,6 +8086,7 @@ def getAllLabelsAndSites():
     if task_ids:
         if task_ids[0] == '0':
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+            tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
             sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id).all()
             for site in sites:
                 site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
@@ -8101,8 +8102,9 @@ def getAllLabelsAndSites():
         else:
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
             sites_data = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
+            tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
 
-    return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids})
+    return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids, 'tags': tags})
 
 @app.route('/getLineData', methods=['POST'])
 @login_required
@@ -8139,7 +8141,7 @@ def getLineData():
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
         else:
             tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
         task_ids = [r[0] for r in tasks]
@@ -8601,15 +8603,12 @@ def getSurveysAndTasksForResults():
 
 
     if sites_ids != '0':
-        app.logger.info('sites_ids: {}'.format(sites_ids))
         surveys = surveys.filter(Trapgroup.id.in_(sites_ids))
 
     if start_date:
-        app.logger.info('start_date: {}'.format(start_date))
         surveys = surveys.filter(Image.corrected_timestamp >= start_date)
 
     if end_date:
-        app.logger.info('end_date: {}'.format(end_date))
         surveys = surveys.filter(Image.corrected_timestamp <= end_date)
 
     surveys = surveys.distinct().all()
@@ -8665,7 +8664,6 @@ def getActivityPattern():
             if GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id))
                 try:
-                    app.logger.info('Revoking task {}'.format(result_id))
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -8675,19 +8673,16 @@ def getActivityPattern():
             bucket = Config.BUCKET
             result = calculateActivityPattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('activity_pattern_' + str(user_id), result.id)
-            app.logger.info('Task {} started'.format(result.id))
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id))
             if result_id:
                 result = calculateActivityPattern.AsyncResult(result_id)
-                app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
                         activity_img_url = celery_result['activity_url']
-                        app.logger.info('Task {} result: {}'.format(result_id, activity_img_url))
                         result.forget()
                         GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
                     else:
@@ -8738,7 +8733,6 @@ def getActivityPatternCSV():
             if GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id))
                 try:
-                    app.logger.info('Revoking task {}'.format(result_id))
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -8748,19 +8742,16 @@ def getActivityPatternCSV():
             bucket = Config.BUCKET
             result = calculateActivityPattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('activity_pattern_csv_' + str(user_id), result.id)
-            app.logger.info('Task {} started'.format(result.id))
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id))
             if result_id:
                 result = calculateActivityPattern.AsyncResult(result_id)
-                app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
                         activity_csv_url = celery_result['activity_url']
-                        app.logger.info('Task {} result: {}'.format(result_id, activity_csv_url))
                         result.forget()
                         GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
                     else:
@@ -8824,7 +8815,6 @@ def getResultsSummary():
             if GLOBALS.redisClient.get('results_summary_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('results_summary_' + str(current_user.id))
                 try:
-                    app.logger.info('Revoking task {}'.format(result_id))
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -8834,17 +8824,14 @@ def getResultsSummary():
             bucket = Config.BUCKET
             result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'trapUnit': trapUnit})
             GLOBALS.redisClient.set('results_summary_' + str(user_id), result.id)
-            app.logger.info('Task {} started'.format(result.id))
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('results_summary_' + str(current_user.id))
             if result_id:
                 result = calculate_results_summary.AsyncResult(result_id)
-                app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
-                    app.logger.info('Celery result: {}'.format(celery_result))
                     if celery_result['status'] == 'SUCCESS':
                         summary = celery_result['summary']
                         result.forget()
@@ -8899,7 +8886,6 @@ def getOccupancy():
             if GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id))
                 try:
-                    app.logger.info('Revoking task {}'.format(result_id))
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -8909,19 +8895,16 @@ def getOccupancy():
             bucket = Config.BUCKET
             result = calculateOccupancyAnalysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
             GLOBALS.redisClient.set('occupancy_analysis_' + str(user_id), result.id)
-            app.logger.info('Task {} started'.format(result.id))
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id))
             if result_id:
                 result = calculateOccupancyAnalysis.AsyncResult(result_id)
-                app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
                         occupancy_results = celery_result['occupancy_results']
-                        app.logger.info('Task {} result: {}'.format(result_id, occupancy_results))
                         result.forget()
                         GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
                     else:
@@ -8976,7 +8959,6 @@ def getOccupancyCSV():
             if GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id))
                 try:
-                    app.logger.info('Revoking task {}'.format(result_id))
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -8986,20 +8968,17 @@ def getOccupancyCSV():
             bucket = Config.BUCKET
             result = calculateOccupancyAnalysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('occupancy_csv_' + str(user_id), result.id)
-            app.logger.info('Task {} started'.format(result.id))
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id))
             if result_id:
                 result = calculateOccupancyAnalysis.AsyncResult(result_id)
-                app.logger.info('Task {} status: {}'.format(result_id, result.state))
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
                         occupancy_results = celery_result['occupancy_results']
                         csv_urls = occupancy_results['csv_urls']
-                        app.logger.info('Task {} result: {}'.format(result_id, csv_urls))
                         result.forget()
                         GLOBALS.redisClient.delete('occupancy_csv_' + str(current_user.id))
                     else:
@@ -9059,4 +9038,143 @@ def getCovariateCSV():
 
 
     return json.dumps({'cov_url': cov_url})
+
+@app.route('/getSpatialCaptureRecapture', methods=['POST'])
+@login_required
+def getSpatialCaptureRecapture():
+    ''' Get the spatial capture-recapture analysis for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        window = ast.literal_eval(request.form['window'])
+        tags = ast.literal_eval(request.form['tags'])
+        siteCovs = ast.literal_eval(request.form['siteCovs'])
+        covOptions = ast.literal_eval(request.form['covOptions'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+
+        if Config.DEBUGGING: app.logger.info('SCR data requested for {} {} {} {} {} {} {} {}'.format(task_ids,species,trapgroups,startDate,endDate,window,tags, siteCovs))
+    else:
+        task_ids = None
+    
+    status = 'FAILURE'
+    celery_result = None
+    scr_results = None
+    msg = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('scr_analysis_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('scr_analysis_' + str(current_user.id))
+                try:
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
+
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = get_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
+            GLOBALS.redisClient.set('scr_analysis_' + str(user_id), result.id)
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('scr_analysis_' + str(current_user.id))
+            if result_id:
+                result = get_spatial_capture_recapture.AsyncResult(result_id)
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        scr_results = celery_result['scr_results']
+                        result.forget()
+                        GLOBALS.redisClient.delete('scr_analysis_' + str(current_user.id))
+                    else:
+                        status = celery_result['status']
+                        msg = celery_result['error']
+                        scr_results = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('scr_analysis_' + str(current_user.id))
+                elif status == 'FAILURE':
+                    msg = 'Task {} failed'.format(result_id)
+                    scr_results = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('scr_analysis_' + str(current_user.id))
+
+    return json.dumps({'status': status, 'results': scr_results, 'message': msg})
+
+
+@app.route('/getSpatialCaptureRecaptureCSV', methods=['POST'])
+@login_required
+def getSpatialCaptureRecaptureCSV():
+    ''' Get the spatial capture-recapture analysis for a species '''
+    if 'task_ids' in request.form:
+        task_ids = ast.literal_eval(request.form['task_ids'])
+        species = ast.literal_eval(request.form['species'])
+        trapgroups = ast.literal_eval(request.form['trapgroups'])
+        window = ast.literal_eval(request.form['window'])
+        tags = ast.literal_eval(request.form['tags'])
+        siteCovs = ast.literal_eval(request.form['siteCovs'])
+        covOptions = ast.literal_eval(request.form['covOptions'])
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+        if 'endDate' in request.form:	
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+        csv = True
+        if Config.DEBUGGING: app.logger.info('SCR csv requested for {} {} {} {} {} {} {}'.format(task_ids,species,trapgroups,startDate,endDate,window,tags))
+    else:
+        task_ids = None
+    
+    status = 'FAILURE'
+    celery_result = None
+    scr_csvs = None
+    msg = None
+    if current_user.is_authenticated and current_user.admin:
+        if task_ids:
+            if GLOBALS.redisClient.get('scr_csv_' + str(current_user.id)):
+                result_id = GLOBALS.redisClient.get('scr_csv_' + str(current_user.id))
+                try:
+                    celery.control.revoke(result_id, terminate=True)
+                except:
+                    pass
+
+            user_id = current_user.id
+            folder = current_user.folder
+            bucket = Config.BUCKET
+            result = get_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            GLOBALS.redisClient.set('scr_csv_' + str(user_id), result.id)
+            status = 'PENDING'
+        else:
+            result_id = GLOBALS.redisClient.get('scr_csv_' + str(current_user.id))
+            if result_id:
+                result = get_spatial_capture_recapture.AsyncResult(result_id)
+                status = result.state
+                if status == 'SUCCESS':
+                    celery_result = result.result
+                    if celery_result['status'] == 'SUCCESS':
+                        scr_csvs = celery_result['scr_results']
+                        result.forget()
+                        GLOBALS.redisClient.delete('scr_csv_' + str(current_user.id))
+                    else:
+                        status = celery_result['status']
+                        msg = celery_result['error']
+                        scr_csvs = {}
+                        result.forget()
+                        GLOBALS.redisClient.delete('scr_csv_' + str(current_user.id))
+                elif status == 'FAILURE':
+                    msg = 'Task {} failed'.format(result_id)
+                    scr_csvs = {}
+                    result.forget()
+                    GLOBALS.redisClient.delete('scr_csv_' + str(current_user.id))
+
+    return json.dumps({'status': status, 'csv_urls': scr_csvs, 'message': msg})
 

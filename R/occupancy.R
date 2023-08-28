@@ -60,9 +60,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
         scaleEffort = F
     )
 
-    # print('Detection history')
-    # print(DH)
-
     # Naive occupancy
     total_sites <- nrow(cameras)
     sites_with_species <- length(unique(detection_df[,station_col]))
@@ -120,9 +117,7 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
             all_covs[,all_cov_name] <- as.factor(all_covs[,all_cov_name])
         }
     }
-    print('All covs')
-    print(all_covs)
-    print(all_covs_names)
+
     if (nrow(all_covs) == 0){
         data_umf <- unmarkedFrameOccu(y = DH)
         all_covs <- data.frame(site_id = unique(cameras[,station_col]))
@@ -130,14 +125,10 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     else {
         data_umf <- unmarkedFrameOccu(y = DH, siteCovs = all_covs)
     }
-    # print('Unmarked frame')
-    # print(data_umf)
 
     # Fit models
     # null model
     occu_null <- occu(~1 ~1, data = data_umf)
-    # print(occu_null)
-    # print('Null model')
     # All det_covs formula
     if (length(det_cov_names) == 0){
         det_cov_formula <- reformulate("1")
@@ -154,20 +145,15 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
         site_cov_formula <- reformulate(site_cov_names)
     }
 
-    # print('Null site models')
     # null site 
     null_site_formula <- reformulate("1", response = det_cov_formula)
-    # print(null_site_formula)
     occu_site_null <- occu(null_site_formula, data = data_umf)
 
-    # print('Null det models')
     # null det
     # nuldet_formula - ~1 site_cov_
     null_det_formula <- as.formula(paste("~1", " ", deparse(site_cov_formula)))
-    # print(null_det_formula)
     occu_det_null <- occu(null_det_formula, data = data_umf)
 
-    # print('Site models')
     # site covariates
     occu_sites <- list()
     for (site_cov_name in site_cov_names){
@@ -175,7 +161,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
         occu_sites[site_cov_name] <- occu(occu_site_formula, data = data_umf)
     }
 
-    # print('Det models')
     # det covariates
     occu_dets <- list()
     for (det_cov_name in det_cov_names){
@@ -183,7 +168,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
         occu_dets[det_cov_name] <- occu(occu_det_formula, data = data_umf)
     }
 
-    # print('Global model')
     # all site and detection covariates
     if (length(site_cov_names) == 0){
         global_formula <- reformulate('1', response = det_cov_formula)
@@ -193,7 +177,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     }
     occu_global <- occu(global_formula, data = data_umf)
 
-    # print('Done fitting models')
     # Compare models
     # models <- list('null' = occu_null, 'site_null' = occu_site_null,'det_null' = occu_det_null ,'global' = occu_global)
     models <- list()
@@ -211,41 +194,23 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     # Remove duplicate models
     # models <- unique(models)
 
-    # print(models)
-
     # AICc
     aic1 <- aictab(models)
-    # print(aic1)
-
-
 
     # Model selection
     model_sel_name <- aic1[1,1]
     best_model <- models[[model_sel_name]]
-    # # print(best_model)
 
     # Convert aic1 to dataframe and then to list to return
     aic1 <- as.data.frame(aic1)
-    # rEPLACE iNF WITH NA
-    # aic1[is.infinite(aic1)] <- NA
-
-    # aic1 <- as.list(aic1)
-
-    # # print('AIC1')
-    # # print(aic1)
 
     # Predictions
     best_model_formula <- best_model@formula
     best_model_cov_names <- all.vars(best_model_formula)
-    # # print('Best model formula')
-    # # print(best_model_formula)
     formula_str <- deparse(best_model_formula)
-    # # print(  formula_str)
 
     # Conver best_model summary to dataframe
     best_model_summary <- summary(best_model)
-    # # print('Best model summary')
-    # # print(best_model_summary)
     best_model_summary_state <- as.data.frame(best_model_summary$state)
     best_model_summary_det <- as.data.frame(best_model_summary$det)
     
@@ -256,8 +221,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     # Move the Name column to the front
     best_model_summary_state <- best_model_summary_state[,c(ncol(best_model_summary_state),1:(ncol(best_model_summary_state)-1))]
     best_model_summary_det <- best_model_summary_det[,c(ncol(best_model_summary_det),1:(ncol(best_model_summary_det)-1))]
-
-    # best_model_summary <- as.list(best_model_summary)
 
     nr_plots <- 2
     return_list <- list('nr_plots' = nr_plots, 'best_model_cov_names' = best_model_cov_names, 'naive_occu' = naive_occupancy, 'total_sites' = total_sites, 'total_sites_occupied' = sites_with_species, 'best_model_formula' = formula_str, 'model_sel_name' = model_sel_name, 'aic' = aic1, 'best_model_summary_state'= best_model_summary_state, 'best_model_summary_det' = best_model_summary_det)
@@ -271,7 +234,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     model_sel_name <<- model_sel_name
     cov_options <<- cov_options
 
-    # # print(return_list)
     return(return_list)
 
 }
@@ -340,7 +302,6 @@ plot_occupancy <- function(idx, file_name, cov_name){
         file_name <- paste0(file_name, ".JPG")
         jpeg(file = file_name, quality = 100, width = 800, height = 800, units = "px", pointsize = 16)
 
-        # print(pred1)
         y_lab <- paste0("Predicted ", label , " for ", species, " (", cov_name, ")")
         # Plot occupancy per site for covariate
         b <- ggplot(pred1, aes(x=reorder(site_label, -Predicted), y= Predicted)) +
@@ -484,13 +445,9 @@ get_occupancy_from_csv <- function() {
     # Plot results
     if (length(best_model_cov_names) > 0) {
         for (best_model_cov_name in best_model_cov_names) {
-            print(best_model_cov_name)
             for (i in 1:nr_plots) {
                 file_name = paste(species, best_model_cov_name, sep = "_")
                 file_name = paste(file_name, i, sep = "_")
-                print(file_name)
-                print(best_model_cov_name)
-                print(i)
                 plot_occupancy(i, file_name, best_model_cov_name)
             }
         }
