@@ -177,7 +177,7 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
         print(message)
     })
 
-    # Other models will follow
+    # Sex models
     sex_models <- list()
     if (tag_col != 'none'){
         tryCatch({
@@ -208,11 +208,6 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
             ms3 <- NULL
         })
 
-
-        # ms1 <- oSCR.fit(list(D~1,p0~1,sig~sex), species.sf, species.ss, trimS=trim)
-        # ms2 <- oSCR.fit(list(D~1,p0~sex,sig~1), species.sf, species.ss, trimS=trim)
-        # ms3 <- oSCR.fit(list(D~1,p0~sex,sig~sex), species.sf, species.ss, trimS=trim)
-        # sex_models <- list(ms1=ms1, ms2=ms2, ms3=ms3)
     }
 
     cov_models <- list()
@@ -230,55 +225,10 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
                 message <- 'Model failed to fit. '
                 cov_model <- NULL
             })
-            # cov_model_p <- paste(' ', cov_name, sep = "")
-            # cov_model_p <- paste("p0~", cov_model_p, sep = "")
-            # cov_model_p <- as.formula(cov_model_p)
-            # print(cov_model_p)
-            # cov_model <- oSCR.fit(list(D~1,cov_model_p,sig~1), species.sf, species.ss, trimS=trim)
-            # # cov_models <- c(cov_models, cov_model)
-            # print(cov_model)
-            # cov_models[[cov_name]] <- cov_model
         }
     }
 
-    # cov_sex_models <- list()
-    # if (tag_col != 'none' && lenght(cov_col_names) > 0){
-    #     for (cov_name in cov_col_names){
-    #         # p0 - sex + cov sig - 1
-    #         cov_model_p <- paste(' ', cov_name, sep = "")
-    #         cov_model_p <- paste("p0~sex+", cov_model_p, sep = "")
-    #         cov_model_p <- as.formula(cov_model_p)
-    #         print(cov_model_p)
-    #         cov_model <- oSCR.fit(list(D~1,cov_model_p,sig~1), species.sf, species.ss, trimS=trim)
-    #         # cov_models <- c(cov_models, cov_model)
-    #         print(cov_model)
-    #         cov_sex_models[[cov_model_p]] <- cov_model
-
-    #         #p0 - cov sig- sex
-    #         cov_model_p <- paste(' ', cov_name, sep = "")
-    #         cov_model_p <- paste("p0~", cov_model_p, sep = "")
-    #         cov_model_p <- as.formula(cov_model_p)
-    #         print(cov_model_p)
-    #         cov_model <- oSCR.fit(list(D~1,cov_model_p,sig~sex), species.sf, species.ss, trimS=trim)
-    #         # cov_models <- c(cov_models, cov_model)
-    #         print(cov_model)
-    #         cov_sex_models[[cov_model_p]] <- cov_model
-
-    #         #p0 - sex + cov + sig - sex
-    #         cov_model_p <- paste(' ', cov_name, sep = "")
-    #         cov_model_p <- paste("p0~sex+", cov_model_p, sep = "")
-    #         cov_model_p <- as.formula(cov_model_p)
-    #         print(cov_model_p)
-    #         cov_model <- oSCR.fit(list(D~1,cov_model_p,sig~sex), species.sf, species.ss, trimS=trim)
-    #         # cov_models <- c(cov_models, cov_model)
-    #         cov_sex_models[[cov_model_p]] <- cov_model
-
-
-
-    #     }
-    # }
-
-    # 5. Model selection (will do later)
+    # 5. Model selection 
     if (is.null(m0)){
         model_list <- list()
     }
@@ -296,7 +246,6 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
     if (length(model_list) == 0){
         message <- paste(message, 'No models were fitted. Please ensure that the data is correct and try again.')
 
-        # make empty dataframes
         density <- data.frame()
         abundance <- data.frame()
         det_prob <- data.frame()
@@ -341,7 +290,6 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
         best_model_formula <- paste(bm_model[[1]], bm_model[[2]], bm_model[[3]], sep = " ")
         summary_df$best_model <- model_name
         summary_df$best_model_formula <- best_model_formula
-        # best_model <- ms$best.model
 
         # 6. Model predictions
         # 6.1 Density (res 100km2)
@@ -435,8 +383,6 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
         colnames(raster_values) <- c('density')
 
         raster_df <- cbind(raster_coordinates, raster_values)
-        # Remove rows with NA
-        # raster_df <- raster_df[complete.cases(raster_df),]
 
         # Replace NA with 0
         raster_df[is.na(raster_df)] <- 0

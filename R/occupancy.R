@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Occupancy analysis
 library(camtrapR)
 library(unmarked)
 library(AICcmodavg)
@@ -28,7 +27,6 @@ all_covs <- NULL
 species <- NULL
 model_sel_name <- NULL
 cov_options <- NULL
-
 
 occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_col, window, site_cov, det_cov, all_covs, species, cov_options){
     # Calculate occupancy for a species using the detection and site dataframes
@@ -100,7 +98,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
         }
     }   
 
-
     # Create unmarked frame
     DH <- as.data.frame(DH)
     all_covs <- all_covs
@@ -150,7 +147,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     occu_site_null <- occu(null_site_formula, data = data_umf)
 
     # null det
-    # nuldet_formula - ~1 site_cov_
     null_det_formula <- as.formula(paste("~1", " ", deparse(site_cov_formula)))
     occu_det_null <- occu(null_det_formula, data = data_umf)
 
@@ -178,7 +174,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     occu_global <- occu(global_formula, data = data_umf)
 
     # Compare models
-    # models <- list('null' = occu_null, 'site_null' = occu_site_null,'det_null' = occu_det_null ,'global' = occu_global)
     models <- list()
     models[deparse(occu_null@formula)] <- occu_null
     models[deparse(occu_site_null@formula)] <- occu_site_null
@@ -190,9 +185,6 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     for (det_cov_name in det_cov_names) {
         models[deparse((occu_dets[[det_cov_name]])@formula)] <- occu_dets[[det_cov_name]]
     }
-
-    # Remove duplicate models
-    # models <- unique(models)
 
     # AICc
     aic1 <- aictab(models)
@@ -209,7 +201,7 @@ occupancy <- function(detection_df, site_df, setup_col, retrieval_col, station_c
     best_model_cov_names <- all.vars(best_model_formula)
     formula_str <- deparse(best_model_formula)
 
-    # Conver best_model summary to dataframe
+    # Convert best_model summary to dataframe
     best_model_summary <- summary(best_model)
     best_model_summary_state <- as.data.frame(best_model_summary$state)
     best_model_summary_det <- as.data.frame(best_model_summary$det)
@@ -308,7 +300,6 @@ plot_occupancy <- function(idx, file_name, cov_name){
             geom_point(pred1$predicted) +
             geom_errorbar(aes(ymin=lower, ymax=upper), width=.2, size =1) +
             theme(axis.text.x  = element_text(angle = 90,hjust = 1, vjust = 0.5)) +
-            #ggtitle("Number of species per camera") +
             labs(y=y_lab , x = "Sites")+
             theme(axis.text=element_text(size=12, color =  "black")) +
             coord_flip()

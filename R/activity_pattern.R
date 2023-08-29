@@ -11,17 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+library(overlap)
+library(activity)
+library(lubridate)
+library(ggplot2)
+library(solartime)
 
 calculate_activity_pattern <- function(data, file_name, species, centre, unit, time, overlap, lat, lng, utc_offset_hours,tz) {
-  library(overlap)
-  library(activity)
-  library(lubridate)
-  library(ggplot2)
-  # library(suncalc)
-  library(solartime)
-  
+  # Calculate activity pattern
   dat <- data
-
   file_name <- paste0(file_name, ".JPG")
   jpeg(file = file_name, quality = 100, width = 800, height = 800, units = "px", pointsize = 16)
 
@@ -69,6 +67,28 @@ calculate_activity_pattern <- function(data, file_name, species, centre, unit, t
               olapcol = "lightgrey", rug=FALSE, extend=NULL,
               n.grid = 128, kmax = 3, adjust = 1, main = paste("Overlap Estimate:", round(average_e, 2)))
 
+    sunset = c()
+    sunrise = c()
+    for (i in seq_along(dat$timestamp)) {
+      rise <- computeSunriseHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
+      set <- computeSunsetHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
+
+      sunrise <- append(sunrise, rise)
+      sunset <- append(sunset, set)
+
+    } 
+
+    sunrise_avg <- mean(sunrise)
+    sunset_avg <- mean(sunset)
+
+    if (centre == 'night') {
+      sunrise_avg <- sunrise_avg
+      sunset_avg <- sunset_avg - 24
+    }
+
+    abline(v = sunrise_avg, col = "red", lty = 1)
+    abline(v = sunset_avg, col = "red", lty = 1)
+
     legend("topright", legend = species, lty = line_types, cex = 0.8)
   }
   else{
@@ -96,35 +116,30 @@ calculate_activity_pattern <- function(data, file_name, species, centre, unit, t
       
     }
 
+    sunset = c()
+    sunrise = c()
+    for (i in seq_along(dat$timestamp)) {
+      rise <- computeSunriseHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
+      set <- computeSunsetHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
+
+      sunrise <- append(sunrise, rise)
+      sunset <- append(sunset, set)
+
+    } 
+
+    sunrise_avg <- mean(sunrise)
+    sunset_avg <- mean(sunset)
+
+    if (centre == 'night') {
+      sunrise_avg <- sunrise_avg
+      sunset_avg <- sunset_avg - 24
+    }
+
+    abline(v = sunrise_avg, col = "red", lty = 1)
+    abline(v = sunset_avg, col = "red", lty = 1)
+
     legend("topright", legend = species, col = "black", lty = seq_along(species), cex = 0.8)
-
   }
-  sunset = c()
-  sunrise = c()
-  for (i in seq_along(dat$timestamp)) {
-    # sunlight <- getSunlightTimes(as.Date(dat$timestamp[i]), lat, lng, keep = c("sunrise", "sunset"), tz = tz)
-    # sunrise <- append(sunrise, gettime(sunlight$sunrise, scale = 'hour'))
-    # sunset <- append(sunset, gettime(sunlight$sunset, scale = 'hour'))
-
-    # Use solartime package instead of suncalc package
-    rise <- computeSunriseHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
-    set <- computeSunsetHour(as.Date(dat$timestamp[i]), lat, lng, utc_offset_hours)
-
-    sunrise <- append(sunrise, rise)
-    sunset <- append(sunset, set)
-
-  } 
-
-  sunrise_avg <- mean(sunrise)
-  sunset_avg <- mean(sunset)
-
-  if (centre == 'night') {
-    sunrise_avg <- sunrise_avg
-    sunset_avg <- sunset_avg - 24
-  }
-
-  abline(v = sunrise_avg, col = "red", lty = 1)
-  abline(v = sunset_avg, col = "red", lty = 1)
 
   dev.off()
   
