@@ -2566,13 +2566,15 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
                                 Image.id,
                                 Image.corrected_timestamp,
                                 Label.id,
-                                Label.description
+                                Label.description,
+                                Trapgroup.latitude,
+                                Trapgroup.longitude
                             )\
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .outerjoin(Detection) \
+                            .join(Detection)\
                             .join(Labelgroup)\
-                            .outerjoin(Label,Labelgroup.labels)\
+                            .join(Label,Labelgroup.labels)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
                             .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
@@ -2583,14 +2585,16 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
                                 Cluster.id,
                                 Image.corrected_timestamp,
                                 Label.id,
-                                Label.description
+                                Label.description,
+                                Trapgroup.latitude,
+                                Trapgroup.longitude
                             )\
                             .join(Image,Cluster.images)\
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .outerjoin(Detection) \
+                            .join(Detection) \
                             .join(Labelgroup)\
-                            .outerjoin(Label,Labelgroup.labels)\
+                            .join(Label,Labelgroup.labels)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
                             .filter(Cluster.task_id.in_(task_ids))\
                             .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -2602,30 +2606,26 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
                                 Detection.id,
                                 Image.corrected_timestamp,
                                 Label.id,
-                                Label.description
+                                Label.description,
+                                Trapgroup.latitude,
+                                Trapgroup.longitude
                             )\
                             .join(Image)\
-                            .join(Camera) \
-                            .join(Trapgroup) \
+                            .join(Camera)\
+                            .join(Trapgroup)\
                             .join(Labelgroup)\
-                            .outerjoin(Label,Labelgroup.labels)\
+                            .join(Label,Labelgroup.labels)\
                             .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
                             .filter(~Detection.status.in_(['deleted','hidden']))
 
             if trapgroups != '0':
-                if type(trapgroups) == list:
-                    trap_ids = [int(t) for t in trapgroups]
-                    baseQuery = baseQuery.filter(Trapgroup.id.in_(trap_ids)).filter(Trapgroup.survey_id.in_(survey_ids))
-                    trap_coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude).filter(Trapgroup.id.in_(trap_ids)).all()
-                else:
-                    baseQuery = baseQuery.filter(Trapgroup.tag==trapgroups).filter(Trapgroup.survey_id.in_(survey_ids))
-                    trap_coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude).filter(Trapgroup.tag==trapgroups).all()
+                baseQuery = baseQuery.filter(Trapgroup.id.in_(trapgroups)).filter(Trapgroup.survey_id.in_(survey_ids))
             else:
                 baseQuery = baseQuery.filter(Trapgroup.survey_id.in_(survey_ids))
-                trap_coords = db.session.query(Trapgroup.latitude, Trapgroup.longitude).filter(Trapgroup.survey_id.in_(survey_ids)).all()
 
+            # Filter by species and children
             parent_children = {}
             if species != '0':
                 labels = db.session.query(Label).filter(Label.description.in_(species)).filter(Label.task_id.in_(task_ids)).all()
@@ -2657,52 +2657,35 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
             elif baseUnit == '3':
                 baseQuery = baseQuery.filter(Image.corrected_timestamp != None).order_by(Image.corrected_timestamp).group_by(Detection.id).distinct().all()
 
-            id_list = []
-            time_list = []
-            species_list = []
-            for r in baseQuery:
-                id_list.append(r[0])
-                time_list.append(r[1])
-                if species != '0':	
-                    if r[3] not in species:
-                        parent_species = None
-                        for key, value in parent_children.items():
-                            if r[2] in value:
-                                parent_species = key
-                                break
-                        if parent_species:
-                            species_list.append(parent_species)
-                        else:
-                            species_list.append('Other')
-                    else:
-                        species_list.append(r[3])
-                else:
-                    species_list.append('All')
 
-            # Get average lat and lng coordinates 
-            if trap_coords:
-                lat = sum([r[0] for r in trap_coords])/len(trap_coords)
-                lng = sum([r[1] for r in trap_coords])/len(trap_coords)
-            else:
-                lat = 0
-                lng = 0
+            df = pd.DataFrame(baseQuery, columns=['id','timestamp','label_id','species','latitude','longitude'])
 
             # Get timezone from lat and lng coordinates
+            lat = sum(df['latitude'])/len(df['latitude'])
+            lng = sum(df['longitude'])/len(df['longitude'])
+
             tf = timezonefinder.TimezoneFinder()
             timezone = tf.timezone_at(lng=lng, lat=lat)
             if timezone:
                 tz = timezone
                 tz_obj = pytz.timezone(timezone)
-                if time_list:
-                    tz_now = tz_obj.localize(time_list[0])
+                if df['timestamp'].iloc[0]:
+                    tz_now = tz_obj.localize(df['timestamp'].iloc[0])
                 else:
                     tz_now = tz_obj.localize(datetime.now())
-                utc_offset_hours =  tz_now.utcoffset().total_seconds()/3600
+                utc_offset_hours =  tz_now.utcoffset().total_seconds()/3600   
             else:
                 utc_offset_hours = 0
                 tz = 'UTC'
 
-            df = pd.DataFrame({'id': id_list, 'timestamp': time_list, 'species': species_list})
+            # Change species description to parent species 
+            if species == '0':
+                df['species'] = 'All'
+            else:
+                for key, value in parent_children.items():
+                    df.loc[df['label_id'].isin(value), 'species'] = key
+
+            df = df[['id','timestamp','species']]
 
             if csv:
                 # Convert to CSV and upload to bucket
@@ -2766,8 +2749,8 @@ def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,s
     return {'status': status, 'error': error, 'activity_url': activity_url}
 
 @celery.task(bind=True,max_retries=1)
-def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user_id, bucket, user_folder, trapUnit):
-
+def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user_id, trapUnit):
+    ''' Calculates the results summary '''
     try:
         summary = {}
 
@@ -2780,453 +2763,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
             task_ids = [r[0] for r in tasks]
             survey_ids = list(set([r[1] for r in tasks]))
 
-        if baseUnit == '1': # Image
-            baseQuery = db.session.query(
-                            func.count(distinct(Image.id)),
-                            Label.id,
-                            Label.description
-                        )\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .join(Label,Labelgroup.labels)\
-                        .filter(Labelgroup.task_id.in_(task_ids))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))
-
-        elif baseUnit == '2': # Cluster
-            baseQuery = db.session.query(
-                            func.count(distinct(Cluster.id)),
-                            Label.id,
-                            Label.description
-                        )\
-                        .join(Image,Cluster.images)\
-                        .join(Detection)\
-                        .join(Labelgroup)\
-                        .join(Label,Labelgroup.labels)\
-                        .filter(Labelgroup.task_id.in_(task_ids))\
-                        .filter(Cluster.task_id.in_(task_ids))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))
-
-        elif baseUnit == '3':  # Detection
-            baseQuery = db.session.query(
-                            func.count(distinct(Detection.id)),
-                            Label.id,
-                            Label.description
-                        )\
-                        .join(Image)\
-                        .join(Labelgroup)\
-                        .join(Label,Labelgroup.labels)\
-                        .filter(Labelgroup.task_id.in_(task_ids))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))
-
-
-        vhl = db.session.query(Label).get(GLOBALS.vhl_id)
-        label_list = [GLOBALS.vhl_id,GLOBALS.nothing_id,GLOBALS.knocked_id, GLOBALS.unknown_id]
-        for task_id in task_ids:
-            label_list.extend(getChildList(vhl,int(task_id)))
-        baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
-
-        if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
-
-        if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
-
-        labels = baseQuery.group_by(Label.id).all()
-
-        df = pd.DataFrame(labels, columns=['count', 'id', 'species'])
-        species_count = df.groupby('species').sum().reset_index().drop('id', axis=1)
-
-        # app.logger.info(species_count)
-
-        # r = robjects.r
-        # r.source('R/summary.R')
-
-        # # app.logger.info(df)
-        # # app.logger.info(species_count)
-
-        # species_count_r = robjects.conversion.py2rpy(species_count)
-
-        # indexes = r.calculate_summary_indexes(species_count_r)
-
-        # app.logger.info(indexes)
-
-        # summary_indexes = {'Shannon-Wiener Index': float(indexes.rx2('shannon_index')[0]),
-        #                "Simpson's Index": float(indexes.rx2('simpsons_index')[0]),
-        #                'Hill Number': float(indexes.rx2('hill_number')[0]),
-        #                "Pielou's Evenness": float(indexes.rx2('pielous_evenness')[0]),
-        #                'Species Richness': float(indexes.rx2('species_richness')[0])}
-
-
-        shannon_index = 0
-        simpsons_index = 0
-        hill_number = 0
-        pielous_evenness = 0
-        species_richness = 0
-
-        if len(species_count) > 0:
-
-            # Convert species_count count column to a list 
-            species_count_list = species_count['count'].tolist()
-            total_count = sum(species_count_list)
-
-            # Calculate Shannon-Wiener Index
-            shannon_index = -sum([(count/total_count)*math.log(count/total_count) for count in species_count_list if count != 0])
-
-            # Calculate Simpson's Index
-            simpsons_index = 1 - sum([(count/total_count)**2 for count in species_count_list if count != 0])
-
-            # Calculate Hill Number
-            hill_number = 1/sum([(count/total_count)**2 for count in species_count_list if count != 0])
-
-            # Calculate Pielou's Evenness
-            pielous_evenness = shannon_index/math.log(len(species_count_list))
-
-            # Calculate Species Richness
-            species_richness = len(species_count_list)
-
-
-        summary_indexes = {
-            'Shannon-Wiener Index': {
-                'value': shannon_index,
-                'description': 'The Shannon-Wiener index is a widely used measure of biodiversity that takes into account both species richness and evenness in a community. It provides a comprehensive assessment of diversity, where higher values indicate greater diversity. The Shannon-Wiener index typically ranges from 1.5 to 3.5.',
-            },
-            "Simpson's Index of Diversity": {
-                'value': simpsons_index,
-                'description': "Simpson's index of Diversity (1-D) is a measure of biodiversity that quantifies the probability that two individuals randomly selected from the community belong to different species. It ranges from 0 to 1, where 1 represents infinite diversity (all species equally abundant) and 0 represents minimum diversity (one species dominates the community). Higher values indicate higher diversity.",
-            },
-            'Hill Number (q=2)': {
-                'value': hill_number,
-                'description': 'The Hill number is a family of diversity indices that offers a unified way to measure biodiversity at different orders. Higher Hill numbers indicate higher diversity. Hill Number 0 represents species richness, Hill Number 1 is equivalent to the Shannon-Wiener index, and Hill Number 2 is equivalent to the inverse Simpson’s index (1/D).',
-            },
-            'Pielou\'s Evenness': {
-                'value': pielous_evenness,
-                'description': "Pielou's evenness is a measure of how evenly individuals are distributed among different species in a community. It ranges from 0 to 1, where higher values suggest a more even distribution of individuals among species.",
-            },
-            'Species Richness': {
-                'value': species_richness,
-                'description': 'Species richness is a simple measure of biodiversity that counts the number of different species present in a community. The higher the value, the more species there are in the community.',
-            }
-        }
-
-        species_count_dict = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
-
-        summary['summary_indexes'] = summary_indexes
-        summary['species_count'] = species_count_dict
-
-
-        # Camera Trap effort
-        if trapUnit == '0':  # Sites
-            baseTrapQuery = db.session.query(
-                Image.corrected_timestamp,
-                Trapgroup.id,
-                Trapgroup.tag,
-                Trapgroup.latitude,
-                Trapgroup.longitude,
-                Trapgroup.altitude,
-            ).join(Camera, Image.camera_id == Camera.id)\
-            .join(Trapgroup)\
-            .filter(Trapgroup.survey_id.in_(survey_ids))\
-            .filter(Image.corrected_timestamp != None)\
-            .filter(~Camera.path.contains('_video_images_'))
-
-            if startDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp >= startDate)
-
-            if endDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp <= endDate)
-
-            base_trap_df = pd.DataFrame(baseTrapQuery.distinct().all(), columns=['timestamp', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
-
-            # Convert 'timestamp' column to datetime
-            base_trap_df['timestamp'] = pd.to_datetime(base_trap_df['timestamp'])
-            base_trap_df['date'] = base_trap_df['timestamp'].dt.date	
-
-            # Group by 'site_id' and count the unique dates to get the number of days each site captured an image
-            effort_days_df = base_trap_df.groupby(['site_id', 'name', 'latitude', 'longitude', 'altitude'])['date'].nunique().reset_index()
-            effort_days_df.rename(columns={'date': 'count'}, inplace=True)
-
-            # Combine sites that have the same site tag and same coordinates
-            effort_days_df = effort_days_df.groupby(['name', 'latitude', 'longitude'])['count'].sum().reset_index()
-
-            effort_days = effort_days_df.sort_values(by='count', ascending=False).to_dict(orient='records')
-            summary['effort_days'] = effort_days
-
-            # Calculate which days each site was active for from a start date to an end date
-            if startDate:
-                start_date = datetime.strptime(startDate.split(' ')[0], '%Y-%m-%d')
-            else:
-                start_date = base_trap_df['timestamp'].min()
-
-            if endDate:
-                end_date = datetime.strptime(endDate.split(' ')[0], '%Y-%m-%d')
-            else:
-                end_date = base_trap_df['timestamp'].max()
-
-            # Create a new id that will be assigned to sites that have the same site tag and coordinates
-            trap_active_df = base_trap_df
-            trap_active_df['site_id'] = trap_active_df.groupby(['name', 'latitude', 'longitude']).ngroup()
-
-            # Filter by dates between start_date and end_date and convert start_date and end_date to date format
-            # trap_active_df = trap_active_df[(trap_active_df['date'] >= start_date) & (trap_active_df['date'] <= end_date)]
-            # trap_active_df = trap_active_df[(trap_active_df['timestamp'] >= start_date) & (trap_active_df['timestamp'] <= end_date)]
-            # app.logger.info(start_date)
-            # app.logger.info(end_date)
-
-            # Add a count column to the trap_active_df DataFrame and set it to 1
-            trap_active_df['count'] = 1
-
-            # Group by 'site_id' and count the unique dates to get the number of days each site captured an image
-            trap_active_df = trap_active_df.groupby(['site_id', 'name', 'latitude', 'longitude', 'altitude', 'date'])['count'].sum().reset_index()
-
-            
-            trap_active_dict = trap_active_df.sort_values(by='date', ascending=True).to_dict(orient='records')
-
-            # Get the names of the sites for each site_id and convert to a list
-            unit_names = trap_active_df.groupby('site_id')['name'].unique().explode().tolist()
-
-            # # Get the total number of unique dates
-            # total_count = trap_active_df['date'].nunique()
-            # total_count = trap_active_df['count'].sum()
-
-            max_count = trap_active_df['count'].max()
-            if np.isnan(max_count):
-                max_count = 0
-
-            summary['active_days'] = {
-                'active_dict': trap_active_dict,
-                'start_date': start_date,
-                'end_date': end_date,
-                'unit_names': unit_names,
-                'max_count' : int(max_count)
-            }
-
-            if baseUnit == '1': # Image
-                baseQuery = db.session.query(
-                                func.count(distinct(Image.id)),
-                                Trapgroup.id,
-                                Trapgroup.tag,
-                                Trapgroup.latitude,
-                                Trapgroup.longitude,
-                                Trapgroup.altitude,
-                            )\
-                            .join(Camera, Image.camera_id == Camera.id) \
-                            .join(Trapgroup) \
-                            .outerjoin(Detection) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Camera.path.contains('_video_images_'))
-                
-            elif baseUnit == '2': # Cluster
-                baseQuery = db.session.query(
-                                func.count(distinct(Cluster.id)),
-                                Trapgroup.id,
-                                Trapgroup.tag,
-                                Trapgroup.latitude,
-                                Trapgroup.longitude,
-                                Trapgroup.altitude
-                            )\
-                            .join(Image,Cluster.images)\
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .outerjoin(Detection) \
-                            .filter(Cluster.task_id.in_(task_ids))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Camera.path.contains('_video_images_'))
-                            
-            elif baseUnit == '3':  # Detection
-                baseQuery = db.session.query(
-                                func.count(distinct(Detection.id)),
-                                Trapgroup.id,
-                                Trapgroup.tag,
-                                Trapgroup.latitude,
-                                Trapgroup.longitude,
-                                Trapgroup.altitude
-                            )\
-                            .join(Image, Detection.image)\
-                            .join(Camera, Image.camera_id == Camera.id) \
-                            .join(Trapgroup) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Camera.path.contains('_video_images_'))
-
-            if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
-                
-            if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
-            
-            # Dataframe with the number of counts for each site
-            trap_counts_df = pd.DataFrame(baseQuery.group_by(Trapgroup.id).all(), columns=['count', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
-
-            # Create a new id that will be assigned to sites that have the same tag and lat and lng coordinates
-            trap_counts_df['site_id'] = trap_counts_df.groupby(['name', 'latitude', 'longitude']).ngroup()        
-
-            # Combine sites with same id and sum theur counts
-            trap_counts_df = trap_counts_df.groupby(['site_id', 'name', 'latitude', 'longitude', 'altitude'])['count'].sum().reset_index()
-            
-            # Convert the DataFrame to a list of dictionaries
-            unit_counts = trap_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
-
-            summary['unit_counts'] = unit_counts
-
-        elif trapUnit == '1':  # Cameras
-            baseCamQuery = db.session.query(
-                Image.corrected_timestamp,
-                Camera.id,
-                Camera.path,
-                Camera.trapgroup_id,
-                Trapgroup.tag
-            ).join(Camera, Image.camera_id == Camera.id)\
-            .join(Trapgroup)\
-            .filter(Trapgroup.survey_id.in_(survey_ids))\
-            .filter(Image.corrected_timestamp != None)\
-            .filter(~Camera.path.contains('_video_images_'))
-
-            if startDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp >= startDate)
-
-            if endDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp <= endDate)
-            
-            base_cam_df = pd.DataFrame(baseCamQuery.distinct().all(), columns=['timestamp', 'camera_id', 'camera_path', 'site_id', 'site_tag'])
-
-            # Convert 'timestamp' column to datetime
-            base_cam_df['timestamp'] = pd.to_datetime(base_cam_df['timestamp'])
-            base_cam_df['date'] = base_cam_df['timestamp'].dt.date
-
-            # Add a name to each camera (last part of camera path after / )
-            base_cam_df['name'] = base_cam_df['camera_path'].str.split('/').str[-1]
-
-            # Group by 'camera_id' and count the unique dates to get the number of days each camera captured an image and include the camera path
-            effort_days_df = base_cam_df.groupby(['camera_id', 'camera_path', 'name', 'site_tag'])['date'].nunique().reset_index()
-            effort_days_df.rename(columns={'date': 'count'}, inplace=True)
-
-            # Combine cameras that have the same site tag and same name
-            effort_days_df = effort_days_df.groupby(['site_tag', 'name'])['count'].sum().reset_index()
-
-            effort_days = effort_days_df.sort_values(by='count', ascending=False).to_dict(orient='records')
-            summary['effort_days'] = effort_days
-
-            # Calculate which days each camera was active for from a start date to an end date
-            if startDate:
-                start_date = datetime.strptime(startDate.split(' ')[0], '%Y-%m-%d')
-            else:
-                start_date = base_cam_df['timestamp'].min()
-
-            if endDate:
-                end_date = datetime.strptime(endDate.split(' ')[0], '%Y-%m-%d')
-            else:
-                end_date = base_cam_df['timestamp'].max()
-
-            # Create a new id that will be assigned to cameras that have the same name and site tag
-            camera_active_df = base_cam_df
-            camera_active_df['camera_id'] = camera_active_df.groupby(['site_tag', 'name']).ngroup()
-
-            # Filter by dates between start_date and end_date
-            # camera_active_df = camera_active_df[(camera_active_df['date'] >= start_date.dt.date) & (camera_active_df['date'] <= end_date.dt.date)]
-            # camera_active_df = camera_active_df[(camera_active_df['timestamp'] >= start_date) & (camera_active_df['timestamp'] <= end_date)]
-
-            # Add a count column to the camera_active_df DataFrame and set it to 1
-            camera_active_df['count'] = 1
-
-            # Group by 'camera_id' and count the unique dates to get the number of days each camera captured an image
-            camera_active_df = camera_active_df.groupby(['camera_id', 'camera_path', 'name', 'site_tag', 'date'])['count'].sum().reset_index()
-
-            camera_active_dict = camera_active_df.sort_values(by='date', ascending=True).to_dict(orient='records')
-
-            # Get the names of the cameras for each camera_id to a 1d list
-            unit_names = camera_active_df.groupby('camera_id')['name'].unique().explode().tolist()
-
-            # Total count value is the summed value of all the counts in the df and turned into an int
-            # total_count = camera_active_df['count'].sum()
-
-            max_count = camera_active_df['count'].max()
-
-            summary['active_days'] = {
-                'active_dict': camera_active_dict,
-                'start_date': start_date,
-                'end_date': end_date,
-                'unit_names': unit_names,
-                'max_count' : int(max_count)
-            }
-
-            # Calculate how many counts each camera has capture for either clusters, images or detections
-
-            if baseUnit == '1': # Image
-                baseQuery = db.session.query(
-                                func.count(distinct(Image.id)),
-                                Camera.id,
-                                Camera.path,
-                                Camera.trapgroup_id,
-                                Trapgroup.tag,
-                            )\
-                            .join(Camera, Image.camera_id == Camera.id) \
-                            .join(Trapgroup) \
-                            .outerjoin(Detection) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Camera.path.contains('_video_images_'))
-                
-            elif baseUnit == '2': # Cluster
-                baseQuery = db.session.query(
-                                func.count(distinct(Cluster.id)),
-                                Camera.id,
-                                Camera.path,
-                                Camera.trapgroup_id,
-                                Trapgroup.tag,
-                            )\
-                            .join(Image,Cluster.images)\
-                            .join(Camera) \
-                            .join(Trapgroup) \
-                            .outerjoin(Detection) \
-                            .filter(Cluster.task_id.in_(task_ids))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Camera.path.contains('_video_images_'))
-                            
-            elif baseUnit == '3':  # Detection
-                baseQuery = db.session.query(
-                                func.count(distinct(Detection.id)),
-                                Camera.id,
-                                Camera.path,
-                                Camera.trapgroup_id,
-                                Trapgroup.tag,
-                            )\
-                            .join(Image, Detection.image)\
-                            .join(Camera, Image.camera_id == Camera.id) \
-                            .join(Trapgroup) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
-                            .filter(~Camera.path.contains('_video_images_'))
-
-            if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
-
-            if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
-                
-            # Dataframe with the number of counts for each camera
-            camera_counts_df = pd.DataFrame(baseQuery.group_by(Camera.id).all(), columns=['count', 'camera_id', 'camera_path', 'site_id', 'site_tag'])
-
-            # Add a name to each camera (last part of camera path after / )
-            camera_counts_df['name'] = camera_counts_df['camera_path'].str.split('/').str[-1]
-
-            # Create a new id that will be assigned to cameras that have the same name and site tag
-            camera_counts_df['camera_id'] = camera_counts_df.groupby(['site_tag', 'name']).ngroup()
-            
-
-            # Combine cameras with same id and sum theur counts
-            camera_counts_df = camera_counts_df.groupby(['camera_id', 'name'])['count'].sum().reset_index()
-            
-            # Convert the DataFrame to a list of dictionaries
-            unit_counts = camera_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
-
-            summary['unit_counts'] = unit_counts
-
-
+        # Data Summary 
         # Get the total detection counts, total image counts and total cluster counts and the first and last date of the data 
         summaryQuery = db.session.query(
             func.count(distinct(Cluster.id)),
@@ -3244,7 +2781,6 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
         .filter(Detection.static==False)\
         .filter(~Detection.status.in_(['deleted','hidden']))
 
-        
         if startDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp >= startDate)
 
         if endDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp <= endDate)
@@ -3296,6 +2832,330 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
 
         summary['summary_counts'] = summary_counts
 
+        # General query for all results
+        if baseUnit == '1': # Image
+            baseQuery = db.session.query(
+                            func.count(distinct(Image.id)),
+                            Label.id,
+                            Label.description,
+                            Camera.id,
+                            Camera.path,
+                            Trapgroup.id,
+                            Trapgroup.tag,
+                            Trapgroup.latitude,
+                            Trapgroup.longitude,
+                            Trapgroup.altitude
+                        )\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .join(Label,Labelgroup.labels)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Labelgroup.task_id.in_(task_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))
+
+        elif baseUnit == '2': # Cluster
+            baseQuery = db.session.query(
+                            func.count(distinct(Cluster.id)),
+                            Label.id,
+                            Label.description,
+                            Camera.id,
+                            Camera.path,
+                            Trapgroup.id,
+                            Trapgroup.tag,
+                            Trapgroup.latitude,
+                            Trapgroup.longitude,
+                            Trapgroup.altitude
+                        )\
+                        .join(Image,Cluster.images)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .join(Label,Labelgroup.labels)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Labelgroup.task_id.in_(task_ids))\
+                        .filter(Cluster.task_id.in_(task_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))
+
+        elif baseUnit == '3':  # Detection
+            baseQuery = db.session.query(
+                            func.count(distinct(Detection.id)),
+                            Label.id,
+                            Label.description,
+                            Camera.id,
+                            Camera.path,
+                            Trapgroup.id,
+                            Trapgroup.tag,
+                            Trapgroup.latitude,
+                            Trapgroup.longitude,
+                            Trapgroup.altitude
+                        )\
+                        .join(Image, Detection.image_id==Image.id)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Labelgroup)\
+                        .join(Label,Labelgroup.labels)\
+                        .filter(Labelgroup.task_id.in_(task_ids))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))
+            
+        if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+
+        if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+
+        baseCountsQuery = baseQuery
+
+        label_list.append(GLOBALS.unknown_id)
+        baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
+
+        labels = baseQuery.group_by(Label.id).all()
+
+        df = pd.DataFrame(labels, columns=['count', 'id', 'species', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
+        df = df[['count', 'id', 'species']]
+
+        species_count = df.groupby('species').sum().reset_index().drop('id', axis=1)
+
+        # Diversity Indexes
+        shannon_index = 0
+        simpsons_index = 0
+        hill_number = 0
+        pielous_evenness = 0
+        species_richness = 0
+
+        if len(species_count) > 0:
+            # Convert species_count count column to a list 
+            species_count_list = species_count['count'].tolist()
+            total_count = sum(species_count_list)
+
+            # Calculate Shannon-Wiener Index
+            shannon_index = -sum([(count/total_count)*math.log(count/total_count) for count in species_count_list if count != 0])
+
+            # Calculate Simpson's Index
+            simpsons_index = 1 - sum([(count/total_count)**2 for count in species_count_list if count != 0])
+
+            # Calculate Hill Number
+            hill_number = 1/sum([(count/total_count)**2 for count in species_count_list if count != 0])
+
+            # Calculate Pielou's Evenness
+            pielous_evenness = shannon_index/math.log(len(species_count_list))
+
+            # Calculate Species Richness
+            species_richness = len(species_count_list)
+
+        summary_indexes = {
+            'Shannon-Wiener Index': {
+                'value': shannon_index,
+                'description': 'The Shannon-Wiener index is a widely used measure of biodiversity that takes into account both species richness and evenness in a community. It provides a comprehensive assessment of diversity, where higher values indicate greater diversity. The Shannon-Wiener index typically ranges from 1.5 to 3.5.',
+            },
+            "Simpson's Index of Diversity": {
+                'value': simpsons_index,
+                'description': "Simpson's index of Diversity (1-D) is a measure of biodiversity that quantifies the probability that two individuals randomly selected from the community belong to different species. It ranges from 0 to 1, where 1 represents infinite diversity (all species equally abundant) and 0 represents minimum diversity (one species dominates the community). Higher values indicate higher diversity.",
+            },
+            'Hill Number (q=2)': {
+                'value': hill_number,
+                'description': 'The Hill number is a family of diversity indices that offers a unified way to measure biodiversity at different orders. Higher Hill numbers indicate higher diversity. Hill Number 0 represents species richness, Hill Number 1 is equivalent to the Shannon-Wiener index, and Hill Number 2 is equivalent to the inverse Simpson’s index (1/D).',
+            },
+            'Pielou\'s Evenness': {
+                'value': pielous_evenness,
+                'description': "Pielou's evenness is a measure of how evenly individuals are distributed among different species in a community. It ranges from 0 to 1, where higher values suggest a more even distribution of individuals among species.",
+            },
+            'Species Richness': {
+                'value': species_richness,
+                'description': 'Species richness is a simple measure of biodiversity that counts the number of different species present in a community. The higher the value, the more species there are in the community.',
+            }
+        }
+
+        summary['summary_indexes'] = summary_indexes
+        
+        # Species abundance
+        summary['species_count'] = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
+
+        # Camera Trap effort
+        if trapUnit == '0':  # Sites
+            # Base Trap Query
+            baseTrapQuery = db.session.query(
+                Image.corrected_timestamp,
+                Trapgroup.id,
+                Trapgroup.tag,
+                Trapgroup.latitude,
+                Trapgroup.longitude,
+                Trapgroup.altitude,
+            ).join(Camera, Image.camera_id == Camera.id)\
+            .join(Trapgroup)\
+            .filter(Trapgroup.survey_id.in_(survey_ids))\
+            .filter(Image.corrected_timestamp != None)
+
+            if startDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp >= startDate)
+
+            if endDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp <= endDate)
+
+            base_trap_df = pd.DataFrame(baseTrapQuery.distinct().all(), columns=['timestamp', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
+
+            # Convert 'timestamp' column to datetime
+            base_trap_df['timestamp'] = pd.to_datetime(base_trap_df['timestamp'])
+            base_trap_df['date'] = base_trap_df['timestamp'].dt.date	
+
+            # Effort Days
+            # Group by 'site_id' and count the unique dates to get the number of days each site captured an image
+            effort_days_df = base_trap_df.groupby(['site_id', 'name', 'latitude', 'longitude', 'altitude'])['date'].nunique().reset_index()
+            effort_days_df.rename(columns={'date': 'count'}, inplace=True)
+
+            # Combine sites that have the same site tag and same coordinates
+            effort_days_df = effort_days_df.groupby(['name', 'latitude', 'longitude'])['count'].sum().reset_index()
+
+            summary['effort_days'] = effort_days_df.sort_values(by='count', ascending=False).to_dict(orient='records')
+             
+            # Active Days
+            # Calculate which days each site was active for from a start date to an end date
+            if startDate:
+                start_date = datetime.strptime(startDate.split(' ')[0], '%Y-%m-%d')
+            else:
+                start_date = base_trap_df['timestamp'].min()
+
+            if endDate:
+                end_date = datetime.strptime(endDate.split(' ')[0], '%Y-%m-%d')
+            else:
+                end_date = base_trap_df['timestamp'].max()
+
+            # Create a new id that will be assigned to sites that have the same site tag and coordinates
+            trap_active_df = base_trap_df
+            trap_active_df['site_id'] = trap_active_df.groupby(['name', 'latitude', 'longitude']).ngroup()
+
+            # Add a count column to the trap_active_df DataFrame and set it to 1
+            trap_active_df['count'] = 1
+
+            # Group by 'site_id' and count the unique dates to get the number of days each site captured an image
+            trap_active_df = trap_active_df.groupby(['site_id', 'name', 'latitude', 'longitude', 'altitude', 'date'])['count'].sum().reset_index()
+            trap_active_dict = trap_active_df.sort_values(by='date', ascending=True).to_dict(orient='records')
+
+            # Get the names of the sites for each site_id and convert to a list
+            unit_names = trap_active_df.groupby('site_id')['name'].unique().explode().tolist()
+
+            max_count = trap_active_df['count'].max()
+            if np.isnan(max_count):
+                max_count = 0
+
+            summary['active_days'] = {
+                'active_dict': trap_active_dict,
+                'start_date': start_date,
+                'end_date': end_date,
+                'unit_names': unit_names,
+                'max_count' : int(max_count)
+            }
+            
+            # Unit Counts            
+            # Dataframe with the number of counts for each site
+            trap_counts_df = pd.DataFrame(baseCountsQuery.group_by(Trapgroup.id).all(), columns=['count', 'label_id', 'species', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
+            trap_counts_df = trap_counts_df[['count', 'site_id', 'name', 'latitude', 'longitude', 'altitude']]
+
+            # Create a new id that will be assigned to sites that have the same tag and lat and lng coordinates
+            trap_counts_df['site_id'] = trap_counts_df.groupby(['name', 'latitude', 'longitude']).ngroup()        
+
+            # Combine sites with same id and sum theur counts
+            trap_counts_df = trap_counts_df.groupby(['site_id', 'name', 'latitude', 'longitude'])['count'].sum().reset_index()
+            
+            # Convert the DataFrame to a list of dictionaries
+            summary['unit_counts'] = trap_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
+
+        elif trapUnit == '1':  # Cameras
+            # Base Camera Query
+            baseCamQuery = db.session.query(
+                Image.corrected_timestamp,
+                Camera.id,
+                Camera.path,
+                Camera.trapgroup_id,
+                Trapgroup.tag
+            ).join(Camera, Image.camera_id == Camera.id)\
+            .join(Trapgroup)\
+            .filter(Trapgroup.survey_id.in_(survey_ids))\
+            .filter(Image.corrected_timestamp != None)\
+            .filter(~Camera.path.contains('_video_images_'))
+
+            if startDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp >= startDate)
+
+            if endDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp <= endDate)
+            
+            base_cam_df = pd.DataFrame(baseCamQuery.distinct().all(), columns=['timestamp', 'camera_id', 'camera_path', 'site_id', 'site_tag'])
+
+            # Convert 'timestamp' column to datetime
+            base_cam_df['timestamp'] = pd.to_datetime(base_cam_df['timestamp'])
+            base_cam_df['date'] = base_cam_df['timestamp'].dt.date
+
+            # Add a name to each camera (last part of camera path after / )
+            base_cam_df['name'] = base_cam_df['camera_path'].str.split('/').str[-1]
+
+            # Effort Days
+            # Group by 'camera_id' and count the unique dates to get the number of days each camera captured an image and include the camera path
+            effort_days_df = base_cam_df.groupby(['camera_id', 'camera_path', 'name', 'site_tag'])['date'].nunique().reset_index()
+            effort_days_df.rename(columns={'date': 'count'}, inplace=True)
+
+            # Combine cameras that have the same site tag and same name
+            effort_days_df = effort_days_df.groupby(['site_tag', 'name'])['count'].sum().reset_index()
+
+            summary['effort_days'] = effort_days_df.sort_values(by='count', ascending=False).to_dict(orient='records')
+
+            # Active Days
+            # Calculate which days each camera was active for from a start date to an end date
+            if startDate:
+                start_date = datetime.strptime(startDate.split(' ')[0], '%Y-%m-%d')
+            else:
+                start_date = base_cam_df['timestamp'].min()
+
+            if endDate:
+                end_date = datetime.strptime(endDate.split(' ')[0], '%Y-%m-%d')
+            else:
+                end_date = base_cam_df['timestamp'].max()
+
+            # Create a new id that will be assigned to cameras that have the same name and site tag
+            camera_active_df = base_cam_df
+            camera_active_df['camera_id'] = camera_active_df.groupby(['site_tag', 'name']).ngroup()
+
+            # Add a count column to the camera_active_df DataFrame and set it to 1
+            camera_active_df['count'] = 1
+
+            # Group by 'camera_id' and count the unique dates to get the number of days each camera captured an image
+            camera_active_df = camera_active_df.groupby(['camera_id', 'camera_path', 'name', 'site_tag', 'date'])['count'].sum().reset_index()
+
+            camera_active_dict = camera_active_df.sort_values(by='date', ascending=True).to_dict(orient='records')
+
+            # Get the names of the cameras for each camera_id to a 1d list
+            unit_names = camera_active_df.groupby('camera_id')['name'].unique().explode().tolist()
+
+            max_count = camera_active_df['count'].max()
+
+            summary['active_days'] = {
+                'active_dict': camera_active_dict,
+                'start_date': start_date,
+                'end_date': end_date,
+                'unit_names': unit_names,
+                'max_count' : int(max_count)
+            }
+
+            # Unit Counts    
+            # Calculate how many counts each camera has capture for either clusters, images or detections
+            baseCountsQuery = baseCountsQuery.filter(~Camera.path.contains('_video_images_'))
+
+            # Dataframe with the number of counts for each camera
+            camera_counts_df = pd.DataFrame(baseCountsQuery.group_by(Camera.id).all(), columns=['count', 'label_id', 'species', 'camera_id', 'camera_path', 'site_id', 'site_tag', 'latitude', 'longitude', 'altitude'])
+            camera_counts_df = camera_counts_df[['count', 'camera_id', 'camera_path', 'site_tag']]
+
+            # Add a name to each camera (last part of camera path after / )
+            camera_counts_df['name'] = camera_counts_df['camera_path'].str.split('/').str[-1]
+
+            # Create a new id that will be assigned to cameras that have the same name and site tag
+            camera_counts_df['camera_id'] = camera_counts_df.groupby(['site_tag', 'name']).ngroup()
+            
+            # Combine cameras with same id and sum theur counts
+            camera_counts_df = camera_counts_df.groupby(['camera_id', 'name'])['count'].sum().reset_index()
+            
+            # Convert the DataFrame to a list of dictionaries
+            summary['unit_counts'] = camera_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
+
         status = 'SUCCESS'
         error = None
 
@@ -3329,11 +3189,9 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
             task_ids = [r[0] for r in tasks]
             survey_ids = list(set([r[1] for r in tasks]))
 
-            # Get camera data for camera_operation
-            cameraQuery =  db.session.query(
-                Camera.id,
-                Camera.path,
-                Camera.trapgroup_id,
+            # Get site data for site operation
+            siteQuery =  db.session.query(
+                Trapgroup.id,
                 Trapgroup.tag,
                 Trapgroup.latitude,
                 Trapgroup.longitude,
@@ -3341,46 +3199,30 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                 func.min(Image.corrected_timestamp),
                 func.max(Image.corrected_timestamp),
             )\
-            .join(Trapgroup)\
+            .join(Camera, Trapgroup.id == Camera.trapgroup_id)\
             .join(Image)\
             .filter(Trapgroup.survey_id.in_(survey_ids))\
             .filter(Image.corrected_timestamp != None)\
-            .filter(~Camera.path.contains('_video_images_'))\
-            .group_by(Camera.id)\
-            .order_by(Camera.id)
+            .group_by(Trapgroup.id)
 
             if trapgroups != '0':
-                cameraQuery = cameraQuery.filter(Camera.trapgroup_id.in_(trapgroups))
+                siteQuery = siteQuery.filter(Trapgroup.id.in_(trapgroups))
 
-            camera_df = pd.DataFrame(cameraQuery.all(), columns=['camera_id', 'camera_path', 'site_id', 'site_tag', 'latitude', 'longitude', 'altitude', 'first_date', 'last_date'])
-
-            # Add camera name to the camera_df
-            camera_df['name'] = camera_df['camera_path'].str.split('/').str[-1]
-
-            # Add a id called same_id that will be assigned to cameras that have the same name and site tag and coordinates
-            camera_df['same_id'] = camera_df.groupby(['site_tag', 'name', 'latitude', 'longitude']).ngroup()
-
-            # Combine cameras with same id and assign the min first_date and max last_date
-            camera_df = camera_df.groupby(['same_id', 'site_tag', 'name', 'latitude', 'longitude']).agg({'first_date': 'min', 'last_date': 'max'}).reset_index()
-
-            # Convert to R dataframe
-            camera_df_r = robjects.conversion.py2rpy(camera_df)
+            site_df = pd.DataFrame(siteQuery.all(), columns=['id', 'site_tag', 'latitude', 'longitude', 'altitude', 'first_date', 'last_date'])
 
             setup_col = 'first_date'
             retrieval_col = 'last_date'
             station_col = 'site_id'
 
             # Combine cameras with same id and assign the min first_date and max last_date for each site
-            site_df = camera_df.groupby(['site_tag', 'latitude', 'longitude']).agg({'first_date': 'min', 'last_date': 'max'}).reset_index()
+            site_df = site_df.groupby(['site_tag', 'latitude', 'longitude']).agg({'first_date': 'min', 'last_date': 'max'}).reset_index()
 
             # Add a id column that is combined from the site_tag and coordinates
-            # site_df['site_id'] = site_df['site_tag'] + '_' + site_df['latitude'].astype(str) + '_' + site_df['longitude'].astype(str)
             site_df['site_id'] = (
                 site_df['site_tag'] + '_' +
                 site_df['latitude'].apply(lambda lat: f'{lat:.4f}') + '_' +
                 site_df['longitude'].apply(lambda lng: f'{lng:.4f}')
             )
-
 
             # Convert first_date and last_date ymd format 
             site_df['first_date'] = pd.to_datetime(site_df['first_date']).dt.strftime('%Y-%m-%d')
@@ -3389,20 +3231,17 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
             if baseUnit == '1': # Image
                 baseQuery = db.session.query(
                     Image.id,
-                    Image.camera_id,
                     Image.corrected_timestamp,
-                    Camera.path,
-                    Camera.trapgroup_id,
                     Trapgroup.tag,
                     Trapgroup.latitude,
                     Trapgroup.longitude,
                     Label.description,
                 )\
-                .join(Camera, Image.camera_id == Camera.id)\
-                .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)\
                 .join(Detection)\
                 .join(Labelgroup)\
                 .join(Label, Labelgroup.labels)\
+                .join(Camera)\
+                .join(Trapgroup)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .filter(Image.corrected_timestamp != None)\
                 .filter(~Detection.status.in_(['deleted','hidden']))\
@@ -3413,10 +3252,7 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
             elif baseUnit == '2': # Cluster
                 baseQuery = db.session.query(
                     Cluster.id,
-                    Image.camera_id,
                     Image.corrected_timestamp,
-                    Camera.path,
-                    Camera.trapgroup_id,
                     Trapgroup.tag,
                     Trapgroup.latitude,
                     Trapgroup.longitude,
@@ -3439,23 +3275,19 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
             elif baseUnit == '3':  # Detection
                 baseQuery = db.session.query(
                     Detection.id,
-                    Image.camera_id,
                     Image.corrected_timestamp,
-                    Camera.path,
-                    Trapgroup.id,
                     Trapgroup.tag,
                     Trapgroup.latitude,
                     Trapgroup.longitude,
                     Label.description,
                 )\
-                .join(Image, Detection.image_id == Image.id)\
-                .join(Camera, Image.camera_id == Camera.id)\
-                .join(Trapgroup, Camera.trapgroup_id == Trapgroup.id)\
+                .join(Image)\
+                .join(Camera)\
+                .join(Trapgroup)\
                 .join(Labelgroup)\
                 .join(Label, Labelgroup.labels)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .filter(Image.corrected_timestamp != None)\
-                .filter(~Camera.path.contains('_video_images_'))\
                 .filter(~Detection.status.in_(['deleted','hidden']))\
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                 .filter(Detection.static==False)\
@@ -3480,37 +3312,27 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                 baseQuery = baseQuery.filter(~Labelgroup.labels.any(Label.id.in_(label_list)))
 
             if trapgroups != '0': 
-                app.logger.info(trapgroups)
                 baseQuery = baseQuery.filter(Trapgroup.id.in_(trapgroups))
 
-
             if baseUnit == '1': # Image
-                baseQuery = baseQuery.group_by(Image.id)	
-                base_df = pd.DataFrame(baseQuery.all(), columns=['image_id', 'camera_id', 'timestamp', 'camera_path', 'site_id', 'site_tag', 'latitude', 'longitude', 'species'])
+                baseQuery = baseQuery.group_by(Image.id).all()
             elif baseUnit == '2': # Cluster
-                baseQuery = baseQuery.group_by(Cluster.id)
-                base_df = pd.DataFrame(baseQuery.all(), columns=['cluster_id', 'camera_id', 'timestamp', 'camera_path', 'site_id', 'site_tag', 'latitude', 'longitude', 'species'])
+                baseQuery = baseQuery.group_by(Cluster.id).all()
             elif baseUnit == '3':  # Detection
-                baseQuery = baseQuery.group_by(Detection.id)
-                base_df = pd.DataFrame(baseQuery.all(), columns=['detection_id', 'camera_id', 'timestamp', 'camera_path', 'site_id', 'site_tag', 'latitude', 'longitude', 'species'])
+                baseQuery = baseQuery.group_by(Detection.id).all()
+            
+            detection_df = pd.DataFrame(baseQuery, columns=['id','timestamp', 'site_tag', 'latitude', 'longitude', 'species'])
 
-
-            detection_df = base_df.copy()
-
-            # Update site_id to be a combination of site_tag and coordinates
+            # Add site_id to be a combination of site_tag and coordinates
             detection_df['site_id'] = (
             detection_df['site_tag'] + '_' +
             detection_df['latitude'].apply(lambda lat: f'{lat:.4f}') + '_' +
             detection_df['longitude'].apply(lambda lng: f'{lng:.4f}'))
 
-
             # add a column called Date that is the date of the timestamp in ymd
             detection_df['date'] = pd.to_datetime(detection_df['timestamp']).dt.strftime('%Y-%m-%d')
 
-            if species == '0':
-                detection_df['species'] = 'Animal'
-                species = 'Animal'	
-            elif len(species) == 1:
+            if species != '0' and len(species) == 1:
                 detection_df['species'] = species[0]
                 species = species[0]
             else:
@@ -3597,7 +3419,6 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                     site_df_r = robjects.conversion.py2rpy(site_df)
                     cov_options_r = robjects.conversion.py2rpy(cov_options)
 
-
                     # call the occupancy function
                     r = robjects.r
                     r.source('R/occupancy.R')
@@ -3627,7 +3448,6 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                     best_model_summary_det = best_model_summary_det.to_dict(orient='records')
 
                     # Get the temp files
-
                     if len(best_model_cov_names) > 0:
                         occu_files = []
                         for i in range(len(best_model_cov_names)):
@@ -3669,7 +3489,6 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
                                     # Schedule deletion
                                     deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=21600)
                             occu_files.append(occu)
-
 
                     occupancy_results = {
                         'naive_occupancy': naive_occupancy,
@@ -3780,7 +3599,7 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
 
             if tags != '-1':
                 individuals_df['indiv_tags'] = individuals_df['indiv_tags'].fillna('NA')
-                tags.append('NA') # add NA to the list of tags (uncomment later)
+                tags.append('NA') 
                 individuals_df = individuals_df[individuals_df['indiv_tags'].isin(tags)]
 
             # add column for session and set to 1
@@ -3824,7 +3643,6 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
             # set df_dh to unique individuals
             df_dh = individuals_df[['individual_id']].drop_duplicates()
 
-
             # Create a list of dates (YYYY-MM-DD) based on the window (no time)
             dates = pd.date_range(min_date, max_date, freq=f'{window}D').date
 
@@ -3832,20 +3650,17 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
                 col_name = 'occasion.' + str(i+1)
                 sites_df[col_name] = 0
                 df_dh[col_name] = 0
-                date_filter = (sites_df['first_date'] <= date) & (sites_df['last_date'] >= date)
-                sites_df.loc[date_filter, col_name] = 1
+                site_date_filter = (sites_df['first_date'] <= date) & (sites_df['last_date'] >= date)
+                sites_df.loc[site_date_filter, col_name] = 1
 
-            for i, date in enumerate(dates):
-                col_name = 'occasion.' + str(i+1)
                 if i < len(dates)-1:
-                    date_filter = (individuals_df['date'] >= date) & (individuals_df['date'] < dates[i+1])
+                    indiviudal_date_filter = (individuals_df['date'] >= date) & (individuals_df['date'] < dates[i+1])
                 else:
-                    date_filter = (individuals_df['date'] >= date)
-                individuals_df.loc[date_filter, 'occasion'] = i+1
+                    indiviudal_date_filter = (individuals_df['date'] >= date)
+                individuals_df.loc[indiviudal_date_filter, 'occasion'] = i+1
 
-                df_dh.loc[df_dh['individual_id'].isin(individuals_df[date_filter]['individual_id']), col_name] = 1
+                df_dh.loc[df_dh['individual_id'].isin(individuals_df[indiviudal_date_filter]['individual_id']), col_name] = 1
                 
-
             individuals_df['occasion'] = individuals_df['occasion'].astype(int)
 
 
@@ -3854,16 +3669,14 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
 
             # Only keep columns: session, occasion, site_id, individual_id
             if tags != '-1':
-                edf = edf = individuals_df[['session', 'occasion', 'site_id', 'individual_id', 'indiv_tags']]
+                edf = individuals_df[['session', 'occasion', 'site_id', 'individual_id', 'indiv_tags']]
 
                 # If all tags are NA then remove the indiv_tags column
                 if len(individuals_df['indiv_tags'].unique()) == 1 and individuals_df['indiv_tags'].unique()[0] == 'NA':
                     edf = edf.drop(columns=['indiv_tags'])
                     tags = '-1'
-
             else:
                 edf = individuals_df[['session', 'occasion', 'site_id', 'individual_id']]
-
 
             # Only keep columns: site_id, utm_x, utm_y,  occasion.1, occasion.2, occasion.3, etc.
             tdf = sites_df[['site_id', 'utm_x', 'utm_y'] + [col for col in sites_df.columns if 'occasion' in col]]

@@ -8767,8 +8767,6 @@ def getActivityPatternCSV():
                     result.forget()
                     GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
             
-                        
-
     return json.dumps({'status': status, 'activity_csv_url': activity_csv_url, 'message': message})
 
 @app.route('/getRScript', methods=['POST'])
@@ -8822,7 +8820,7 @@ def getResultsSummary():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'trapUnit': trapUnit})
+            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit})
             GLOBALS.redisClient.set('results_summary_' + str(user_id), result.id)
             status = 'PENDING'
         else:
