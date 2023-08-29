@@ -8671,13 +8671,13 @@ def getActivityPattern():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculateActivityPattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            result = calculate_activity_pattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('activity_pattern_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('activity_pattern_' + str(current_user.id))
             if result_id:
-                result = calculateActivityPattern.AsyncResult(result_id)
+                result = calculate_activity_pattern.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
@@ -8740,13 +8740,13 @@ def getActivityPatternCSV():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculateActivityPattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            result = calculate_activity_pattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('activity_pattern_csv_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('activity_pattern_csv_' + str(current_user.id))
             if result_id:
-                result = calculateActivityPattern.AsyncResult(result_id)
+                result = calculate_activity_pattern.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
@@ -8891,13 +8891,13 @@ def getOccupancy():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculateOccupancyAnalysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
+            result = calculate_occupancy_analysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
             GLOBALS.redisClient.set('occupancy_analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('occupancy_analysis_' + str(current_user.id))
             if result_id:
-                result = calculateOccupancyAnalysis.AsyncResult(result_id)
+                result = calculate_occupancy_analysis.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
@@ -8964,13 +8964,13 @@ def getOccupancyCSV():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculateOccupancyAnalysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            result = calculate_occupancy_analysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('occupancy_csv_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('occupancy_csv_' + str(current_user.id))
             if result_id:
-                result = calculateOccupancyAnalysis.AsyncResult(result_id)
+                result = calculate_occupancy_analysis.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
@@ -9078,13 +9078,13 @@ def getSpatialCaptureRecapture():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = get_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
+            result = calculate_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket})
             GLOBALS.redisClient.set('scr_analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('scr_analysis_' + str(current_user.id))
             if result_id:
-                result = get_spatial_capture_recapture.AsyncResult(result_id)
+                result = calculate_spatial_capture_recapture.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result
@@ -9148,13 +9148,13 @@ def getSpatialCaptureRecaptureCSV():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = get_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            result = calculate_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('scr_csv_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('scr_csv_' + str(current_user.id))
             if result_id:
-                result = get_spatial_capture_recapture.AsyncResult(result_id)
+                result = calculate_spatial_capture_recapture.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
                     celery_result = result.result

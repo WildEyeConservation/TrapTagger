@@ -2548,7 +2548,7 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
     return True
 
 @celery.task(bind=True,max_retries=1)
-def calculateActivityPattern(self,task_ids,trapgroups,species,baseUnit,user_id,startDate,endDate,unit,centre,time,overlap, bucket, user_folder, csv):
+def calculate_activity_pattern(self,task_ids,trapgroups,species,baseUnit,user_id,startDate,endDate,unit,centre,time,overlap, bucket, user_folder, csv):
     ''' Calculates the activity patterns for a set of species with R'''
     try:
         pandas2ri.activate()
@@ -3174,7 +3174,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
     return { 'status': status, 'error': error, 'summary': summary }
 
 @celery.task(bind=True,max_retries=1)
-def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,  startDate, endDate,  window, siteCovs, detCovs, covOptions, user_id, user_folder, bucket, csv=False):
+def calculate_occupancy_analysis(self, task_ids,  species,  baseUnit,  trapgroups,  startDate, endDate,  window, siteCovs, detCovs, covOptions, user_id, user_folder, bucket, csv=False):
     ''' Calculates occupancy analysis'''
     try:
         pandas2ri.activate()
@@ -3532,7 +3532,8 @@ def calculateOccupancyAnalysis(self, task_ids,  species,  baseUnit,  trapgroups,
 
 
 @celery.task(bind=True,max_retries=1)
-def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, startDate, endDate, window, tags, siteCovs, covOptions, bucket, user_folder, csv=False):
+def calculate_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, startDate, endDate, window, tags, siteCovs, covOptions, bucket, user_folder, csv=False):
+    ''' Calculates spatial capture recapture for a given species in R '''	
     try:
         pandas2ri.activate()
         results = {}
