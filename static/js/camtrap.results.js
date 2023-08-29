@@ -146,7 +146,6 @@ var globalCSVData = []
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
 const modalImportCovariates = $('#modalImportCovariates')
-// const modalAnnotationsSets = $('#modalAnnotationsSets')
 
 function getLabelsAndSites(){
     /** Builds the selectors for generating results*/
@@ -189,14 +188,8 @@ function getLabelsAndSites(){
 }
 
 function updateLabelsAndSites(){
-    /** Updates the labels and sites selectors based on the selected surveys and annotation sets */
-    // allSpeciesSelector = document.querySelectorAll('[id^=speciesSelect-]')
-    // allSiteSelector = document.querySelectorAll('[id^=trapgroupSelect-]')
+    /** Updates the labels and sites selectors */
     speciesSelector = document.getElementById('speciesSelect')
-    // siteSelector = document.getElementById('trapgroupSelect')
-    // allSpeciesSelectorNum = document.querySelectorAll('[id^=speciesSelectNum-]')
-    // allSiteSelectorSpat = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
-
     if (speciesSelector) {
         clearSelect(speciesSelector)
         var optionValues = ['-1', '0']
@@ -205,53 +198,6 @@ function updateLabelsAndSites(){
         optionTexts = optionTexts.concat(globalLabels)
         fillSelect(speciesSelector, optionTexts, optionValues)
     }
-
-
-    // if (siteSelector) {
-    //     clearSelect(siteSelector)
-    //     optionValues = ['-1', '0']
-    //     optionTexts = ['None', 'All']
-    //     optionValues = optionValues.concat(globalSitesIDs)
-    //     optionTexts = optionTexts.concat(globalSites)
-    //     fillSelect(siteSelector, optionTexts, optionValues)
-    // }
-
-    // for (let i=0;i<allSpeciesSelector.length;i++) {
-    //     clearSelect(allSpeciesSelector[i])
-    //     var optionValues = ['-1', '0']
-    //     var optionTexts = ['None', 'All']
-    //     optionValues = optionValues.concat(globalLabels)
-    //     optionTexts = optionTexts.concat(globalLabels)
-    //     fillSelect(allSpeciesSelector[i], optionTexts, optionValues)
-    // }
-
-    // for (let i=0;i<allSiteSelector.length;i++) {
-    //     clearSelect(allSiteSelector[i])
-    //     var optionValues = ['-1', '0']
-    //     var optionTexts = ['None', 'All']
-    //     optionValues = optionValues.concat(globalSitesIDs)
-    //     optionTexts = optionTexts.concat(globalSites)
-    //     fillSelect(allSiteSelector[i], optionTexts, optionValues)
-    // }
-
-    // for (let i=0;i<allSpeciesSelectorNum.length;i++) {
-    //     clearSelect(allSpeciesSelectorNum[i])
-    //     var optionValues = ['-1', '0']
-    //     var optionTexts = ['None', 'All']
-    //     optionValues = optionValues.concat(globalLabels)
-    //     optionTexts = optionTexts.concat(globalLabels)
-    //     fillSelect(allSpeciesSelectorNum[i], optionTexts, optionValues)
-    // }
-
-    // for (let i=0;i<allSiteSelectorSpat.length;i++) {
-    //     clearSelect(allSiteSelectorSpat[i])
-    //     var optionValues = ['0']
-    //     var optionTexts = ['All']
-    //     optionValues = optionValues.concat(globalSitesIDs)
-    //     optionTexts = optionTexts.concat(globalSites)
-    //     fillSelect(allSiteSelectorSpat[i], optionTexts, optionValues)
-    // }
-
 }
 
 
@@ -284,7 +230,6 @@ function generateResults(){
         //Builds the selectors for the summary analysis
         document.getElementById('btnExportResults').disabled = false
         document.getElementById('chartTypeDiv').hidden = true
-        // document.getElementById('chartTypeSelector').value = 'bar'
         document.getElementById('normalisationDiv').hidden = true
         document.getElementById('timeUnitSelectionDiv').hidden = true 
         document.getElementById('spatialOptionsDiv').hidden = true
@@ -776,11 +721,7 @@ function generateSpatial(){
 
 function generateNumerical(){
     /** Updates the generate results div for numerical analysis */
-    // var generateDiv = document.getElementById('generateDiv')
-
-    // barData = {}
     activeRequest = {}
-    // getTrapgroups()
 
     // Bar chart
     mainDiv = document.getElementById('resultsDiv')
@@ -866,11 +807,6 @@ function generateNumerical(){
                     drawOnChartArea: includeGridLines,
                     color: axisColour
                 }
-                // scaleLabel: {
-                //     display: true,
-                //     labelString: 'Species Count',
-                //     fontColor : textColour
-                // }
             }],
             xAxes: [{
                 ticks: {
@@ -985,23 +921,11 @@ function generateTime(){
                     fontColor : textColour,
                     display: includeLabels,
                     beginAtZero: true,
-                    // soure: 'labels',
-                    // maxTicksLimit: 32
                 },
                 gridLines: {
                     drawOnChartArea: includeGridLines,
                     color: axisColour
                 },
-                // type: 'time',
-                // time: {
-                //     minUnit: 'day',
-                //     maxUnit: 'year',
-                //     displayFormats: {
-                //         'day': 'DD  MMM YYYY',
-                //         'month': 'MMM YYYY',
-                //         'year': 'YYYY'
-                //     }
-                // },
             }]
         }
     }
@@ -1182,12 +1106,8 @@ function buildDataSelectorRow(){
             var colourPicker = document.getElementById('colourPicker-' + wrapIDNum);
     
             if (selectColour.value === 'custom-' + wrapIDNum) {
-                // selectColour.hidden = true;
-                // colourPicker.hidden = false;
                 colourPicker.click();
             } else {
-                // colourPicker.hidden = true;
-                // selectColour.hidden = false;
                 selectColour.style.backgroundColor = selectColour.value;
                 selectColour.value = selectColour.value;
                 updateDataColour(wrapIDNum, selectColour.value);
@@ -1214,10 +1134,6 @@ function buildDataSelectorRow(){
             var rgba = 'rgba('+r+','+g+','+b+','+a+')'
 
             selectColour.style.backgroundColor = rgba;
-
-            // console.log(selectedColor, rgba)
-            // colourPicker.hidden = true;
-            // selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
         };
     }(IDNum));
@@ -1236,7 +1152,6 @@ function buildDataSelectorRow(){
             var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
             if (analysisSelection == '1') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                // colour = btnRemove.style.backgroundColor
                 if (document.getElementById('chartTypeSelector')){     
                     chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
                 } else {
@@ -1251,7 +1166,6 @@ function buildDataSelectorRow(){
             }
             else if (analysisSelection == '3') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                // colour = btnRemove.style.backgroundColor
                 if (document.getElementById('chartTypeSelector')){
                     chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
                 } else {
@@ -1267,7 +1181,6 @@ function buildDataSelectorRow(){
             }
             else if (analysisSelection == '4') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                // colour = btnRemove.style.backgroundColor
                 if (document.getElementById('chartTypeSelector')){     
                     chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
                 } else {
@@ -1379,9 +1292,6 @@ function buildSpeciesSelectorRow(){
     colourPicker.type = 'color';
     colourPicker.id = 'colourPickerSpecies-' + IDNum;
     colourPicker.value = '#000000';
-    // colourPicker.style.width = '50%';
-    // colourPicker.style.height = '50%';
-    // colourPicker.style.padding = '0px';
     colourPicker.hidden = true;
     col2.appendChild(colourPicker);
     
@@ -1391,8 +1301,6 @@ function buildSpeciesSelectorRow(){
             var colourPicker = document.getElementById('colourPickerSpecies-' + wrapIDNum);
     
             if (selectColour.value === 'custom-' + wrapIDNum) {
-                // selectColour.hidden = true;
-                // colourPicker.hidden = false;
                 colourPicker.click();
             } else {
                 selectColour.style.backgroundColor = selectColour.value;
@@ -1422,9 +1330,6 @@ function buildSpeciesSelectorRow(){
 
             selectColour.style.backgroundColor = rgba;
 
-            // console.log(selectedColor, rgba)
-            // colourPicker.hidden = true;
-            // selectColour.hidden = false;
             updateDataColour(wrapIDNum, rgba);
         };
     }(IDNum));
@@ -1438,7 +1343,6 @@ function buildSpeciesSelectorRow(){
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
             btnRemove = document.getElementById('btnRemoveSpecies-'+wrapIDNum)
-            // colour = btnRemove.style.backgroundColor
             if (document.getElementById('chartTypeSelector')){     
                 chartType = document.getElementById('chartTypeSelector').options[document.getElementById('chartTypeSelector').selectedIndex].value
             } else {
@@ -1583,44 +1487,9 @@ function buildSiteSelectorRow(){
         col3.appendChild(btnRemove);
         btnRemove.addEventListener('click', function(wrapIDNum) {
             return function() {
-                // var siteSelector = document.getElementById('trapgroupSelectSpat-'+wrapIDNum)
-                // var siteText = siteSelector.options[siteSelector.selectedIndex].text
-                // console.log(siteText)
-                // var validSites = checkSitesSpatial()
-                // if(siteText=='None'){
-                //     var sites = getSelectedSites(true)
-                //     console.log(sites)
-                //     for (let i=0;i<markers.length;i++) {
-                //         let marker_text = markers[i]._popup._content + ',' + parseFloat(markers[i].getLatLng().lat).toFixed(4).toString() + ',' + parseFloat(markers[i].getLatLng().lng).toFixed(4).toString()
-                //         console.log(marker_text)
-                //         if (!sites.includes(marker_text)){
-                //             if (map.hasLayer(markers[i])) {
-                //                 map.removeLayer(markers[i])
-                //             }
-                //             markers.splice(i,1)
-                //         }
-                //     }
-                // }
-
-                // if (validSites){
-                //     siteText = siteText.split(' ')
-                //     var lat = siteText[1].split('(')[1].split(',')[0]
-                //     var lng = siteText[2].split(')')[0]
-
-                //     for (let i=0;i<markers.length;i++) {
-                //         if (markers[i].getLatLng().lat == lat && markers[i].getLatLng().lng == lng ){
-                //             if (map.hasLayer(markers[i])) {
-                //                 map.removeLayer(markers[i])
-                //             }
-                //             markers.splice(i,1)
-                //         }
-                //     }
-                // }
-
                 btnRemove = document.getElementById('btnRemoveSite-'+wrapIDNum)
                 btnRemove.parentNode.parentNode.remove();
                 updateMap()
-
             }
         }(IDNum));
     }
@@ -1637,9 +1506,6 @@ function updateResults(update=false){
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
     if (analysisSelection == '0') {
-        // document.getElementById('resultsDiv').style.display = 'none'
-        // document.getElementById('loadingDiv').style.display = 'block'
-        // document.getElementById('loadingCircle').style.display = 'block'
         document.getElementById('btnExportResults').disabled = true
         analysisSelector.disabled = true
         getSummary()
@@ -1656,9 +1522,6 @@ function updateResults(update=false){
         }
     }
     else if (analysisSelection == '3') {
-        if (update) {
-            getTrapgroups()
-        }
         updateBar()
     }
     else if (analysisSelection == '4') {
@@ -1950,8 +1813,6 @@ function checkActivity(species, overlap){
         valid = false
     }
 
-    // console.log(overlap)
-
     if (overlap){
         if (species.length != 2){
             message = 'Overlap estimation requires exactly two species.'
@@ -1976,13 +1837,10 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
     var imageUrl = image_url
     var img = new Image();
     img.onload = function(){
-
         mapDiv = document.getElementById(map_id)
 
         w = this.width
         h = this.height
-
-        // console.log(w,h)
     
         if (w>h) {
             mapDiv.setAttribute('style','height: calc(45vw *'+(h/w)+');  width:45vw ;border-style: solid; border-width: 0px; border-color: rgba(223,105,26,1)')
@@ -1991,14 +1849,14 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
         }
 
         L.Browser.touch = true
-        // console.log(mapDiv)
+
         map[map_id] = new L.map(mapDiv, {
             crs: L.CRS.Simple,
             maxZoom: 10,
             center: [0, 0],
             zoomSnap: 0
         })
-        // console.log(map)
+
         var h1 = mapDiv.clientHeight
         var w1 = mapDiv.clientWidth
 
@@ -2133,48 +1991,6 @@ function getActivityPatternCSV(check=false){
 
 }
 
-function getTrapgroups(){
-    /**Gets all trapgroups from server for the specified tasks*/
-    // var formData = new FormData();
-    // var tasks = getSelectedTasks()
-
-    // formData.append('task_ids', JSON.stringify(tasks));
-
-    // var xhttp = new XMLHttpRequest();
-    // xhttp.onreadystatechange =
-    // function(){
-    //     if (this.readyState == 4 && this.status == 200) {
-    //         reply = JSON.parse(this.responseText);
-    //         trapgroupNames = reply.names 
-    //         trapgroupValues = reply.values
-
-    //         var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
-    //         if (analysisSelection == '3') {
-    //             var xAxisSelection = document.getElementById('xAxisSelector').options[document.getElementById('xAxisSelector').selectedIndex].value
-    //             if (xAxisSelection == '1') {
-    //                 chart.data.labels = ['Survey Count']
-    //             } else if (xAxisSelection == '2') {
-    //                 chart.data.labels = trapgroupNames.slice(2)
-    //             }
-    //         }
-    //     }
-    // }
-    // xhttp.open("POST", '/getTrapgroups');
-    // xhttp.send(formData);
-
-    // var sites = getSelectedSites(true)
-    // var validSites = checkSitesSpatial() // hierdeie update 
-    // var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
-    // if (analysisSelection == '3') {
-    //     var xAxisSelection = document.getElementById('xAxisSelector').options[document.getElementById('xAxisSelector').selectedIndex].value
-    //     if (xAxisSelection == '1') {
-    //         chart.data.labels = ['Survey Count']
-    //     }
-    //     else if (xAxisSelection == '2' && validSites) {
-    //         chart.data.labels = sites
-    //     }
-}
-
 function getSelectedTasks(){
     //* Gets all the selected tasks *
     if (globalAnnotationSets.length > 0) {
@@ -2205,12 +2021,11 @@ function getSelectedSites(text=false){
     else {
         allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
     }
-    // console.log(allSites)
+    
     if (text) {
         for (let i=0;i<allSites.length;i++) {
             if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
                 let split = allSites[i].options[allSites[i].selectedIndex].text.split(' ')
-                // console.log(split)  
                 let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
                 if(sites.indexOf(site) == -1){
                     sites.push(site)
@@ -2236,13 +2051,7 @@ function getSelectedSites(text=false){
     if (sites.length==0) {
         sites = '0'
     }
-    // else if (sites.length > 1){
-    //     sites = sites.filter((value) => !value.includes('-1'))
 
-    // }
-
-
-    // console.log(sites)
     return sites
 }
 
@@ -2673,10 +2482,6 @@ function checkTimeUnit(){
         valid = false
         message = 'Time unit must be less than 100. Change the time unit to a larger unit.'
     }
-    // else if (timeUnitNumber.isDigit() == false) {
-    //     valid = false
-    //     message = 'Time unit must be a number.'
-    // }
 
     if (valid) {
         error.innerHTML = ''
@@ -3359,7 +3164,6 @@ $("#normalisationSelector").change( function() {
 $("#timeUnitSelector").change( function() {
     var validUnit = checkTimeUnit()
     if (validUnit) {
-        // chart.options.scales.xAxes[0].time.unit = document.getElementById('timeUnitSelector').options[document.getElementById('timeUnitSelector').selectedIndex].text.toLowerCase()
         updateResults()
     }
 });
@@ -3554,11 +3358,6 @@ $("#speciesSelect").change( function() {
     updateResults()
 });
 
-// $("#btnManageAnnotationSets").click( function() {
-//     getSurveysAndAnnotationSets()
-//     modalAnnotationsSets.modal({keyboard: true})
-// });
-
 $("#btnSaveSets").click( function() {
     globalAnnotationSets = []
     selectedAnnotationSets = {}
@@ -3568,7 +3367,6 @@ $("#btnSaveSets").click( function() {
         selectedAnnotationSets[allSets[i].id.split('-')[1]] = allSets[i].value
     }
 
-    // modalAnnotationsSets.modal('hide')
     analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
     if(analysisSelection != '0' && analysisSelection != '5' && analysisSelection != '6' && analysisSelection != '7'){
         updateResults()
@@ -3608,16 +3406,6 @@ $('#trendlineOnlyCheckbox').change( function() {
         chart.update()
     }
 });
-
-// $('#solarTime, #clockTime').change( function() {
-//     var solarTime = document.getElementById('solarTime').checked
-//     if (solarTime) {
-//         document.getElementById('solarDiv').hidden = false
-//     } else {
-//         document.getElementById('solarDiv').hidden = true
-//     }
-
-// });
 
 $('#btnViewScript').click( function() {
     // View the R script for the analysis
@@ -3797,22 +3585,6 @@ function exportResults(){
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
     if (analysisSelection == '0') {
-        // Export each element on the summary page
-        // if (tabActiveResults == 'dataSummaryTab'){
-        //     var table = document.getElementById('summaryTable')
-            
-        //     // Create image from table
-        //     html2canvas(table, {
-        //         onrendered: function(canvas) {
-        //             var image = canvas.toDataURL("image/png", 1.0).replace("image/png", "image/octet-stream");
-        //             var link = document.createElement('a');
-        //             link.download = 'summary.png';
-        //             link.href = image;
-        //             link.click();
-        //         }
-        //     });
-
-        // }
         if (tabActiveResults == 'abundanceTab'){
             var canvas = document.getElementById('statisticsChart');
             var newCanvas = document.createElement('canvas');
@@ -4116,7 +3888,6 @@ function buildSummary(summary){
     var resultsTab = document.getElementById('resultsTab')
 
     // Create the tab buttons and tabs for summary results
-
     // Data summary tab
     var dataSummaryTabButton = document.createElement('button')
     dataSummaryTabButton.classList.add('tablinks')
@@ -4136,7 +3907,6 @@ function buildSummary(summary){
 
 
     // Diversity tab
-
     var diversityTabButton = document.createElement('button')
     diversityTabButton.classList.add('tablinks')
     diversityTabButton.innerHTML = 'Diversity Indices'
@@ -4170,7 +3940,6 @@ function buildSummary(summary){
 
 
     // Effort Days tab
-
     var effortDaysButton = document.createElement('button')
     effortDaysButton.classList.add('tablinks')
     effortDaysButton.innerHTML = 'Camera Trap Effort'
@@ -4188,7 +3957,6 @@ function buildSummary(summary){
         
 
     // Camera Trap Data Counts tab
-
     var cameraTrapDataCountsButton = document.createElement('button')
     cameraTrapDataCountsButton.classList.add('tablinks')
     cameraTrapDataCountsButton.innerHTML = 'Camera Trap Data Counts'
@@ -4205,7 +3973,6 @@ function buildSummary(summary){
     });
 
     // Camera Trap Activity tab
-
     var cameraTrapActivityButton = document.createElement('button')
     cameraTrapActivityButton.classList.add('tablinks')
     cameraTrapActivityButton.innerHTML = 'Camera Trap Activity'
@@ -4230,7 +3997,6 @@ function buildSummaryTab(summary, tab){
     /** Builds the summary div */
 
     // Create the tab buttons and tabs for summary results
-
     if (tab == 'dataSummaryTab') {
     // Data summary tab
         dataSummaryTab = document.getElementById('dataSummaryTab')
@@ -4258,13 +4024,7 @@ function buildSummaryTab(summary, tab){
             var table = document.createElement('table');
             table.id = 'summaryTable'
             table.style.borderCollapse = 'collapse';
-            // table.classList.add('table');
-            // // table.classList.add('table-sm');
-            // table.classList.add('table-striped');
-            // table.classList.add('table-bordered');
-            // table.classList.add('table')
             table.classList.add('table-bordered')
-            // table.classList.add('table-striped')
             table.classList.add('table-hover')
             var thead = table.createTHead();
             var tbody = table.createTBody();
@@ -4274,19 +4034,16 @@ function buildSummaryTab(summary, tab){
             var nameTitleCell = titleRow.insertCell();
             nameTitleCell.innerHTML = 'Name';
             nameTitleCell.style.fontWeight = 'bold';
-            // nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             nameTitleCell.style.padding = '10px';
 
             var descTitleCell = titleRow.insertCell();
             descTitleCell.innerHTML = 'Description';
             descTitleCell.style.fontWeight = 'bold';
-            // descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             descTitleCell.style.padding = '10px';
             
             var valueTitleCell = titleRow.insertCell();
             valueTitleCell.innerHTML = 'Value';
             valueTitleCell.style.fontWeight = 'bold';
-            // valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             valueTitleCell.style.padding = '10px';
 
             var data = summary.summary_counts
@@ -4295,17 +4052,14 @@ function buildSummaryTab(summary, tab){
                 var row = tbody.insertRow();
                 var nameCell = row.insertCell();
                 nameCell.innerHTML = key;
-                // nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
                 nameCell.style.padding = '10px';
             
                 var descCell = row.insertCell();
                 descCell.innerHTML = data[key].description;
-                // descCell.style.border = '1px solid rgba(0,0,0,0.2)';
                 descCell.style.padding = '10px';
             
                 var valueCell = row.insertCell();
                 valueCell.innerHTML = data[key].value;
-                // valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
                 valueCell.style.padding = '10px';
             }
             
@@ -4340,31 +4094,25 @@ function buildSummaryTab(summary, tab){
             table.id = 'diversityTable'
             table.style.borderCollapse = 'collapse';
             table.classList.add('table-hover')
-            // table.classList.add('table')
             table.classList.add('table-bordered')
-            // table.classList.add('table-striped')
 
             var thead = table.createTHead();
             var tbody = table.createTBody();
             
-            // Add the title row for column headers (Name, Description, Value)
             var titleRow = thead.insertRow();
             var nameTitleCell = titleRow.insertCell();
             nameTitleCell.innerHTML = 'Name';
             nameTitleCell.style.fontWeight = 'bold';
-            // nameTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             nameTitleCell.style.padding = '10px';
             
             var descTitleCell = titleRow.insertCell();
             descTitleCell.innerHTML = 'Description';
             descTitleCell.style.fontWeight = 'bold';
-            // descTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             descTitleCell.style.padding = '10px';
             
             var valueTitleCell = titleRow.insertCell();
             valueTitleCell.innerHTML = 'Value';
             valueTitleCell.style.fontWeight = 'bold';
-            // valueTitleCell.style.border = '1px solid rgba(0,0,0,0.2)';
             valueTitleCell.style.padding = '10px';
             
             data = summary.summary_indexes;
@@ -4373,17 +4121,14 @@ function buildSummaryTab(summary, tab){
             var row = tbody.insertRow();
             var nameCell = row.insertCell();
             nameCell.innerHTML = key;
-            // nameCell.style.border = '1px solid rgba(0,0,0,0.2)';
             nameCell.style.padding = '10px';
             
             var descCell = row.insertCell();
             descCell.innerHTML = data[key].description;
-            // descCell.style.border = '1px solid rgba(0,0,0,0.2)';
             descCell.style.padding = '10px';
             
             var valueCell = row.insertCell();
             valueCell.innerHTML = data[key].value.toFixed(2);
-            // valueCell.style.border = '1px solid rgba(0,0,0,0.2)';
             valueCell.style.padding = '10px';
             }
             
@@ -4624,7 +4369,6 @@ function buildSummaryTab(summary, tab){
         }
     }
     else if (tab == 'cameraTrapDataCountsTab') {
-
         // Camera trap data counts tab
         var cameraTrapDataCountsTab = document.getElementById('cameraTrapDataCountsTab')
 
@@ -4665,7 +4409,6 @@ function buildSummaryTab(summary, tab){
             col_ct2.appendChild(ct_canvas2)
 
             // Camera unit counts
-
             var ctx2 = document.getElementById('ct_canvas2').getContext('2d');
 
             var unit_labels = []
@@ -4748,7 +4491,6 @@ function buildSummaryTab(summary, tab){
     else if (tab == 'cameraTrapActivityTab') {
 
         // Camera trap activity tab
-
         var cameraTrapActivityTab = document.getElementById('cameraTrapActivityTab')
 
         if (cameraTrapActivityTab.firstChild == null) {
@@ -4892,7 +4634,6 @@ function buildCovariates(){
     }
 
     var sites = getSelectedSites(true)
-    // console.log(sites)
     if (sites == '0'){
         sites = []
         for (let i=0; i<globalSites.length; i++){
@@ -4903,12 +4644,9 @@ function buildCovariates(){
     }
     else{
         for (let i=0; i<sites.length; i++){
-            // sites[i] = sites[i].replace('/,','_')
-            // replace all commas with underscores
             sites[i] = sites[i].replace(/,/g,'_')
         }
     }
-    // console.log(sites)
 
     // Site covariates
     var table = document.createElement('table')
@@ -4944,7 +4682,6 @@ function buildCovariates(){
     var table = document.createElement('table')
     table.style.borderCollapse = 'collapse'
     table.style.width = '100%'
-    // table.style.tableLayout = 'fixed'
     table.id = 'siteCovariatesTableExtra'
     siteCovariatesExtraDiv.appendChild(table)
 
@@ -5001,7 +4738,6 @@ function buildCovariates(){
     var table = document.createElement('table')
     table.style.borderCollapse = 'collapse'
     table.style.width = '100%'
-    // table.style.tableLayout = 'fixed'
     table.id = 'detectionCovariatesTableExtra'
     detectionCovariatesExtraDiv.appendChild(table)
 
@@ -5173,7 +4909,6 @@ function buildCovRow(type){
     }
     else{
         for (let i=0; i<sites.length; i++){
-            // sites[i] = sites[i].replace(',','_')
             sites[i] = sites[i].replace(/,/g,'_')
         }
     }
@@ -5234,9 +4969,7 @@ function buildCovRow(type){
 
 function removeCovariateRow(button, type){
     /** Removes a row from the covariates table */
-
     // Remove button from button table first
-
     var row = button.parentNode.parentNode
     row_index = row.rowIndex
     row.parentNode.removeChild(row)
@@ -5259,7 +4992,6 @@ function removeCovariateRow(button, type){
 function saveCovariates(){
     /** Saves the covariates to the global variables */
     var valid = validateCovariates()
-    // valid = true
     if (valid){
         
         var siteCovariates = []
@@ -5485,9 +5217,7 @@ function updateOccupancy(check=false){
         var endDate = document.getElementById('endDate').value
         var observationWindow = document.getElementById('observationWindow').value
 
-
-        var validOccupancy = checkOccupancy(observationWindow, globalSiteCovariates, globalDetectionCovariates)
-    
+        var validOccupancy = checkOccupancy(observationWindow, globalSiteCovariates, globalDetectionCovariates)  
     
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
@@ -5545,7 +5275,6 @@ function updateOccupancy(check=false){
                         resultsTab.removeChild(resultsTab.firstChild)
                     }
                     buildOccupancyTabs(results)
-                    // buildOccupancyResults(results)
 
                 }
                 else if(reply.status == 'FAILURE'){
@@ -5595,9 +5324,7 @@ function getOccupancyCSV(check=false){
         var endDate = document.getElementById('endDate').value
         var observationWindow = document.getElementById('observationWindow').value
 
-
         var validOccupancy = checkOccupancy(observationWindow, globalSiteCovariates, globalDetectionCovariates)
-    
     
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
@@ -5757,7 +5484,6 @@ function buildOccupancyResults(results, tab){
             table.classList.add('table-bordered')
             table.classList.add('table-striped')
             table.classList.add('table-hover')
-            // table.classList.add('border-collapse')
             table.style.borderCollapse = 'collapse';
 
 
@@ -5813,15 +5539,6 @@ function buildOccupancyResults(results, tab){
             tr.appendChild(td)
 
             summaryOccuTab.appendChild(table)
-
-
-            // // Create table to display AIC results
-            // var table = document.createElement('table')
-            // table.classList.add('table')
-            // table.classList.add('table-bordered')
-            // table.classList.add('table-striped')
-            // table.classList.add('table-hover')
-            // table.classList.add('border-collapse')
             summaryOccuTab.appendChild(document.createElement('br'))
 
             aic = results.aic
@@ -5836,41 +5553,12 @@ function buildOccupancyResults(results, tab){
             h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
             summaryOccuTab.appendChild(h5)
 
-            // var thead = document.createElement('thead')
-            // table.appendChild(thead)
-
-            // var tr = document.createElement('tr')
-            // thead.appendChild(tr)
-
-            // for (let i=0; i<aic.length; i++){
-            //     var th = document.createElement('th')
-            //     th.innerHTML = aic[i][0]
-            //     tr.appendChild(th)
-            // }
-
-            // var tbody = document.createElement('tbody')
-            // table.appendChild(tbody)
-
-            // for (let i=0; i<aic[0][1].length; i++){
-            //     var tr = document.createElement('tr')
-            //     tbody.appendChild(tr)
-
-            //     for (let j=0; j<aic.length; j++){
-            //         var td = document.createElement('td')
-            //         td.innerHTML = aic[j][1][i]
-            //         tr.appendChild(td)
-            //     }
-            // }
-
-            // resultsDiv.appendChild(table)
-
             // Create a single table to display all AIC results
             var table = document.createElement('table');
             table.classList.add('table');
             table.classList.add('table-bordered');
             table.classList.add('table-striped');
             table.classList.add('table-hover');
-            // table.classList.add('border-collapse');
             table.style.borderCollapse = 'collapse';
             table.style.width = '100%';
 
@@ -5910,7 +5598,6 @@ function buildOccupancyResults(results, tab){
                     else if (keys[j] == 'Modnames'){
                         value = value.replace(/\s/g, '')
                         formula = value.split('~')
-                        // console.log(formula)
                         for (let k=0; k<formula.length; k++){
                             if (formula[k].includes('1')){
                                 formula[k] = 'None'
@@ -6205,8 +5892,6 @@ function buildOccupancyResults(results, tab){
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         col.appendChild(h5)
 
-        // headingDiv.appendChild(document.createElement('br'))
-
         headingDiv = document.createElement('div')
         headingDiv.classList.add('row')
         headingDiv.id = 'headingDiv_' + cov_name + '_covar'
@@ -6236,8 +5921,6 @@ function buildOccupancyResults(results, tab){
         }
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         col.appendChild(h5)
-
-        // headingDiv.appendChild(document.createElement('br'))
 
         occuTab.appendChild(document.createElement('br'))
 
@@ -6306,7 +5989,6 @@ function checkOccupancy(observationWindow, siteCovariates, detectionCovariates){
     }
     else{
         for (let i=0; i<sites.length; i++){
-            // sites[i] = sites[i].replace(',','_')
             sites[i] = sites[i].replace(/,/g,'_')
         }
     }
@@ -6429,7 +6111,6 @@ modalCovariates.on('hidden.bs.modal', function(){
         document.body.style.overflowY = 'auto'
     }
 })
-
 
 modalImportCovariates.on('hidden.bs.modal', function(){
     modalCovariates.modal({keyboard: true})
@@ -6620,7 +6301,6 @@ function importCovariates(){
                 
             }
 
-
             modalImportCovariates.modal('hide')
 
         }
@@ -6712,7 +6392,6 @@ function addSiteCovCol(){
 
     var col3 = document.createElement('div')
     col3.classList.add('col-lg-2')
-    // col3.style.padding = '0px'
     row.appendChild(col3)
 
     selectorColumn.appendChild(row)
@@ -7002,12 +6681,8 @@ function updateSCR(check=false){
             tags = '-1'
         }
 
-
-        // Add validation for capture recapture
         sites_text = getSelectedSites(true)
         var validSCR = validateSCR(species, sites_text, tags, startDate, endDate, observationWindow)
-
-        // console.log(sites)
     
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
@@ -7064,7 +6739,6 @@ function updateSCR(check=false){
                         resultsTab.removeChild(resultsTab.firstChild)
                     }
 
-                    // Build cap recap results
                     buildSCRtabs(results)
 
                 }
@@ -7258,8 +6932,6 @@ function buildSCRtabs(results){
         openResultsTab(event, 'srcHeatmapTab', results)
     });
 
-
-    
     btnSummarySCRtab.click()
 
 }
@@ -7423,8 +7095,6 @@ function buildSCR(results, tab){
                     var value = summary_estimate[keys[j]]
                     if (keys[j] == 'MMDM' || keys[j] == 'HMMDM'){
                         if(keys[j] == 'MMDM'){
-                            // console.log('mmdm')
-                            // console.log(value)
                             if (parseInt(value) == 0){
                                 document.getElementById('statisticsErrors').innerHTML = 'The MMDM is 0 for your indiviual data. For the analysis it was set to 1. The results may not be accurate. A MMDM of 0 indicates that no individuals moved between sites or that you have not specified coordinates for your sites. Please ensure that your data is correct.'
                             }
@@ -7902,7 +7572,6 @@ function buildSCR(results, tab){
         radio.setAttribute('name', 'densityMap')
         radio.setAttribute('class', 'custom-control-input')
         radio.setAttribute('value', '0')
-        // radio.checked = true
         divRadio.appendChild(radio)
             
         var label = document.createElement('label')
@@ -7976,7 +7645,7 @@ function buildSCR(results, tab){
         heatmapOptionsDiv.id = 'DHM_OptionsDiv'
         densityMapTab.appendChild(heatmapOptionsDiv)
 
-        // SLider and checkboxex
+        // Slider and checkboxex
         var div = document.createElement('div')
         div.classList.add('row')
         heatmapOptionsDiv.appendChild(div)
@@ -7989,7 +7658,6 @@ function buildSCR(results, tab){
         label.setAttribute('for','radiusSliderDHM')
         label.innerHTML = 'Radius: '
         col.appendChild(label)
-
 
         var col = document.createElement('div')
         col.classList.add('col-lg-2')
@@ -8231,8 +7899,6 @@ function buildSCR(results, tab){
 
         document.getElementById('showHeatMapDHM').checked = true
 
-
-
         var div = document.createElement('div')
         div.classList.add('row')
         densityMapTab.appendChild(div)
@@ -8245,9 +7911,6 @@ function buildSCR(results, tab){
         col1.classList.add('col-lg-10')
         col1.setAttribute('align','center')
         div.appendChild(col1)
-
-        // var center = document.createElement('center')
-        // col1.appendChild(center)
 
         var map_id = 'mapDiv_densityMap'
         var mapDiv = document.createElement('div')
@@ -8285,7 +7948,7 @@ function buildSCR(results, tab){
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         srcHeatmapTab.appendChild(h5)
 
-        // SLider and checkboxex
+        // Slider and checkboxex
         var div = document.createElement('div')
         div.classList.add('row')
         srcHeatmapTab.appendChild(div)
@@ -8557,9 +8220,6 @@ function buildSCR(results, tab){
         col1.classList.add('col-lg-10')
         div.appendChild(col1)
 
-        // var center = document.createElement('center')
-        // col1.appendChild(center)
-
         var map_id = 'mapDiv_srcHeatmap'
         var mapDiv = document.createElement('div')
         mapDiv.setAttribute('id',map_id)
@@ -8652,7 +8312,6 @@ function buildSCR(results, tab){
             map[map_id].addLayer(marker)
             text = '<b>Site: </b>' + tag + '<br><b>Count: </b>' + indiv_counts[i].count
             marker.bindPopup(text);
-            // marker.bindPopup(tag);
             marker.on('mouseover', function (e) {
                 this.openPopup();
             });
@@ -8693,7 +8352,6 @@ function buildSCR(results, tab){
 
 function initialiseDensityHeatmap(map_densities, max_density, sites_density, map_id){
     /**Initialises the density heatmap. */
-
     var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
     maxZoom: 18,
@@ -8777,7 +8435,6 @@ function initialiseDensityHeatmap(map_densities, max_density, sites_density, map
         map[map_id].addLayer(marker)
         text = '<b>Site: </b>' + tag + '<br><b>Density: </b>' + density
         marker.bindPopup(text);
-        // marker.bindPopup(tag);
         marker.on('mouseover', function (e) {
             this.openPopup();
         });
@@ -8892,7 +8549,6 @@ function getSCRcsv(check=false){
 
 $('#indivCharSelector').on('change', function(){
     /**Function for updating the individual characteristics div. */
-
     var selected = $(this).val()
     var indivCharDiv = document.getElementById('indivCharDiv')
 
@@ -8901,7 +8557,6 @@ $('#indivCharSelector').on('change', function(){
     }
 
     if (selected != '-1'){	
-
         var row1 = document.createElement('div')
         row1.classList.add('row')
         indivCharDiv.appendChild(row1)
@@ -8949,7 +8604,6 @@ $('#indivCharSelector').on('change', function(){
                 }
             }
 
-
             var femaleLabel = document.createElement('label')
             femaleLabel.innerHTML = 'Female: '
             col21.appendChild(femaleLabel)
@@ -8982,7 +8636,6 @@ function onload(){
     lineData = {}
     getLabelsAndSites()
     generateResults()
-    // Run summary analysis (uncomment for prod)
     document.getElementById('btnRunScript').click()
 }
 
