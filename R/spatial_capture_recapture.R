@@ -304,7 +304,8 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
         aic_df <- data.frame()
         summary_df$best_model <- 'None'
         summary_df$best_model_formula <- 'None'
-
+        raster_df <- data.frame()
+        sites_density <- data.frame()
     }
     else{
         fl <- fitList.oSCR(model_list)
@@ -384,7 +385,7 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
         sigma <- as.data.frame(pred.sigma)
 
         # 7. Plotting
-        labs <- tdf$site_id <- sapply(strsplit(as.character(tdf$site_id), "_"), "[", 1)
+        labs <- sapply(strsplit(as.character(tdf$site_id), "_"), "[", 1)
         # 7.1 Spatial Captures
         file_name <- paste0(file_names[1], ".JPG")
         jpeg(file = file_name, quality = 100, width = 800, height = 800, units = "px", pointsize = 16)
@@ -409,10 +410,58 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
         text(tdf[,2:3], labels=labs, pos=3)
         dev.off()
 
+        # 8 Density map values
+        # Get raster object and values and coordinates
+        raster <- pred$r[[1]]
+        r_ncols <- raster@ncols
+        r_nrows <- raster@nrows
+        r_extent <- raster@extent
+
+        # Get coordinates
+        raster_coordinates <- data.frame()
+        for (i in 1:r_ncols){
+            for (j in 1:r_nrows){
+                x <- r_extent@xmin + (i * resolution)
+                y <- r_extent@ymin + (j * resolution)
+                raster_coordinates <- rbind(raster_coordinates, c(x,y))
+            }
+        }
+        colnames(raster_coordinates) <- c('X', 'Y')
+
+        raster_values <- extract(raster, raster_coordinates)
+        raster_coordinates <- as.data.frame(raster_coordinates)
+        raster_values <- as.data.frame(raster_values)
+
+        colnames(raster_values) <- c('density')
+
+        raster_df <- cbind(raster_coordinates, raster_values)
+        # Remove rows with NA
+        # raster_df <- raster_df[complete.cases(raster_df),]
+
+        # Replace NA with 0
+        raster_df[is.na(raster_df)] <- 0
+
+        # get density values for each site
+        sites_density <- data.frame()
+        for (i in 1:nrow(tdf)){
+            site_id <- tdf[i,1]
+            site_x <- tdf[i,2]
+            site_y <- tdf[i,3]
+
+            distances <- sqrt((raster_df$X - site_x)^2 + (raster_df$Y - site_y)^2)
+            min_index <- which.min(distances)
+            value <- raster_df[min_index, 3]
+            # Get the closest density value
+            # value <- raster_values[which.min(abs(raster_df$X - site_x) + abs(raster_df$Y - site_y)),1]
+            if (is.na(value)){
+                value <- 0.0
+            }
+            sites_density <- rbind(sites_density, c(site_id, value))
+        }
+        colnames(sites_density) <- c('site_id', 'density')
     }
 
-
-    return (list(density = density, abundance = abundance, det_prob = det_prob, sigma = sigma, summary = summary_df, aic = aic_df, cr = cr, message = message))
+    return (list(density = density, abundance = abundance, det_prob = det_prob, sigma = sigma, summary = summary_df, aic = aic_df, cr = cr, message = message, raster_df = raster_df, sites_density = sites_density))
 
 }
 
@@ -423,6 +472,7 @@ get_scr <-function(){
     # Get edf and tdf csv files
     edf <- read.csv("edf.csv", header = TRUE)
     tdf <- read.csv("tdf.csv", header = TRUE)
+    dh <- read.csv("dh.csv", header = TRUE)
 
     # Get column names
     session_col <- "session"
@@ -442,5 +492,7 @@ get_scr <-function(){
     file_names <- c("Captures", "State_space", "Density_map")
 
     # Run function
-    result <- spatial_capture_recapture(edf, tdf, session_col, id_col, occ_col, trap_col, tag_col, sep, cov_names, cov_options, file_names)
+    result <- spatial_capture_recapture(edf, tdf, session_col, id_col, occ_col, trap_col, tag_col, sep, cov_names, cov_options, dh, file_names)
+
+    return (result)
 }

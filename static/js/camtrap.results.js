@@ -142,7 +142,6 @@ var globalSiteCovariates = []
 var globalDetectionCovariates = []
 var globalCovariateOptions = []
 var globalCSVData = []
-var mapResize = {}
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -2035,16 +2034,6 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
                     map[wrap_map_id].fitBounds(bounds)
                     map[wrap_map_id].setMinZoom(map[wrap_map_id].getZoom())
                     activeImage[wrap_map_id].setBounds(bounds)
-                    mapResize[wrap_map_id] = false
-
-                    // Set resize true for all other maps
-                    for (let map_id in mapResize) {
-                        if (map_id != wrap_map_id) {
-                            mapResize[map_id] = true
-                        }
-                    }
-
-                    // console.log(mapResize)
                 }
             }
         }(map_id));
@@ -2058,7 +2047,6 @@ function initialiseImageMap(image_url, map_id='mapDiv'){
     };
     img.src = imageUrl
 
-    mapResize[map_id] = false
 }
 
 function getActivityPatternCSV(check=false){
@@ -6088,214 +6076,200 @@ function buildOccupancyResults(results, tab){
             }
         }
         
-        if (occuTab.firstChild == null || mapResize['mapDiv_' + cov_name]){
-            if (mapResize['mapDiv_' + cov_name]){
-                while(occuTab.firstChild){
-                    occuTab.removeChild(occuTab.firstChild)
-                }
-            }
 
-            var h5 = document.createElement('h5')
-            if (cov_name == '~1 ~ 1'){
-                h5.innerHTML = 'Covariate Results: No Covariates'
-            } else {
-                h5.innerHTML = 'Covariate Results: ' + cov_name
-            }
-            h5.setAttribute('style','margin-bottom: 2px')
-            occuTab.appendChild(h5)
-
-            // h5 = document.createElement('h5')
-            // h5.innerHTML = '<div><i> The following graphs showcases the occupancy or detection probability of the species in relation to the covariates and sites. </i></div>'
-            // h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            // occuTab.appendChild(h5)
-
-            // Create a radio button to select the type of graph
-            var divRadio = document.createElement('div')
-            divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
-        
-            var radio = document.createElement('input')
-            radio.setAttribute('type', 'radio')
-            radio.setAttribute('id', 'siteProbGraph_' + cov_name)
-            radio.setAttribute('name', 'occuGraph_' + cov_name)
-            radio.setAttribute('class', 'custom-control-input')
-            radio.setAttribute('value', '0')
-            radio.checked = true
-            divRadio.appendChild(radio)
-                
-            var label = document.createElement('label')
-            label.setAttribute('class', 'custom-control-label')
-            label.setAttribute('for', 'siteProbGraph_' + cov_name)
-            if (cov_name == '~1 ~ 1'){
-                label.innerHTML = 'Occupancy Probability Plot per Site'
-            }
-            else {
-                label.innerHTML = 'Probability Plot per Site'
-            }
-            divRadio.appendChild(label)
-        
-            occuTab.appendChild(divRadio)
-
-            divRadio = document.createElement('div')
-            divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
-
-            radio = document.createElement('input')
-            radio.setAttribute('type', 'radio')
-            radio.setAttribute('id', 'covarProbGraph_' + cov_name)
-            radio.setAttribute('name', 'occuGraph_' + cov_name)
-            radio.setAttribute('class', 'custom-control-input')
-            radio.setAttribute('value', '1')
-            divRadio.appendChild(radio)
-
-            label = document.createElement('label')
-            label.setAttribute('class', 'custom-control-label')
-            label.setAttribute('for', 'covarProbGraph_' + cov_name)
-            if (cov_name == '~1 ~ 1'){
-                label.innerHTML = 'Detection Probability Plot per Site'
-            }
-            else {
-                label.innerHTML = 'Covariate Probability Plot'
-            }
-            divRadio.appendChild(label)
-
-            occuTab.appendChild(divRadio)
-
-            // EVent listener for the radio buttons
-            radio = document.getElementById('siteProbGraph_' + cov_name)
-            radio.addEventListener('change', function(occuFiles){
-                // Set active image on map to be the first image
-                return function(){
-                    if (this.checked){
-                        // Display correct heading
-                        var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
-                        headingDiv.style.display = 'block'
-                        headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
-                        headingDiv.style.display = 'none'
-                        var map_id = 'mapDiv_' + occuFiles.name
-                        activeImage[map_id].setUrl(occuFiles.images[0])
-                    }
-                }
-            }(occu_files[cov_idx]))
-
-            radio = document.getElementById('covarProbGraph_' + cov_name)
-            radio.addEventListener('change', function(occuFiles){
-                // Set active image on map to be the second image
-                return function(){
-                    if (this.checked){
-                        // Display correct heading
-                        var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
-                        headingDiv.style.display = 'none'
-                        headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
-                        headingDiv.style.display = 'block'
-                        var map_id = 'mapDiv_' + occuFiles.name
-                        activeImage[map_id].setUrl(occuFiles.images[1])
-                    }
-                }
-            }(occu_files[cov_idx]))
-
-            occuTab.appendChild(document.createElement('br'))
-            occuTab.appendChild(document.createElement('br'))
-
-            var headingDiv = document.createElement('div')
-            headingDiv.classList.add('row')
-            headingDiv.id = 'headingDiv_' + cov_name + '_site'
-            occuTab.appendChild(headingDiv)
-
-            var col = document.createElement('div')
-            col.classList.add('col-lg-12')
-            headingDiv.appendChild(col)
-
-            var h5 = document.createElement('h5')
-            if (cov_name == '~1 ~ 1'){
-                h5.innerHTML = 'Occupancy Probability Plot per Site'
-            }
-            else {
-                h5.innerHTML = 'Probability Plot per Site'
-            }
-            h5.setAttribute('style','margin-bottom: 2px')
-            col.appendChild(h5)
-
-            h5 = document.createElement('h5')
-            if (cov_name == '~1 ~ 1'){
-                h5.innerHTML = '<div><i> The following plot displays the occupancy probability of the species in relation to the sites. </i></div>'
-            }
-            else {
-                h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the sites. The covariate value for each site is used to calculate the probability. </i></div>'
-            }
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col.appendChild(h5)
-
-            // headingDiv.appendChild(document.createElement('br'))
-
-            headingDiv = document.createElement('div')
-            headingDiv.classList.add('row')
-            headingDiv.id = 'headingDiv_' + cov_name + '_covar'
-            headingDiv.setAttribute('style','display: none')
-            occuTab.appendChild(headingDiv)
-
-            var col = document.createElement('div')
-            col.classList.add('col-lg-12')
-            headingDiv.appendChild(col)
-
-            h5 = document.createElement('h5')
-            if (cov_name == '~1 ~ 1'){
-                h5.innerHTML = 'Detection Probability Plot per Site'
-            }
-            else {
-                h5.innerHTML = 'Covariate Probability Plot'
-            }
-            h5.setAttribute('style','margin-bottom: 2px')
-            col.appendChild(h5)
-
-            h5 = document.createElement('h5')
-            if (cov_name == '~1 ~ 1'){
-                h5.innerHTML = '<div><i> The following plot displays the detection probability of the species in relation to the sites. </i></div>'
-            }
-            else {
-                h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the covariates. The plot displays the effect of the covariate on the probability. </i></div>'
-            }
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col.appendChild(h5)
-
-            // headingDiv.appendChild(document.createElement('br'))
-
-            occuTab.appendChild(document.createElement('br'))
-
-            var occu_images = occu_files[cov_idx].images
-
-            div = document.createElement('div')
-            div.classList.add('row')
-            occuTab.appendChild(div)
-
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
-
-            col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            div.appendChild(col1)
-
-            center = document.createElement('center')
-            col1.appendChild(center)
-
-            map_id = 'mapDiv_' + cov_name
-            mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id',map_id)
-            mapDiv.setAttribute('style','height: 750px')
-            center.appendChild(mapDiv)
-
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
-
-            occuTab.appendChild(document.createElement('br'))
-            initialiseImageMap(occu_images[0], map_id)
-
-            // if (activeImage[map_id] != null){
-            //     activeImage[map_id].setUrl(occu_images[0])
-            // }
-                    
-        
+        while(occuTab.firstChild){
+            occuTab.removeChild(occuTab.firstChild)
         }
+
+        var h5 = document.createElement('h5')
+        if (cov_name == '~1 ~ 1'){
+            h5.innerHTML = 'Covariate Results: No Covariates'
+        } else {
+            h5.innerHTML = 'Covariate Results: ' + cov_name
+        }
+        h5.setAttribute('style','margin-bottom: 2px')
+        occuTab.appendChild(h5)
+
+        // Create a radio button to select the type of graph
+        var divRadio = document.createElement('div')
+        divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+        
+        var radio = document.createElement('input')
+        radio.setAttribute('type', 'radio')
+        radio.setAttribute('id', 'siteProbGraph_' + cov_name)
+        radio.setAttribute('name', 'occuGraph_' + cov_name)
+        radio.setAttribute('class', 'custom-control-input')
+        radio.setAttribute('value', '0')
+        radio.checked = true
+        divRadio.appendChild(radio)
+            
+        var label = document.createElement('label')
+        label.setAttribute('class', 'custom-control-label')
+        label.setAttribute('for', 'siteProbGraph_' + cov_name)
+        if (cov_name == '~1 ~ 1'){
+            label.innerHTML = 'Occupancy Probability Plot per Site'
+        }
+        else {
+            label.innerHTML = 'Probability Plot per Site'
+        }
+        divRadio.appendChild(label)
+        
+        occuTab.appendChild(divRadio)
+
+        divRadio = document.createElement('div')
+        divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+
+        radio = document.createElement('input')
+        radio.setAttribute('type', 'radio')
+        radio.setAttribute('id', 'covarProbGraph_' + cov_name)
+        radio.setAttribute('name', 'occuGraph_' + cov_name)
+        radio.setAttribute('class', 'custom-control-input')
+        radio.setAttribute('value', '1')
+        divRadio.appendChild(radio)
+
+        label = document.createElement('label')
+        label.setAttribute('class', 'custom-control-label')
+        label.setAttribute('for', 'covarProbGraph_' + cov_name)
+        if (cov_name == '~1 ~ 1'){
+            label.innerHTML = 'Detection Probability Plot per Site'
+        }
+        else {
+            label.innerHTML = 'Covariate Probability Plot'
+        }
+        divRadio.appendChild(label)
+
+        occuTab.appendChild(divRadio)
+
+        // EVent listener for the radio buttons
+        radio = document.getElementById('siteProbGraph_' + cov_name)
+        radio.addEventListener('change', function(occuFiles){
+            // Set active image on map to be the first image
+            return function(){
+                if (this.checked){
+                    // Display correct heading
+                    var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
+                    headingDiv.style.display = 'block'
+                    headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
+                    headingDiv.style.display = 'none'
+                    var map_id = 'mapDiv_' + occuFiles.name
+                    activeImage[map_id].setUrl(occuFiles.images[0])
+                }
+            }
+        }(occu_files[cov_idx]))
+
+        radio = document.getElementById('covarProbGraph_' + cov_name)
+        radio.addEventListener('change', function(occuFiles){
+            // Set active image on map to be the second image
+            return function(){
+                if (this.checked){
+                    // Display correct heading
+                    var headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_site')
+                    headingDiv.style.display = 'none'
+                    headingDiv = document.getElementById('headingDiv_' + occuFiles.name + '_covar')
+                    headingDiv.style.display = 'block'
+                    var map_id = 'mapDiv_' + occuFiles.name
+                    activeImage[map_id].setUrl(occuFiles.images[1])
+                }
+            }
+        }(occu_files[cov_idx]))
+
+        occuTab.appendChild(document.createElement('br'))
+        occuTab.appendChild(document.createElement('br'))
+
+        var headingDiv = document.createElement('div')
+        headingDiv.classList.add('row')
+        headingDiv.id = 'headingDiv_' + cov_name + '_site'
+        occuTab.appendChild(headingDiv)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-12')
+        headingDiv.appendChild(col)
+
+        var h5 = document.createElement('h5')
+        if (cov_name == '~1 ~ 1'){
+            h5.innerHTML = 'Occupancy Probability Plot per Site'
+        }
+        else {
+            h5.innerHTML = 'Probability Plot per Site'
+        }
+        h5.setAttribute('style','margin-bottom: 2px')
+        col.appendChild(h5)
+
+        h5 = document.createElement('h5')
+        if (cov_name == '~1 ~ 1'){
+            h5.innerHTML = '<div><i> The following plot displays the occupancy probability of the species in relation to the sites. </i></div>'
+        }
+        else {
+            h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the sites. The covariate value for each site is used to calculate the probability. </i></div>'
+        }
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        col.appendChild(h5)
+
+        // headingDiv.appendChild(document.createElement('br'))
+
+        headingDiv = document.createElement('div')
+        headingDiv.classList.add('row')
+        headingDiv.id = 'headingDiv_' + cov_name + '_covar'
+        headingDiv.setAttribute('style','display: none')
+        occuTab.appendChild(headingDiv)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-12')
+        headingDiv.appendChild(col)
+
+        h5 = document.createElement('h5')
+        if (cov_name == '~1 ~ 1'){
+            h5.innerHTML = 'Detection Probability Plot per Site'
+        }
+        else {
+            h5.innerHTML = 'Covariate Probability Plot'
+        }
+        h5.setAttribute('style','margin-bottom: 2px')
+        col.appendChild(h5)
+
+        h5 = document.createElement('h5')
+        if (cov_name == '~1 ~ 1'){
+            h5.innerHTML = '<div><i> The following plot displays the detection probability of the species in relation to the sites. </i></div>'
+        }
+        else {
+            h5.innerHTML = '<div><i> The following plot displays the occupancy or detection probability of the species in relation to the covariates. The plot displays the effect of the covariate on the probability. </i></div>'
+        }
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        col.appendChild(h5)
+
+        // headingDiv.appendChild(document.createElement('br'))
+
+        occuTab.appendChild(document.createElement('br'))
+
+        var occu_images = occu_files[cov_idx].images
+
+        div = document.createElement('div')
+        div.classList.add('row')
+        occuTab.appendChild(div)
+
+        space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        col1 = document.createElement('div')
+        col1.classList.add('col-lg-10')
+        div.appendChild(col1)
+
+        center = document.createElement('center')
+        col1.appendChild(center)
+
+        map_id = 'mapDiv_' + cov_name
+        mapDiv = document.createElement('div')
+        mapDiv.setAttribute('id',map_id)
+        mapDiv.setAttribute('style','height: 750px')
+        center.appendChild(mapDiv)
+
+        space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        occuTab.appendChild(document.createElement('br'))
+        initialiseImageMap(occu_images[0], map_id) 
 
     }
 
@@ -7271,7 +7245,7 @@ function buildSCRtabs(results){
     //SCR Heatmap
     var btnHeatmapTab = document.createElement('button')
     btnHeatmapTab.classList.add('tablinks')
-    btnHeatmapTab.innerHTML = 'Heatmap'
+    btnHeatmapTab.innerHTML = 'Counts Heatmap'
     resultsTab.appendChild(btnHeatmapTab)
 
     var heatmapTab = document.createElement('div')
@@ -7518,7 +7492,17 @@ function buildSCR(results, tab){
                 for (let j=0; j<keys.length; j++){
                     var td = document.createElement('td')
                     var value = aic_estimate[keys[j]]
-                    td.innerHTML = value
+                    if (isNaN(value)){
+                        td.innerHTML = value
+                    }
+                    else{
+                        if (parseFloat(value) != parseInt(value)){
+                            td.innerHTML = parseFloat(value).toFixed(4)
+                        }
+                        else{
+                            td.innerHTML = parseInt(value)
+                        }
+                    }
                     trBody.appendChild(td)
                 }
             }
@@ -7788,362 +7772,564 @@ function buildSCR(results, tab){
     }
     else if (tab == 'spatialCapturesTab'){
         var spatialCapturesTab = document.getElementById('spatialCapturesTab')
-        if (spatialCapturesTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
-            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
-                while(spatialCapturesTab.firstChild){
-                    spatialCapturesTab.removeChild(spatialCapturesTab.firstChild)
-                }
-            }
-            // Builds the tab for the spatial captures plot
-            var h5 = document.createElement('h5')
-            h5.innerHTML = 'Spatial Captures'
-            h5.setAttribute('style', 'margin-bottom: 2px;')
-            spatialCapturesTab.appendChild(h5)
 
-            h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following plot displays the spatial captures of the species. The circles indicate the average spatial location of the individual. The crosses indicate the site locations. The lines indicate the sites visited by the individual (if an individual is detected at more than one site). </i></div>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            spatialCapturesTab.appendChild(h5)
-
-            var div = document.createElement('div')
-            div.classList.add('row')
-            spatialCapturesTab.appendChild(div)
-
-            var space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
-
-            var col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            div.appendChild(col1)
-
-            var center = document.createElement('center')
-            col1.appendChild(center)
-
-            var map_id = 'mapDiv_spatialCaptures'
-            var mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id',map_id)
-            mapDiv.setAttribute('style','height: 750px')
-            center.appendChild(mapDiv)
-
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
-
-            spatialCapturesTab.appendChild(document.createElement('br'))
-
-            var sc_image = results.scr_files[0]
-            initialiseImageMap(sc_image, map_id)
-
+        while(spatialCapturesTab.firstChild){
+            spatialCapturesTab.removeChild(spatialCapturesTab.firstChild)
         }
-        else{
-            var map_id = 'mapDiv_spatialCaptures'
-            activeImage[map_id].setUrl(results.scr_files[0])
-        }
+        
+        // Builds the tab for the spatial captures plot
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'Spatial Captures'
+        h5.setAttribute('style', 'margin-bottom: 2px;')
+        spatialCapturesTab.appendChild(h5)
+
+        h5 = document.createElement('h5')
+        h5.innerHTML = '<div><i> The following plot displays the spatial captures of the species. The circles indicate the average spatial location of the individual. The crosses indicate the site locations. The lines indicate the sites visited by the individual (if an individual is detected at more than one site). </i></div>'
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        spatialCapturesTab.appendChild(h5)
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        spatialCapturesTab.appendChild(div)
+
+        var space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-10')
+        div.appendChild(col1)
+
+        var center = document.createElement('center')
+        col1.appendChild(center)
+
+        var map_id = 'mapDiv_spatialCaptures'
+        var mapDiv = document.createElement('div')
+        mapDiv.setAttribute('id',map_id)
+        mapDiv.setAttribute('style','height: 750px')
+        center.appendChild(mapDiv)
+
+        space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        spatialCapturesTab.appendChild(document.createElement('br'))
+
+        var sc_image = results.scr_files[0]
+        initialiseImageMap(sc_image, map_id)
+
     }
     else if (tab == 'stateSpaceTab'){
         var stateSpaceTab = document.getElementById('stateSpaceTab')
-        if (stateSpaceTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
-            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
-                while(stateSpaceTab.firstChild){
-                    stateSpaceTab.removeChild(stateSpaceTab.firstChild)
-                }
-            }
-            // Builds the tab for the state space plot
-            var h5 = document.createElement('h5')
-            h5.innerHTML = 'State Space'
-            h5.setAttribute('style', 'margin-bottom: 2px;')
-            stateSpaceTab.appendChild(h5)
 
-            h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following plot displays the state space of the population. All the grey pixels indicate your state space (including the buffer). The state space is dicretised reprensentation of the sites. The circles or points indicate your sites. The red S\'s indicate the area where individuals were detected (sites or average spatial location). The lines indicate whether individuals were seen at multiple sites. </i></div>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            stateSpaceTab.appendChild(h5)
-
-            var div = document.createElement('div')
-            div.classList.add('row')
-            stateSpaceTab.appendChild(div)
-
-            var space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
-
-            var col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            div.appendChild(col1)
-
-            var center = document.createElement('center')
-            col1.appendChild(center)
-
-            var map_id = 'mapDiv_stateSpace'
-            var mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id',map_id)
-            mapDiv.setAttribute('style','height: 750px')
-            center.appendChild(mapDiv)
-
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
-
-            stateSpaceTab.appendChild(document.createElement('br'))
-
-            var ss_image = results.scr_files[1]
-            initialiseImageMap(ss_image, map_id)
+        while(stateSpaceTab.firstChild){
+            stateSpaceTab.removeChild(stateSpaceTab.firstChild)
         }
-        else{
-            var map_id = 'mapDiv_stateSpace'
-            activeImage[map_id].setUrl(results.scr_files[1])
-        }
+        
+        // Builds the tab for the state space plot
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'State Space'
+        h5.setAttribute('style', 'margin-bottom: 2px;')
+        stateSpaceTab.appendChild(h5)
+
+        h5 = document.createElement('h5')
+        h5.innerHTML = '<div><i> The following plot displays the state space of the population. All the grey pixels indicate your state space (including the buffer). The state space is dicretised reprensentation of the sites. The circles or points indicate your sites. The red S\'s indicate the area where individuals were detected (sites or average spatial location). The lines indicate whether individuals were seen at multiple sites. </i></div>'
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        stateSpaceTab.appendChild(h5)
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        stateSpaceTab.appendChild(div)
+
+        var space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-10')
+        div.appendChild(col1)
+
+        var center = document.createElement('center')
+        col1.appendChild(center)
+
+        var map_id = 'mapDiv_stateSpace'
+        var mapDiv = document.createElement('div')
+        mapDiv.setAttribute('id',map_id)
+        mapDiv.setAttribute('style','height: 750px')
+        center.appendChild(mapDiv)
+
+        space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        stateSpaceTab.appendChild(document.createElement('br'))
+
+        var ss_image = results.scr_files[1]
+        initialiseImageMap(ss_image, map_id)
+
     }
     else if (tab == 'densityMapTab'){
         var densityMapTab = document.getElementById('densityMapTab')
+        var max_density = results.raster[results.raster.length - 1].max_density
+        var map_densities = results.raster.slice(0, -1)
+        var sites_density = results.sites_density
+        var indiv_counts = results.indiv_counts
 
-        if (densityMapTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
-            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
-                while(densityMapTab.firstChild){
-                    densityMapTab.removeChild(densityMapTab.firstChild)
+        while(densityMapTab.firstChild){
+            densityMapTab.removeChild(densityMapTab.firstChild)
+        }
+        
+        // Builds the tab for the density map plot
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'Density Map'
+        h5.setAttribute('style', 'margin-bottom: 2px;')
+        densityMapTab.appendChild(h5)
+
+        h5 = document.createElement('h5')
+        h5.id = 'densityMapDescription'
+        h5.innerHTML = '<div><i> The following map displays a heatmap of the density of the species. The heatmap is a representation of the density of the species in relation to the state space. The darker the colour, the higher the density of the species. </i></div>'            
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        densityMapTab.appendChild(h5)
+
+        // Radio buttons for density map
+        var divRadio = document.createElement('div')
+        divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+        densityMapTab.appendChild(divRadio)
+
+        var radio = document.createElement('input')
+        radio.setAttribute('type', 'radio')
+        radio.setAttribute('id', 'densityMap_heatmap')
+        radio.setAttribute('name', 'densityMap')
+        radio.setAttribute('class', 'custom-control-input')
+        radio.setAttribute('value', '0')
+        // radio.checked = true
+        divRadio.appendChild(radio)
+            
+        var label = document.createElement('label')
+        label.setAttribute('class', 'custom-control-label')
+        label.setAttribute('for', 'densityMap_heatmap')
+        label.innerHTML = 'Heatmap'
+        divRadio.appendChild(label)
+        
+        $('#densityMap_heatmap').change(function(densities, max_density, sites_density){
+            return function(){
+                if (this.checked){
+                    document.getElementById('densityMapDescription').innerHTML = '<div><i> The following map displays a heatmap of the density of the species. The heatmap is a representation of the density of the species in relation to the state space. The darker the colour, the higher the density of the species. </i></div>'
+                    document.getElementById('DHM_OptionsDiv').hidden = false
+                    document.getElementById('radiusSliderDHM').value = 54
+                    var map_id = 'mapDiv_densityMap'
+                    var mapDiv = document.getElementById(map_id)
+
+                    if (map[map_id]){
+                        map[map_id].remove()
+                    }
+
+                    while (mapDiv.firstChild){
+                        mapDiv.removeChild(mapDiv.firstChild)
+                    }
+
+                    initialiseDensityHeatmap(densities, max_density, sites_density, map_id)
                 }
             }
-            // Builds the tab for the density map plot
-            var h5 = document.createElement('h5')
-            h5.innerHTML = 'Density Map'
-            h5.setAttribute('style', 'margin-bottom: 2px;')
-            densityMapTab.appendChild(h5)
+        }(map_densities, max_density, sites_density))
 
-            h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following plot displays the density map of the species. The density map displays the predicted density per pixel of the species in relation to the state space.</i></div>'            
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            densityMapTab.appendChild(h5)
+        divRadio = document.createElement('div')
+        divRadio.setAttribute('class', 'custom-control custom-radio custom-control-inline');
+        densityMapTab.appendChild(divRadio)
 
-            var div = document.createElement('div')
-            div.classList.add('row')
-            densityMapTab.appendChild(div)
+        radio = document.createElement('input')
+        radio.setAttribute('type', 'radio')
+        radio.setAttribute('id', 'densityMap_plot')
+        radio.setAttribute('name', 'densityMap')
+        radio.setAttribute('class', 'custom-control-input')
+        radio.setAttribute('value', '1')
+        divRadio.appendChild(radio)                     
 
-            var space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
+        label = document.createElement('label')
+        label.setAttribute('class', 'custom-control-label')
+        label.setAttribute('for', 'densityMap_plot')
+        label.innerHTML = 'Plot'
+        divRadio.appendChild(label)
 
-            var col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            div.appendChild(col1)
+        $('#densityMap_plot').change(function(image_url){
+            return function(){
+                if (this.checked){
+                    document.getElementById('densityMapDescription').innerHTML ='<div><i> The following plot displays the density map of the species. The density map displays the predicted density per pixel of the species in relation to the state space.</i></div>'     
+                    document.getElementById('DHM_OptionsDiv').hidden = true 
+                    map_id = 'mapDiv_densityMap'
 
-            var center = document.createElement('center')
-            col1.appendChild(center)
+                    if (map[map_id]){
+                        map[map_id].remove()
+                    }
 
-            var map_id = 'mapDiv_densityMap'
-            var mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id',map_id)
-            mapDiv.setAttribute('style','height: 750px')
-            center.appendChild(mapDiv)
+                    mapDiv = document.getElementById(map_id)
+                    while (mapDiv.firstChild){
+                        mapDiv.removeChild(mapDiv.firstChild)
+                    }
 
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
+                    initialiseImageMap(image_url, map_id)
+                }
+            }
+        }(results.scr_files[2]))
 
-            densityMapTab.appendChild(document.createElement('br'))
+        var heatmapOptionsDiv = document.createElement('div')
+        heatmapOptionsDiv.id = 'DHM_OptionsDiv'
+        densityMapTab.appendChild(heatmapOptionsDiv)
 
-            var dm_image = results.scr_files[2]
-            initialiseImageMap(dm_image, map_id)
+        // SLider and checkboxex
+        var div = document.createElement('div')
+        div.classList.add('row')
+        heatmapOptionsDiv.appendChild(div)
 
-        }
-        else{
-            var map_id = 'mapDiv_densityMap'
-            activeImage[map_id].setUrl(results.scr_files[2])
-        }
+        var col = document.createElement('div')
+        col.classList.add('col-lg-1')
+        div.appendChild(col)
+
+        var label = document.createElement('label')
+        label.setAttribute('for','radiusSliderDHM')
+        label.innerHTML = 'Radius: '
+        col.appendChild(label)
+
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-2')
+        col.setAttribute('style','padding-left: 0px')
+        col.setAttribute('align','center')
+        div.appendChild(col)
+
+        var div1 = document.createElement('div')
+        div1.classList.add('justify-content-center')
+        col.appendChild(div1)
+
+        var div2 = document.createElement('div')
+        div2.classList.add('w-75')
+        div1.appendChild(div2)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','range')
+        input.setAttribute('class','custom-range')
+        input.setAttribute('id','radiusSliderDHM')
+        input.setAttribute('min','0')
+        input.setAttribute('max','100')
+        input.setAttribute('value','54')
+        div2.appendChild(input)
+
+        $("#radiusSliderDHM").change( function(counts, max_density){
+            return function(){
+                scale = document.getElementById('radiusSliderDHM').value
+                scale = logslider(scale)
+                
+                if (document.getElementById('nomaliseCxDHM').checked){
+                    var mapDHM = map['mapDiv_densityMap']
+
+                    var heatmap_data = []
+                    for (let i=0;i<counts.length;i++) {
+                        var latitude = counts[i].lat
+                        var longitude = counts[i].lng
+                        var count = counts[i].density
+                        if (count > 0){
+                            heatmap_data.push({lat:latitude,lng:longitude,count:count})
+                        } 
+                    }
+
+                    mapDHM.removeLayer(densHeatmapLayer)
+                    mapDHM.addLayer(invDensHeatmapLayer)
+
+                    invDensHeatmapLayer.cfg.radius = scale
+                    invDensHeatmapLayer._update()
+
+                    var maxVal = 0
+                    var hm_data = heatmap_data
+                    for (let i=0;i<hm_data.length;i++) {
+                        value = invDensHeatmapLayer._heatmap.getValueAt(mapDHM.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                        if (value!=0) {
+                            hm_data[i].count = (1000*hm_data[i].count)/value
+                            if (hm_data[i].count>maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
+                    }
+
+                    hm_max = 1.25*maxVal
+                    mapDHM.removeLayer(invDensHeatmapLayer)
+                    mapDHM.addLayer(densHeatmapLayer)
+
+                    densHeatmapLayer._data = []
+                    var data = {max:hm_max,data:hm_data}
+                    densHeatmapLayer.setData(data)
+                    densHeatmapLayer.cfg.radius = scale
+                    densHeatmapLayer._update()
+
+                }
+                else{
+                    densHeatmapLayer.cfg.radius = scale
+                    densHeatmapLayer._update()
+                }
+            }
+            
+        }(map_densities, max_density));
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        heatmapOptionsDiv.appendChild(div)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-4')
+        div.appendChild(col)
+
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','showSitesDHM')
+        input.setAttribute('name','showSitesDHM')
+        cxDiv.appendChild(input)
+
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','showSitesDHM')
+        label.innerHTML = 'Show Sites'
+        cxDiv.appendChild(label)
+
+        document.getElementById('showSitesDHM').addEventListener('change', function(){
+            if (document.getElementById('showSitesDHM').checked) {
+                for (let i=0;i<densMarkers.length;i++) {
+                    if (!map['mapDiv_densityMap'].hasLayer(densMarkers[i])) {
+                        map['mapDiv_densityMap'].addLayer(densMarkers[i])
+                    }
+                }
+            } else {
+                for (let i=0;i<densMarkers.length;i++) {
+                    if (map['mapDiv_densityMap'].hasLayer(densMarkers[i])) {
+                        map['mapDiv_densityMap'].removeLayer(densMarkers[i])
+                    }
+                }
+            }
+        });
+
+        document.getElementById('showSitesDHM').checked = true
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        heatmapOptionsDiv.appendChild(div)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-4')
+        div.appendChild(col)
+
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','nomaliseCxDHM')
+        input.setAttribute('name','nomaliseCxDHM')
+        cxDiv.appendChild(input)
+
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','nomaliseCxDHM')
+        label.innerHTML = 'Normalise for Site Density'
+        cxDiv.appendChild(label)
+
+        document.getElementById('nomaliseCxDHM').addEventListener('change', function(counts, max_density){
+            return function(){
+                var checkbox = document.getElementById('nomaliseCxDHM')
+                var mapDHM = map['mapDiv_densityMap']
+
+                var heatmap_data = []
+                for (let i=0;i<counts.length;i++) {
+                    var latitude = counts[i].lat
+                    var longitude = counts[i].lng
+                    var count = counts[i].density
+                    if (count > 0){
+                        heatmap_data.push({lat:latitude,lng:longitude,count:count})
+                    } 
+                }
+
+                if (checkbox.checked){
+                    mapDHM.removeLayer(densHeatmapLayer)
+                    mapDHM.addLayer(invDensHeatmapLayer)
+
+                    var maxVal = 0
+                    var hm_data = heatmap_data
+                    for (let i=0;i<hm_data.length;i++) {
+                        value = invDensHeatmapLayer._heatmap.getValueAt(mapDHM.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                        if (value!=0) {
+                            hm_data[i].count = (1000*hm_data[i].count)/value
+                            if (hm_data[i].count>maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
+                    }
+
+                    hm_max = 1.25*maxVal
+                    mapDHM.removeLayer(invDensHeatmapLayer)
+                    mapDHM.addLayer(densHeatmapLayer)
+
+                    var data = {max:hm_max,data:hm_data}
+                    densHeatmapLayer.setData(data)
+
+                }
+                else{
+                    mapDHM.removeLayer(densHeatmapLayer)
+                    mapDHM.addLayer(invDensHeatmapLayer)
+        
+                    var data = {max:max_density,data:heatmap_data}
+                    densHeatmapLayer.setData(data)
+
+                    mapDHM.removeLayer(invDensHeatmapLayer)
+                    mapDHM.addLayer(densHeatmapLayer)
+                    
+                }
+            }
+        }(map_densities, max_density));
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        heatmapOptionsDiv.appendChild(div)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-4')
+        div.appendChild(col)
+
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','showHeatMapDHM')
+        input.setAttribute('name','showHeatMapDHM')
+        cxDiv.appendChild(input)
+
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','showHeatMapDHM')
+        label.innerHTML = 'Show Heatmap'
+        cxDiv.appendChild(label)
+
+        document.getElementById('showHeatMapDHM').addEventListener('change', function(){
+            if (document.getElementById('showHeatMapDHM').checked) {
+                map['mapDiv_densityMap'].addLayer(densHeatmapLayer)
+            } else {
+                map['mapDiv_densityMap'].removeLayer(densHeatmapLayer)
+            }
+        });
+
+        document.getElementById('showHeatMapDHM').checked = true
+
+
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        densityMapTab.appendChild(div)
+
+        var space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-10')
+        col1.setAttribute('align','center')
+        div.appendChild(col1)
+
+        // var center = document.createElement('center')
+        // col1.appendChild(center)
+
+        var map_id = 'mapDiv_densityMap'
+        var mapDiv = document.createElement('div')
+        mapDiv.setAttribute('id',map_id)
+        mapDiv.setAttribute('style','height: 750px')
+        col1.appendChild(mapDiv)
+
+        space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        densityMapTab.appendChild(document.createElement('br'))
+
+        document.getElementById('DHM_OptionsDiv').hidden = false
+        document.getElementById('densityMap_heatmap').click()
+
     }
     else if (tab == 'srcHeatmapTab'){
         var max_count = results.individual_counts[results.individual_counts.length - 1].max_count
         var indiv_counts = results.individual_counts.slice(0, -1)
         var srcHeatmapTab = document.getElementById('srcHeatmapTab')
-        if (srcHeatmapTab.firstChild == null || mapResize['mapDiv_' + tab.split('Tab')[0]]){
-            if (mapResize['mapDiv_' + tab.split('Tab')[0]]){
-                while(srcHeatmapTab.firstChild){
-                    srcHeatmapTab.removeChild(srcHeatmapTab.firstChild)
-                }
-            }
+
+        while(srcHeatmapTab.firstChild){
+            srcHeatmapTab.removeChild(srcHeatmapTab.firstChild)
+        }
+        
+        // Builds the tab for the heatmap plot
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'Individual Counts Heatmap'
+        h5.setAttribute('style', 'margin-bottom: 2px;')
+        srcHeatmapTab.appendChild(h5)
+
+        h5 = document.createElement('h5')
+        h5.innerHTML = '<div><i> The following map displays a heatmap of the individual counts at each site. The heatmap is a representation of the density of the individuals at each site. The darker the colour, the higher the density of individuals. </i></div>'
+        h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+        srcHeatmapTab.appendChild(h5)
+
+        // SLider and checkboxex
+        var div = document.createElement('div')
+        div.classList.add('row')
+        srcHeatmapTab.appendChild(div)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-1')
+        div.appendChild(col)
+
+        var label = document.createElement('label')
+        label.setAttribute('for','radiusSliderSRC')
+        label.innerHTML = 'Radius: '
+        col.appendChild(label)
 
 
-            // Builds the tab for the heatmap plot
-            var h5 = document.createElement('h5')
-            h5.innerHTML = 'Heatmap'
-            h5.setAttribute('style', 'margin-bottom: 2px;')
-            srcHeatmapTab.appendChild(h5)
+        var col = document.createElement('div')
+        col.classList.add('col-lg-2')
+        col.setAttribute('style','padding-left: 0px')
+        col.setAttribute('align','center')
+        div.appendChild(col)
 
-            h5 = document.createElement('h5')
-            h5.innerHTML = '<div><i> The following map displays a heatmap of the individual counts at each site. The heatmap is a representation of the density of the individuals at each site. The darker the colour, the higher the density of individuals. </i></div>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            srcHeatmapTab.appendChild(h5)
+        var div1 = document.createElement('div')
+        div1.classList.add('justify-content-center')
+        col.appendChild(div1)
 
-            // SLider and checkboxex
-            var div = document.createElement('div')
-            div.classList.add('row')
-            srcHeatmapTab.appendChild(div)
+        var div2 = document.createElement('div')
+        div2.classList.add('w-75')
+        div1.appendChild(div2)
 
-            var col = document.createElement('div')
-            col.classList.add('col-lg-1')
-            div.appendChild(col)
+        var input = document.createElement('input')
+        input.setAttribute('type','range')
+        input.setAttribute('class','custom-range')
+        input.setAttribute('id','radiusSliderSRC')
+        input.setAttribute('min','0')
+        input.setAttribute('max','100')
+        input.setAttribute('value','54')
+        div2.appendChild(input)
 
-            var label = document.createElement('label')
-            label.setAttribute('for','radiusSliderSRC')
-            label.innerHTML = 'Radius: '
-            col.appendChild(label)
-
-
-            var col = document.createElement('div')
-            col.classList.add('col-lg-2')
-            col.setAttribute('style','padding-left: 0px')
-            col.setAttribute('align','center')
-            div.appendChild(col)
-
-            var div1 = document.createElement('div')
-            div1.classList.add('justify-content-center')
-            col.appendChild(div1)
-
-            var div2 = document.createElement('div')
-            div2.classList.add('w-75')
-            div1.appendChild(div2)
-
-            var input = document.createElement('input')
-            input.setAttribute('type','range')
-            input.setAttribute('class','custom-range')
-            input.setAttribute('id','radiusSliderSRC')
-            input.setAttribute('min','0')
-            input.setAttribute('max','100')
-            input.setAttribute('value','54')
-            div2.appendChild(input)
-
-            $("#radiusSliderSRC").change( function(counts, max_count){
-                
-                return function(){
-                    scale = document.getElementById('radiusSliderSRC').value
-                    scale = logslider(scale)
-                    
-                    if (document.getElementById('nomaliseCxSRC').checked){
-                        var mapSRC = map['mapDiv_srcHeatmap']
-
-                        var heatmap_data = []
-                        for (let i=0;i<counts.length;i++) {
-                            var tag = counts[i].site_id.split('_')[0]
-                            var latitude = counts[i].site_id.split('_')[1]
-                            var longitude = counts[i].site_id.split('_')[2]
-                            var count = counts[i].count
-                            if (count > 0){
-                                heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
-                            } 
-                        }
-
-                        mapSRC.removeLayer(heatmapLayer)
-                        mapSRC.addLayer(invHeatmapLayer)
-
-                        invHeatmapLayer.cfg.radius = scale
-                        invHeatmapLayer._update()
-
-                        var maxVal = 0
-                        var hm_data = heatmap_data
-                        for (let i=0;i<hm_data.length;i++) {
-                            value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
-                            if (value!=0) {
-                                hm_data[i].count = (1000*hm_data[i].count)/value
-                                if (hm_data[i].count>maxVal) {
-                                    maxVal = hm_data[i].count
-                                }
-                            }
-                        }
-
-                        hm_max = 1.25*maxVal
-                        mapSRC.removeLayer(invHeatmapLayer)
-                        mapSRC.addLayer(heatmapLayer)
-
-                        heatmapLayer._data = []
-                        var data = {max:hm_max,data:hm_data}
-                        heatmapLayer.setData(data)
-                        heatmapLayer.cfg.radius = scale
-                        heatmapLayer._update()
-    
-                    }
-                    else{
-                        heatmapLayer.cfg.radius = scale
-                        heatmapLayer._update()
-                    }
-                }
-                
-            }(indiv_counts, max_count));
-
-            var div = document.createElement('div')
-            div.classList.add('row')
-            srcHeatmapTab.appendChild(div)
-
-            var col = document.createElement('div')
-            col.classList.add('col-lg-4')
-            div.appendChild(col)
-
-            var cxDiv = document.createElement('div')
-            cxDiv.classList.add('custom-control')
-            cxDiv.classList.add('custom-checkbox')
-            col.appendChild(cxDiv)
-
-            var input = document.createElement('input')
-            input.setAttribute('type','checkbox')
-            input.setAttribute('class','custom-control-input')
-            input.setAttribute('id','showSitesSRC')
-            input.setAttribute('name','showSitesSRC')
-            cxDiv.appendChild(input)
-
+        $("#radiusSliderSRC").change( function(counts, max_count){
             
-            var label = document.createElement('label')
-            label.setAttribute('class','custom-control-label')
-            label.setAttribute('for','showSitesSRC')
-            label.innerHTML = 'Show Sites'
-            cxDiv.appendChild(label)
-
-            document.getElementById('showSitesSRC').addEventListener('change', function(){
-                if (document.getElementById('showSitesSRC').checked) {
-                    for (let i=0;i<markers.length;i++) {
-                        if (!map['mapDiv_srcHeatmap'].hasLayer(markers[i])) {
-                            map['mapDiv_srcHeatmap'].addLayer(markers[i])
-                        }
-                    }
-                } else {
-                    for (let i=0;i<markers.length;i++) {
-                        if (map['mapDiv_srcHeatmap'].hasLayer(markers[i])) {
-                            map['mapDiv_srcHeatmap'].removeLayer(markers[i])
-                        }
-                    }
-                }
-            });
-
-            document.getElementById('showSitesSRC').checked = true
-
-            var div = document.createElement('div')
-            div.classList.add('row')
-            srcHeatmapTab.appendChild(div)
-
-            var col = document.createElement('div')
-            col.classList.add('col-lg-4')
-            div.appendChild(col)
-
-            var cxDiv = document.createElement('div')
-            cxDiv.classList.add('custom-control')
-            cxDiv.classList.add('custom-checkbox')
-            col.appendChild(cxDiv)
-
-            var input = document.createElement('input')
-            input.setAttribute('type','checkbox')
-            input.setAttribute('class','custom-control-input')
-            input.setAttribute('id','nomaliseCxSRC')
-            input.setAttribute('name','nomaliseCxSRC')
-            cxDiv.appendChild(input)
-
-            
-            var label = document.createElement('label')
-            label.setAttribute('class','custom-control-label')
-            label.setAttribute('for','nomaliseCxSRC')
-            label.innerHTML = 'Normalise for Site Density'
-            cxDiv.appendChild(label)
-
-            document.getElementById('nomaliseCxSRC').addEventListener('change', function(counts, max_count){
-                return function(){
-                    var checkbox = document.getElementById('nomaliseCxSRC')
+            return function(){
+                scale = document.getElementById('radiusSliderSRC').value
+                scale = logslider(scale)
+                
+                if (document.getElementById('nomaliseCxSRC').checked){
                     var mapSRC = map['mapDiv_srcHeatmap']
 
                     var heatmap_data = []
@@ -8157,251 +8343,473 @@ function buildSCR(results, tab){
                         } 
                     }
 
-                    if (checkbox.checked){
-                        mapSRC.removeLayer(heatmapLayer)
-                        mapSRC.addLayer(invHeatmapLayer)
+                    mapSRC.removeLayer(heatmapLayer)
+                    mapSRC.addLayer(invHeatmapLayer)
 
-                        var maxVal = 0
-                        var hm_data = heatmap_data
-                        for (let i=0;i<hm_data.length;i++) {
-                            value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
-                            if (value!=0) {
-                                hm_data[i].count = (1000*hm_data[i].count)/value
-                                if (hm_data[i].count>maxVal) {
-                                    maxVal = hm_data[i].count
-                                }
+                    invHeatmapLayer.cfg.radius = scale
+                    invHeatmapLayer._update()
+
+                    var maxVal = 0
+                    var hm_data = heatmap_data
+                    for (let i=0;i<hm_data.length;i++) {
+                        value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                        if (value!=0) {
+                            hm_data[i].count = (1000*hm_data[i].count)/value
+                            if (hm_data[i].count>maxVal) {
+                                maxVal = hm_data[i].count
                             }
                         }
-
-                        hm_max = 1.25*maxVal
-                        mapSRC.removeLayer(invHeatmapLayer)
-                        mapSRC.addLayer(heatmapLayer)
-
-                        var data = {max:hm_max,data:hm_data}
-                        heatmapLayer.setData(data)
-
                     }
-                    else{
-                        mapSRC.removeLayer(heatmapLayer)
-                        mapSRC.addLayer(invHeatmapLayer)
-           
-                        var data = {max:max_count,data:heatmap_data}
-                        heatmapLayer.setData(data)
 
-                        mapSRC.removeLayer(invHeatmapLayer)
-                        mapSRC.addLayer(heatmapLayer)
-                        
-                    }
+                    hm_max = 1.25*maxVal
+                    mapSRC.removeLayer(invHeatmapLayer)
+                    mapSRC.addLayer(heatmapLayer)
+
+                    heatmapLayer._data = []
+                    var data = {max:hm_max,data:hm_data}
+                    heatmapLayer.setData(data)
+                    heatmapLayer.cfg.radius = scale
+                    heatmapLayer._update()
+
                 }
-            }(indiv_counts, max_count));
-
-            var div = document.createElement('div')
-            div.classList.add('row')
-            srcHeatmapTab.appendChild(div)
-
-            var col = document.createElement('div')
-            col.classList.add('col-lg-4')
-            div.appendChild(col)
-
-            var cxDiv = document.createElement('div')
-            cxDiv.classList.add('custom-control')
-            cxDiv.classList.add('custom-checkbox')
-            col.appendChild(cxDiv)
-
-            var input = document.createElement('input')
-            input.setAttribute('type','checkbox')
-            input.setAttribute('class','custom-control-input')
-            input.setAttribute('id','showHeatMapSRC')
-            input.setAttribute('name','showHeatMapSRC')
-            cxDiv.appendChild(input)
-
+                else{
+                    heatmapLayer.cfg.radius = scale
+                    heatmapLayer._update()
+                }
+            }
             
-            var label = document.createElement('label')
-            label.setAttribute('class','custom-control-label')
-            label.setAttribute('for','showHeatMapSRC')
-            label.innerHTML = 'Show Heatmap'
-            cxDiv.appendChild(label)
+        }(indiv_counts, max_count));
 
-            document.getElementById('showHeatMapSRC').addEventListener('change', function(){
-                if (document.getElementById('showHeatMapSRC').checked) {
-                    map['mapDiv_srcHeatmap'].addLayer(heatmapLayer)
-                } else {
-                    map['mapDiv_srcHeatmap'].removeLayer(heatmapLayer)
+        var div = document.createElement('div')
+        div.classList.add('row')
+        srcHeatmapTab.appendChild(div)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-4')
+        div.appendChild(col)
+
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','showSitesSRC')
+        input.setAttribute('name','showSitesSRC')
+        cxDiv.appendChild(input)
+
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','showSitesSRC')
+        label.innerHTML = 'Show Sites'
+        cxDiv.appendChild(label)
+
+        document.getElementById('showSitesSRC').addEventListener('change', function(){
+            if (document.getElementById('showSitesSRC').checked) {
+                for (let i=0;i<markers.length;i++) {
+                    if (!map['mapDiv_srcHeatmap'].hasLayer(markers[i])) {
+                        map['mapDiv_srcHeatmap'].addLayer(markers[i])
+                    }
                 }
-            });
+            } else {
+                for (let i=0;i<markers.length;i++) {
+                    if (map['mapDiv_srcHeatmap'].hasLayer(markers[i])) {
+                        map['mapDiv_srcHeatmap'].removeLayer(markers[i])
+                    }
+                }
+            }
+        });
 
-            document.getElementById('showHeatMapSRC').checked = true
+        document.getElementById('showSitesSRC').checked = true
 
-            srcHeatmapTab.appendChild(document.createElement('br'))
+        var div = document.createElement('div')
+        div.classList.add('row')
+        srcHeatmapTab.appendChild(div)
 
-            // Map
-            var div = document.createElement('div')
-            div.classList.add('row')
-            srcHeatmapTab.appendChild(div)
+        var col = document.createElement('div')
+        col.classList.add('col-lg-4')
+        div.appendChild(col)
 
-            var space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
 
-            var col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            div.appendChild(col1)
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','nomaliseCxSRC')
+        input.setAttribute('name','nomaliseCxSRC')
+        cxDiv.appendChild(input)
 
-            // var center = document.createElement('center')
-            // col1.appendChild(center)
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','nomaliseCxSRC')
+        label.innerHTML = 'Normalise for Site Density'
+        cxDiv.appendChild(label)
 
-            var map_id = 'mapDiv_srcHeatmap'
-            var mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id',map_id)
-            mapDiv.setAttribute('style','height: 750px')
-            col1.appendChild(mapDiv)
+        document.getElementById('nomaliseCxSRC').addEventListener('change', function(counts, max_count){
+            return function(){
+                var checkbox = document.getElementById('nomaliseCxSRC')
+                var mapSRC = map['mapDiv_srcHeatmap']
 
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
+                var heatmap_data = []
+                for (let i=0;i<counts.length;i++) {
+                    var latitude = counts[i].site_id.split('_')[1]
+                    var longitude = counts[i].site_id.split('_')[2]
+                    var count = counts[i].count
+                    if (count > 0){
+                        heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+                    } 
+                }
 
-            var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                if (checkbox.checked){
+                    mapSRC.removeLayer(heatmapLayer)
+                    mapSRC.addLayer(invHeatmapLayer)
+
+                    var maxVal = 0
+                    var hm_data = heatmap_data
+                    for (let i=0;i<hm_data.length;i++) {
+                        value = invHeatmapLayer._heatmap.getValueAt(mapSRC.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
+                        if (value!=0) {
+                            hm_data[i].count = (1000*hm_data[i].count)/value
+                            if (hm_data[i].count>maxVal) {
+                                maxVal = hm_data[i].count
+                            }
+                        }
+                    }
+
+                    hm_max = 1.25*maxVal
+                    mapSRC.removeLayer(invHeatmapLayer)
+                    mapSRC.addLayer(heatmapLayer)
+
+                    var data = {max:hm_max,data:hm_data}
+                    heatmapLayer.setData(data)
+
+                }
+                else{
+                    mapSRC.removeLayer(heatmapLayer)
+                    mapSRC.addLayer(invHeatmapLayer)
+        
+                    var data = {max:max_count,data:heatmap_data}
+                    heatmapLayer.setData(data)
+
+                    mapSRC.removeLayer(invHeatmapLayer)
+                    mapSRC.addLayer(heatmapLayer)
+                    
+                }
+            }
+        }(indiv_counts, max_count));
+
+        var div = document.createElement('div')
+        div.classList.add('row')
+        srcHeatmapTab.appendChild(div)
+
+        var col = document.createElement('div')
+        col.classList.add('col-lg-4')
+        div.appendChild(col)
+
+        var cxDiv = document.createElement('div')
+        cxDiv.classList.add('custom-control')
+        cxDiv.classList.add('custom-checkbox')
+        col.appendChild(cxDiv)
+
+        var input = document.createElement('input')
+        input.setAttribute('type','checkbox')
+        input.setAttribute('class','custom-control-input')
+        input.setAttribute('id','showHeatMapSRC')
+        input.setAttribute('name','showHeatMapSRC')
+        cxDiv.appendChild(input)
+
+        
+        var label = document.createElement('label')
+        label.setAttribute('class','custom-control-label')
+        label.setAttribute('for','showHeatMapSRC')
+        label.innerHTML = 'Show Heatmap'
+        cxDiv.appendChild(label)
+
+        document.getElementById('showHeatMapSRC').addEventListener('change', function(){
+            if (document.getElementById('showHeatMapSRC').checked) {
+                map['mapDiv_srcHeatmap'].addLayer(heatmapLayer)
+            } else {
+                map['mapDiv_srcHeatmap'].removeLayer(heatmapLayer)
+            }
+        });
+
+        document.getElementById('showHeatMapSRC').checked = true
+
+        srcHeatmapTab.appendChild(document.createElement('br'))
+
+        // Map
+        var div = document.createElement('div')
+        div.classList.add('row')
+        srcHeatmapTab.appendChild(div)
+
+        var space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-10')
+        div.appendChild(col1)
+
+        // var center = document.createElement('center')
+        // col1.appendChild(center)
+
+        var map_id = 'mapDiv_srcHeatmap'
+        var mapDiv = document.createElement('div')
+        mapDiv.setAttribute('id',map_id)
+        mapDiv.setAttribute('style','height: 750px')
+        col1.appendChild(mapDiv)
+
+        space = document.createElement('div')
+        space.classList.add('col-lg-1')
+        div.appendChild(space)
+
+        var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: 'mapbox/satellite-v9',
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+        })
+
+        var osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
             maxZoom: 18,
-            id: 'mapbox/satellite-v9',
+            id: 'mapbox/streets-v11',
             tileSize: 512,
             zoomOffset: -1,
             accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-            })
+        })
 
-            var osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-                maxZoom: 18,
-                id: 'mapbox/streets-v11',
-                tileSize: 512,
-                zoomOffset: -1,
-                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-            })
+        var gSat = L.gridLayer.googleMutant({type: 'satellite'})
+        var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
-            var gSat = L.gridLayer.googleMutant({type: 'satellite'})
-            var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+        var cfg = {
+            "radius": 0.05,
+            "maxOpacity": .8,
+            "scaleRadius": true,
+            "useLocalExtrema": false,
+            latField: 'lat',
+            lngField: 'lng',
+            valueField: 'count'
+        };
 
-            var cfg = {
-                "radius": 0.05,
-                "maxOpacity": .8,
-                "scaleRadius": true,
-                "useLocalExtrema": false,
-                latField: 'lat',
-                lngField: 'lng',
-                valueField: 'count'
-            };
+        var invCfg = {
+            "radius": 0.05,
+            "maxOpacity": 0,
+            "scaleRadius": true,
+            "useLocalExtrema": false,
+            latField: 'lat',
+            lngField: 'lng',
+            valueField: 'count'
+        };
 
-            var invCfg = {
-                "radius": 0.05,
-                "maxOpacity": 0,
-                "scaleRadius": true,
-                "useLocalExtrema": false,
-                latField: 'lat',
-                lngField: 'lng',
-                valueField: 'count'
-            };
+        heatmapLayer = new HeatmapOverlay(cfg);
+        invHeatmapLayer = new HeatmapOverlay(invCfg);
 
-            heatmapLayer = new HeatmapOverlay(cfg);
-            invHeatmapLayer = new HeatmapOverlay(invCfg);
+        map[map_id] = new L.map('mapDiv_srcHeatmap', {
+            layers: [gSat, heatmapLayer]
+        });
 
-            map[map_id] = new L.map('mapDiv_srcHeatmap', {
-                layers: [gSat, heatmapLayer]
+        baseMaps = {
+            "Google Satellite": gSat,
+            "Google Hybrid": gHyb,
+            "OpenStreetMaps Satellite": osmSat,
+            "OpenStreetMaps Roadmap": osmSt,
+        };
+
+        L.control.layers(baseMaps).addTo(map[map_id]);
+        L.control.scale().addTo(map[map_id]);
+        map[map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+        map[map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
+
+        map[map_id].on('baselayerchange', function(wrap_map_id) {
+            return function(e) {
+                if (e.name.includes('Google')) {
+                    map[wrap_map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+                    map[wrap_map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
+                }
+                activeBaseLayer = e;
+            }
+        }(map_id));
+
+        markers = []
+        var refMarkers = []
+        for (let i=0;i<indiv_counts.length;i++) {
+            var tag = indiv_counts[i].site_id.split('_')[0]
+            var latitude = indiv_counts[i].site_id.split('_')[1]
+            var longitude = indiv_counts[i].site_id.split('_')[2]
+
+            marker = L.marker([latitude, longitude]).addTo(map[map_id])
+            markers.push(marker)
+            map[map_id].addLayer(marker)
+            text = '<b>Site: </b>' + tag + '<br><b>Count: </b>' + indiv_counts[i].count
+            marker.bindPopup(text);
+            // marker.bindPopup(tag);
+            marker.on('mouseover', function (e) {
+                this.openPopup();
             });
-
-            baseMaps = {
-                "Google Satellite": gSat,
-                "Google Hybrid": gHyb,
-                "OpenStreetMaps Satellite": osmSat,
-                "OpenStreetMaps Roadmap": osmSt,
-            };
-
-            L.control.layers(baseMaps).addTo(map[map_id]);
-            L.control.scale().addTo(map[map_id]);
-            map[map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-            map[map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
-
-            map[map_id].on('baselayerchange', function(wrap_map_id) {
-                return function(e) {
-                    if (e.name.includes('Google')) {
-                        map[wrap_map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-                        map[wrap_map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
-                    }
-                    activeBaseLayer = e;
-                }
-            }(map_id));
-
-            map[map_id].on('resize', function(wrap_map_id) {
-                return function(e) {
-                    mapResize[wrap_map_id] = false
-                    for (let map_id in mapResize) {
-                        if (map_id != wrap_map_id) {
-                            mapResize[map_id] = true
-                        }
-                    }
-                }
-            }(map_id));
-
-            markers = []
-            var refMarkers = []
-            for (let i=0;i<indiv_counts.length;i++) {
-                var tag = indiv_counts[i].site_id.split('_')[0]
-                var latitude = indiv_counts[i].site_id.split('_')[1]
-                var longitude = indiv_counts[i].site_id.split('_')[2]
-
-                marker = L.marker([latitude, longitude]).addTo(map[map_id])
-                markers.push(marker)
-                map[map_id].addLayer(marker)
-                text = '<b>Site: </b>' + tag + '<br><b>Count: </b>' + indiv_counts[i].count
-                marker.bindPopup(text);
-                // marker.bindPopup(tag);
-                marker.on('mouseover', function (e) {
-                    this.openPopup();
-                });
-                marker.on('mouseout', function (e) {
-                    this.closePopup();
-                });
-                refMarkers.push({lat:latitude,lng:longitude,count:1000,tag:tag})
-            }
-            var refData = {max:2000,data:refMarkers}
-            invHeatmapLayer.setData(refData)
-
-            var group = new L.featureGroup(markers);
-            map[map_id].fitBounds(group.getBounds().pad(0.1))
-            if(markers.length == 1) {
-                map[map_id].setZoom(10)
-            }
-
-            spatialExportControl = L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map[map_id]);
-
-            var heatmap_data = []
-            for (let i=0;i<indiv_counts.length;i++) {
-                var tag = indiv_counts[i].site_id.split('_')[0]
-                var latitude = indiv_counts[i].site_id.split('_')[1]
-                var longitude = indiv_counts[i].site_id.split('_')[2]
-                var count = indiv_counts[i].count
-                if (count > 0){
-                    heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
-                } 
-            }
-
-            var data = {max:max_count,data:heatmap_data}
-
-            heatmapLayer.setData(data)
-
-
-            mapResize['mapDiv_' + tab.split('Tab')[0]] = false
-
-        
-
-
-            srcHeatmapTab.appendChild(document.createElement('br'))
-
+            marker.on('mouseout', function (e) {
+                this.closePopup();
+            });
+            refMarkers.push({lat:latitude,lng:longitude,count:1000,tag:tag})
         }
-        else{
+        var refData = {max:2000,data:refMarkers}
+        invHeatmapLayer.setData(refData)
 
+        var group = new L.featureGroup(markers);
+        map[map_id].fitBounds(group.getBounds().pad(0.1))
+        if(markers.length == 1) {
+            map[map_id].setZoom(10)
         }
-        
+
+        spatialExportControl = L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map[map_id]);
+
+        var heatmap_data = []
+        for (let i=0;i<indiv_counts.length;i++) {
+            var tag = indiv_counts[i].site_id.split('_')[0]
+            var latitude = indiv_counts[i].site_id.split('_')[1]
+            var longitude = indiv_counts[i].site_id.split('_')[2]
+            var count = indiv_counts[i].count
+            if (count > 0){
+                heatmap_data.push({lat:latitude,lng:longitude,count:count,tag:tag})
+            } 
+        }
+
+        var data = {max:max_count,data:heatmap_data}
+        heatmapLayer.setData(data)
+
+        srcHeatmapTab.appendChild(document.createElement('br'))
     }
+
+}
+
+function initialiseDensityHeatmap(map_densities, max_density, sites_density, map_id){
+    /**Initialises the density heatmap. */
+
+    var osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 18,
+    id: 'mapbox/satellite-v9',
+    tileSize: 512,
+    zoomOffset: -1,
+    accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+    })
+
+    var osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        maxZoom: 18,
+        id: 'mapbox/streets-v11',
+        tileSize: 512,
+        zoomOffset: -1,
+        accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+    })
+
+    var gSat = L.gridLayer.googleMutant({type: 'satellite'})
+    var gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+
+    var cfg = {
+        "radius": 0.05,
+        "maxOpacity": .8,
+        "scaleRadius": true,
+        "useLocalExtrema": false,
+        latField: 'lat',
+        lngField: 'lng',
+        valueField: 'count'
+    };
+
+    var invCfg = {
+        "radius": 0.05,
+        "maxOpacity": 0,
+        "scaleRadius": true,
+        "useLocalExtrema": false,
+        latField: 'lat',
+        lngField: 'lng',
+        valueField: 'count'
+    };
+
+    densHeatmapLayer = new HeatmapOverlay(cfg);
+    invDensHeatmapLayer = new HeatmapOverlay(invCfg);
+
+    map[map_id] = new L.map(map_id, {
+        layers: [gSat, densHeatmapLayer]
+    });
+
+    baseMaps = {
+        "Google Satellite": gSat,
+        "Google Hybrid": gHyb,
+        "OpenStreetMaps Satellite": osmSat,
+        "OpenStreetMaps Roadmap": osmSt,
+    };
+
+    L.control.layers(baseMaps).addTo(map[map_id]);
+    L.control.scale().addTo(map[map_id]);
+    map[map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+    map[map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
+
+    map[map_id].on('baselayerchange', function(wrap_map_id) {
+        return function(e) {
+            if (e.name.includes('Google')) {
+                map[wrap_map_id]._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+                map[wrap_map_id]._controlCorners['bottomright'].style.marginBottom = "14px";
+            }
+            activeBaseLayer = e;
+        }
+    }(map_id));
+
+    densMarkers = []
+    var refMarkers = []
+    for (let i=0;i<sites_density.length;i++) {
+        var tag = sites_density[i].site_id.split('_')[0]
+        var latitude = sites_density[i].site_id.split('_')[1]
+        var longitude = sites_density[i].site_id.split('_')[2]
+        var density = parseFloat(sites_density[i].density).toFixed(4)
+
+        marker = L.marker([latitude, longitude]).addTo(map[map_id])
+        densMarkers.push(marker)
+        map[map_id].addLayer(marker)
+        text = '<b>Site: </b>' + tag + '<br><b>Density: </b>' + density
+        marker.bindPopup(text);
+        // marker.bindPopup(tag);
+        marker.on('mouseover', function (e) {
+            this.openPopup();
+        });
+        marker.on('mouseout', function (e) {
+            this.closePopup();
+        });
+        refMarkers.push({lat:latitude,lng:longitude,count:1000,tag:tag})
+    }
+    var refData = {max:2000,data:refMarkers}
+    invDensHeatmapLayer.setData(refData)
+
+    var group = new L.featureGroup(densMarkers);
+    map[map_id].fitBounds(group.getBounds().pad(0.1))
+    if(densMarkers.length == 1) {
+        map[map_id].setZoom(10)
+    }
+
+    dhmExportControl = L.control.bigImage({position: 'topright', maxScale: 1}).addTo(map[map_id]);
+
+    var heatmap_data = []
+    for (let i=0;i<map_densities.length;i++) {
+        var latitude = map_densities[i].lat
+        var longitude = map_densities[i].lng
+        var count = map_densities[i].density
+        if (count > 0){
+            heatmap_data.push({lat:latitude,lng:longitude,count:count})
+        } 
+    }
+
+    var data = {max:max_density,data:heatmap_data}
+
+    densHeatmapLayer.setData(data)
 
 }
 

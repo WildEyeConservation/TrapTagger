@@ -3800,6 +3800,11 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
             sites_df['utm_x'] = sites_df.apply(lambda row: utm.from_latlon(row['latitude'], row['longitude'])[0]/1000, axis=1)
             sites_df['utm_y'] = sites_df.apply(lambda row: utm.from_latlon(row['latitude'], row['longitude'])[1]/1000, axis=1)
 
+            # get grid zone and zone number
+            utm_mean = utm.from_latlon(sites_df['latitude'].mean(), sites_df['longitude'].mean())
+            zone_number = utm_mean[2]
+            grid_zone = utm_mean[3]
+
             # Add a date column
             individuals_df['date'] = individuals_df['timestamp'].dt.date
             sites_df['first_date'] = sites_df['first_date'].dt.date
@@ -3879,8 +3884,6 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
                 site_cov = site_cov.rename_axis(None, axis=1)
 
                 tdf['sep'] = '/'
-
-                app.logger.info(site_cov)
                 
                 #merge site_cov with tdf
                 tdf = pd.merge(tdf, site_cov, on='site_id', how='left')
@@ -4045,6 +4048,20 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
 
                 message = str(scr_results.rx2('message')[0])
 
+                raster_df = pd.DataFrame(scr_results.rx2('raster_df'))
+                if raster_df.empty:
+                    raster_df = []
+                else:
+                    raster_df['lat'] = raster_df.apply(lambda row: utm.to_latlon(row['X']*1000, row['Y']*1000, zone_number, grid_zone)[0], axis=1)
+                    raster_df['lng'] = raster_df.apply(lambda row: utm.to_latlon(row['X']*1000, row['Y']*1000, zone_number, grid_zone)[1], axis=1)
+                    raster_df = raster_df[['lat', 'lng', 'density']]
+                    max_density = raster_df['density'].max()
+                    raster_df = raster_df.to_dict(orient='records')
+                    raster_df.append({'max_density': str(max_density)})
+
+                sites_density = pd.DataFrame(scr_results.rx2('sites_density'))
+                sites_density = sites_density.to_dict(orient='records')
+
                 # Upload the files to S3
                 scr_files = []
                 for i in range(len(plots)):
@@ -4068,7 +4085,9 @@ def get_spatial_capture_recapture(self, species, user_id, task_ids, trapgroups, 
                     'aic': aic,
                     'cr': cr,
                     'message': message,
-                    'individual_counts': individual_counts
+                    'individual_counts': individual_counts,
+                    'raster': raster_df,
+                    'sites_density': sites_density
                 }
 
                 status = 'SUCCESS'
