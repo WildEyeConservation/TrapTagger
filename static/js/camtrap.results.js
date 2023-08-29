@@ -2021,7 +2021,7 @@ function getSelectedSites(text=false){
     else {
         allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
     }
-    
+
     if (text) {
         for (let i=0;i<allSites.length;i++) {
             if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
@@ -7094,11 +7094,6 @@ function buildSCR(results, tab){
                     var td = document.createElement('td')
                     var value = summary_estimate[keys[j]]
                     if (keys[j] == 'MMDM' || keys[j] == 'HMMDM'){
-                        if(keys[j] == 'MMDM'){
-                            if (parseInt(value) == 0){
-                                document.getElementById('statisticsErrors').innerHTML = 'The MMDM is 0 for your indiviual data. For the analysis it was set to 1. The results may not be accurate. A MMDM of 0 indicates that no individuals moved between sites or that you have not specified coordinates for your sites. Please ensure that your data is correct.'
-                            }
-                        }
                         td.innerHTML = value.toFixed(2)
                     }
                     else{
@@ -7540,8 +7535,14 @@ function buildSCR(results, tab){
     }
     else if (tab == 'densityMapTab'){
         var densityMapTab = document.getElementById('densityMapTab')
-        var max_density = results.raster[results.raster.length - 1].max_density
-        var map_densities = results.raster.slice(0, -1)
+        if (results.raster.length > 0){
+            var max_density = results.raster[results.raster.length - 1].max_density
+            var map_densities = results.raster.slice(0, -1)
+        }
+        else{
+            var max_density = 0
+            var map_densities = []
+        }
         var sites_density = results.sites_density
         var indiv_counts = results.indiv_counts
 
@@ -7584,8 +7585,6 @@ function buildSCR(results, tab){
             return function(){
                 if (this.checked){
                     document.getElementById('densityMapDescription').innerHTML = '<div><i> The following map displays a heatmap of the density of the species. The heatmap is a representation of the density of the species in relation to the state space. The darker the colour, the higher the density of the species. </i></div>'
-                    document.getElementById('DHM_OptionsDiv').hidden = false
-                    document.getElementById('radiusSliderDHM').value = 54
                     var map_id = 'mapDiv_densityMap'
                     var mapDiv = document.getElementById(map_id)
 
@@ -7597,7 +7596,11 @@ function buildSCR(results, tab){
                         mapDiv.removeChild(mapDiv.firstChild)
                     }
 
-                    initialiseDensityHeatmap(densities, max_density, sites_density, map_id)
+                    if (densities.length > 0){
+                        document.getElementById('DHM_OptionsDiv').hidden = false
+                        document.getElementById('radiusSliderDHM').value = 54
+                        initialiseDensityHeatmap(densities, max_density, sites_density, map_id)
+                    }
                 }
             }
         }(map_densities, max_density, sites_density))
@@ -7924,7 +7927,7 @@ function buildSCR(results, tab){
 
         densityMapTab.appendChild(document.createElement('br'))
 
-        document.getElementById('DHM_OptionsDiv').hidden = false
+        document.getElementById('DHM_OptionsDiv').hidden = true
         document.getElementById('densityMap_heatmap').click()
 
     }

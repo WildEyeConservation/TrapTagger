@@ -146,9 +146,8 @@ spatial_capture_recapture <- function(edf, tdf, session_col, id_col, occ_col, tr
     summary_df <- data.frame(Individuals = nr_individuals, Sites = nr_sites, Occasions = nr_occasions, MMDM = mmdm, HMMDM = mmdm/2)
 
     if(mmdm == 0){
-        print('MMDMD is 0')
-        mmdm <- 2
-        species.sf$mmdm <- mmdm
+        message <- paste(message, 'The MMDM is 0. It can indicate that you have not specified coordinates for your sites. It can also indicate that no individuals were seen at more than one site (individual id may not be complete). Please ensure your data is correct and try again.')
+        return (list(density = data.frame(), abundance = data.frame(), det_prob = data.frame(), sigma = data.frame(), summary = summary_df, aic = data.frame(), cr = cr, message = message, raster_df = data.frame(), sites_density = data.frame()))
     }
     hmmdm <- mmdm / 2
     
