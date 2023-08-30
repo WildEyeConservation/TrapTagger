@@ -2689,9 +2689,8 @@ def calculate_activity_pattern(self,task_ids,trapgroups,species,baseUnit,user_id
 
             if csv:
                 # Convert to CSV and upload to bucket
-                df_csv = df.drop(columns=['id'])
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-                    df_csv.to_csv(temp_file.name,index=False)
+                    df.to_csv(temp_file.name,index=False)
                     fileName = user_folder+'/docs/' + 'Activity_Pattern_CSV'
                     for specie in species:
                         fileName += '_' + specie

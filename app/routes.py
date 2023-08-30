@@ -8694,6 +8694,10 @@ def getActivityPattern():
                     message = 'Task {} failed'.format(result_id)
                     result.forget()
                     GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
+            else:
+                activity_img_url = None
+                message = 'No task ID'
+                GLOBALS.redisClient.delete('activity_pattern_' + str(current_user.id))
 
     return json.dumps({'status': status, 'activity_img_url': activity_img_url, 'message': message})
 
@@ -8766,6 +8770,10 @@ def getActivityPatternCSV():
                     activity_csv_url = None
                     result.forget()
                     GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
+            else:
+                activity_csv_url = None
+                message = 'No task ID'
+                GLOBALS.redisClient.delete('activity_pattern_csv_' + str(current_user.id))
             
     return json.dumps({'status': status, 'activity_csv_url': activity_csv_url, 'message': message})
 
@@ -8845,6 +8853,10 @@ def getResultsSummary():
                     summary = {}
                     result.forget()
                     GLOBALS.redisClient.delete('results_summary_' + str(current_user.id))
+            else:
+                summary = {}
+                message = 'No task ID'
+                GLOBALS.redisClient.delete('results_summary_' + str(current_user.id))
 
     return json.dumps({'status': status, 'summary': summary, 'message': message})
 
@@ -8916,7 +8928,10 @@ def getOccupancy():
                     occupancy_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
-
+            else:
+                occupancy_results = {}
+                message = 'No task ID'
+                GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
 
     return json.dumps({'status': status, 'results': occupancy_results, 'message': message})
 
@@ -8988,6 +9003,9 @@ def getOccupancyCSV():
                     csv_urls = {}
                     result.forget()
                     GLOBALS.redisClient.delete('occupancy_csv_' + str(current_user.id))
+            else:
+                csv_urls = {}
+                GLOBALS.redisClient.delete('occupancy_csv_' + str(current_user.id))
 
 
     return json.dumps({'status': status, 'csv_urls': csv_urls})
@@ -9103,6 +9121,10 @@ def getSpatialCaptureRecapture():
                     scr_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('scr_analysis_' + str(current_user.id))
+            else:
+                msg = 'No task id found'
+                scr_results = {}
+                GLOBALS.redisClient.delete('scr_analysis_' + str(current_user.id))
 
     return json.dumps({'status': status, 'results': scr_results, 'message': msg})
 
@@ -9173,6 +9195,10 @@ def getSpatialCaptureRecaptureCSV():
                     scr_csvs = {}
                     result.forget()
                     GLOBALS.redisClient.delete('scr_csv_' + str(current_user.id))
+            else:
+                msg = 'No task id found'
+                scr_csvs = {}
+                GLOBALS.redisClient.delete('scr_csv_' + str(current_user.id))
 
     return json.dumps({'status': status, 'csv_urls': scr_csvs, 'message': msg})
 
