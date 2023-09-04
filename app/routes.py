@@ -1767,8 +1767,8 @@ def editSurvey():
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
+@app.route('/TTWorkerSignup', methods=['GET', 'POST'])
+def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
 
     if current_user.is_authenticated:
@@ -2558,8 +2558,8 @@ def jobs():
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+@app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
+def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
     
     if current_user.is_authenticated:
@@ -2597,7 +2597,7 @@ def register():
                 if (check == None) and (len(folder) <= 64) and not disallowed:
                     send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
                     flash('Enquiry submitted.')
-                    return redirect(url_for('register'))
+                    return redirect(url_for('TTRegisterAdmin'))
                 elif disallowed:
                     flash('Your organisation name cannot contain special characters.')
                 elif len(folder) <= 64:
@@ -2606,7 +2606,7 @@ def register():
                     flash('Invalid organsiation name. Please try again.')
             else:
                 flash('Enquiry (not) submitted.')
-                return redirect(url_for('register'))
+                return redirect(url_for('TTRegisterAdmin'))
         return render_template("html/register.html", enquiryForm=enquiryForm, helpFile='registration_page', version=Config.VERSION)
 
 @app.route('/dataPipeline')

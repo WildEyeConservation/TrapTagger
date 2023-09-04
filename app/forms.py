@@ -15,7 +15,7 @@ limitations under the License.
 '''
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, HiddenField
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, HiddenField, IntegerField
 from wtforms.validators import DataRequired, EqualTo, ValidationError, Email
 from app.models import User
 
@@ -30,6 +30,7 @@ class RegistrationForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
     password2 = PasswordField(
         'Repeat Password', validators=[DataRequired(), EqualTo('password')])
+    sum_check = IntegerField('What is 3 + 4?', validators=[DataRequired()])
     submit = SubmitField('Register')
 
     def validate_username(self, username):
@@ -42,6 +43,10 @@ class RegistrationForm(FlaskForm):
         if user is not None:
             raise ValidationError('Please use a different email address.')
 
+    def validate_sum_check(self, sum_check):
+        if sum_check.data != 7:
+            raise ValidationError('Incorrect answer.')
+
 class NewSurveyForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     description = TextAreaField('Name', validators=[DataRequired()])
@@ -52,6 +57,11 @@ class EnquiryForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     description = TextAreaField('Description', validators=[DataRequired()])
     info = HiddenField('info')
+    sum_check = IntegerField('What is 3 + 4?', validators=[DataRequired()])
+
+    def validate_sum_check(self, sum_check):
+        if sum_check.data != 7:
+            raise ValidationError('Incorrect answer.')
 
 class ResetPasswordForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
