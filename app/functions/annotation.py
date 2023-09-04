@@ -89,7 +89,7 @@ def required_images(cluster,relevent_classifications,transDict):
 
     return required
 
-def prep_required_images(task_id):
+def prep_required_images(task_id,trapgroup_id=None):
     '''Prepares the required images for every cluster in a specified task - the images that must be viewed by the 
     user based on the species contained therein.'''
 
@@ -100,8 +100,13 @@ def prep_required_images(task_id):
 
     clusters = db.session.query(Cluster)\
                     .filter(Cluster.task_id == task_id)\
-                    .filter(Cluster.examined==False)\
-                    .distinct().all()
+                    .filter(Cluster.examined==False)
+
+    if trapgroup_id: clusters = clusters.join(Image,Cluster.images)\
+                                        .join(Camera)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)
+
+    clusters = clusters.distinct().all()
 
     if len(clusters) != 0:
         if (',' in taggingLevel) or isBounding:
@@ -128,13 +133,17 @@ def prep_required_images(task_id):
                                                     .join(Translation,Translation.classification==Detection.classification)\
                                                     .join(Image)\
                                                     .join(Camera)\
-                                                    .join(Trapgroup)\
                                                     .filter(Translation.task_id==task_id)\
-                                                    .filter(Trapgroup.survey_id==survey_id)\
                                                     .filter(Detection.classification!=None)\
                                                     .filter(func.lower(Detection.classification)!='nothing')\
-                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)\
-                                                    .distinct().all()
+                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)
+                
+                if trapgroup_id:
+                    relevent_classifications = relevent_classifications.filter(Camera.trapgroup_id==trapgroup_id)
+                else:
+                    relevent_classifications = relevent_classifications.join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+
+                relevent_classifications = relevent_classifications.distinct().all()
                 relevent_classifications = [r[0] for r in relevent_classifications]
             
             transDict = {}
@@ -1584,34 +1593,35 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
             # add required images
             if (not id) and (not isBounding) and (',' not in taggingLevel):
                 for image_id in clusterInfo[cluster_id]['required']:
-                    covered_images.append(image_id)
-                    images.append({
-                        'id': clusterInfo[cluster_id]['images'][image_id]['id'],
-                        'url': clusterInfo[cluster_id]['images'][image_id]['url'],
-                        'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
-                        'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
-                        'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
-                        'latitude': clusterInfo[cluster_id]['images'][image_id]['latitude'],
-                        'longitude': clusterInfo[cluster_id]['images'][image_id]['longitude'],
-                        'detections': [{
-                            'id': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['id'],
-                            'top': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['top'],
-                            'bottom': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['bottom'],
-                            'left': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['left'],
-                            'right': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['right'],
-                            'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
-                            'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
-                            'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
-                            'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
-                            'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
-                            'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
-                        for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
-                                                                '-4' not in taggingLevel) 
-                                                            or (
-                                                                (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
-                                                            )))]
-                    })
+                    if image_id in clusterInfo[cluster_id]['images'].keys():
+                        covered_images.append(image_id)
+                        images.append({
+                            'id': clusterInfo[cluster_id]['images'][image_id]['id'],
+                            'url': clusterInfo[cluster_id]['images'][image_id]['url'],
+                            'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
+                            'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
+                            'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
+                            'latitude': clusterInfo[cluster_id]['images'][image_id]['latitude'],
+                            'longitude': clusterInfo[cluster_id]['images'][image_id]['longitude'],
+                            'detections': [{
+                                'id': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['id'],
+                                'top': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['top'],
+                                'bottom': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['bottom'],
+                                'left': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['left'],
+                                'right': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['right'],
+                                'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
+                                'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
+                                'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
+                                'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
+                                'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
+                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
+                            for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
+                                                                    '-4' not in taggingLevel) 
+                                                                or (
+                                                                    (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
+                                                                    and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
+                                                                )))]
+                        })
             
             required = [n for n in range(len(images))]
             

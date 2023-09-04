@@ -2449,6 +2449,9 @@ def re_evaluate_trapgroup_examined(trapgroup_id,task_id):
         cluster.examined = False
     db.session.commit()
 
+    prep_required_images(task_id,trapgroup_id)
+    db.session.commit()
+
     return True
 
 def getClusterClassifications(cluster_id):
