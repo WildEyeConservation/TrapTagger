@@ -237,7 +237,7 @@ class Config(object):
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
             'user_data':
-                'bash /home/ubuntu/TrapTagger/rworker/launch.sh ' + 
+                'bash /home/ubuntu/TrapTagger/WorkR/launch.sh ' + 
                 'default_worker_{}' + ' ' + 
                 'default' + " '" + 
                 HOST_IP + "' '" + 

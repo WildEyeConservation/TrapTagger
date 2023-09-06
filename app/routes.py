@@ -9066,7 +9066,7 @@ def getRScript():
 
     if Config.DEBUGGING: app.logger.info('R script requested for {}'.format(filename))
     script = ''
-    with open('rworker/R/' + filename + '.R', 'r') as file:
+    with open('WorkR/R/' + filename + '.R', 'r') as file:
         script = file.read()
         
     return json.dumps({'status': 'success', 'script': script})
