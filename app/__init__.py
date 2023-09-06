@@ -104,7 +104,7 @@ def make_celery(flask_app):
     celery.conf.beat_schedule = {
         'updateStatistics': {
             'task': 'app.functions.admin.updateStatistics',
-            'schedule': crontab(0, 0, day_of_month='1'),
+            'schedule': crontab(hour=0,minute=0),
         },
     }
 

@@ -171,8 +171,40 @@ def launchTask():
     else:
         statusPass = True
 
-    if (len(task_ids)>1) and ('-5' in taggingLevel):
+    if ('-4' in taggingLevel) or ('-5' in taggingLevel):
         species = re.split(',',taggingLevel)[1]
+
+        # Prevent individual ID for too many detections
+        detCount = db.session.query(Detection.id)\
+                            .join(Labelgroup)\
+                            .join(Task)\
+                            .join(Label,Labelgroup.labels)\
+                            .filter(Task.id.in_(task_ids))\
+                            .filter(Label.description==species)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .distinct().count()
+
+        if detCount > 2000:
+            return json.dumps({'message':   'There are too many sightings/boxes for your selection, resulting in too many combinations for which similarities '+
+                                            'need to be calculated. For now, individual ID cannot be performed across more than 2000 sightings/boxes (2 million combinations). '+
+                                            'Please try again after future updates, or reduce the size of your dataset.', 'status': 'Error'})
+
+        if '-5' in taggingLevel:
+            # Prevent individual ID across fewer than 2 individuals
+            indCount = db.session.query(Individual)\
+                                .join(Task,Individual.tasks)\
+                                .filter(Task.id.in_(task_ids))\
+                                .filter(Individual.species==species)\
+                                .filter(Individual.name!='unidentifiable')\
+                                .distinct().count()
+
+            if indCount < 2:
+                return json.dumps({'message': 'There are too few individuals for your selection. Individual ID requires at least 2 individuals.', 'status': 'Error'})
+
+    if (len(task_ids)>1) and ('-5' in taggingLevel):
+        # species = re.split(',',taggingLevel)[1]
         individuals_in_selection = db.session.query(Individual)\
                                             .join(Task,Individual.tasks)\
                                             .filter(Task.id.in_(task_ids))\
@@ -1750,8 +1782,8 @@ def editSurvey():
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
+@app.route('/TTWorkerSignup', methods=['GET', 'POST'])
+def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
 
     if current_user.is_authenticated:
@@ -2788,8 +2820,8 @@ def jobs():
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+@app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
+def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
     
     if current_user.is_authenticated:
@@ -2827,7 +2859,7 @@ def register():
                 if (check == None) and (len(folder) <= 64) and not disallowed:
                     send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
                     flash('Enquiry submitted.')
-                    return redirect(url_for('register'))
+                    return redirect(url_for('TTRegisterAdmin'))
                 elif disallowed:
                     flash('Your organisation name cannot contain special characters.')
                 elif len(folder) <= 64:
@@ -2836,7 +2868,7 @@ def register():
                     flash('Invalid organsiation name. Please try again.')
             else:
                 flash('Enquiry (not) submitted.')
-                return redirect(url_for('register'))
+                return redirect(url_for('TTRegisterAdmin'))
         return render_template("html/register.html", enquiryForm=enquiryForm, helpFile='registration_page', version=Config.VERSION)
 
 @app.route('/dataPipeline')
@@ -5021,7 +5053,7 @@ def get_clusters():
         label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
 
     else:
 
@@ -5067,10 +5099,10 @@ def get_clusters():
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
-                if len(clusterInfo) <= limit:
+                if (len(clusterInfo) <= limit) and not max_request:
                     clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
                     trapgroup.active = False
                     GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
@@ -5447,9 +5479,9 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>', methods=['POST'])
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<trapgroup_id>', methods=['POST'])
 @login_required
-def getClustersBySpecies(task_id, species, tag_id):
+def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
     Returns all clusters if species is 0.'''
 
@@ -5491,6 +5523,9 @@ def getClustersBySpecies(task_id, species, tag_id):
             tag = db.session.query(Tag).get(int(tag_id))
             clusters = clusters.filter(Labelgroup.tags.contains(tag))
 
+        if trapgroup_id != '0':
+            clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
+
         if notes:
             if (notes==True) or (notes.lower() == 'true'):
                 clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
@@ -5499,11 +5534,12 @@ def getClustersBySpecies(task_id, species, tag_id):
                 for search in searches:
                     clusters = clusters.filter(Cluster.notes.contains(search))
 
-        clusters = clusters.distinct().all()
+        clusters = [r[0] for r in clusters.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
+        if Config.DEBUGGING: app.logger.info(clusters[:50])
     else:
         clusters = []
 
-    return json.dumps(list(set(clusters)))
+    return json.dumps(clusters)
 
 @app.route('/getTrapgroups', methods=['POST'])
 @login_required
@@ -5978,8 +6014,6 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
 def assignNote():
     '''Assigns a note to the given cluster or individual.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     try:
         note = ast.literal_eval(request.form['note'])
         typeID = ast.literal_eval(request.form['type'])
@@ -6004,14 +6038,17 @@ def assignNote():
     except:
         pass
 
-    return json.dumps('')
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return json.dumps('')
 
 @app.route('/assignLabel/<clusterID>', methods=['POST'])
 @login_required
 def assignLabel(clusterID):
     '''Assigned the specified list of labels to the cluster. Returns progress numbers of an error status.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+    # if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     try:
         labels = ast.literal_eval(request.form['labels'])
@@ -6038,6 +6075,8 @@ def assignLabel(clusterID):
         cluster = session.query(Cluster).get(int(clusterID))
         isBounding = task.is_bounding
         task_id = task.id
+        current_user_admin = current_user.admin
+        current_user_username = current_user.username
 
         if 'taggingLevel' in request.form:
             taggingLevel = str(request.form['taggingLevel'])
@@ -6170,10 +6209,10 @@ def assignLabel(clusterID):
                                 newClusters = []
                             else:
                                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                                clusterInfo = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
-                                if len(clusterInfo) <= limit:
+                                if (len(clusterInfo) <= limit) and not max_request:
                                     clusters_allocated = int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode()) + len(clusterInfo)
                                     trapgroup.active = False
                                     GLOBALS.redisClient.lrem(survey_id,0,trapgroup.id)
@@ -6197,7 +6236,10 @@ def assignLabel(clusterID):
                         session.commit()
                         session.close()
 
-        return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
+        if (not current_user_admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user_username)):
+            return {'redirect': url_for('done')}, 278
+        else:
+            return json.dumps({'progress': (num, num2), 'reAllocated': reAllocated, 'newClusters': newClusters, 'classifications': classifications})
 
     except:
         return json.dumps('error')
@@ -6347,8 +6389,6 @@ def getOtherTasks(task_id):
 def reviewClassification():
     '''Endpoint for the review of classifications in the AI check workflow.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
     turkcode = current_user.turkcode[0]
     num2 = turkcode.task.size + turkcode.task.test_size
@@ -6426,7 +6466,10 @@ def reviewClassification():
 
     if Config.DEBUGGING: app.logger.info('{}: {}'.format(cluster.id, cluster.labels))
 
-    return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return json.dumps({'progress':(num, num2),'labels':cluster_labels,'classifications':classifications,'label_ids':cluster_label_ids})
 
 @app.route('/getAllTaskLabels/<task_id1>/<task_id2>')
 @login_required
@@ -6728,7 +6771,7 @@ def submitTags(task_id):
 @login_required
 def editSightings(image_id,task_id):
     '''Handles the editing of bounding boxes on the specified image, and labels for the associated labelgroup for the given task.'''
-    
+
     detDbIDs = {}
     if current_user.admin == False:    
         task_id = current_user.turkcode[0].task_id
@@ -6844,7 +6887,7 @@ def editSightings(image_id,task_id):
                                             .first()
 
                 if clusterDetections == None:
-                    num += 1
+                    # num += 1
 
                     detectionLabels = db.session.query(Label) \
                                                 .join(Labelgroup, Label.labelgroups) \
@@ -6864,7 +6907,10 @@ def editSightings(image_id,task_id):
                     cluster.timestamp = datetime.utcnow()
                     db.session.commit()
 
-    return json.dumps({'detIDs':detDbIDs,'progress':(num, num2)})
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return json.dumps({'detIDs':detDbIDs,'progress':(num, num2)})
 
 @app.route('/done')
 @login_required
@@ -7248,8 +7294,6 @@ def checkDownload(fileType,selectedTask):
 def undoknockdown(imageId, clusterId, label):
     '''Undoes the knock-down categorisation of the specified image. The cluster label is replaced with the supplied label.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
-
     image = db.session.query(Image).get(int(imageId))
     task = current_user.turkcode[0].task
     if image and (image.corrected_timestamp) and ((current_user.parent in task.survey.user.workers) or (current_user.parent == task.survey.user) or (current_user==task.survey.user)) and (task.survey_id == image.camera.trapgroup.survey_id):
@@ -7267,8 +7311,11 @@ def undoknockdown(imageId, clusterId, label):
             db.session.commit()
             app.logger.info('Unknocking cluster for image {}'.format(imageId))
             unknock_cluster.apply_async(kwargs={'image_id':int(imageId), 'label_id':label, 'user_id':current_user.id, 'task_id':current_user.turkcode[0].task_id})
-
-    return ""
+    
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return ""
 
 @app.route('/knockdown/<imageId>/<clusterId>')
 @login_required
@@ -7276,8 +7323,6 @@ def knockdown(imageId, clusterId):
     '''Marks the camera of the specified image as marked down by moving all images to a knocked-down cluster.'''
     
     app.logger.info('Knockdown initiated for image {}'.format(imageId))
-
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     #Check if they have permission to work on this survey
     image = db.session.query(Image).get(imageId)
@@ -7384,7 +7429,10 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
                     finish_knockdown.apply_async(kwargs={'rootImageID':rootImage.id, 'task':task_id, 'current_user_id':current_user.id})
 
-    return ""
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return ""
 
 @app.route('/getHelp')
 @login_required
@@ -7468,7 +7516,7 @@ def dashboard():
                                     .filter(~User.username.in_(Config.ADMIN_USERS))\
                                     .distinct().count()
             
-            latest_statistic = db.session.query(Statistic).order_by(Statistic.timestamp.desc()).first()
+            latest_statistic = db.session.query(Statistic).filter(Statistic.user_count!=None).order_by(Statistic.timestamp.desc()).first()
             users_added_this_month = len(users)-latest_statistic.user_count
             images_imported_this_month = image_count-latest_statistic.image_count
             active_users_this_month = active_users-latest_statistic.active_user_count
@@ -7476,9 +7524,25 @@ def dashboard():
             image_count = str(round((image_count/1000000),2))+'M'
             images_imported_this_month = str(round((images_imported_this_month/1000000),2))+'M'
             
-            startDate = datetime.utcnow().replace(day=1)
-            endDate = datetime.utcnow()
+            startDate = datetime.utcnow().replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+            endDate = datetime.utcnow()+timedelta(days=1)
             costs = get_AWS_costs(startDate,endDate)
+
+            unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).count()
+            unique_admin_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.admin==True).count()
+            unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
+            unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).count()
+
+            # Need to add an hour to the start date so as to not grab the first statistic of the month which covers the last day of the previous month
+            average_logins = 0
+            average_admin_logins = 0
+            statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
+            if statistics:
+                for statistic in statistics:
+                    average_logins+=statistic.unique_daily_logins
+                    average_admin_logins+=statistic.unique_daily_admin_logins
+                average_logins = round(average_logins/len(statistics),2)
+                average_admin_logins = round(average_admin_logins/len(statistics),2)
 
             factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
@@ -7502,6 +7566,16 @@ def dashboard():
                         storage_estimate = round(factor*costs['Amazon Simple Storage Service'],2),
                         db_estimate = round(factor*costs['Amazon Relational Database Service'],2),
                         total_estimate = round(factor*costs['Total'],2),
+                        unique_logins_24h = unique_logins_24h,
+                        unique_admin_logins_24h = unique_admin_logins_24h,
+                        unique_logins_this_month = unique_logins_this_month,
+                        unique_admin_logins_this_month = unique_admin_logins_this_month,
+                        average_logins = average_logins,
+                        average_admin_logins = average_admin_logins,
+                        unique_monthly_logins = int(latest_statistic.unique_monthly_logins),
+                        unique_monthly_admin_logins = int(latest_statistic.unique_monthly_admin_logins),
+                        average_daily_logins = latest_statistic.average_daily_logins,
+                        average_daily_admin_logins = latest_statistic.average_daily_admin_logins
             )
         else:
             if current_user.admin:
@@ -7528,10 +7602,20 @@ def getDashboardTrends():
         trend = request.form['trend']
         period = request.form['period']
 
-        if period=='max':
-            period = 60
+        if trend in ['unique_daily_logins','unique_daily_admin_logins']:
+            # Daily stats
+            if period=='max':
+                period = 365
 
-        statistics=list(reversed(db.session.query(Statistic).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
+            statistics=list(reversed(db.session.query(Statistic).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
+        
+        else:
+            # Monthly stats
+            if period=='max':
+                period = 60
+
+            statistics=list(reversed(db.session.query(Statistic).filter(Statistic.user_count!=None).order_by(Statistic.timestamp.desc()).limit(int(period)).all()))
+
         data = [getattr(statistic,trend) for statistic in statistics if getattr(statistic,trend)!=None]
         labels = [statistic.timestamp.strftime("%Y/%m/%d") for statistic in statistics if getattr(statistic,trend)!=None]
 
@@ -7554,35 +7638,57 @@ def getActiveUserData():
     
     if current_user.username=='Dashboard':
         page = request.args.get('page', 1, type=int)
+        order = request.args.get('order', 'total', type=str)
+        users = request.args.get('users', 'active_users', type=str)
 
-        sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-        active_users = db.session.query(User)\
-                                .join(Survey)\
-                                .join(Task)\
+        sq = db.session.query(
+                                User.id.label('user_id'),
+                                func.sum(Survey.image_count).label('count'),
+                                (func.sum(Survey.image_count)-User.image_count).label('this_month'),
+                                (User.image_count-User.previous_image_count).label('last_month')
+                            )\
+                            .join(Survey)\
+                            .group_by(User.id).subquery()
+
+        active_users = db.session.query(User,sq.c.count,sq.c.this_month,sq.c.last_month)\
                                 .join(sq,sq.c.user_id==User.id)\
+                                .filter(~User.username.in_(Config.ADMIN_USERS))
+
+        if users=='active_users':
+            active_users = active_users.join(Survey)\
+                                .join(Task)\
                                 .filter(Task.init_complete==True)\
-                                .filter(sq.c.count>10000)\
-                                .filter(~User.username.in_(Config.ADMIN_USERS))\
-                                .order_by(sq.c.count.desc())\
-                                .distinct().paginate(page, 20, False)
+                                .filter(sq.c.count>10000)
+        
+        if order=='total':
+            active_users = active_users.order_by(sq.c.count.desc())
+        elif order=='this_month':
+            active_users = active_users.order_by(sq.c.this_month.desc())
+        elif order=='last_month':
+            active_users = active_users.order_by(sq.c.last_month.desc())
+
+        active_users = active_users.distinct().paginate(page, 20, False)
 
         reply = []
-        for user in active_users.items:
-            image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
-            if image_count>=1000000:
-                image_count = str(round((image_count/1000000),2))+'M'
-            else:
-                image_count = str(image_count)[:-3]+' '+str(image_count)[-3:]
+        for item in active_users.items:
+            user = item[0]
+            image_count = int(item[1])
+            images_this_month = int(item[2])
+            images_last_month = int(item[3])
+            # image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
+
             reply.append({
-                'account':      user.username,
-                'affiliation':  user.affiliation,
-                'surveys':      len(user.surveys[:]),
-                'images':       image_count,
-                'regions':      user.regions
+                'account':              user.username,
+                'affiliation':          user.affiliation,
+                'surveys':              len(user.surveys[:]),
+                'images':               format_count(image_count),
+                'images_this_month':    format_count(images_this_month),
+                'images_last_month':    format_count(images_last_month),
+                'regions':              user.regions
             })
 
-        next_url = url_for('getActiveUserData', page=active_users.next_num) if active_users.has_next else None
-        prev_url = url_for('getActiveUserData', page=active_users.prev_num) if active_users.has_prev else None
+        next_url = url_for('getActiveUserData', page=active_users.next_num, order=order, users=users) if active_users.has_next else None
+        prev_url = url_for('getActiveUserData', page=active_users.prev_num, order=order, users=users) if active_users.has_prev else None
 
         return json.dumps({'status':'success','data':reply,'next_url':next_url,'prev_url':prev_url})
     
@@ -8365,10 +8471,16 @@ def getIndividualAssociations(individual_id, order):
 
     return json.dumps({'associations': reply, 'next': next_page, 'prev': prev_page})
 
+@app.route('/populateSiteSelector')
+@login_required
+def populateSiteSelector():
+    '''Returns site list for populating the site selector.'''
 @app.route('/results')
 def results():
     '''Renders the results page.'''
 
+    response = []
+    survey = current_user.turkcode[0].task.survey
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
@@ -9356,3 +9468,10 @@ def getSpatialCaptureRecapture():
     return json.dumps({'status': status, 'results': scr_results, 'message': msg})
 
 
+    if survey and (current_user==survey.user):
+        sites = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey.id).all()
+        response.append((0, 'All'))
+        for site in sites:
+            response.append(site)
+
+    return json.dumps(response)

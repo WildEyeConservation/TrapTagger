@@ -1305,7 +1305,7 @@ def unknock_cluster(self,image_id, label_id, user_id, task_id):
 
     return None
 
-def classifyTask(task,session = None,reClusters = None):
+def classifyTask(task,session=None,reClusters=None,trapgroup_ids=None):
     '''
     Auto-classifies and labels the species contained in each cluster of a specified task, based on the species selected by the user. Can be given a specific subset of 
     clusters to classify.
@@ -1380,7 +1380,11 @@ def classifyTask(task,session = None,reClusters = None):
                                 .filter(detCountSQ.c.detCount >= Config.CLUSTER_DET_COUNT) \
                                 .filter(detRatioSQ.c.detRatio > Config.DET_RATIO) \
                                 .filter(Cluster.task==task)\
-                                .distinct().all()
+                                .filter(or_(Cluster.user_id==None,Cluster.user_id==admin.id))
+
+            if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+
+            clusters = clusters.distinct().all()
 
             if reClusters != None:
                 clusters = [cluster for cluster in clusters if cluster in reClusters]
@@ -2445,6 +2449,9 @@ def re_evaluate_trapgroup_examined(trapgroup_id,task_id):
         cluster.examined = False
     db.session.commit()
 
+    prep_required_images(task_id,trapgroup_id)
+    db.session.commit()
+
     return True
 
 def getClusterClassifications(cluster_id):
@@ -2641,7 +2648,7 @@ def inspect_celery(include_reserved=False):
     inspector_active = inspector.active()
     for worker in inspector_active:
         for task in inspector_active[worker]:
-            if not any(name in task['name'] for name in ['importImages','detection','classify']):
+            if not any(name in task['name'] for name in ['importImages','.detection','.classify','runClassifier']):
                 print('')
                 print(task)
 
@@ -2653,7 +2660,7 @@ def inspect_celery(include_reserved=False):
         inspector_reserved = inspector.reserved()
         for worker in inspector_reserved:
             for task in inspector_reserved[worker]:
-                if not any(name in task['name'] for name in ['importImages','detection','classify']):
+                if not any(name in task['name'] for name in ['importImages','.detection','classify','runClassifier']):
                     print('')
                     print(task)
 
@@ -2676,17 +2683,17 @@ def clean_up_redis():
                     GLOBALS.redisClient.delete(key)
                 else:
                     task = db.session.query(Task).get(int(task_id))
-                    if task.status not in ['PENDING','PROGRESS']:
+                    if (task==None) or (task.status not in ['PENDING','PROGRESS']):
                         GLOBALS.redisClient.delete(key)
 
-            elif any(name in key for name in ['clusters_allocated','user_individuals','user_indsims']):
+            elif any(name in key for name in ['clusters_allocated']): #,'user_individuals','user_indsims']):
                 user_id = key.split('_')[-1]
 
                 if user_id == 'None':
                     GLOBALS.redisClient.delete(key)
                 else:
                     user = db.session.query(User).get(int(user_id))
-                    if datetime.utcnow() - user.last_ping > timedelta(minutes=3):
+                    if (user==None) or (datetime.utcnow() - user.last_ping > timedelta(minutes=3)):
                         GLOBALS.redisClient.delete(key)
 
             elif any(name in key for name in ['trapgroups']):
@@ -2723,7 +2730,7 @@ def clean_up_redis():
                     GLOBALS.redisClient.delete(key)
                 else:
                     task = db.session.query(Task).get(int(task_id))
-                    if task.status not in ['PROGRESS']:
+                    if (task==None) or (task.status not in ['PROGRESS']):
                         GLOBALS.redisClient.delete(key)
 
     except Exception as exc:
@@ -2741,6 +2748,9 @@ def clean_up_redis():
 
     return True
 
-
- 
-        
+def format_count(count):
+    '''Formats counts for display.'''
+    if count>=1000000:
+        return str(round((count/1000000),2))+'M'
+    else:
+        return '{:,}'.format(count).replace(',', ' ')

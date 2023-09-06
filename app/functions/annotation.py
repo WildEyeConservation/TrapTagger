@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications, checkForIdWork, numify_timestamp
+                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
 from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -89,7 +89,7 @@ def required_images(cluster,relevent_classifications,transDict):
 
     return required
 
-def prep_required_images(task_id):
+def prep_required_images(task_id,trapgroup_id=None):
     '''Prepares the required images for every cluster in a specified task - the images that must be viewed by the 
     user based on the species contained therein.'''
 
@@ -100,8 +100,13 @@ def prep_required_images(task_id):
 
     clusters = db.session.query(Cluster)\
                     .filter(Cluster.task_id == task_id)\
-                    .filter(Cluster.examined==False)\
-                    .distinct().all()
+                    .filter(Cluster.examined==False)
+
+    if trapgroup_id: clusters = clusters.join(Image,Cluster.images)\
+                                        .join(Camera)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)
+
+    clusters = clusters.distinct().all()
 
     if len(clusters) != 0:
         if (',' in taggingLevel) or isBounding:
@@ -128,13 +133,17 @@ def prep_required_images(task_id):
                                                     .join(Translation,Translation.classification==Detection.classification)\
                                                     .join(Image)\
                                                     .join(Camera)\
-                                                    .join(Trapgroup)\
                                                     .filter(Translation.task_id==task_id)\
-                                                    .filter(Trapgroup.survey_id==survey_id)\
                                                     .filter(Detection.classification!=None)\
                                                     .filter(func.lower(Detection.classification)!='nothing')\
-                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)\
-                                                    .distinct().all()
+                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)
+                
+                if trapgroup_id:
+                    relevent_classifications = relevent_classifications.filter(Camera.trapgroup_id==trapgroup_id)
+                else:
+                    relevent_classifications = relevent_classifications.join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+
+                relevent_classifications = relevent_classifications.distinct().all()
                 relevent_classifications = [r[0] for r in relevent_classifications]
             
             transDict = {}
@@ -262,6 +271,7 @@ def launch_task(self,task_id):
                                     .first()
                     if check==None:
                         calculate_individual_similarities(task.id,species,None)
+                        task = db.session.query(Task).get(task_id)
 
                 #extract threshold
                 threshold = tL[2]
@@ -432,39 +442,41 @@ def launch_task(self,task_id):
 def freeUpWork(task_id, taggingLevel):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
-    if '-5' not in taggingLevel:
-        session = db.session()
-        task = session.query(Task).get(task_id)
+    session = db.session()
+    task = session.query(Task).get(task_id)
 
-        clusterSQ = session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
-                                .join(Camera)\
-                                .join(Image)\
-                                .join(Cluster,Image.clusters)\
-                                .filter(Cluster.task_id == task_id) \
-                                .subquery()
+    clusterSQ = session.query(Trapgroup.id,func.max(Cluster.timestamp).label('timestamp'))\
+                            .join(Camera)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Cluster.task_id == task_id) \
+                            .subquery()
 
-        trapgroups = session.query(Trapgroup) \
-                        .join(Camera) \
-                        .join(Image) \
-                        .join(Cluster, Image.clusters) \
-                        .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
-                        .filter(Cluster.task_id == task_id) \
-                        .filter(Trapgroup.processing == False) \
-                        .filter(Trapgroup.queueing == False)\
-                        .filter(Trapgroup.user_id == None)\
-                        .filter(Cluster.examined==False)\
-                        .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=2),clusterSQ.c.timestamp==None))\
-                        .distinct().all()
+    trapgroup_pool = [int(r.decode()) for r in GLOBALS.redisClient.lrange('trapgroups_'+str(task.survey_id),0,-1)]
 
-        if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
+    trapgroups = session.query(Trapgroup) \
+                    .join(Camera) \
+                    .join(Image) \
+                    .join(Cluster, Image.clusters) \
+                    .outerjoin(clusterSQ,clusterSQ.c.id==Trapgroup.id)\
+                    .filter(Cluster.task_id == task_id) \
+                    .filter(Trapgroup.processing == False) \
+                    .filter(Trapgroup.queueing == False)\
+                    .filter(Trapgroup.user_id == None)\
+                    .filter(Cluster.examined==False)\
+                    .filter(~Trapgroup.id.in_(trapgroup_pool))\
+                    .filter(or_(clusterSQ.c.timestamp<datetime.utcnow()-timedelta(minutes=3),clusterSQ.c.timestamp==None))\
+                    .distinct().all()
 
-        for trapgroup in trapgroups:
-            trapgroup.active = True
-            GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
-            GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)            
+    if Config.DEBUGGING: app.logger.info('{} inactive trapgroups identified for survey {}'.format(len(trapgroups),task.survey.name))
 
-        session.commit()
-        session.close()
+    for trapgroup in trapgroups:
+        trapgroup.active = True
+        GLOBALS.redisClient.lrem('trapgroups_'+str(task.survey_id),0,trapgroup.id)
+        GLOBALS.redisClient.rpush('trapgroups_'+str(task.survey_id),trapgroup.id)            
+
+    session.commit()
+    session.close()
 
     return True
 
@@ -709,7 +721,7 @@ def manage_task(task_id):
             wrapUpTask.delay(task_id=task_id)
             return True, jobs_to_delete
 
-    elif task_jobs == 0: freeUpWork(task_id, taggingLevel)
+    if '-5' not in taggingLevel: freeUpWork(task_id, taggingLevel)
 
     return False, jobs_to_delete                     
 
@@ -1248,11 +1260,17 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                         .outerjoin(IndividualTask,Individual.tasks)\
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(Cluster.examined==False)
-                        
-        clusters = clusters.filter(Labelgroup.task_id == task_id) \
+        
+        # This need to be ordered by Cluster ID otherwise the a max request will drop random info
+        clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
                         .filter(Cluster.task_id == task_id) \
-                        .order_by(desc(Cluster.classification), desc(Image.corrected_timestamp))\
-                        .distinct().all()
+                        .order_by(desc(Cluster.classification), Cluster.id)\
+                        ).distinct().limit(25000).all()
+
+        if len(clusters) == 25000:
+            max_request = True
+        else:
+            max_request = False
 
         for row in clusters:
             # Handle clusters
@@ -1288,18 +1306,18 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
-                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
-                        'id': row[9],
-                        'top': row[10],
-                        'bottom': row[11],
-                        'left': row[12],
-                        'right': row[13],
-                        'category': row[14],
-                        'individuals': [],
-                        'static': row[15],
-                        'labels': []
-                    }
+                # if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
+                clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
+                    'id': row[9],
+                    'top': row[10],
+                    'bottom': row[11],
+                    'left': row[12],
+                    'right': row[13],
+                    'category': row[14],
+                    'individuals': [],
+                    'static': row[15],
+                    'labels': []
+                }
 
             # Handle video
             if id and row[22] and (row[22] not in clusterInfo[row[0]]['videos'].keys()):
@@ -1329,8 +1347,11 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,id=None)
                 # Handle individuals
                 if row[-1] and row[21] and (row[21] not in clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals']) and (row[-1]==task_id):
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['individuals'].append(row[21])
+
+        # If its a max request, the last cluster is probably missing info
+        if max_request and (len(clusterInfo.keys())>1): del clusterInfo[clusters[-1][0]]
     
-        return clusterInfo
+        return clusterInfo, max_request
 
 # def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
 #     '''
@@ -1572,34 +1593,35 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
             # add required images
             if (not id) and (not isBounding) and (',' not in taggingLevel):
                 for image_id in clusterInfo[cluster_id]['required']:
-                    covered_images.append(image_id)
-                    images.append({
-                        'id': clusterInfo[cluster_id]['images'][image_id]['id'],
-                        'url': clusterInfo[cluster_id]['images'][image_id]['url'],
-                        'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
-                        'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
-                        'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
-                        'latitude': clusterInfo[cluster_id]['images'][image_id]['latitude'],
-                        'longitude': clusterInfo[cluster_id]['images'][image_id]['longitude'],
-                        'detections': [{
-                            'id': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['id'],
-                            'top': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['top'],
-                            'bottom': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['bottom'],
-                            'left': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['left'],
-                            'right': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['right'],
-                            'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
-                            'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
-                            'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
-                            'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
-                            'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
-                            'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
-                        for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
-                                                                '-4' not in taggingLevel) 
-                                                            or (
-                                                                (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
-                                                                and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
-                                                            )))]
-                    })
+                    if image_id in clusterInfo[cluster_id]['images'].keys():
+                        covered_images.append(image_id)
+                        images.append({
+                            'id': clusterInfo[cluster_id]['images'][image_id]['id'],
+                            'url': clusterInfo[cluster_id]['images'][image_id]['url'],
+                            'timestamp': clusterInfo[cluster_id]['images'][image_id]['timestamp'],
+                            'camera': clusterInfo[cluster_id]['images'][image_id]['camera'],
+                            'rating': clusterInfo[cluster_id]['images'][image_id]['rating'],
+                            'latitude': clusterInfo[cluster_id]['images'][image_id]['latitude'],
+                            'longitude': clusterInfo[cluster_id]['images'][image_id]['longitude'],
+                            'detections': [{
+                                'id': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['id'],
+                                'top': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['top'],
+                                'bottom': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['bottom'],
+                                'left': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['left'],
+                                'right': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['right'],
+                                'category': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['category'],
+                                'individuals': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'],
+                                'individual': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals'][0],
+                                'static': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['static'],
+                                'labels': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'],
+                                'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0]}
+                            for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
+                                                                    '-4' not in taggingLevel) 
+                                                                or (
+                                                                    (clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['individuals']==['-1']) 
+                                                                    and (species in clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels']
+                                                                )))]
+                        })
             
             required = [n for n in range(len(images))]
             

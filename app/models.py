@@ -253,6 +253,8 @@ class User(db.Model, UserMixin):
     surveys = db.relationship('Survey', backref='user', lazy=True)
     children = db.relationship('User', backref=db.backref('parent', remote_side=[id]), lazy=True)
     turkcode = db.relationship('Turkcode', backref='user', lazy=True)
+    image_count = db.Column(db.Integer, index=False)
+    previous_image_count = db.Column(db.Integer, index=False)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -447,13 +449,19 @@ class Notification(db.Model):
 class Statistic(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    user_count = db.Column(db.Integer, index=False)
+    user_count = db.Column(db.Integer, index=True)
     active_user_count = db.Column(db.Integer, index=False)
     image_count = db.Column(db.Integer, index=False)
     server_cost = db.Column(db.Float, index=False)
     storage_cost = db.Column(db.Float, index=False)
     db_cost = db.Column(db.Float, index=False)
     total_cost = db.Column(db.Float, index=False)
+    unique_daily_logins = db.Column(db.Integer, index=False)
+    unique_daily_admin_logins = db.Column(db.Integer, index=False)
+    average_daily_logins = db.Column(db.Float, index=False)
+    average_daily_admin_logins = db.Column(db.Float, index=False)
+    unique_monthly_logins = db.Column(db.Float, index=False)
+    unique_monthly_admin_logins = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Statistic for {}>'.format(self.timestamp)

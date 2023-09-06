@@ -19,7 +19,7 @@ from app.models import *
 from app.functions.globals import classifyTask, finish_knockdown, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, \
                                     retryTime, chunker, resolve_abandoned_jobs, addChildLabels, updateAllStatuses
 from app.functions.individualID import calculate_individual_similarities, cleanUpIndividuals
-from app.functions.imports import cluster_survey, classifyTrapgroup, classifySurvey, s3traverse, recluster_large_clusters
+from app.functions.imports import cluster_survey, classifySurvey, s3traverse, recluster_large_clusters, removeHumans, classifyCluster
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract
@@ -313,6 +313,9 @@ def stop_task(self,task_id):
                 sub_task.survey.status = 'Ready'
             task.sub_tasks = []
 
+            #remove trapgroup list from redis
+            GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
+
             if 'processing' not in survey.status:
                 survey.status = 'Ready'
             elif survey.status=='indprocessing':
@@ -337,9 +340,6 @@ def stop_task(self,task_id):
 
                 if not still_processing:
                     survey.status = 'Ready'
-
-            #remove trapgroup list from redis
-            GLOBALS.redisClient.delete('trapgroups_'+str(task.survey_id))
 
             db.session.commit()
 
@@ -774,263 +774,471 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
 
     return True
 
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
+    '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels etc.'''
+
+    try:
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Reclustering'
+        for trapgroup in survey.trapgroups:
+            trapgroup.processing = False
+            trapgroup.queueing = False
+            trapgroup.active = False
+            trapgroup.user_id = None
+        db.session.commit()
+
+        # Force = True will cause double clustering - find highest ID so we can delete with ID < highest
+        highest = db.session.query(Cluster.id).join(Task).filter(Task.survey_id==survey_id).order_by(Cluster.id.desc()).first()
+        if highest:
+            highest_id = highest[0]
+        else:
+            highest_id = 0
+
+        #we want a fresh session after clustering
+        db.session.close()
+
+        cluster_survey(survey_id,'default',True,trapgroup_ids)
+
+        # just adding the legacy _o_l_d_ for now - we are moving away from this though
+        tasks = db.session.query(Task).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()
+        admin = db.session.query(User).filter(User.username=='Admin').first()
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
+
+        for task in tasks:
+            # copy notes across to new clusters
+            clusters = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task.id)\
+                                .filter(Cluster.notes!=None)\
+                                .filter(Cluster.notes!='')\
+                                .distinct().all()
+            for cluster in clusters:
+                newClusters = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .filter(Cluster.task_id==task.id)\
+                                .filter(Cluster.id>highest_id)\
+                                .filter(Image.id.in_([r.id for r in cluster.images]))\
+                                .distinct().all()
+                for newCluster in newClusters:
+                    if not newCluster.notes: newCluster.notes = ''
+                    newCluster.notes += cluster.notes
+
+            # copy tags across to new clusters
+            clusters = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task.id)\
+                                .filter(Cluster.tags.any())\
+                                .distinct().all()
+            for cluster in clusters:
+                newClusters = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .filter(Cluster.task_id==task.id)\
+                                .filter(Cluster.id>highest_id)\
+                                .filter(Image.id.in_([r.id for r in cluster.images]))\
+                                .distinct().all()
+                for newCluster in newClusters:
+                    for tag in cluster.tags:
+                        if tag not in newCluster.tags:
+                            newCluster.tags.append(tag)
+
+            # Remove auto-classifications as these may have changed
+            # We are removing all auto-classifications because everything will be re-classified
+            labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Cluster,Image.clusters)\
+                            .filter(Labelgroup.task_id==task.id)\
+                            .filter(Labelgroup.labels.any())\
+                            .filter(Cluster.task_id==task.id)\
+                            .filter(Cluster.user==admin).all()
+            for labelgroup in labelgroups:
+                labelgroup.labels = []
+
+            # Remove labels from split clusters
+            # There is no reliable way to know what images were viewed and labelled
+            # Need to use sq2 to be able to include all labelgroups from the affected clusters
+            # Need to include labelgroup.checked because checked labelgroups are probbably right
+            sq = db.session.query(Cluster.id,func.count(distinct(Image.camera_id)).label('count')).join(Image,Cluster.images).filter(Cluster.task==task).filter(Cluster.id<=highest_id).filter(Cluster.labels.any()).group_by(Cluster.id).subquery()
+            sq2 = db.session.query(Cluster.id).join(Image,Cluster.images).filter(Image.camera_id.in_(camera_ids)).filter(Cluster.id<=highest_id).filter(Cluster.labels.any()).subquery()
+            labelgroups = db.session.query(Labelgroup)\
+                            .join(Detection)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Cluster,Image.clusters)\
+                            .join(sq,sq.c.id==Cluster.id)\
+                            .join(sq2,sq2.c.id==Cluster.id)\
+                            .filter(Labelgroup.task==task)\
+                            .filter(Labelgroup.labels.any())\
+                            .filter(Labelgroup.checked==False)\
+                            .filter(Cluster.task==task)\
+                            .filter(Cluster.id<=highest_id)\
+                            .filter(Cluster.labels.any())\
+                            .filter(sq.c.count>1)\
+                            .distinct().all()
+            for labelgroup in labelgroups:
+                labelgroup.labels = []
+
+            # Copy up labels from labelgroups & copy across cluster user IDs
+            clusters = db.session.query(Cluster)\
+                            .filter(Cluster.task_id==task.id)\
+                            .filter(Cluster.id>highest_id)\
+                            .distinct().all()
+            for cluster in clusters:
+                # Also update cluster-level classification at the same time
+                cluster.classification = classifyCluster(cluster)
+
+                labels = db.session.query(Label)\
+                                .join(Labelgroup, Label.labelgroups)\
+                                .join(Detection)\
+                                .join(Image)\
+                                .filter(Image.clusters.contains(cluster))\
+                                .filter(Labelgroup.task_id==task.id)\
+                                .filter(~Label.id.in_([GLOBALS.nothing_id,GLOBALS.unknown_id,GLOBALS.knocked_id]))\
+                                .distinct().all()
+
+                cluster.labels = labels
+
+                if labels:
+                    # Copy across user ID from old cluster
+                    oldCluster = db.session.query(Cluster)\
+                                    .join(Image,Cluster.images)\
+                                    .filter(Image.id.in_([r.id for r in cluster.images]))\
+                                    .filter(Cluster.task_id==task.id)\
+                                    .filter(Cluster.user_id!=admin.id)\
+                                    .filter(Cluster.user_id!=None)\
+                                    .filter(Cluster.id<=highest_id)\
+                                    .first()
+
+                    if oldCluster: cluster.user_id = oldCluster.user_id
+
+                    # Copy down labelgroup labels if not checked
+                    labelgroups = db.session.query(Labelgroup)\
+                                    .join(Detection)\
+                                    .join(Image)\
+                                    .filter(Image.clusters.contains(cluster))\
+                                    .filter(Labelgroup.task_id==task.id)\
+                                    .filter(Labelgroup.checked==False)\
+                                    .distinct().all()
+
+                    for labelgroup in labelgroups:
+                        labelgroup.labels = labels
+
+            # Remove old clusters
+            # with timestamps - these weren't reclustered
+            # ignore knockdowns - these weren't reclustered either
+            clusters = db.session.query(Cluster)\
+                                .join(Image,Cluster.images)\
+                                .join(Camera)\
+                                .filter(~Cluster.labels.contains(downLabel))\
+                                .filter(Camera.trapgroup_id.in_(trapgroup_ids))\
+                                .filter(Cluster.task_id==task.id)\
+                                .filter(Cluster.id<=highest_id)\
+                                .filter(Image.corrected_timestamp!=None)\
+                                .distinct().all()
+            for cluster in clusters:
+                cluster.labels = []
+                cluster.tags = []
+                cluster.images = []
+                cluster.required_images = []
+                db.session.delete(cluster)
+
+        db.session.commit()
+
+        wrapUpAfterTimestampChange.delay(survey_id=survey_id,trapgroup_ids=trapgroup_ids)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def wrapUpAfterTimestampChange(self,survey_id,trapgroup_ids):
+    '''Wraps up a survey after a timestamp change by re-classifying & reclustering large clusters'''
+
+    try:
+        # just adding the legacy _o_l_d_ for now - we are moving away from this though
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(~Task.name.contains('_o_l_d_')).all()]
+        
+        for task_id in task_ids:
+            removeHumans(task_id,trapgroup_ids)
+            recluster_large_clusters(task_id,True)
+            classifyTask(task_id,None,None,trapgroup_ids)
+
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
 # def reclusterAfterTimestampChange(survey_id):
-#     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels etc.'''
+#     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels. Saves all old tasks 
+#     in a hidden state with _o_l_d_ at the end of their name.'''
 
 #     session = db.session()
-#     tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
 
-#     for task in tasks:
-#         clusters = db.session.query(Cluster).filter(Cluster.task_id==task.id).all()
-#         for cluster in clusters:
-#             cluster.labels = []
-#             cluster.tags = []
-#             cluster.images = []
-#             cluster.required_images = []
-#             db.session.delete(cluster)
+#     survey = session.query(Survey).get(survey_id)
+#     survey.status = 'Reclustering'
+#     for trapgroup in survey.trapgroups:
+#         trapgroup.processing = False
+#         trapgroup.queueing = False
+#         trapgroup.active = False
+#         trapgroup.user_id = None
+#     session.commit()
 
-def reclusterAfterTimestampChange(survey_id):
-    '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels. Saves all old tasks 
-    in a hidden state with _o_l_d_ at the end of their name.'''
+#     # delete default task
+#     defaultTask = session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='default').first()
+#     if defaultTask:
+#         delete_task(defaultTask.id)
 
-    session = db.session()
-
-    survey = session.query(Survey).get(survey_id)
-    survey.status = 'Reclustering'
-    for trapgroup in survey.trapgroups:
-        trapgroup.processing = False
-        trapgroup.queueing = False
-        trapgroup.active = False
-        trapgroup.user_id = None
-    session.commit()
-
-    # delete default task
-    defaultTask = session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='default').first()
-    if defaultTask:
-        delete_task(defaultTask.id)
-
-    # create new default task
-    task_id = cluster_survey(survey_id,'default')
-    recluster_large_clusters(session.query(Task).get(task_id),True,session)
-    session.commit()
+#     # create new default task
+#     task_id = cluster_survey(survey_id,'default')
+#     recluster_large_clusters(session.query(Task).get(task_id),True,session)
+#     session.commit()
     
-    # pool = Pool(processes=4)
-    trapgroup_ids = [r[0] for r in session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
-    for trapgroup_id in trapgroup_ids:
-        classifyTrapgroup(task_id,trapgroup_id)
-        session.commit()
-    # pool.close()
-    # pool.join()
+#     # pool = Pool(processes=4)
+#     trapgroup_ids = [r[0] for r in session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
+#     for trapgroup_id in trapgroup_ids:
+#         classifyTrapgroup(task_id,trapgroup_id)
+#         session.commit()
+#     # pool.close()
+#     # pool.join()
 
-    admin_id = session.query(User.id).filter(User.username=='Admin').first()[0]
+#     admin_id = session.query(User.id).filter(User.username=='Admin').first()[0]
 
-    OldGroup = alias(Labelgroup)
-    OldCluster = alias(Cluster)
+#     OldGroup = alias(Labelgroup)
+#     OldCluster = alias(Cluster)
 
-    # session.commit()
-    tasks=session.query(Task).filter(Task.survey_id==survey_id).all()
-    for task in tasks:
-        if ('_o_l_d_' not in task.name) and (task.name != 'default'):
+#     # session.commit()
+#     tasks=session.query(Task).filter(Task.survey_id==survey_id).all()
+#     for task in tasks:
+#         if ('_o_l_d_' not in task.name) and (task.name != 'default'):
 
-            # if '_copying' not in task.name:
+#             # if '_copying' not in task.name:
 
-            taskName = task.name
+#             taskName = task.name
 
-            _o_l_d_count = session.query(Task).filter(Task.name.contains(task.name+'_o_l_d_')).filter(Task.survey_id==survey_id).distinct().count()
+#             _o_l_d_count = session.query(Task).filter(Task.name.contains(task.name+'_o_l_d_')).filter(Task.survey_id==survey_id).distinct().count()
 
-            #Rename old task
-            task.name += '_o_l_d_'
-            if _o_l_d_count: task.name += str(_o_l_d_count)
-            # session.commit
+#             #Rename old task
+#             task.name += '_o_l_d_'
+#             if _o_l_d_count: task.name += str(_o_l_d_count)
+#             # session.commit
 
-            #create new task
-            newTask = Task(name=taskName, survey_id=survey_id, status='Ready', tagging_level=task.tagging_level, tagging_time=task.tagging_time, test_size=task.test_size, size=task.size, parent_classification=task.parent_classification)
-            session.add(newTask)
-            # session.commit()
+#             #create new task
+#             newTask = Task(name=taskName, survey_id=survey_id, status='Ready', tagging_level=task.tagging_level, tagging_time=task.tagging_time, test_size=task.test_size, size=task.size, parent_classification=task.parent_classification)
+#             session.add(newTask)
+#             # session.commit()
 
-            # else:
-            #     #Copy was interrupted
-            #     taskName = re.split('_copying',task.name)[0] + '_o_l_d_'
-            #     newTask = task
-            #     task = session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name==taskName).first()
+#             # else:
+#             #     #Copy was interrupted
+#             #     taskName = re.split('_copying',task.name)[0] + '_o_l_d_'
+#             #     newTask = task
+#             #     task = session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name==taskName).first()
             
-            #copy labels, tags, and translations
-            labelTranslations = {
-                GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id),
-                GLOBALS.knocked_id: session.query(Label).get(GLOBALS.knocked_id),
-                GLOBALS.nothing_id: session.query(Label).get(GLOBALS.nothing_id),
-                GLOBALS.unknown_id: session.query(Label).get(GLOBALS.unknown_id)
-            }
-            labels = session.query(Label).filter(Label.task_id==task.id).all()
-            for label in labels:
-                newLabel = Label(description=label.description,hotkey=label.hotkey,complete=label.complete,task=newTask)
-                session.add(newLabel)
-                labelTranslations[label.id] = newLabel
-            for label in labels:
-                if label.parent_id != None:
-                    labelTranslations[label.id].parent = labelTranslations[label.parent_id]
-                    # newLabel = session.query(Label).filter(Label.description==label.description).filter(Label.task_id==newTask.id).first()
-                    # parent = label.parent
-                    # if parent.task_id != None:
-                    #     parent = session.query(Label).filter(Label.description==parent.description).filter(Label.task_id==newTask.id).first()
-                    # newLabel.parent = parent
-            # session.commit()
+#             #copy labels, tags, and translations
+#             labelTranslations = {
+#                 GLOBALS.vhl_id: session.query(Label).get(GLOBALS.vhl_id),
+#                 GLOBALS.knocked_id: session.query(Label).get(GLOBALS.knocked_id),
+#                 GLOBALS.nothing_id: session.query(Label).get(GLOBALS.nothing_id),
+#                 GLOBALS.unknown_id: session.query(Label).get(GLOBALS.unknown_id)
+#             }
+#             labels = session.query(Label).filter(Label.task_id==task.id).all()
+#             for label in labels:
+#                 newLabel = Label(description=label.description,hotkey=label.hotkey,complete=label.complete,task=newTask)
+#                 session.add(newLabel)
+#                 labelTranslations[label.id] = newLabel
+#             for label in labels:
+#                 if label.parent_id != None:
+#                     labelTranslations[label.id].parent = labelTranslations[label.parent_id]
+#                     # newLabel = session.query(Label).filter(Label.description==label.description).filter(Label.task_id==newTask.id).first()
+#                     # parent = label.parent
+#                     # if parent.task_id != None:
+#                     #     parent = session.query(Label).filter(Label.description==parent.description).filter(Label.task_id==newTask.id).first()
+#                     # newLabel.parent = parent
+#             # session.commit()
 
-            #copy tags
-            tagTranslations = {}
-            tags = session.query(Tag).filter(Tag.task_id==task.id).all()
-            for tag in tags:
-                # check = session.query(Tag).filter(Tag.task_id==newTask.id).filter(Tag.description==tag.description).first()
-                # if not check:
-                newTag = Tag(   task=newTask,
-                                description=tag.description,
-                                hotkey=tag.hotkey)
-                session.add(newTag)
-                tagTranslations[tag.id] = newTag
-            # session.commit()
+#             #copy tags
+#             tagTranslations = {}
+#             tags = session.query(Tag).filter(Tag.task_id==task.id).all()
+#             for tag in tags:
+#                 # check = session.query(Tag).filter(Tag.task_id==newTask.id).filter(Tag.description==tag.description).first()
+#                 # if not check:
+#                 newTag = Tag(   task=newTask,
+#                                 description=tag.description,
+#                                 hotkey=tag.hotkey)
+#                 session.add(newTag)
+#                 tagTranslations[tag.id] = newTag
+#             # session.commit()
 
-            translations = session.query(Translation).filter(Translation.task_id==task.id).all()
-            for translation in translations:
-                # if translation.label.task_id:
-                #     newLabel = session.query(Label).filter(Label.description==translation.label.description).filter(Label.task_id==newTask.id).first()
-                # else:
-                #     newLabel = translation.label
-                # check = session.query(Translation).filter(Translation.classification==translation.classification).filter(Translation.task_id==newTask.id).filter(Translation.label_id==newLabel.id).first()
-                # if not check:
-                newTranslation = Translation(classification=translation.classification,auto_classify=translation.auto_classify,task=newTask,label=labelTranslations[translation.label_id])
-                session.add(newTranslation)
-            # session.commit()
+#             translations = session.query(Translation).filter(Translation.task_id==task.id).all()
+#             for translation in translations:
+#                 # if translation.label.task_id:
+#                 #     newLabel = session.query(Label).filter(Label.description==translation.label.description).filter(Label.task_id==newTask.id).first()
+#                 # else:
+#                 #     newLabel = translation.label
+#                 # check = session.query(Translation).filter(Translation.classification==translation.classification).filter(Translation.task_id==newTask.id).filter(Translation.label_id==newLabel.id).first()
+#                 # if not check:
+#                 newTranslation = Translation(classification=translation.classification,auto_classify=translation.auto_classify,task=newTask,label=labelTranslations[translation.label_id])
+#                 session.add(newTranslation)
+#             # session.commit()
 
-            # Copying clusters
-            copyClusters(newTask,session)
+#             # Copying clusters
+#             copyClusters(newTask,session)
 
-            # deal with knockdowns
-            downLabel =  session.query(Label).get(GLOBALS.knocked_id)
+#             # deal with knockdowns
+#             downLabel =  session.query(Label).get(GLOBALS.knocked_id)
 
-            # sq = session.query(Cluster.id,Image.id.label('rootImage'))\
-            #                         .join(Image,Cluster.images)\
-            #                         .filter(Cluster.task_id==task.id)\
-            #                         .filter(func.min(Image.corrected_timestamp))\
-            #                         .group_by(Cluster.id)\
-            #                         .subquery()
+#             # sq = session.query(Cluster.id,Image.id.label('rootImage'))\
+#             #                         .join(Image,Cluster.images)\
+#             #                         .filter(Cluster.task_id==task.id)\
+#             #                         .filter(func.min(Image.corrected_timestamp))\
+#             #                         .group_by(Cluster.id)\
+#             #                         .subquery()
 
-            #                         .filter(Cluster.labels.contains(downLabel))\
+#             #                         .filter(Cluster.labels.contains(downLabel))\
 
 
-            clusters = session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(downLabel)).all()
-            # pool = Pool(processes=1)
-            for cluster in clusters:
-                rootImage = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).first()
-                lastImage = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.corrected_timestamp)).first()
-                trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
+#             clusters = session.query(Cluster).filter(Cluster.task_id==task.id).filter(Cluster.labels.contains(downLabel)).all()
+#             # pool = Pool(processes=1)
+#             for cluster in clusters:
+#                 rootImage = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).first()
+#                 lastImage = session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.corrected_timestamp)).first()
+#                 trapgroup = session.query(Trapgroup).join(Camera).join(Image).filter(Image.clusters.contains(cluster)).first()
 
-                # if (trapgroup.queueing==False) and (trapgroup.processing==False):
-                trapgroup.active = False
-                trapgroup.user_id = None
-                trapgroup.processing = True
-                # session.commit()
-                finish_knockdown(rootImage.id, newTask, admin_id, lastImage.id,session)
-                # pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
+#                 # if (trapgroup.queueing==False) and (trapgroup.processing==False):
+#                 trapgroup.active = False
+#                 trapgroup.user_id = None
+#                 trapgroup.processing = True
+#                 # session.commit()
+#                 finish_knockdown(rootImage.id, newTask, admin_id, lastImage.id,session)
+#                 # pool.apply_async(finish_knockdown,(rootImage.id, newTask.id, survey.user.id, lastImage.id))
 
-            # pool.close()
-            # pool.join()
+#             # pool.close()
+#             # pool.join()
 
-            #copy labels & tags
-            queryData = session.query(Labelgroup,detectionLabels.c.label_id,detectionTags.c.tag_id,OldGroup.c.checked)\
-                                        .join(Detection,Labelgroup.detection_id==Detection.id)\
-                                        .join(OldGroup,OldGroup.c.detection_id==Detection.id)\
-                                        .outerjoin(detectionLabels,detectionLabels.c.labelgroup_id==OldGroup.c.id)\
-                                        .outerjoin(detectionTags,detectionTags.c.labelgroup_id==OldGroup.c.id)\
-                                        .filter(Labelgroup.task==newTask)\
-                                        .filter(OldGroup.c.task_id==task.id)\
-                                        .all()
+#             #copy labels & tags
+#             queryData = session.query(Labelgroup,detectionLabels.c.label_id,detectionTags.c.tag_id,OldGroup.c.checked)\
+#                                         .join(Detection,Labelgroup.detection_id==Detection.id)\
+#                                         .join(OldGroup,OldGroup.c.detection_id==Detection.id)\
+#                                         .outerjoin(detectionLabels,detectionLabels.c.labelgroup_id==OldGroup.c.id)\
+#                                         .outerjoin(detectionTags,detectionTags.c.labelgroup_id==OldGroup.c.id)\
+#                                         .filter(Labelgroup.task==newTask)\
+#                                         .filter(OldGroup.c.task_id==task.id)\
+#                                         .all()
 
-            labelgroupInfo = {}
-            for item in queryData:
-                if item[0] not in labelgroupInfo.keys():
-                    labelgroupInfo[item[0]] = {'labels':[],'tags':[],'checked':item[3]}
-                if item[1] and (item[1] not in labelgroupInfo[item[0]]['labels']): labelgroupInfo[item[0]]['labels'].append(item[1])
-                if item[2] and (item[2] not in labelgroupInfo[item[0]]['tags']): labelgroupInfo[item[0]]['tags'].append(item[2])
+#             labelgroupInfo = {}
+#             for item in queryData:
+#                 if item[0] not in labelgroupInfo.keys():
+#                     labelgroupInfo[item[0]] = {'labels':[],'tags':[],'checked':item[3]}
+#                 if item[1] and (item[1] not in labelgroupInfo[item[0]]['labels']): labelgroupInfo[item[0]]['labels'].append(item[1])
+#                 if item[2] and (item[2] not in labelgroupInfo[item[0]]['tags']): labelgroupInfo[item[0]]['tags'].append(item[2])
 
-            for labelgroup in labelgroupInfo:
-                labelgroup.checked = labelgroupInfo[labelgroup]['checked']
-                labelgroup.labels = [labelTranslations[label] for label in labelgroupInfo[labelgroup]['labels']]
-                labelgroup.tags = [tagTranslations[tag] for tag in labelgroupInfo[labelgroup]['tags']]
+#             for labelgroup in labelgroupInfo:
+#                 labelgroup.checked = labelgroupInfo[labelgroup]['checked']
+#                 labelgroup.labels = [labelTranslations[label] for label in labelgroupInfo[labelgroup]['labels']]
+#                 labelgroup.tags = [tagTranslations[tag] for tag in labelgroupInfo[labelgroup]['tags']]
 
-            queryData = session.query(Cluster,Label,Tag)\
-                                        .join(Image,Cluster.images)\
-                                        .join(Detection)\
-                                        .join(Labelgroup)\
-                                        .outerjoin(Label,Labelgroup.labels)\
-                                        .outerjoin(Tag,Labelgroup.tags)\
-                                        .filter(Labelgroup.task==newTask)\
-                                        .filter(Cluster.task==newTask)\
-                                        .all()
+#             queryData = session.query(Cluster,Label,Tag)\
+#                                         .join(Image,Cluster.images)\
+#                                         .join(Detection)\
+#                                         .join(Labelgroup)\
+#                                         .outerjoin(Label,Labelgroup.labels)\
+#                                         .outerjoin(Tag,Labelgroup.tags)\
+#                                         .filter(Labelgroup.task==newTask)\
+#                                         .filter(Cluster.task==newTask)\
+#                                         .all()
 
-            clusterInfo = {}
-            for item in queryData:
-                if item[0] not in clusterInfo.keys():
-                    clusterInfo[item[0]] = {'labels':[],'tags':[]}
-                if item[1] and (item[1] not in clusterInfo[item[0]]['labels']): clusterInfo[item[0]]['labels'].append(item[1])
-                if item[2] and (item[2] not in clusterInfo[item[0]]['tags']): clusterInfo[item[0]]['tags'].append(item[2])
+#             clusterInfo = {}
+#             for item in queryData:
+#                 if item[0] not in clusterInfo.keys():
+#                     clusterInfo[item[0]] = {'labels':[],'tags':[]}
+#                 if item[1] and (item[1] not in clusterInfo[item[0]]['labels']): clusterInfo[item[0]]['labels'].append(item[1])
+#                 if item[2] and (item[2] not in clusterInfo[item[0]]['tags']): clusterInfo[item[0]]['tags'].append(item[2])
 
-            for cluster in clusterInfo:
-                cluster.labels = clusterInfo[cluster]['labels']
-                cluster.tags = clusterInfo[cluster]['tags']
+#             for cluster in clusterInfo:
+#                 cluster.labels = clusterInfo[cluster]['labels']
+#                 cluster.tags = clusterInfo[cluster]['tags']
 
-            # copy notes
-            noteData = session.query(Cluster,Cluster.notes)\
-                                        .join(Image,Cluster.images)\
-                                        .join(images,images.c.image_id==Image.id)\
-                                        .join(OldCluster,OldCluster.c.id==images.c.cluster_id)\
-                                        .filter(OldCluster.c.task_id==task.id)\
-                                        .filter(Cluster.task==newTask)\
-                                        .filter(OldCluster.c.notes!=None)\
-                                        .filter(OldCluster.c.notes!='')\
-                                        .all()
+#             # copy notes
+#             noteData = session.query(Cluster,Cluster.notes)\
+#                                         .join(Image,Cluster.images)\
+#                                         .join(images,images.c.image_id==Image.id)\
+#                                         .join(OldCluster,OldCluster.c.id==images.c.cluster_id)\
+#                                         .filter(OldCluster.c.task_id==task.id)\
+#                                         .filter(Cluster.task==newTask)\
+#                                         .filter(OldCluster.c.notes!=None)\
+#                                         .filter(OldCluster.c.notes!='')\
+#                                         .all()
 
-            noteInfo = {}
-            for item in noteData:
-                if item[0] not in noteInfo.keys():
-                    noteInfo[item[0]] = []
-                if item[1] and (item[1] not in noteInfo[item[0]]): noteInfo[item[0]].append(item[1])
+#             noteInfo = {}
+#             for item in noteData:
+#                 if item[0] not in noteInfo.keys():
+#                     noteInfo[item[0]] = []
+#                 if item[1] and (item[1] not in noteInfo[item[0]]): noteInfo[item[0]].append(item[1])
 
-            for cluster in noteInfo:
-                note = ''
-                for item in noteInfo[cluster]:
-                    note += item.note
-                cluster.notes = note
+#             for cluster in noteInfo:
+#                 note = ''
+#                 for item in noteInfo[cluster]:
+#                     note += item.note
+#                 cluster.notes = note
 
-            # migrate individuals to new task
-            individuals = session.query(Individual).filter(Individual.tasks.contains(task)).all()
-            for individual in individuals:
-                individual.tasks.remove(task)
-                individual.tasks.append(newTask)
+#             # migrate individuals to new task
+#             individuals = session.query(Individual).filter(Individual.tasks.contains(task)).all()
+#             for individual in individuals:
+#                 individual.tasks.remove(task)
+#                 individual.tasks.append(newTask)
 
-                # Update tags
-                tags = []
-                for tag in individual.tags:
-                    if tag.task_id==task.id:
-                        tag = tagTranslations[tag.id]
-                    tags.append(tag)
-                individual.tags = tags
+#                 # Update tags
+#                 tags = []
+#                 for tag in individual.tags:
+#                     if tag.task_id==task.id:
+#                         tag = tagTranslations[tag.id]
+#                     tags.append(tag)
+#                 individual.tags = tags
 
-            # recalculate individual similarities as the heuristic values will have changed
-            # species = [item[0] for item in session.query(Individual.species).filter(Individual.tasks.contains(newTask)).distinct().all()]
-            # for specie in species:
-            #     calculate_individual_similarities(newTask.id,specie,None)
+#             # recalculate individual similarities as the heuristic values will have changed
+#             # species = [item[0] for item in session.query(Individual.species).filter(Individual.tasks.contains(newTask)).distinct().all()]
+#             # for specie in species:
+#             #     calculate_individual_similarities(newTask.id,specie,None)
 
-            # newTask.name = re.split('_copying',newTask.name)[0]
-            # session.commit()
+#             # newTask.name = re.split('_copying',newTask.name)[0]
+#             # session.commit()
 
-    session.commit()
-    tasks=[r[0] for r in session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').filter(~Task.name.contains('_o_l_d_')).all()]
-    session.close()
+#     session.commit()
+#     tasks=[r[0] for r in session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').filter(~Task.name.contains('_o_l_d_')).all()]
+#     session.close()
 
-    for task_id in tasks:
-        updateAllStatuses.delay(task_id=task_id)
+#     for task_id in tasks:
+#         updateAllStatuses.delay(task_id=task_id)
             
-    return True
+#     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def updateCoords(self,survey_id,coordData):
@@ -1084,25 +1292,89 @@ def changeTimestamps(self,survey_id,timestamps):
     
         Parameters:
             survey_id (int): The survey to edit
-            timestamps (list): List of timestamp changes
+            timestamps (dict): Timestamp changes formatted {camera_id: {'original': timestamp, 'corrected': timestamp}}
     '''
     
     try:
+        app.logger.info('changeTimestamps called for survey {} with timestamps {}'.format(survey_id,timestamps))
+
+        # double check for edited cameras
+        camera_ids = [int(r) for r in timestamps.keys() if (timestamps[r]['corrected']!=timestamps[r]['original'])]
+
+        # Check if there is a need to recluster (ie. there are overlapping edited cameras)
+        # In order to make this indempotent, we use the 'original' timestamps which are more of an intermediate timestamp
+        overlap_prior = []
+        trapgroups = db.session.query(Trapgroup).join(Camera).filter(Camera.id.in_(camera_ids)).distinct().all()
+        for trapgroup in trapgroups:
+            camera_times = db.session.query(Camera.id,func.min(Image.timestamp).label('min'),func.max(Image.timestamp).label('max'),func.min(Image.corrected_timestamp).label('min_corrected'),func.max(Image.corrected_timestamp).label('max_corrected'))\
+                                    .join(Image)\
+                                    .filter(Image.timestamp!=None)\
+                                    .filter(Camera.trapgroup_id==trapgroup.id)\
+                                    .group_by(Camera.id)\
+                                    .all()
+            
+            camera_times2 = camera_times.copy()
+            for item in camera_times:
+                if trapgroup.id in overlap_prior: break
+                camera_times2.remove(item)
+                camera1_id = item[0]
+
+                if str(camera1_id) in timestamps.keys():
+                    try:
+                        # original = intermediate
+                        camera1_original = datetime.strptime(timestamps[str(camera1_id)]['original'],"%Y/%m/%d %H:%M:%S")
+                        camera1_delta = camera1_original - item[1]
+                        camera1_min = item[1] + camera1_delta
+                        camera1_max = item[2] + camera1_delta
+                    except:
+                        # if timestamp is incorrectly formatted, it will not be edited
+                        camera2_min = item2[3]
+                        camera2_max = item2[4]
+                else:
+                    # if timestamp is not edited, use the corrected timestamp from db
+                    camera1_min = item[3]
+                    camera1_max = item[4]
+
+                for item2 in camera_times2:
+                    camera2_id = item2[0]
+
+                    if str(camera2_id) in timestamps.keys():
+                        try:
+                            camera2_original = datetime.strptime(timestamps[str(camera2_id)]['original'],"%Y/%m/%d %H:%M:%S")
+                            camera2_delta = camera2_original - item2[1]
+                            camera2_min = item2[1] + camera2_delta
+                            camera2_max = item2[2] + camera2_delta
+                        except:
+                            # if timestamp is incorrectly formatted, it will not be edited
+                            camera2_min = item2[3]
+                            camera2_max = item2[4]
+                    else:
+                        # if timestamp is not edited, use the corrected timestamp from db
+                        camera2_min = item2[3]
+                        camera2_max = item2[4]
+
+                    if (camera1_min<=camera2_max<=camera1_max) or (camera1_min<=camera2_min<=camera1_max) or (camera2_min<=camera1_max<=camera2_max) or (camera2_min<=camera1_min<=camera2_max):
+                        if (camera1_id in camera_ids) or (camera2_id in camera_ids):
+                            if Config.DEBUGGING: app.logger.info('Trapgroup {} overlapping prior to edit'.format(trapgroup.id))
+                            overlap_prior.append(trapgroup.id)
+                            break
+
         # Update timestamps
-        for camera_id in timestamps:
+        for camera_id in camera_ids:
             try:
-                timestamp = datetime.strptime(timestamps[camera_id],"%Y/%m/%d %H:%M:%S")
+                timestamp = datetime.strptime(timestamps[str(camera_id)]['corrected'],"%Y/%m/%d %H:%M:%S")
                 # folder = item['camera']
                 # trapTag = re.split('/',identifier)[0]
                 # folder = re.split(trapTag+'/',item['camera'])[-1]
 
                 images = db.session.query(Image)\
-                                .filter(Image.camera_id==int(camera_id))\
+                                .filter(Image.camera_id==camera_id)\
                                 .filter(Image.timestamp!=None)\
-                                .order_by(Image.corrected_timestamp).all()
+                                .order_by(Image.timestamp).all()
 
                 if images:            
                     delta = timestamp-images[0].timestamp
+                    if Config.DEBUGGING: app.logger.info('Delta of {} for camera {}'.format(delta,camera_id))
                     for image in images:
                         image.corrected_timestamp = image.timestamp + delta
             except:
@@ -1110,11 +1382,36 @@ def changeTimestamps(self,survey_id,timestamps):
                 pass
         db.session.commit()
 
-        reclusterAfterTimestampChange(survey_id)
-        
-        survey = db.session.query(Survey).get(survey_id)
-        survey.status = 'Ready'
-        db.session.commit()
+        # Check if there is a need to recluster - no need to double check prior overlaps
+        overlap_after = []
+        trapgroups = db.session.query(Trapgroup).join(Camera).filter(Camera.id.in_(camera_ids)).filter(~Trapgroup.id.in_(overlap_prior)).distinct().all()
+        for trapgroup in trapgroups:
+            camera_times = db.session.query(Camera.id,func.min(Image.corrected_timestamp).label('min'),func.max(Image.corrected_timestamp).label('max'))\
+                                    .join(Image)\
+                                    .filter(Image.corrected_timestamp!=None)\
+                                    .filter(Camera.trapgroup_id==trapgroup.id)\
+                                    .group_by(Camera.id)\
+                                    .all()
+            camera_times2 = camera_times.copy()
+            for item in camera_times:
+                if trapgroup.id in overlap_after: break
+                camera_times2.remove(item)
+                for item2 in camera_times2:
+                    if (item[1]<=item2[2]<=item[2]) or (item[1]<=item2[1]<=item[2]) or (item2[1]<=item[2]<=item2[2]) or (item2[1]<=item[1]<=item2[2]):
+                        if (item[0] in camera_ids) or (item2[0] in camera_ids):
+                            if Config.DEBUGGING: app.logger.info('Trapgroup {} overlapping after to edit'.format(trapgroup.id))
+                            overlap_after.append(trapgroup.id)
+                            break
+
+        # Recluster if overlaps
+        if Config.DEBUGGING: app.logger.info('Overlaps found: trapgroups-{} cameras-{}'.format(overlap_prior+overlap_after,camera_ids))
+        if overlap_prior or overlap_after:
+            overlaps = (overlap_prior+overlap_after)
+            reclusterAfterTimestampChange.delay(survey_id=survey_id,trapgroup_ids=overlaps,camera_ids=camera_ids)
+        else:
+            survey = db.session.query(Survey).get(survey_id)
+            survey.status = 'Ready'
+            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
@@ -1509,40 +1806,83 @@ def updateStatistics(self):
         check = db.session.query(Statistic)\
                         .filter(extract('year',Statistic.timestamp)==datetime.utcnow().year)\
                         .filter(extract('month',Statistic.timestamp)==datetime.utcnow().month)\
+                        .filter(extract('day',Statistic.timestamp)==datetime.utcnow().day)\
                         .first()
 
         if not check:
-            users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
-            image_count=0
-            for user in users:
-                for survey in user.surveys:
-                    image_count+=survey.image_count
-
-            sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-            active_user_count = db.session.query(User)\
-                                    .join(Survey)\
-                                    .join(Task)\
-                                    .join(sq,sq.c.user_id==User.id)\
-                                    .filter(Task.init_complete==True)\
-                                    .filter(sq.c.count>10000)\
-                                    .distinct().count()
-
-            # AWS Costs
-            startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1)
-            endDate = datetime.utcnow().replace(day=1)
-            costs = get_AWS_costs(startDate,endDate)
-
-            statistic = Statistic(
-                timestamp=datetime.utcnow(),
-                user_count=len(users),
-                active_user_count=active_user_count,
-                image_count=image_count,
-                server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
-                storage_cost=costs['Amazon Simple Storage Service'],
-                db_cost=costs['Amazon Relational Database Service'],
-                total_cost=costs['Total']
-            )
+            statistic = Statistic(timestamp=datetime.utcnow())
             db.session.add(statistic)
+
+            # Daily stats
+            statistic.unique_daily_logins = db.session.query(User)\
+                                                .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(User.email!=None).count()
+            statistic.unique_daily_admin_logins = db.session.query(User)\
+                                                .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(User.admin==True).count()
+
+            #Monthly stats
+            if datetime.utcnow().day==1:
+                users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+                image_count=0
+                for user in users:
+                    for survey in user.surveys:
+                        image_count+=survey.image_count
+
+                sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
+                active_user_count = db.session.query(User)\
+                                        .join(Survey)\
+                                        .join(Task)\
+                                        .join(sq,sq.c.user_id==User.id)\
+                                        .filter(Task.init_complete==True)\
+                                        .filter(sq.c.count>10000)\
+                                        .distinct().count()
+
+                # AWS Costs
+                startDate = (datetime.utcnow().replace(day=1)-timedelta(days=10)).replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+                endDate = datetime.utcnow().replace(day=1)
+                costs = get_AWS_costs(startDate,endDate)
+
+                # Average daily logins (need the plus 1 hour here so as to not include the last day of the previous month)
+                average_daily_logins = 0
+                average_daily_admin_logins = 0
+                statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
+                if statistics:
+                    for stat in statistics:
+                        average_daily_logins += stat.unique_daily_logins
+                        average_daily_admin_logins += stat.unique_daily_admin_logins
+                    average_daily_logins = round(average_daily_logins/len(statistics),2)
+                    average_daily_admin_logins = round(average_daily_admin_logins/len(statistics),2)
+
+                # Unique monthly logins
+                unique_monthly_logins = db.session.query(User)\
+                                                    .filter(User.last_ping>startDate)\
+                                                    .filter(User.email!=None).count()
+                unique_monthly_admin_logins = db.session.query(User)\
+                                                    .filter(User.last_ping>startDate)\
+                                                    .filter(User.admin==True).count()
+
+                # Update DB object
+                statistic.user_count=len(users),
+                statistic.active_user_count=active_user_count,
+                statistic.image_count=image_count,
+                statistic.server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
+                statistic.storage_cost=costs['Amazon Simple Storage Service'],
+                statistic.db_cost=costs['Amazon Relational Database Service'],
+                statistic.total_cost=costs['Total']
+                statistic.average_daily_logins = average_daily_logins
+                statistic.average_daily_admin_logins = average_daily_admin_logins
+                statistic.unique_monthly_logins = unique_monthly_logins
+                statistic.unique_monthly_admin_logins = unique_monthly_admin_logins
+
+                # Update user image counts
+                data = db.session.query(User,func.sum(Survey.image_count)).join(Survey).filter(User.admin==True).group_by(User.id).all()
+                for item in data:
+                    user = item[0]
+                    count = int(item[1])
+                    user.previous_image_count = user.image_count
+                    user.image_count = count
+
             db.session.commit()
 
     except Exception as exc:

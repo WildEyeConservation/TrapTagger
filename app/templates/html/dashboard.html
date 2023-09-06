@@ -107,6 +107,47 @@ limitations under the License. -->
           <br>
 
           <div class="row">
+            <div class="col-lg-1"></div>
+            <div class="col-lg-10">
+              <h4>User Statistics</h4>
+              <table style="width:100%; table-layout:fixed" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th scope="col" style="border-bottom: 1px solid white">Statistic</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Past 24 Hours</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month (Daily Average)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Last Month (Daily Average)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">This Month (Total)</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Last Month (Total)</th>
+                  </tr>
+                </thead>
+                <tbody class="table-matrix stripe">
+                  <tr>
+                    <th scope="row">Unique Logins</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_logins_24h }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_logins }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_daily_logins }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_logins_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_monthly_logins }}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Unique Admin Logins</th>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_admin_logins_24h }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_admin_logins }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ average_daily_admin_logins }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_admin_logins_this_month }}</td>
+                    <td style="font-size: 100%; padding-left: 3px; padding-right: 3px;">{{ unique_monthly_admin_logins }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="col-lg-1"></div>
+          </div>
+
+          <br>
+          <br>
+
+          <div class="row">
             <div class="col-lg-2"></div>
             <div class="col-lg-8">
               <h4>AWS Costs (USD, including 15% SA VAT)</h4>
@@ -155,7 +196,7 @@ limitations under the License. -->
   
           <h4>Trends</h4>
           <div class="row">
-            <div class="col-lg-2">
+            <div class="col-lg-3">
               <select id="trendSelect" class='form-control'>
                 <option value="active_user_count">Active Users</option>
                 <option value="user_count">Users</option>
@@ -164,9 +205,15 @@ limitations under the License. -->
                 <option value="server_cost">Monthly Server Cost</option>
                 <option value="storage_cost">Monthly Image-Storage Cost</option>
                 <option value="db_cost">Monthly Database Cost</option>
+                <option value="unique_daily_logins">Unique Daily Logins</option>
+                <option value="unique_daily_admin_logins">Unique Daily Admin Logins</option>
+                <option value="average_daily_logins">Average Unique Daily Logins</option>
+                <option value="average_daily_admin_logins">Average Unique Daily Admin Logins</option>
+                <option value="unique_monthly_logins">Unique Monthly Logins</option>
+                <option value="unique_monthly_admin_logins">Unique Monthly Admin Logins</option>
               </select>
             </div>
-            <div class="col-lg-2">
+            <div class="col-lg-3">
               <select id="periodSelect" class='form-control'>
                 <option value="max">Max Time Period</option>
                 <option value="year">Last Year</option>
@@ -182,38 +229,55 @@ limitations under the License. -->
           <br>
 
           <div class="row">
-            <div class="col-lg-1"></div>
-            <div class="col-lg-10">
-              <h4>Active Users</h4>
+            <div class="col-lg-12">
+              <h4>User Summary</h4>
+
+              <div class="row">
+                <div class="col-lg-3">
+                  <select id="userOrderSelect" class='form-control'>
+                    <option value="total">Total Images Imported</option>
+                    <option value="this_month">Images Imported This Month</option>
+                    <option value="last_month">Images Imported Last Month</option>
+                  </select>
+                </div>
+                <div class="col-lg-3">
+                  <select id="activeUserSelect" class='form-control'>
+                    <option value="active_users">Show Active Users Only</option>
+                    <option value="all_users">Show All Users</option>
+                  </select>
+                </div>
+              </div>
+
+              <br>
+
               <table style="width:100%; table-layout:fixed" class="table table-bordered">
                 <thead>
                   <tr>
                     <th scope="col" style="border-bottom: 1px solid white">Account</th>
                     <th scope="col" style="border-bottom: 1px solid white">Affiliation</th>
                     <th scope="col" style="border-bottom: 1px solid white">Surveys</th>
-                    <th scope="col" style="border-bottom: 1px solid white">Images</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Total Images</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Images Imported This Month</th>
+                    <th scope="col" style="border-bottom: 1px solid white">Images Imported Last Month</th>
                     <th scope="col" style="border-bottom: 1px solid white">Regions</th>
                   </tr>
                 </thead>
                 <tbody class="table-matrix stripe" id="userInfoTableBody"></tbody>
               </table>
             </div>
-            <div class="col-lg-1"></div>
           </div>
           <div class="row">
-            <div class="col-lg-1"></div>
-            <div class="col-lg-2">
+            <div class="col-lg-1">
               <button type='button' class='btn btn-info btn-block' id='btnPrevUsers' style="visibility: hidden;" onclick="getUserInfo(prev_url)">
                 Previous
               </button>  
             </div>
-            <div class="col-lg-6"></div>
-            <div class="col-lg-2">
+            <div class="col-lg-10"></div>
+            <div class="col-lg-1">
               <button type='button' class='btn btn-info btn-block' id='btnNextUsers' style="visibility: hidden;" onclick="getUserInfo(next_url)">
                 Next
               </button>  
             </div>
-            <div class="col-lg-1"></div>
           </div>
 
 
