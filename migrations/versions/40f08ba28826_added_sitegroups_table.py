@@ -1,7 +1,7 @@
 """Added sitegroups table
 
 Revision ID: 40f08ba28826
-Revises: cb359a5b6428
+Revises: 856a486a6387
 Create Date: 2023-08-30 13:38:42.864707
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = '40f08ba28826'
-down_revision = 'cb359a5b6428'
+down_revision = '856a486a6387'
 branch_labels = None
 depends_on = None
 

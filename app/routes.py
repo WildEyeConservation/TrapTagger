@@ -56,11 +56,6 @@ import io
 import tracemalloc
 import calendar
 import pandas as pd
-import rpy2
-import rpy2.robjects as robjects
-from rpy2.robjects.packages import importr
-from rpy2.robjects import pandas2ri
-pandas2ri.activate()
 
 tracemalloc.start(40)
 
