@@ -32,63 +32,6 @@ import traceback
 import time
 from multiprocessing.pool import ThreadPool as Pool
 
-def required_images(cluster,relevent_classifications,transDict):
-    '''
-    Returns the required images for a specified cluster.
-    
-        Parameters:
-            cluster (Cluster): Cluster that the required images are needed for
-            relevent_classifications (list): The list of tagging-level relevent classifications for a cluster
-            transDict (dict): The translation dictionary between child labels and the relevent classifications
-    '''
-    
-    sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
-
-    species = db.session.query(Detection.classification)\
-                        .join(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .join(Survey)\
-                        .join(Classifier)\
-                        .filter(Image.clusters.contains(cluster))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .filter(Detection.class_score>Classifier.threshold)\
-                        .filter(Detection.classification!=None)\
-                        .filter(Detection.classification.in_(relevent_classifications))\
-                        .distinct().all()
-
-    species = set([transDict[r[0]] for r in species])
-
-    required = []
-    coveredSpecies = set()
-    for image in sortedImages:
-        imageSpecies = db.session.query(Detection.classification)\
-                        .join(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .join(Survey)\
-                        .join(Classifier)\
-                        .filter(Detection.image_id==image.id)\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
-                        .filter(Detection.class_score>Classifier.threshold)\
-                        .filter(Detection.classification!=None)\
-                        .filter(Detection.classification.in_(relevent_classifications))\
-                        .distinct().all()
-
-        imageSpecies = [transDict[r[0]] for r in imageSpecies]
-
-        if any(species not in coveredSpecies for species in imageSpecies):
-            coveredSpecies.update(imageSpecies)
-            required.append(image)
-            if coveredSpecies == species:
-                break
-
-    return required
-
 @celery.task(bind=True,max_retries=29,ignore_result=True)
 def launch_task(self,task_id):
     '''Celery task for launching the specified task for annotation.'''

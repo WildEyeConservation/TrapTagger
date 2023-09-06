@@ -2739,6 +2739,63 @@ def format_count(count):
     else:
         return '{:,}'.format(count).replace(',', ' ')
 
+def required_images(cluster,relevent_classifications,transDict):
+    '''
+    Returns the required images for a specified cluster.
+    
+        Parameters:
+            cluster (Cluster): Cluster that the required images are needed for
+            relevent_classifications (list): The list of tagging-level relevent classifications for a cluster
+            transDict (dict): The translation dictionary between child labels and the relevent classifications
+    '''
+    
+    sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
+
+    species = db.session.query(Detection.classification)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Classifier)\
+                        .filter(Image.clusters.contains(cluster))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Detection.class_score>Classifier.threshold)\
+                        .filter(Detection.classification!=None)\
+                        .filter(Detection.classification.in_(relevent_classifications))\
+                        .distinct().all()
+
+    species = set([transDict[r[0]] for r in species])
+
+    required = []
+    coveredSpecies = set()
+    for image in sortedImages:
+        imageSpecies = db.session.query(Detection.classification)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Classifier)\
+                        .filter(Detection.image_id==image.id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Detection.class_score>Classifier.threshold)\
+                        .filter(Detection.classification!=None)\
+                        .filter(Detection.classification.in_(relevent_classifications))\
+                        .distinct().all()
+
+        imageSpecies = [transDict[r[0]] for r in imageSpecies]
+
+        if any(species not in coveredSpecies for species in imageSpecies):
+            coveredSpecies.update(imageSpecies)
+            required.append(image)
+            if coveredSpecies == species:
+                break
+
+    return required
+
 def prep_required_images(task_id,trapgroup_id=None):
     '''Prepares the required images for every cluster in a specified task - the images that must be viewed by the 
     user based on the species contained therein.'''
