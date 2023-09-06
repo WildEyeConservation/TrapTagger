@@ -9027,7 +9027,7 @@ def getActivityPattern():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculate_activity_pattern.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+            result = calculate_activity_pattern.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
@@ -9066,7 +9066,7 @@ def getRScript():
 
     if Config.DEBUGGING: app.logger.info('R script requested for {}'.format(filename))
     script = ''
-    with open('R/' + filename + '.R', 'r') as file:
+    with open('rworker/R/' + filename + '.R', 'r') as file:
         script = file.read()
         
     return json.dumps({'status': 'success', 'script': script})
@@ -9200,7 +9200,7 @@ def getOccupancy():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculate_occupancy_analysis.apply_async(kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+            result = calculate_occupancy_analysis.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
@@ -9323,7 +9323,7 @@ def getSpatialCaptureRecapture():
             user_id = current_user.id
             folder = current_user.folder
             bucket = Config.BUCKET
-            result = calculate_spatial_capture_recapture.apply_async(kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+            result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:

@@ -16,7 +16,7 @@ limitations under the License.
 
 '''Cleans up the local worker by stopping its task consumption before re-queueing its active and reserved tasks.'''
 
-from megaDetector import app as celery
+from worker import app as celery
 from config import Config
 import importlib
 import re
@@ -30,7 +30,7 @@ active_tasks.extend(inspector.active()[Config.WORKER_NAME])
 active_tasks.extend(inspector.reserved()[Config.WORKER_NAME])
 
 for active_task in active_tasks:
-    for function_location in ['megaDetector']:
+    for function_location in ['worker']:
         if function_location in active_task['name']:
             module = importlib.import_module(function_location)
             function_name = re.split(function_location+'.',active_task['name'])[1]
