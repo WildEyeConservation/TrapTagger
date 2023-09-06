@@ -8471,16 +8471,10 @@ def getIndividualAssociations(individual_id, order):
 
     return json.dumps({'associations': reply, 'next': next_page, 'prev': prev_page})
 
-@app.route('/populateSiteSelector')
-@login_required
-def populateSiteSelector():
-    '''Returns site list for populating the site selector.'''
 @app.route('/results')
 def results():
     '''Renders the results page.'''
 
-    response = []
-    survey = current_user.turkcode[0].task.survey
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     elif current_user.parent_id != None:
@@ -9467,7 +9461,12 @@ def getSpatialCaptureRecapture():
 
     return json.dumps({'status': status, 'results': scr_results, 'message': msg})
 
-
+@app.route('/populateSiteSelector')
+@login_required
+def populateSiteSelector():
+    '''Returns site list for populating the site selector.'''
+    response = []
+    survey = current_user.turkcode[0].task.survey
     if survey and (current_user==survey.user):
         sites = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey.id).all()
         response.append((0, 'All'))
