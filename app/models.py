@@ -97,6 +97,12 @@ taskGroupings = db.Table("taskGroupings",
     db.Column("sub_id", db.Integer, db.ForeignKey("task.id"), primary_key=True),
 )
 
+siteGroupings = db.Table('siteGroupings',
+    db.Column('trapgroup_id', db.Integer, db.ForeignKey('trapgroup.id')),
+    db.Column('sitegroup_id', db.Integer, db.ForeignKey('sitegroup.id')),
+    db.UniqueConstraint('sitegroup_id', 'trapgroup_id')
+)
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -477,6 +483,15 @@ class Video(db.Model):
 
     def __repr__(self):
         return '<Video {}>'.format(self.filename)
+
+class Sitegroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=False)
+    description = db.Column(db.String(256), index=False)
+    trapgroups = db.relationship('Trapgroup', secondary=siteGroupings, lazy=True, backref=db.backref('sitegroups', lazy=True))
+
+    def __repr__(self):
+        return '<Sitegroup {}>'.format(self.name)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

@@ -547,7 +547,14 @@ function saveGroup() {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
-            modalGroups.modal('hide');
+            reply = JSON.parse(this.responseText);
+            if (reply.status == 'success') {
+                modalGroups.modal('hide');
+                getLabelsSitesTagsAndGroups(true)
+            }
+            else{
+                document.getElementById('groupErrors').innerHTML = reply.message
+            }
         }
     }
     xhttp.open("POST", '/saveGroup');
@@ -566,6 +573,7 @@ function getGroups() {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             groups = reply.groups
+            console.log(groups)
 
             for (let i=0; i<groups.length; i++) {
                 buildGroup(groups[i])
@@ -738,20 +746,12 @@ function buildGroup(group) {
 function editGroup() {
     /** Edits the group in the database */
 
-    var sites = []
     var sites_ids = []
     var groupName = document.getElementById('groupName').value
     var groupDescription = document.getElementById('groupDescription').value
 
-    for (let i = 0; i < allCheckboxes.length; i++) {
-        var checkbox = document.getElementById(allCheckboxes[i])
-        if (checkbox.checked) {
-            sites.push(checkbox.value)
-        }
-    }
-
-    for (let i = 0; i < sites.length; i++) {
-        var split = sites[i].split(',')
+    for (let i = 0; i < groupSites.length; i++) {
+        var split = groupSites[i].split(',')
         sites_ids.push(...split)
     }
 
@@ -767,9 +767,10 @@ function editGroup() {
             reply = JSON.parse(this.responseText);
             if (reply.status == 'success') {
                 modalGroups.modal('hide');
+                getLabelsSitesTagsAndGroups(true)
             }
             else{
-                document.getElementById('groupError').innerHTML = reply.message
+                document.getElementById('groupErrors').innerHTML = reply.message
             }
 
         }
@@ -786,6 +787,10 @@ function deleteGroup() {
             reply = JSON.parse(this.responseText);
             if (reply.status == 'success') {
                 modalConfirmDelete.modal('hide');
+                getLabelsSitesTagsAndGroups(true)
+            }
+            else{
+                document.getElementById('modalConfirmBody').innerHTML = reply.message
             }
         }
     }
@@ -1256,25 +1261,34 @@ function saveGroupFromData(){
 function getSitesForGroup(){
     /** Gets the sites for the group from the generate analysis card */
     var analysisType = document.getElementById('analysisSelector').value    
-    if (analysisType == '1' || analysisType == '4') {
-        var allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    if (analysisType == '2'){
+        allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
     }
-    else if (analysisType == '2') {
-        var allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    else if (analysisType == '3'){
+        allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
-    else{
-        var allSites = null
+    else if (analysisType=='5' || analysisType=='6' || analysisType=='7'){
+        allSites = document.querySelectorAll('[id^=siteSelector-]')
     }
+    else if (analysisType=='0' || analysisType=='-1'){
+        return '0'
+    }
+    else {
+        allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
+    }
+
     var sites = []
     var selectAll = false
 
     if (allSites){
         for (let i = 0; i < allSites.length; i++) {
             if (allSites[i].value != '0' && allSites[i].value != '-1'){
-                sites.push({
-                    'ids': allSites[i].value,
-                    'text': allSites[i].options[allSites[i].selectedIndex].text
-                })
+                if (allSites[i].value.includes('s-')){
+                    sites.push({
+                        'ids': allSites[i].value.split('-')[1],
+                        'text': allSites[i].options[allSites[i].selectedIndex].text
+                    })
+                }
             }
             else if (allSites[i].value == '0'){
                 selectAll = true
@@ -1297,6 +1311,8 @@ function getSitesForGroup(){
 }
 
 modalGroups.on('show.bs.modal', function(){
+    document.body.style.overflow = 'hidden';
+    modalGroups.css('overflow', 'auto');
     modalGroupReturn = true 
     document.getElementById('searchSitesRb').checked = true
     updateSitesSelectionMethod()
@@ -1305,6 +1321,8 @@ modalGroups.on('show.bs.modal', function(){
 
 modalGroups.on('hidden.bs.modal', function(){
     /** Clears the groups modal when closed. */
+    document.body.style.overflow = 'auto'
+    modalGroups.css('overflow', 'auto')
     if (!modalSiteActive) {
         var addSitesDiv = document.getElementById('addSitesDiv');
         while(addSitesDiv.firstChild) {
@@ -1345,9 +1363,11 @@ modalSitesMap.on('hidden.bs.modal', function(){
 
 modalConfirmDelete.on('hidden.bs.modal', function(){
     modalViewGroups.modal({keyboard: true});
+    selectedGroup = null
 });
 
 modalViewGroups.on('show.bs.modal', function(){
+    selectedGroup = null
     getGroups()
 });
 
@@ -1391,8 +1411,8 @@ $('#btnCreateGroup').on('click', function() {
         row.appendChild(col)
     }
 
-    modalGroups.modal({keyboard: true});
     modalViewGroups.modal('hide');
+    modalGroups.modal({keyboard: true});
 
 });
 

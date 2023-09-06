@@ -386,19 +386,32 @@ function updatePolarData(IDNum) {
     }
 
     var traps = null
-    if (trapgroup.includes(',')) {
-        traps = trapgroup.split(',')
+    var group = '-1'
+    if (trapgroup.includes('s-')) {
+        var trapgroupVal = trapgroup.split('-')[1]
+    }
+    else if (trapgroup.includes('g-')) {
+        var groupVal = trapgroup.split('-')[1]
+        group = groupVal
+        var trapgroupVal = '-1'
     }
     else {
-        if (isNaN(trapgroup) || trapgroup == '0') {
-            traps = trapgroup
+        var trapgroupVal = trapgroup
+    }
+
+    if (trapgroupVal.includes(',')) {
+        traps = trapgroupVal.split(',')
+    }
+    else {
+        if (isNaN(trapgroupVal) || trapgroupVal == '0' || trapgroupVal == '-1') {
+            traps = trapgroupVal
         }
         else {
-            traps = [trapgroup]
+            traps = [trapgroupVal]
         }
     }
     
-    if ((traps!='-1' && traps!= 'None') && (species!= 'None' && species!= '-1')){
+    if (((traps!='-1' && traps!= 'None')||(group!='-1')) && (species!= 'None' && species!= '-1')){
         var reqID = Math.floor(Math.random() * 100000) + 1;
         activeRequest[IDNum.toString()] = reqID
 
@@ -410,6 +423,14 @@ function updatePolarData(IDNum) {
         formData.append('reqID', JSON.stringify(reqID));
         formData.append('startDate', JSON.stringify(startDate));
         formData.append('endDate', JSON.stringify(endDate));
+        formData.append('group', JSON.stringify(group));
+
+        if (baseUnitSelection == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -840,7 +861,9 @@ function updateBarData(IDNum) {
         var tasks = [selectedTask]
     }else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
     }
 
     if(species == 'All'){
@@ -856,6 +879,14 @@ function updateBarData(IDNum) {
     formData.append('endDate', JSON.stringify(endDate));
     if (!selectedTask) {
         formData.append('sites_ids', JSON.stringify(sites));
+        formData.append('groups', JSON.stringify(groups));
+    }
+
+    if (baseUnitSelection == '4'){
+        var timeToIndependence = document.getElementById('timeToIndependence').value
+        var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+        formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+        formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
     }
 
     if (species!='-1' && species!='None') {
@@ -865,7 +896,7 @@ function updateBarData(IDNum) {
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-  
+                    console.log(reply)
                     IDkey = wrapIDNum.toString()
 
                     trapgroupNames = reply.labels
@@ -1113,7 +1144,9 @@ function updateHeatMap() {
         var tasks = [selectedTask]
     }else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
     }
 
     if(species == 'All'){
@@ -1163,6 +1196,14 @@ function updateHeatMap() {
         formData.append('endDate', JSON.stringify(endDate));
         if (!selectedTask) {
             formData.append('sites', JSON.stringify(sites));
+            formData.append('groups', JSON.stringify(groups));
+        }
+
+        if (baseUnit == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
         }
 
         var xhttp = new XMLHttpRequest();
@@ -1271,17 +1312,31 @@ function updateLineData(IDNum){
     }
 
     var traps = null
-    if (trapgroup.includes(',')) {
-        traps = trapgroup.split(',')
+    var group = '-1'
+    if (trapgroup.includes('s-')) {
+        var trapgroupVal = trapgroup.split('-')[1]
+    }
+    else if (trapgroup.includes('g-')) {
+        var groupVal = trapgroup.split('-')[1]
+        group = groupVal
+        var trapgroupVal = '-1'
     }
     else {
-        if (isNaN(trapgroup) || trapgroup == '0') {
-            traps = trapgroup
+        var trapgroupVal = trapgroup
+    }
+
+    if (trapgroupVal.includes(',')) {
+        traps = trapgroupVal.split(',')
+    }
+    else {
+        if (isNaN(trapgroupVal) || trapgroupVal == '0' || trapgroupVal == '-1') {
+            traps = trapgroupVal
         }
         else {
-            traps = [trapgroup]
+            traps = [trapgroupVal]
         }
     }
+    
 
     var formData = new FormData();
     formData.append('task_ids', JSON.stringify(tasks));
@@ -1292,6 +1347,15 @@ function updateLineData(IDNum){
     formData.append('timeUnitNumber', JSON.stringify(timeUnitNumber));
     formData.append('startDate', JSON.stringify(startDate));
     formData.append('endDate', JSON.stringify(endDate));
+    formData.append('group', JSON.stringify(group));
+    
+
+    if (baseUnitSelection == '4'){
+        var timeToIndependence = document.getElementById('timeToIndependence').value
+        var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+        formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+        formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+    }
 
     if (trapgroup!='-1' && selection != '-1') {
         var xhttp = new XMLHttpRequest();

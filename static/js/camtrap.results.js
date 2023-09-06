@@ -142,20 +142,24 @@ var globalSiteCovariates = []
 var globalDetectionCovariates = []
 var globalCovariateOptions = []
 var globalCSVData = []
+var activity = true
+var timeout = null
+var globalGroupNames = []
+var globalGroupIDs = []
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
 const modalImportCovariates = $('#modalImportCovariates')
 
-function getLabelsAndSites(){
-    /** Builds the selectors for generating results*/
+function getLabelsSitesTagsAndGroups(update=false){
+    /**Gets the labels, sites and tags for the selected tasks */
     tasks = ['0']
 
     var formData = new FormData()
     formData.append('task_ids', JSON.stringify(tasks))
 
     var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/getAllLabelsTagsAndSites');
+    xhttp.open("POST", '/getAllLabelsTagsSitesAndGroups', true);
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
@@ -173,13 +177,29 @@ function getLabelsAndSites(){
                 globalSitesIDs.push(siteIds)
 
             }
+            globalGroupNames = reply.group_names
+            globalGroupIDs = reply.group_ids
 
-            updateLabelsAndSites()
-            buildDataSelectorRow()
-            buildSiteSelectorRow()
-            buildSpeciesSelectorRow()
-            buildRSiteRows()
-            buildRSpeciesRows()
+            if (update) {
+                updateSiteSeletors()
+            }
+            else {
+                speciesSelector = document.getElementById('speciesSelect')
+                if (speciesSelector) {
+                    clearSelect(speciesSelector)
+                    var optionValues = ['-1', '0']
+                    var optionTexts = ['None', 'All']
+                    optionValues = optionValues.concat(globalLabels)
+                    optionTexts = optionTexts.concat(globalLabels)
+                    fillSelect(speciesSelector, optionTexts, optionValues)
+                }
+
+                buildDataSelectorRow()
+                buildSiteSelectorRow()
+                buildSpeciesSelectorRow()
+                buildRSiteRows()
+                buildRSpeciesRows()
+            }
 
         }
     }
@@ -187,17 +207,54 @@ function getLabelsAndSites(){
 
 }
 
-function updateLabelsAndSites(){
-    /** Updates the labels and sites selectors */
-    speciesSelector = document.getElementById('speciesSelect')
-    if (speciesSelector) {
-        clearSelect(speciesSelector)
-        var optionValues = ['-1', '0']
-        var optionTexts = ['None', 'All']
-        optionValues = optionValues.concat(globalLabels)
-        optionTexts = optionTexts.concat(globalLabels)
-        fillSelect(speciesSelector, optionTexts, optionValues)
+function updateSiteSeletors(){
+    /** Updates site selectors values */
+    trapgroupSelectSpat = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
+    trapgroupSelectNum = document.querySelectorAll('[id^=trapgroupSelectNum-]')
+    siteSelector = document.querySelectorAll('[id^=siteSelector-]')
+    trapgroupSelect = document.querySelectorAll('[id^=trapgroupSelect-]')
+
+    var optionTextsN = ['None', 'All']
+    var optionValuesN = ['-1', '0']
+    var optionTextsA = ['All']
+    var optionValuesA = ['0']
+
+    for (let i=0;i<globalGroupNames.length;i++) {
+        optionTextsN.push(globalGroupNames[i])
+        optionTextsA.push(globalGroupNames[i])
+        let val = 'g-' + globalGroupIDs[i]
+        optionValuesN.push(val)
+        optionValuesA.push(val)
     }
+
+    for (let i=0;i<globalSites.length;i++) {
+        optionTextsN.push(globalSites[i])
+        optionTextsA.push(globalSites[i])
+        let val = 's-' + globalSitesIDs[i]
+        optionValuesN.push(val)
+        optionValuesA.push(val)
+    }
+
+    for (let i=0;i<trapgroupSelectSpat.length;i++) {
+        clearSelect(trapgroupSelectSpat[i])
+        fillSelect(trapgroupSelectSpat[i], optionTextsA, optionValuesA)
+    }
+
+    for (let i=0;i<trapgroupSelectNum.length;i++) {
+        clearSelect(trapgroupSelectNum[i])
+        fillSelect(trapgroupSelectNum[i], optionTextsA, optionValuesA)
+    }
+
+    for (let i=0;i<siteSelector.length;i++) {
+        clearSelect(siteSelector[i])
+        fillSelect(siteSelector[i], optionTextsA, optionValuesA)
+    }
+
+    for (let i=0;i<trapgroupSelect.length;i++) {
+        clearSelect(trapgroupSelect[i])
+        fillSelect(trapgroupSelect[i], optionTextsN, optionValuesN)
+    }
+    
 }
 
 
@@ -356,7 +413,7 @@ function generateResults(){
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = true
-        document.getElementById('groupButtonsDiv').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = false
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = true
@@ -943,7 +1000,7 @@ function generateTime(){
 }
 
 function generateActivity(){
-    /** Updates the generate results div for activity analysis */
+    /** Updates the generate results div for activity pattern analysis */
     // Chart generated from R script
 
     var mainDiv = document.getElementById('resultsDiv')
@@ -1015,8 +1072,21 @@ function buildDataSelectorRow(){
     col1.appendChild(siteSelector)
     var siteOptionTexts = ['None', 'All']
     var siteOptionValues = ['-1','0']
-    siteOptionTexts.push(...globalSites)
-    siteOptionValues.push(...globalSitesIDs)
+    // siteOptionTexts.push(...globalSites)
+    // siteOptionValues.push(...globalSitesIDs)
+
+    for (let i=0;i<globalGroupNames.length;i++) {
+        siteOptionTexts.push(globalGroupNames[i])
+        val = 'g-'+globalGroupIDs[i]
+        siteOptionValues.push(val)
+    }
+
+    for (let i=0;i<globalSites.length;i++) {
+        siteOptionTexts.push(globalSites[i])
+        val = 's-'+globalSitesIDs[i]
+        siteOptionValues.push(val)
+    }
+    
     fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
 
     $("#"+siteSelector.id).change( function(wrapIDNum) {
@@ -1223,7 +1293,7 @@ function updateDataColour(IDNum, colour) {
 }
 
 function buildSpeciesSelectorRow(){
-    /** Builds a row for the species and site selectors */
+    /** Builds a row for the species selectors for numerical analysis  */
 
     var selectorColumn = document.getElementById('speciesDiv')
     var IDNum = getIdNumforNext('speciesSelectNum-')
@@ -1361,7 +1431,7 @@ function buildSpeciesSelectorRow(){
 
 
 function buildSiteCountSelectorRow(){
-    /** Builds a row for the site selectors */
+    /** Builds a row for the site selectors for numerical analysis  */
     var siteCountSelectorDiv = document.getElementById('siteCountSelectorDiv')
     var IDNum = getIdNumforNext('trapgroupSelectNum-')
 
@@ -1396,8 +1466,18 @@ function buildSiteCountSelectorRow(){
         var siteOptionTexts = []
         var siteOptionValues = []
     }
-    siteOptionTexts.push(...globalSites) 
-    siteOptionValues.push(...globalSitesIDs)
+
+    for (let i=0;i<globalGroupNames.length;i++) {
+        siteOptionTexts.push(globalGroupNames[i])
+        val = 'g-'+globalGroupIDs[i]
+        siteOptionValues.push(val)
+    }
+
+    for (let i=0;i<globalSites.length;i++) {
+        siteOptionTexts.push(globalSites[i])
+        val = 's-'+globalSitesIDs[i]
+        siteOptionValues.push(val)
+    }
 
     fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
 
@@ -1416,7 +1496,12 @@ function buildSiteCountSelectorRow(){
         btnRemove.addEventListener('click', function(wrapIDNum) {
             return function() {
                 site = document.getElementById('trapgroupSelectNum-'+wrapIDNum).options[document.getElementById('trapgroupSelectNum-'+wrapIDNum).selectedIndex].text 
-                site_tag = site.split(' ')[0]
+                if (site.includes('(')) {
+                    site_tag = site.split(' ')[0]
+                }
+                else{
+                    site_tag = site
+                }
                 site_index = chart.data.labels.indexOf(site_tag)
                 chart.data.labels.splice(site_index, 1)
                 chart.data.datasets.forEach((dataset) => {
@@ -1432,7 +1517,7 @@ function buildSiteCountSelectorRow(){
 }
 
 function buildSiteSelectorRow(){
-    /** Builds a row for the species and site selectors */
+    /** Builds a row for the site selectors for spatial analysis  */
 
     var selectorColumn = document.getElementById('selectorColumn')
     var IDNum = getIdNumforNext('trapgroupSelectSpat-')
@@ -1468,8 +1553,18 @@ function buildSiteSelectorRow(){
         var siteOptionTexts = []
         var siteOptionValues = []
     }
-    siteOptionTexts.push(...globalSites) 
-    siteOptionValues.push(...globalSitesIDs)
+
+    for (let i=0;i<globalGroupNames.length;i++) {
+        siteOptionTexts.push(globalGroupNames[i])
+        val = 'g-'+globalGroupIDs[i]
+        siteOptionValues.push(val)
+    }
+
+    for (let i=0;i<globalSites.length;i++) {
+        siteOptionTexts.push(globalSites[i])
+        val = 's-'+globalSitesIDs[i]
+        siteOptionValues.push(val)
+    }
 
     fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
 
@@ -1506,8 +1601,6 @@ function updateResults(update=false){
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
     if (analysisSelection == '0') {
-        document.getElementById('btnExportResults').disabled = true
-        analysisSelector.disabled = true
         getSummary()
     }
     else if (analysisSelection == '1') {
@@ -1529,15 +1622,12 @@ function updateResults(update=false){
         updateLine()
     }
     else if (analysisSelection == '5') {
-        analysisSelector.disabled = true
         updateActivity()
     }
     else if (analysisSelection == '6') {
-        analysisSelector.disabled = true
         updateOccupancy()
     }
     else if (analysisSelection == '7') {
-        analysisSelector.disabled = true
         updateSCR()
     }
 }
@@ -1594,16 +1684,26 @@ function updateLine(){
 }
 
 function updateMap(){
-    /** Updates the map */
+    /** Updates the spatial analysis map */
 
     var tasks = getSelectedTasks()
-    var sites = getSelectedSites(true)
+    var sites = getSelectedSites(true)[0]
+    var selected = getSelectedSites()
+    var site_ids = selected[0]
+    var group_ids = selected[1]
     var validSites = checkSitesSpatial()
 
-    if (sites == '0' && validSites) {
+    console.log(sites)
+
+    if (validSites) {
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
-        formData.append('trapgroups', JSON.stringify(sites));
+        if (site_ids != '0' && site_ids != '-1') {
+            formData.append('site_ids', JSON.stringify(site_ids));
+        }
+        if (group_ids != '0' && group_ids != '-1') {
+            formData.append('group_ids', JSON.stringify(group_ids));
+        }
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -1611,6 +1711,8 @@ function updateMap(){
             if (this.readyState == 4 && this.status == 200) {
                 info = JSON.parse(this.responseText);
                 trapgroupInfo = info.trapgroups
+
+                console.log(trapgroupInfo)
 
                 for (let i=0;i<markers.length;i++) {
                     if (map.hasLayer(markers[i])) {
@@ -1620,26 +1722,28 @@ function updateMap(){
 
                 markers = []
                 refMarkers = []
-                for (let i=0;i<trapgroupInfo.length;i++) {
-                    marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
-                    markers.push(marker)
-                    map.addLayer(marker)
-                    marker.bindPopup(trapgroupInfo[i].tag);
-                    marker.on('mouseover', function (e) {
-                        this.openPopup();
-                    });
-                    marker.on('mouseout', function (e) {
-                        this.closePopup();
-                    });
-                    refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
-                }
-                refData = {max:2000,data:refMarkers}
-                invHeatmapLayer.setData(refData)
+                if (trapgroupInfo.length > 0) {
+                    for (let i=0;i<trapgroupInfo.length;i++) {
+                        marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(map)
+                        markers.push(marker)
+                        map.addLayer(marker)
+                        marker.bindPopup(trapgroupInfo[i].tag);
+                        marker.on('mouseover', function (e) {
+                            this.openPopup();
+                        });
+                        marker.on('mouseout', function (e) {
+                            this.closePopup();
+                        });
+                        refMarkers.push({lat:trapgroupInfo[i].latitude,lng:trapgroupInfo[i].longitude,count:1000,tag:trapgroupInfo[i].tag})
+                    }
+                    refData = {max:2000,data:refMarkers}
+                    invHeatmapLayer.setData(refData)
 
-                var group = new L.featureGroup(markers);
-                map.fitBounds(group.getBounds().pad(0.1))
-                if(markers.length == 1) {
-                    map.setZoom(10)
+                    var group = new L.featureGroup(markers);
+                    map.fitBounds(group.getBounds().pad(0.1))
+                    if(markers.length == 1) {
+                        map.setZoom(10)
+                    }
                 }
             }
         }
@@ -1648,44 +1752,44 @@ function updateMap(){
 
         updateHeatMap()
     }
-    else if (validSites) {
-        for (let i=0;i<markers.length;i++) {
-            if (map.hasLayer(markers[i])) {
-                map.removeLayer(markers[i])
-            }
-        }
+    // else if (validSites) {
+    //     for (let i=0;i<markers.length;i++) {
+    //         if (map.hasLayer(markers[i])) {
+    //             map.removeLayer(markers[i])
+    //         }
+    //     }
 
-        markers = []
-        refMarkers = []
-        for (let i=0;i<sites.length;i++) {
-            let split = sites[i].split(',')
-            marker = L.marker([split[1], split[2]]).addTo(map)
-            markers.push(marker)
-            map.addLayer(marker)
-            marker.bindPopup(split[0]);
-            marker.on('mouseover', function (e) {
-                this.openPopup();
-            });
-            marker.on('mouseout', function (e) {
-                this.closePopup();
-            });
-            refMarkers.push({lat:split[1],lng:split[2],count:1000,tag:split[0]})
-        }
-        refData = {max:2000,data:refMarkers}
-        invHeatmapLayer.setData(refData)
+    //     markers = []
+    //     refMarkers = []
+    //     for (let i=0;i<sites.length;i++) {
+    //         let split = sites[i].split(',')
+    //         marker = L.marker([split[1], split[2]]).addTo(map)
+    //         markers.push(marker)
+    //         map.addLayer(marker)
+    //         marker.bindPopup(split[0]);
+    //         marker.on('mouseover', function (e) {
+    //             this.openPopup();
+    //         });
+    //         marker.on('mouseout', function (e) {
+    //             this.closePopup();
+    //         });
+    //         refMarkers.push({lat:split[1],lng:split[2],count:1000,tag:split[0]})
+    //     }
+    //     refData = {max:2000,data:refMarkers}
+    //     invHeatmapLayer.setData(refData)
 
-        var group = new L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.1))
-        if(markers.length == 1) {
-            map.setZoom(10)
-        }
+    //     var group = new L.featureGroup(markers);
+    //     map.fitBounds(group.getBounds().pad(0.1))
+    //     if(markers.length == 1) {
+    //         map.setZoom(10)
+    //     }
 
-        updateHeatMap()
-    }
+    //     updateHeatMap()
+    // }
 }
 
 function updateActivity(check=false){
-    /** Updates the activity chart  */
+    /** Gets the activity pattern analysis results */
     if (check) {
         var species = '0'
         var validActivity = true 
@@ -1693,7 +1797,9 @@ function updateActivity(check=false){
     }
     else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
         var species = getSelectedSpecies()
         var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
         var startDate = document.getElementById('startDate').value
@@ -1719,6 +1825,8 @@ function updateActivity(check=false){
         formData.append('centre', JSON.stringify(centre));
         formData.append('time', JSON.stringify(time));
         formData.append('overlap', JSON.stringify(overlap));
+        formData.append('csv', JSON.stringify('0'));
+        formData.append('groups', JSON.stringify(groups));
     
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -1729,6 +1837,13 @@ function updateActivity(check=false){
             endDate = endDate + ' 23:59:59'
             formData.append('endDate', JSON.stringify(endDate));
         }
+
+        if (baseUnit == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
     }
 
     if (species != '-1' && validActivity) {
@@ -1738,6 +1853,8 @@ function updateActivity(check=false){
             document.getElementById('loadingDiv').style.display = 'block'
             document.getElementById('loadingCircle').style.display = 'block'
             document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a few minutes to run. Do not navigate away from this page until the analysis is complete.'
+            document.getElementById('btnDownloadResultsCSV').disabled = true
+            document.getElementById('analysisSelector').disabled = true
         }
 
         var xhttp = new XMLHttpRequest();
@@ -1748,11 +1865,13 @@ function updateActivity(check=false){
                 console.log(reply)
                 resultsDiv = document.getElementById('resultsDiv')
                 if(reply.status == 'SUCCESS'){
-                    image_url = reply.activity_img_url
+                    clearTimeout(timeout)
+                    image_url = reply.activity_url
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
                     resultsDiv.style.display = 'block'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('btnDownloadResultsCSV').disabled = false
                     document.getElementById('statisticsErrors').innerHTML = ''
                     if (image_url){
                         if (activeImage['mapDiv']) {
@@ -1788,11 +1907,24 @@ function updateActivity(check=false){
                     resultsDiv.style.display = 'block'
                     document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('btnDownloadResultsCSV').disabled = false
                 }
                 else {
-                    setTimeout(function(){updateActivity(true)}, 10000);
+                    timeout = setTimeout(function(){updateActivity(true)}, 10000);
                 }
 
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                while (resultsDiv.firstChild) {
+                    resultsDiv.removeChild(resultsDiv.firstChild);
+                }
+
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                resultsDiv.style.display = 'block'
+                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
+                document.getElementById('analysisSelector').disabled = false
+                document.getElementById('btnDownloadResultsCSV').disabled = false
             }
         }
         xhttp.open("POST", '/getActivityPattern');
@@ -1832,7 +1964,7 @@ function checkActivity(species, overlap){
 
 
 function initialiseImageMap(image_url, map_id='mapDiv'){
-    /**Initialises the image map */
+    /**Initialises the image map for displaying graphs*/
     var mapDiv = document.getElementById(map_id)
     var imageUrl = image_url
     var img = new Image();
@@ -1917,7 +2049,9 @@ function getActivityPatternCSV(check=false){
     }
     else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
         var species = getSelectedSpecies()
         var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
         var startDate = document.getElementById('startDate').value
@@ -1943,6 +2077,8 @@ function getActivityPatternCSV(check=false){
         formData.append('centre', JSON.stringify(centre));
         formData.append('time', JSON.stringify(time));
         formData.append('overlap', JSON.stringify(overlap));
+        formData.append('csv', JSON.stringify('1'));
+        formData.append('groups', JSON.stringify(groups));
     
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -1953,10 +2089,18 @@ function getActivityPatternCSV(check=false){
             endDate = endDate + ' 23:59:59'
             formData.append('endDate', JSON.stringify(endDate));
         }
+
+        if (baseUnit == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
     }
 
     if (species != '-1' && validActivity) {
         document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
+        document.getElementById('btnRunScript').disabled = true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -1964,7 +2108,8 @@ function getActivityPatternCSV(check=false){
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
-                    csv_url = reply.activity_csv_url
+                    clearTimeout(timeout)
+                    csv_url = reply.activity_url
                     filename = csv_url.split('/')[csv_url.split('/').length-1]
                     
                     var link = document.createElement('a');
@@ -1973,18 +2118,24 @@ function getActivityPatternCSV(check=false){
                     link.click();
 
                     document.getElementById('rErrors').innerHTML = ''
+                    document.getElementById('btnRunScript').disabled = false
 
                 }
                 else if(reply.status == 'FAILURE'){
                     document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                    document.getElementById('btnRunScript').disabled = false
                 }
                 else{
-                    setTimeout(function(){getActivityPatternCSV(true)}, 10000);
+                    timeout = setTimeout(function(){getActivityPatternCSV(true)}, 10000);
                 }
 
             }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                document.getElementById('btnRunScript').disabled = false
+            }
         }
-        xhttp.open("POST", '/getActivityPatternCSV');
+        xhttp.open("POST", '/getActivityPattern');
         xhttp.send(formData);
 
     }
@@ -2004,6 +2155,7 @@ function getSelectedTasks(){
 function getSelectedSites(text=false){
     //* Gets all the selected sites from the site selectors*/
     var sites = []
+    var groups = []
     var analysis = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
     var allSites = null
     if (analysis == '2'){
@@ -2024,35 +2176,62 @@ function getSelectedSites(text=false){
 
     if (text) {
         for (let i=0;i<allSites.length;i++) {
-            if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
-                let split = allSites[i].options[allSites[i].selectedIndex].text.split(' ')
-                let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
-                if(sites.indexOf(site) == -1){
-                    sites.push(site)
+            if (allSites[i].value.includes('s-')){
+                if (allSites[i].options[allSites[i].selectedIndex].text.includes(' ')){
+                    let split = allSites[i].options[allSites[i].selectedIndex].text.split(' ')
+                    let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+                    if(sites.indexOf(site) == -1){
+                        sites.push(site)
+                    }
                 }
+            }
+            else if (allSites[i].value.includes('g-')){
+                groups.push(allSites[i].options[allSites[i].selectedIndex].text)
             }
         }
     }
     else{    
         for (let i=0;i<allSites.length;i++) {
-            if (allSites[i].value.includes(',')){
-                let split = allSites[i].value.split(',')
-                if (sites.indexOf(split[0]) == -1){
-                    sites.push(...split)
+            if (allSites[i].value.includes('s-')){
+                let allSitesVal = allSites[i].value.split('s-')[1]
+                if (allSites[i].value.includes(',')){
+                    let split = allSitesVal.split(',')
+                    if (sites.indexOf(split[0]) == -1){
+                        sites.push(...split)
+                    }
+                }
+                else if (allSites[i].value != '-1' && allSites[i].value != '0' && sites.indexOf(allSites[i].value) == -1){
+                    sites.push(allSitesVal)
                 }
             }
-            else if (allSites[i].value != '-1' && allSites[i].value != '0' && sites.indexOf(allSites[i].value) == -1){
-                sites.push(allSites[i].value)
+            else if (allSites[i].value.includes('g-')){
+                groupVal = allSites[i].value.split('g-')[1]
+                groups.push(groupVal)
             }
         }
     }
 
-
-    if (sites.length==0) {
+    if (allSites.length==0) {
         sites = '0'
+        groups = '0'
+    }
+    else{
+        if (allSites[0].value == '0') {
+            sites = '0'
+            groups = '0'
+        }
+        else{
+            if (sites.length==0) {
+                sites = '-1'
+            }
+    
+            if (groups.length==0) {
+                groups = '-1'
+            }
+        }
     }
 
-    return sites
+    return [sites, groups]
 }
 
 function getSelectedSpecies(){
@@ -2805,7 +2984,9 @@ function getSurveysAndAnnotationSets(clear=false){
         end_date = ''
     }
     else{
-        sites_ids = getSelectedSites()
+        selectedSites = getSelectedSites()
+        sites_ids = selectedSites[0]
+        groups = selectedSites[1]
         start_date = document.getElementById('startDate').value
         end_date = document.getElementById('endDate').value
     }
@@ -2820,6 +3001,7 @@ function getSurveysAndAnnotationSets(clear=false){
     formData.append('sites_ids', JSON.stringify(sites_ids))
     formData.append('start_date', JSON.stringify(start_date))
     formData.append('end_date', JSON.stringify(end_date))
+    formData.append('groups', JSON.stringify(groups));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -2850,7 +3032,7 @@ function getSurveysAndAnnotationSets(clear=false){
 }
 
 function buildSurveysAndSets(surveys){
-    // Builds the surveys and annotation sets for the annotation set modal
+    // Builds the surveys and annotation sets for the task selection
 
     var annotationDiv = document.getElementById('annotationDiv')
     while (annotationDiv.firstChild) {
@@ -2990,6 +3172,7 @@ function updateTrendline(){
 }
 
 function buildRSiteRows(){
+    /** Builds the site selection rows for the R-based analysis */ 
     var siteSelectorDiv = document.getElementById('siteSelectorDiv')
     var IDNum = getIdNumforNext('siteSelector-')
 
@@ -3024,8 +3207,18 @@ function buildRSiteRows(){
         var siteOptionTexts = []
         var siteOptionValues = []
     }
-    siteOptionTexts.push(...globalSites) 
-    siteOptionValues.push(...globalSitesIDs)
+
+    for (let i=0;i<globalGroupNames.length;i++) {
+        siteOptionTexts.push(globalGroupNames[i])
+        val = 'g-'+globalGroupIDs[i]
+        siteOptionValues.push(val)
+    }
+
+    for (let i=0;i<globalSites.length;i++) {
+        siteOptionTexts.push(globalSites[i])
+        val = 's-'+globalSitesIDs[i]
+        siteOptionValues.push(val)
+    }
 
     fillSelect(siteSelector, siteOptionTexts, siteOptionValues)
 
@@ -3045,6 +3238,7 @@ function buildRSiteRows(){
 }
 
 function buildRSpeciesRows(){
+    /** Builds the species selection rows for the R-based analysis */
     var analysisSelection = document.getElementById('analysisSelector').options[document.getElementById('analysisSelector').selectedIndex].value
     var speciesSelectorDiv = document.getElementById('speciesSelectorDiv')
     var IDNum = getIdNumforNext('speciesSelector-')
@@ -3097,13 +3291,22 @@ function buildRSpeciesRows(){
 
 
 $('#analysisSelector').on('change', function() {
+    /** Updates the results when the analysis type is changed */
     activeImage = {}
     generateResults()
 });
 
 $('#baseUnitSelector').on('change', function() {
+    /** Updates the results when the base unit is changed */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+    if (this.value == '4') {
+        document.getElementById('timeToIndependenceDiv').hidden = false
+    }
+    else{
+        document.getElementById('timeToIndependenceDiv').hidden = true
+    }
 
     if (analysisSelection == '1') {
         updateBaseUnitPolar()
@@ -3120,6 +3323,7 @@ $('#baseUnitSelector').on('change', function() {
 });
 
 $('#startDate, #endDate').on('change', function() {
+    /** Updates the results when the start or end date is changed */
     var vaild = checkDates()
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
@@ -3137,6 +3341,7 @@ $('#startDate, #endDate').on('change', function() {
 
 
 $('#chartTypeSelector').on('change', function() {
+    /** Updates the results when the chart type is changed */
     var chartTypeSelector = document.getElementById('chartTypeSelector')
     var chartTypeSelection = chartTypeSelector.options[chartTypeSelector.selectedIndex].value
     var analysisSelector = document.getElementById('analysisSelector')
@@ -3148,6 +3353,7 @@ $('#chartTypeSelector').on('change', function() {
 });
 
 $("#normalisationSelector").change( function() {
+    /** Updates the results when the normalisation type is changed */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
     if (analysisSelection == '1') {
@@ -3162,6 +3368,7 @@ $("#normalisationSelector").change( function() {
 });
 
 $("#timeUnitSelector").change( function() {
+    /** Updates the results when the time unit is changed */
     var validUnit = checkTimeUnit()
     if (validUnit) {
         updateResults()
@@ -3169,6 +3376,7 @@ $("#timeUnitSelector").change( function() {
 });
 
 $('#timeUnitNumber').on('change', function() {
+    /** Updates the results when the time unit number is changed */
     var validUnit = checkTimeUnit()
     if (validUnit) {
         updateResults()
@@ -3176,6 +3384,7 @@ $('#timeUnitNumber').on('change', function() {
 });
 
 $("#xAxisSelector").change( function() {
+    /** Updates the results when the x-axis is changed */
     xAxisSelector = document.getElementById('xAxisSelector')
     xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
 
@@ -3224,6 +3433,7 @@ $("#xAxisSelector").change( function() {
 });
 
 $("#radiusSlider").change( function() {
+    /** Updates the results when the radius slider is changed */
     value = document.getElementById('radiusSlider').value
     value = logslider(value)
     document.getElementById('radiusSliderspan').innerHTML = Math.floor(value*1000)
@@ -3236,6 +3446,7 @@ $("#radiusSlider").change( function() {
 });
 
 $("#markerCheckBox").change( function() {
+    /** Updates the results when the marker checkbox is changed */
     if (document.getElementById('markerCheckBox').checked) {
         for (let i=0;i<markers.length;i++) {
             if (!map.hasLayer(markers[i])) {
@@ -3252,10 +3463,12 @@ $("#markerCheckBox").change( function() {
 });
 
 $("#normalisationCheckBox").change( function() {
+    /** Updates the results when the normalisation checkbox is changed */
     updateHeatMap()
 });
 
 $("#heatMapCheckBox").change( function() {
+    /** Updates the results when the heatmap checkbox is changed */
     if (document.getElementById('heatMapCheckBox').checked) {
         map.addLayer(heatmapLayer)
     } else {
@@ -3264,6 +3477,7 @@ $("#heatMapCheckBox").change( function() {
 });
 
 $("#speciesSelect").change( function() {
+    /** Updates the results when the species selection is changed */
     mapSpeciesSelector = document.getElementById('speciesSelect')
     selection = mapSpeciesSelector.options[mapSpeciesSelector.selectedIndex].value
     if (selection == '0') {
@@ -3359,6 +3573,7 @@ $("#speciesSelect").change( function() {
 });
 
 $("#btnSaveSets").click( function() {
+    /** Saves the selected annotation sets */
     globalAnnotationSets = []
     selectedAnnotationSets = {}
     var allSets = document.querySelectorAll('[id^=annotationSetSelect-]')
@@ -3374,6 +3589,7 @@ $("#btnSaveSets").click( function() {
 });
 
 $('#trendlineSelector').change( function() {
+    /** Updates the results when the trendline type is changed */
     if (document.getElementById('trendlineSelector').value == 'polynomial') {
         document.getElementById('trendlineOrderDiv').hidden = false
     }
@@ -3385,11 +3601,13 @@ $('#trendlineSelector').change( function() {
 });
 
 $('#trendlineOrder').change( function() {
+    /** Updates the results when the trendline order is changed */
     updateTrendline()
 
 });
 
 $('#trendlineOnlyCheckbox').change( function() {
+    /** Updates the results when the trendline only checkbox is changed */
     if (document.getElementById('trendlineOnlyCheckbox').checked) {
         for (let i = 0; i < chart.data.datasets.length; i++) {
             if (!chart.data.datasets[i].id.includes('trendline')) {
@@ -3408,7 +3626,7 @@ $('#trendlineOnlyCheckbox').change( function() {
 });
 
 $('#btnViewScript').click( function() {
-    // View the R script for the analysis
+    /** Gets the R script for the analysis */
     scriptDiv = document.getElementById('scriptDiv')
     if (scriptDiv.hidden) {
         var analysisSelector = document.getElementById('analysisSelector')
@@ -3451,7 +3669,7 @@ $('#btnViewScript').click( function() {
 });
 
 $('#btnDownloadResultsCSV').click( function() {
-    // Downloads the data for the results as a CSV file
+    /** Downloads the results as a CSV */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
@@ -3580,7 +3798,7 @@ function clearResults(){
 }
 
 function exportResults(){
-    /** Exports the charts to an image */
+    /** Exports the results as images */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
 
@@ -3730,22 +3948,20 @@ function exportResults(){
 }
 
 function openAnalysisEdit(evt, editName) {
-    // Declare all variables
+    /** Opens the analysis edit tab */
     var i, tabcontent, tablinks;
     var filterCard = document.getElementById('filterCard')
-    // Get all elements with class="tabcontent" and hide them
+
     tabcontent = filterCard.getElementsByClassName("tabcontent");
     for (i = 0; i < tabcontent.length; i++) {
       tabcontent[i].style.display = "none";
     }
   
-    // Get all elements with class="tablinks" and remove the class "active"
     tablinks = filterCard.getElementsByClassName("tablinks");
     for (i = 0; i < tablinks.length; i++) {
       tablinks[i].className = tablinks[i].className.replace(" active", "");
     }
   
-    // Show the current tab, and add an "active" class to the button that opened the tab
     document.getElementById(editName).style.display = "block";
     evt.currentTarget.className += " active";
     tabActive = editName
@@ -3756,7 +3972,7 @@ function openAnalysisEdit(evt, editName) {
 }
 
 function openResultsTab(evt, tabName, results) {
-    // Declare all variables
+    /** Opens the results tab */
     var analysisSelector = document.getElementById('analysisSelector')
     var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value;
     var resultsCard = document.getElementById('mainCard')
@@ -3786,7 +4002,7 @@ function openResultsTab(evt, tabName, results) {
 }
 
 function getSummary(check){
-    /** Gets the summary of the results */
+    /** Gets a data summary for the selected tasks */
 
     if (check) {
         var formData = new FormData()
@@ -3816,11 +4032,19 @@ function getSummary(check){
             formData.append('endDate', JSON.stringify(end_date))
         }
         formData.append('trapUnit', JSON.stringify(trap_unit))
+        if (baseUnit == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
 
         document.getElementById('resultsDiv').style.display = 'none'
         document.getElementById('loadingDiv').style.display = 'block'
         document.getElementById('loadingCircle').style.display = 'block'
         document.getElementById('statisticsErrors').innerHTML = ''
+        document.getElementById('analysisSelector').disabled = true
+        document.getElementById('btnExportResults').disabled = true
 
         resultsTab = document.getElementById('resultsTab')
         while(resultsTab.firstChild){
@@ -3835,6 +4059,7 @@ function getSummary(check){
             reply = JSON.parse(this.responseText);
             console.log(reply)
             if (reply.status == 'SUCCESS') {
+                clearTimeout(timeout)
                 document.getElementById('loadingDiv').style.display = 'none'
                 document.getElementById('loadingCircle').style.display = 'none'
                 document.getElementById('resultsDiv').style.display = 'block'
@@ -3874,8 +4099,27 @@ function getSummary(check){
                 document.getElementById('analysisSelector').disabled = false
             }
             else {
-                setTimeout(function(){getSummary(true)}, 10000);
+                timeout = setTimeout(function(){getSummary(true)}, 10000);
             }
+        }
+        else if (this.readyState == 4 && this.status != 200) {
+            document.getElementById('loadingDiv').style.display = 'none'
+            document.getElementById('loadingCircle').style.display = 'none'
+            document.getElementById('resultsDiv').style.display = 'block'
+            document.getElementById('btnExportResults').disabled = true
+
+            resultsDiv = document.getElementById('resultsDiv')
+            while(resultsDiv.firstChild){
+                resultsDiv.removeChild(resultsDiv.firstChild);
+            }
+
+            resultsTab = document.getElementById('resultsTab')
+            while(resultsTab.firstChild){
+                resultsTab.removeChild(resultsTab.firstChild)
+            }
+
+            document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please try again.'
+            document.getElementById('analysisSelector').disabled = false
         }
     }
     xhttp.open("POST", '/getResultsSummary');
@@ -4633,7 +4877,7 @@ function buildCovariates(){
         detectionCovariatesExtraDiv.removeChild(detectionCovariatesExtraDiv.firstChild);
     }
 
-    var sites = getSelectedSites(true)
+    var sites = getSelectedSites(true)[0]
     if (sites == '0'){
         sites = []
         for (let i=0; i<globalSites.length; i++){
@@ -4898,7 +5142,7 @@ function buildCovRow(type){
     td.appendChild(input)
     tr.appendChild(td)
 
-    var sites = getSelectedSites(true)
+    var sites = getSelectedSites(true)[0]
     if (sites == '0'){
         sites = []
         for (let i=0; i<globalSites.length; i++){
@@ -5202,7 +5446,7 @@ function validateCovariates(){
 }
 
 function updateOccupancy(check=false){
-    /** Updates the occupancy results */
+    /** Get the occupancy results */
     if (check) {
         var species = '0'
         var validOccupancy = true 
@@ -5210,7 +5454,9 @@ function updateOccupancy(check=false){
     }
     else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
         var species = getSelectedSpecies()
         var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
         var startDate = document.getElementById('startDate').value
@@ -5228,6 +5474,8 @@ function updateOccupancy(check=false){
         formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
         formData.append('detCovs', JSON.stringify(globalDetectionCovariates));
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+        formData.append('csv', JSON.stringify('0'));
+        formData.append('groups', JSON.stringify(groups));
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -5238,6 +5486,13 @@ function updateOccupancy(check=false){
             endDate = endDate + ' 23:59:59'
             formData.append('endDate', JSON.stringify(endDate));
         }
+
+        if (baseUnit == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
     }
 
     if (species != '-1' && validOccupancy) {
@@ -5247,6 +5502,8 @@ function updateOccupancy(check=false){
             document.getElementById('loadingDiv').style.display = 'block'
             document.getElementById('loadingCircle').style.display = 'block'
             document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a while to run. Please do not navigate away from this page until the analysis has completed.'
+            document.getElementById('btnDownloadResultsCSV').disabled = true
+            document.getElementById('analysisSelector').disabled = true
 
             resultsTab = document.getElementById('resultsTab')
             while(resultsTab.firstChild){
@@ -5261,11 +5518,13 @@ function updateOccupancy(check=false){
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
+                    clearTimeout(timeout)
                     results = reply.results
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
                     document.getElementById('resultsDiv').style.display = 'block'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('btnDownloadResultsCSV').disabled = false
                     document.getElementById('statisticsErrors').innerHTML = ''
                     while(document.getElementById('resultsDiv').firstChild){
                         document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
@@ -5293,11 +5552,30 @@ function updateOccupancy(check=false){
 
                     document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('btnDownloadResultsCSV').disabled = false
                 }
                 else {
-                    setTimeout(function(){updateOccupancy(true)}, 10000);
+                    timeout = setTimeout(function(){updateOccupancy(true)}, 10000);
                 }
 
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+
+                while(document.getElementById('resultsDiv').firstChild){
+                    document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                }
+
+                resultsTab = document.getElementById('resultsTab')
+                while(resultsTab.firstChild){
+                    resultsTab.removeChild(resultsTab.firstChild)
+                }
+
+                document.getElementById('statisticsErrors').innerHTML = 'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
+                document.getElementById('analysisSelector').disabled = false
+                document.getElementById('btnDownloadResultsCSV').disabled = false
             }
         }
         xhttp.open("POST", '/getOccupancy');
@@ -5309,7 +5587,7 @@ function updateOccupancy(check=false){
 
 
 function getOccupancyCSV(check=false){
-    /** Updates the activity chart  */
+    /** Get the occupancy results CSV*/
     if (check) {
         var species = '0'
         var validOccupancy = true 
@@ -5317,7 +5595,9 @@ function getOccupancyCSV(check=false){
     }
     else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
         var species = getSelectedSpecies()
         var baseUnit = document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value
         var startDate = document.getElementById('startDate').value
@@ -5335,6 +5615,8 @@ function getOccupancyCSV(check=false){
         formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
         formData.append('detCovs', JSON.stringify(globalDetectionCovariates));
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+        formData.append('csv', JSON.stringify('1'));
+        formData.append('groups', JSON.stringify(groups));
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -5345,11 +5627,19 @@ function getOccupancyCSV(check=false){
             endDate = endDate + ' 23:59:59'
             formData.append('endDate', JSON.stringify(endDate));
         }
+
+        if (baseUnit == '4'){
+            var timeToIndependence = document.getElementById('timeToIndependence').value
+            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+        }
     }
 
     if (species != '-1' && validOccupancy) {
 
         document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
+        document.getElementById('btnRunScript').disabled = true
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -5358,20 +5648,27 @@ function getOccupancyCSV(check=false){
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
-                    csv_urls = reply.csv_urls
+                    clearTimeout(timeout)
+                    csv_urls = reply.results.csv_urls
                     downloadCSV(csv_urls)      
                     document.getElementById('rErrors').innerHTML = ''
+                    document.getElementById('btnRunScript').disabled = false
                 }
                 else if(reply.status == 'FAILURE'){
                     document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                    document.getElementById('btnRunScript').disabled = false
                 }
                 else {
-                    setTimeout(function(){getOccupancyCSV(true)}, 10000);
+                    timeout = setTimeout(function(){getOccupancyCSV(true)}, 10000);
                 }
 
             }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                document.getElementById('btnRunScript').disabled = false
+            }
         }
-        xhttp.open("POST", '/getOccupancyCSV');
+        xhttp.open("POST", '/getOccupancy');
         xhttp.send(formData);
 
     }
@@ -5978,7 +6275,7 @@ function checkOccupancy(observationWindow, siteCovariates, detectionCovariates){
         windowNotNum = true
     }
 
-    var sites = getSelectedSites(true)
+    var sites = getSelectedSites(true)[0]
     if (sites == '0'){
         sites = []
         for (let i=0; i<globalSites.length; i++){
@@ -6056,6 +6353,7 @@ function checkOccupancy(observationWindow, siteCovariates, detectionCovariates){
 }
 
 function importCSV(){
+    /** Imports the csv file and populates the Covariates inputs on modalCovariates. */
     modalCovariates.modal('hide')
     // modalImportCovariates.modal({keyboard: true})
 
@@ -6101,10 +6399,12 @@ function importCSV(){
 }
 
 modalCovariates.on('show.bs.modal', function(){
+    /** When modalCovariates is shown, hide the scroll bar on the body. */
     document.body.style.overflowY = 'hidden'
 })
 
 modalCovariates.on('hidden.bs.modal', function(){
+    /** When modalCovariates is hidden, show the scroll bar on the body. */
     if (modalImportCovariates.hasClass('show')){
         document.body.style.overflowY = 'hidden'
     } else {	
@@ -6113,6 +6413,7 @@ modalCovariates.on('hidden.bs.modal', function(){
 })
 
 modalImportCovariates.on('hidden.bs.modal', function(){
+    /** When modalImportCovariates is hidden, show the scroll bar on the body. */
     modalCovariates.modal({keyboard: true})
 })
 
@@ -6374,7 +6675,7 @@ function validateCovColumns(siteCol, latCol, longCol, siteCovariates, detectionC
 
 
 function addSiteCovCol(){
-    /** Adds a select to the div */
+    /** Adds site covariate column select to the div */
     var selectorColumn = document.getElementById('siteCovColsDiv')
     var IDNum = getIdNumforNext('siteColSelect-')
 
@@ -6434,7 +6735,7 @@ function addSiteCovCol(){
 }
 
 function addDetCovCol(){
-    /** Adds a select to the div */
+    /** Adds a detection covariate column select to the div */
     var selectorColumn = document.getElementById('detCovColsDiv')
     var IDNum = getIdNumforNext('detColSelect-')
 
@@ -6658,7 +6959,7 @@ function exportCSV(){
 }
 
 function updateSCR(check=false){
-    // Function for generating the capture recapture analysis
+    // Function for generating the saptial capture recapture analysis
 
     if (check) {
         var species = '0'
@@ -6667,7 +6968,9 @@ function updateSCR(check=false){
     }
     else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
         var species = getSelectedSpecies()
         var startDate = document.getElementById('startDate').value
         var endDate = document.getElementById('endDate').value
@@ -6681,8 +6984,10 @@ function updateSCR(check=false){
             tags = '-1'
         }
 
-        sites_text = getSelectedSites(true)
-        var validSCR = validateSCR(species, sites_text, tags, startDate, endDate, observationWindow)
+        var selected = getSelectedSites(true)
+        var sites_text = selected[0]
+        var groups_text = selected[1]
+        var validSCR = validateSCR(species, sites_text, groups_text, tags, startDate, endDate, observationWindow)
     
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
@@ -6692,6 +6997,8 @@ function updateSCR(check=false){
         formData.append('tags', JSON.stringify(tags));
         formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+        formData.append('csv', JSON.stringify('0'));
+        formData.append('groups', JSON.stringify(groups));
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -6711,6 +7018,8 @@ function updateSCR(check=false){
             document.getElementById('loadingDiv').style.display = 'block'
             document.getElementById('loadingCircle').style.display = 'block'
             document.getElementById('statisticsErrors').innerHTML = 'Please note that this analysis may take a while to run. Please do not navigate away from this page until the analysis is complete.'
+            document.getElementById('btnDownloadResultsCSV').disabled = true
+            document.getElementById('analysisSelector').disabled = true
 
             resultsTab = document.getElementById('resultsTab')
             while(resultsTab.firstChild){
@@ -6725,11 +7034,13 @@ function updateSCR(check=false){
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
+                    clearTimeout(timeout)
                     results = reply.results
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
                     document.getElementById('resultsDiv').style.display = 'block'
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('btnDownloadResultsCSV').disabled = false
                     document.getElementById('statisticsErrors').innerHTML = ''
                     while(document.getElementById('resultsDiv').firstChild){
                         document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
@@ -6740,7 +7051,6 @@ function updateSCR(check=false){
                     }
 
                     buildSCRtabs(results)
-
                 }
                 else if(reply.status == 'FAILURE'){
                     document.getElementById('loadingDiv').style.display = 'none'
@@ -6758,11 +7068,30 @@ function updateSCR(check=false){
                     }
 
                     document.getElementById('analysisSelector').disabled = false
+                    document.getElementById('btnDownloadResultsCSV').disabled = false
                 }
                 else {
-                    setTimeout(function(){updateSCR(true)}, 10000);
+                    timeout = setTimeout(function(){updateSCR(true)}, 10000);
                 }
 
+            }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+                document.getElementById('statisticsErrors').innerHTML =  'An error occurred while running the analysis. Please ensure that your selected analysis options are valid and try again.'
+
+                while(document.getElementById('resultsDiv').firstChild){
+                    document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild)
+                }
+
+                resultsTab = document.getElementById('resultsTab')
+                while(resultsTab.firstChild){
+                    resultsTab.removeChild(resultsTab.firstChild)
+                }
+
+                document.getElementById('analysisSelector').disabled = false
+                document.getElementById('btnDownloadResultsCSV').disabled = false
             }
         }
         xhttp.open("POST", '/getSpatialCaptureRecapture');
@@ -6773,7 +7102,7 @@ function updateSCR(check=false){
 
 }
 
-function validateSCR(species, sites, tags, startDate, endDate, observationWindow){
+function validateSCR(species, sites, groups, tags, startDate, endDate, observationWindow){
     /** Validates the capture recapture inputs. */
     var validSpecies = true
     var validWindow = true
@@ -6825,8 +7154,7 @@ function validateSCR(species, sites, tags, startDate, endDate, observationWindow
         }
     }
 
-    // Check that sites are either '0' or more than one site
-    if (sites != '0'){
+    if (sites != '0' && groups == '-1'){
         if (sites.length < 2){
             validSites = false
             error += 'You must select more than one site or all sites. '
@@ -6937,7 +7265,7 @@ function buildSCRtabs(results){
 }
 
 function buildSCR(results, tab){
-    /**Function for build sing the spatial capture-recapture results */
+    /**Function for building the spatial capture-recapture results */
 
     document.getElementById('statisticsErrors').innerHTML = ''
     if (tab == 'summarySCRtab'){
@@ -7685,60 +8013,15 @@ function buildSCR(results, tab){
         input.setAttribute('value','54')
         div2.appendChild(input)
 
-        $("#radiusSliderDHM").change( function(counts, max_density){
-            return function(){
-                scale = document.getElementById('radiusSliderDHM').value
-                scale = logslider(scale)
-                
-                if (document.getElementById('nomaliseCxDHM').checked){
-                    var mapDHM = map['mapDiv_densityMap']
+        $("#radiusSliderDHM").change( function(){
 
-                    var heatmap_data = []
-                    for (let i=0;i<counts.length;i++) {
-                        var latitude = counts[i].lat
-                        var longitude = counts[i].lng
-                        var count = counts[i].density
-                        if (count > 0){
-                            heatmap_data.push({lat:latitude,lng:longitude,count:count})
-                        } 
-                    }
+            scale = document.getElementById('radiusSliderDHM').value
+            scale = logslider(scale)   
 
-                    mapDHM.removeLayer(densHeatmapLayer)
-                    mapDHM.addLayer(invDensHeatmapLayer)
-
-                    invDensHeatmapLayer.cfg.radius = scale
-                    invDensHeatmapLayer._update()
-
-                    var maxVal = 0
-                    var hm_data = heatmap_data
-                    for (let i=0;i<hm_data.length;i++) {
-                        value = invDensHeatmapLayer._heatmap.getValueAt(mapDHM.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
-                        if (value!=0) {
-                            hm_data[i].count = (1000*hm_data[i].count)/value
-                            if (hm_data[i].count>maxVal) {
-                                maxVal = hm_data[i].count
-                            }
-                        }
-                    }
-
-                    hm_max = 1.25*maxVal
-                    mapDHM.removeLayer(invDensHeatmapLayer)
-                    mapDHM.addLayer(densHeatmapLayer)
-
-                    densHeatmapLayer._data = []
-                    var data = {max:hm_max,data:hm_data}
-                    densHeatmapLayer.setData(data)
-                    densHeatmapLayer.cfg.radius = scale
-                    densHeatmapLayer._update()
-
-                }
-                else{
-                    densHeatmapLayer.cfg.radius = scale
-                    densHeatmapLayer._update()
-                }
-            }
+            densHeatmapLayer.cfg.radius = scale
+            densHeatmapLayer._update()
+        });
             
-        }(map_densities, max_density));
 
         var div = document.createElement('div')
         div.classList.add('row')
@@ -7784,86 +8067,6 @@ function buildSCR(results, tab){
         });
 
         document.getElementById('showSitesDHM').checked = true
-
-        var div = document.createElement('div')
-        div.classList.add('row')
-        heatmapOptionsDiv.appendChild(div)
-
-        var col = document.createElement('div')
-        col.classList.add('col-lg-4')
-        div.appendChild(col)
-
-        var cxDiv = document.createElement('div')
-        cxDiv.classList.add('custom-control')
-        cxDiv.classList.add('custom-checkbox')
-        col.appendChild(cxDiv)
-
-        var input = document.createElement('input')
-        input.setAttribute('type','checkbox')
-        input.setAttribute('class','custom-control-input')
-        input.setAttribute('id','nomaliseCxDHM')
-        input.setAttribute('name','nomaliseCxDHM')
-        cxDiv.appendChild(input)
-
-        
-        var label = document.createElement('label')
-        label.setAttribute('class','custom-control-label')
-        label.setAttribute('for','nomaliseCxDHM')
-        label.innerHTML = 'Normalise for Site Density'
-        cxDiv.appendChild(label)
-
-        document.getElementById('nomaliseCxDHM').addEventListener('change', function(counts, max_density){
-            return function(){
-                var checkbox = document.getElementById('nomaliseCxDHM')
-                var mapDHM = map['mapDiv_densityMap']
-
-                var heatmap_data = []
-                for (let i=0;i<counts.length;i++) {
-                    var latitude = counts[i].lat
-                    var longitude = counts[i].lng
-                    var count = counts[i].density
-                    if (count > 0){
-                        heatmap_data.push({lat:latitude,lng:longitude,count:count})
-                    } 
-                }
-
-                if (checkbox.checked){
-                    mapDHM.removeLayer(densHeatmapLayer)
-                    mapDHM.addLayer(invDensHeatmapLayer)
-
-                    var maxVal = 0
-                    var hm_data = heatmap_data
-                    for (let i=0;i<hm_data.length;i++) {
-                        value = invDensHeatmapLayer._heatmap.getValueAt(mapDHM.latLngToLayerPoint(L.latLng({lat:hm_data[i].lat, lng:hm_data[i].lng})))
-                        if (value!=0) {
-                            hm_data[i].count = (1000*hm_data[i].count)/value
-                            if (hm_data[i].count>maxVal) {
-                                maxVal = hm_data[i].count
-                            }
-                        }
-                    }
-
-                    hm_max = 1.25*maxVal
-                    mapDHM.removeLayer(invDensHeatmapLayer)
-                    mapDHM.addLayer(densHeatmapLayer)
-
-                    var data = {max:hm_max,data:hm_data}
-                    densHeatmapLayer.setData(data)
-
-                }
-                else{
-                    mapDHM.removeLayer(densHeatmapLayer)
-                    mapDHM.addLayer(invDensHeatmapLayer)
-        
-                    var data = {max:max_density,data:heatmap_data}
-                    densHeatmapLayer.setData(data)
-
-                    mapDHM.removeLayer(invDensHeatmapLayer)
-                    mapDHM.addLayer(densHeatmapLayer)
-                    
-                }
-            }
-        }(map_densities, max_density));
 
         var div = document.createElement('div')
         div.classList.add('row')
@@ -8474,7 +8677,7 @@ function initialiseDensityHeatmap(map_densities, max_density, sites_density, map
 }
 
 function getSCRcsv(check=false){
-    /** Updates the activity chart  */
+    /** Gets the CSV for the SCR results. */
     if (check) {
         var species = '0'
         var validSCR = true 
@@ -8482,7 +8685,9 @@ function getSCRcsv(check=false){
     }
     else{
         var tasks = getSelectedTasks()
-        var sites = getSelectedSites()
+        var selectedSites = getSelectedSites()
+        var sites = selectedSites[0]
+        var groups = selectedSites[1]
         var species = getSelectedSpecies()
         var startDate = document.getElementById('startDate').value
         var endDate = document.getElementById('endDate').value
@@ -8496,9 +8701,10 @@ function getSCRcsv(check=false){
             tags = '-1'
         }
 
-        sites_text = getSelectedSites(true)
-        var validSCR = validateSCR(species, sites_text, tags, startDate, endDate, observationWindow)
-    
+        var selected = getSelectedSites(true)
+        var sites_text = selected[0]
+        var groups_text = selected[1]
+        var validSCR = validateSCR(species, sites_text, groups_text, tags, startDate, endDate, observationWindow)
     
         var formData = new FormData();
         formData.append('task_ids', JSON.stringify(tasks));
@@ -8508,6 +8714,8 @@ function getSCRcsv(check=false){
         formData.append('tags', JSON.stringify(tags));
         formData.append('siteCovs', JSON.stringify(globalSiteCovariates));
         formData.append('covOptions', JSON.stringify(globalCovariateOptions));
+        formData.append('csv', JSON.stringify('1'));
+        formData.append('groups', JSON.stringify(groups));
 
         if(startDate != ''){
             startDate = startDate + ' 00:00:00'
@@ -8523,7 +8731,7 @@ function getSCRcsv(check=false){
     if (species != '-1' && validSCR) {
 
         document.getElementById('rErrors').innerHTML = 'Downloading CSV...'
-
+        document.getElementById('btnRunScript').disabled = true
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(){
@@ -8531,20 +8739,27 @@ function getSCRcsv(check=false){
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
                 if(reply.status == 'SUCCESS'){
-                    csv_urls = reply.csv_urls
+                    clearTimeout(timeout)
+                    csv_urls = reply.results
                     downloadCSV(csv_urls)      
                     document.getElementById('rErrors').innerHTML = ''
+                    document.getElementById('btnRunScript').disabled = false
                 }
                 else if(reply.status == 'FAILURE'){
                     document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                    document.getElementById('btnRunScript').disabled = false
                 }
                 else {
-                    setTimeout(function(){getSCRcsv(true)}, 10000);
+                    timeout = setTimeout(function(){getSCRcsv(true)}, 10000);
                 }
 
             }
+            else if (this.readyState == 4 && this.status != 200) {
+                document.getElementById('rErrors').innerHTML = 'An error occured while downloading the CSV. Please try again.'
+                document.getElementById('btnRunScript').disabled = false
+            }
         }
-        xhttp.open("POST", '/getSpatialCaptureRecaptureCSV');
+        xhttp.open("POST", '/getSpatialCaptureRecapture');
         xhttp.send(formData);
 
     }
@@ -8631,15 +8846,62 @@ $('#indivCharSelector').on('change', function(){
 
 })
 
+$('#timeToIndependence').on('change', function(){
+    /**Function for updating the time to independence div. */
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+    if (analysisSelection != 0 || analysisSelection != 5 || analysisSelection != 6){
+        updateResults()
+    }
+})
+
+$('#timeToIndependenceUnit').on('change', function(){
+    /**Function for updating the time to independence div. */
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+    if (analysisSelection != 0 || analysisSelection != 5 || analysisSelection != 6){
+        updateResults()
+    }
+})
+
+
+window.onclick = function() { 
+    activity = true
+}
+
+function pingServer() {
+    /** Pings the server to let it know that the user is still active. */
+    analysisSelector = document.getElementById('analysisSelector')
+    analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+    if (activity) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                setTimeout(function() { pingServer(); }, 30000);
+            }
+        }
+        xhttp.open("POST", '/ping');
+        xhttp.send();
+    } else {
+        setTimeout(function() { pingServer(); }, 30000);
+    }
+    activity = false
+    
+}
+
 function onload(){
     /**Function for initialising the page on load.*/
     document.getElementById("openAnalysisTab").click();
     barData = {}
     polarData = {}
     lineData = {}
-    getLabelsAndSites()
+    getLabelsSitesTagsAndGroups()
     generateResults()
     document.getElementById('btnRunScript').click()
+    pingServer()
 }
 
 window.addEventListener('load', onload, false);

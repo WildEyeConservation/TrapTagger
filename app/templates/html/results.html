@@ -73,7 +73,22 @@ limitations under the License. -->
                                     <option value="2">Clusters</option>
                                     <option value="3">Sightings</option>
                                     <option value="1">Images</option>
+                                    <option value="4">Time to Independance</option>
                                 </select>
+                                <div id="timeToIndependenceDiv" hidden>
+                                    <div class="row">
+                                        <div class="col-lg-6" style="padding-right: 0px;">
+                                            <input type="number" class="form-control" id="timeToIndependence" value="1" min="0" max="100" step="1">
+                                        </div>
+                                        <div class="col-lg-6" style="padding-left: 0px;">
+                                            <select id="timeToIndependenceUnit" class='form-control'>
+                                                <option value="s">Seconds</option>
+                                                <option value="m" selected>Minutes</option>
+                                                <option value="h">Hours</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <br>
@@ -102,6 +117,7 @@ limitations under the License. -->
                                 <select id="cameraSelector" class='form-control'>
                                     <option value="0">Site</option>
                                     <option value="1">Camera</option>
+                                    <option value="2">Groups</option>
                                 </select>
                             </div>
                         </div>

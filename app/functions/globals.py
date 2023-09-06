@@ -2699,6 +2699,22 @@ def clean_up_redis():
                     if not task:
                         GLOBALS.redisClient.delete(key)
 
+            elif any(name in key for name in ['analysis']):
+                user_id = key.split('_')[-1]
+
+                if user_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    user = db.session.query(User).get(int(user_id))
+                    if datetime.utcnow() - user.last_ping > timedelta(minutes=15):   # Not sure what to use for timedelta here
+                        app.logger.info('Deleting analysis key {}'.format(key))
+                        try:
+                            result_id = GLOBALS.redisClient.get(key)
+                            celery.control.revoke(result_id, terminate=True)
+                        except:
+                            pass
+                        GLOBALS.redisClient.delete(key)
+
             # clusters_remaining = int(GLOBALS.redisClient.get('clusters_remaining_'+str(item[0])).decode())
             if any(name in key for name in ['clusters_remaining_']):
                 task_id = key.split('_')[-1]
