@@ -2759,3 +2759,144 @@ def format_count(count):
         return str(round((count/1000000),2))+'M'
     else:
         return '{:,}'.format(count).replace(',', ' ')
+
+def required_images(cluster,relevent_classifications,transDict):
+    '''
+    Returns the required images for a specified cluster.
+    
+        Parameters:
+            cluster (Cluster): Cluster that the required images are needed for
+            relevent_classifications (list): The list of tagging-level relevent classifications for a cluster
+            transDict (dict): The translation dictionary between child labels and the relevent classifications
+    '''
+    
+    sortedImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(desc(Image.detection_rating)).all()
+
+    species = db.session.query(Detection.classification)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Classifier)\
+                        .filter(Image.clusters.contains(cluster))\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Detection.class_score>Classifier.threshold)\
+                        .filter(Detection.classification!=None)\
+                        .filter(Detection.classification.in_(relevent_classifications))\
+                        .distinct().all()
+
+    species = set([transDict[r[0]] for r in species])
+
+    required = []
+    coveredSpecies = set()
+    for image in sortedImages:
+        imageSpecies = db.session.query(Detection.classification)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Survey)\
+                        .join(Classifier)\
+                        .filter(Detection.image_id==image.id)\
+                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                        .filter(Detection.static==False)\
+                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(Detection.class_score>Classifier.threshold)\
+                        .filter(Detection.classification!=None)\
+                        .filter(Detection.classification.in_(relevent_classifications))\
+                        .distinct().all()
+
+        imageSpecies = [transDict[r[0]] for r in imageSpecies]
+
+        if any(species not in coveredSpecies for species in imageSpecies):
+            coveredSpecies.update(imageSpecies)
+            required.append(image)
+            if coveredSpecies == species:
+                break
+
+    return required
+
+def prep_required_images(task_id,trapgroup_id=None):
+    '''Prepares the required images for every cluster in a specified task - the images that must be viewed by the 
+    user based on the species contained therein.'''
+
+    task = db.session.query(Task).get(task_id)
+    survey_id = task.survey_id
+    taggingLevel = task.tagging_level
+    isBounding = task.is_bounding
+
+    clusters = db.session.query(Cluster)\
+                    .filter(Cluster.task_id == task_id)\
+                    .filter(Cluster.examined==False)
+
+    if trapgroup_id: clusters = clusters.join(Image,Cluster.images)\
+                                        .join(Camera)\
+                                        .filter(Camera.trapgroup_id==trapgroup_id)
+
+    clusters = clusters.distinct().all()
+
+    if len(clusters) != 0:
+        if (',' in taggingLevel) or isBounding:
+            for cluster in clusters:
+                cluster.required_images = []
+        else:
+            if int(taggingLevel) > 0:
+                parent_id = int(taggingLevel)
+                label = db.session.query(Label).get(int(taggingLevel))
+                names = [label.description]
+                ids = [label.id]
+                names, ids = addChildLabels(names,ids,label,task_id)
+                relevent_classifications = db.session.query(Translation.classification)\
+                                                    .filter(Translation.label_id.in_(ids))\
+                                                    .filter(Translation.task_id==task_id)\
+                                                    .filter(func.lower(Translation.classification)!='nothing')\
+                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)\
+                                                    .distinct().all()
+                relevent_classifications = [r[0] for r in relevent_classifications]
+            else:
+                parent_id = None
+                label = None
+                relevent_classifications = db.session.query(Detection.classification)\
+                                                    .join(Translation,Translation.classification==Detection.classification)\
+                                                    .join(Image)\
+                                                    .join(Camera)\
+                                                    .filter(Translation.task_id==task_id)\
+                                                    .filter(Detection.classification!=None)\
+                                                    .filter(func.lower(Detection.classification)!='nothing')\
+                                                    .filter(Translation.label_id!=GLOBALS.nothing_id)
+                
+                if trapgroup_id:
+                    relevent_classifications = relevent_classifications.filter(Camera.trapgroup_id==trapgroup_id)
+                else:
+                    relevent_classifications = relevent_classifications.join(Trapgroup).filter(Trapgroup.survey_id==survey_id)
+
+                relevent_classifications = relevent_classifications.distinct().all()
+                relevent_classifications = [r[0] for r in relevent_classifications]
+            
+            transDict = {}
+            categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==parent_id).all()
+            categories.append(db.session.query(Label).get(GLOBALS.vhl_id))
+            categories.append(db.session.query(Label).get(GLOBALS.nothing_id))
+
+            if label:
+                categories.append(label)
+
+            for category in categories:
+                names = [category.description]
+                ids = [category.id]
+                names, ids = addChildLabels(names,ids,category,task_id)
+                child_classifications = db.session.query(Translation.classification)\
+                                                    .filter(Translation.label_id.in_(ids))\
+                                                    .filter(Translation.task_id==task_id)\
+                                                    .distinct().all()
+                child_classifications = [r[0] for r in child_classifications]
+                
+                for child_classification in child_classifications:
+                    transDict[child_classification] = category.description
+
+            for cluster in clusters:
+                cluster.required_images = required_images(cluster,relevent_classifications,transDict)
+        # db.session.commit()
+    
+    return len(clusters)
