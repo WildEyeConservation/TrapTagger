@@ -9242,7 +9242,7 @@ function onload(){
     lineData = {}
     getLabelsSitesTagsAndGroups()
     generateResults()
-    document.getElementById('btnRunScript').click()
+    // document.getElementById('btnRunScript').click()
     pingServer()
 }
 
