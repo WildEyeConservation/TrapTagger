@@ -1,0 +1,91 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4 align="justify">
+    Diversity Indices
+</h4>
+
+<p align="justify">
+    Diversity indices are used to measure the diversity of species in a given area. The following diversity indices are calculated:
+</p>
+
+<ul>
+    <li>
+        <b>Shannon-Wiener Index</b>:
+        <p align="justify">
+            <img src="https://latex.codecogs.com/gif.latex?H&space;=&space;-\sum_{i=1}^{S}&space;p_{i}&space;ln(p_{i})" title="H = -\sum_{i=1}^{S} p_{i} ln(p_{i})" style="background-color:white; padding: 2px" />
+        </p>
+        <p align="justify">
+            where <i>i</i> is the species, <i>S</i> is the total number of species, and <i>p<sub>i</sub></i> is the proportion of species <i>i</i> in the community.
+        </p>
+    </li>
+
+    <li>
+        <b>Simpson's Index</b>(D):
+        <p align="justify">
+            <img src="https://latex.codecogs.com/gif.latex?D&space;=&space;\frac{\sum_{i=1}^{S}&space;n_{i}&space;(n_{i}-1)}{N(N-1)}" title="D = \frac{\sum_{i=1}^{S} n_{i} (n_{i}-1)}{N(N-1)}" style="background-color:white; padding: 2px" />
+        </p>
+        <p align="justify">
+            where <i>i</i> is the species, <i>S</i> is the total number of species, <i>n<sub>i</sub></i> is the number of individuals of species <i>i</i>, and <i>N</i> is the total number of individuals in the community.
+        </p>
+    </li>
+
+    <li>
+        <b>Simpson's Index of Diversity</b> (1-D):
+        <p align="justify">
+            It is calculated as 1-D, where D is Simpson's index. (See above)
+        </p>
+    </li>
+
+    <li>
+        <b>Hill number (q=2)</b>:
+        <p align="justify">
+            It is calculated as 1/D, where D is Simpson's index. (See above)
+        </p>
+    </li>
+
+    <li>
+        <b>Pielou's Evenness</b>:
+        <p align="justify">
+            <img src="https://latex.codecogs.com/gif.latex?J&space;=&space;\frac{H}{ln(S)}" title="J = \frac{H}{ln(S)}" style="background-color:white; padding: 2px" />
+        </p>
+        <p align="justify">
+            where <i>H</i> is the Shannon-Wiener index and <i>S</i> is the total number of species.
+        </p>
+    </li>
+
+    <li>
+        <b>Species Richness</b>:
+        <p align="justify">
+            <img src="https://latex.codecogs.com/gif.latex?S&space;=&space;\sum_{i=1}^{S}&space;p_{i}" title="S = \sum_{i=1}^{S} p_{i}" style="background-color:white; padding: 2px" />
+        </p>
+        <p align="justify">
+            where <i>i</i> is the species, <i>S</i> is the total number of species, and <i>p<sub>i</sub></i> is the proportion of species <i>i</i> in the community.
+        </p>
+    </li>
+</ul>
+
+
+<p align="justify">
+    The diversity indices summary is useful for determining the diversity of species in your data. A date range can be specified to limit the data used in the analysis. The data unit specified is 
+    used to calculate the proportion of each species in the community. 
+</p>
+
+<p align="justify">
+    Please click the <i>Generate Results</i> button to generate the summary results. Please note the summary results may take a while to generate if you have a large amount of data.
+</p>
+
+
+
+
