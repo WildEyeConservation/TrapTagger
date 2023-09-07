@@ -17,10 +17,7 @@ limitations under the License.
 from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-try:
-    from app import db, login
-except:
-    from worker import db, login
+from app import db, login
 
 tags = db.Table('tags',
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
