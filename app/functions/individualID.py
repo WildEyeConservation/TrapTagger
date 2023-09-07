@@ -81,14 +81,14 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
 
         if calculation_needed:
 
-            # Delete old detSims
-            destims = db.session.query(DetSimilarity)\
-                        .join(sq,DetSimilarity.detection_1==sq.c.id)\
-                        .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
-                        .all()
+            # # Delete old detSims
+            # destims = db.session.query(DetSimilarity)\
+            #             .join(sq,DetSimilarity.detection_1==sq.c.id)\
+            #             .join(sq2,DetSimilarity.detection_2==sq2.c.id)\
+            #             .all()
 
-            for destim in destims:
-                db.session.delete(destim)
+            # for destim in destims:
+            #     db.session.delete(destim)
 
             if algorithm == 'hotspotter':
                 # Wbia is only imported here to prevent its version of mysql interfering with flask migrate
@@ -203,21 +203,21 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                         detection2_id = det_Translation[aid2]
                         covered_detections.append(detection2_id)
 
-                        # detSimilarity = db.session.query(DetSimilarity).filter(\
-                        #                             or_(\
-                        #                                 and_(\
-                        #                                     DetSimilarity.detection_1==detection1_id,\
-                        #                                     DetSimilarity.detection_2==detection2_id),\
-                        #                                 and_(\
-                        #                                     DetSimilarity.detection_1==detection2_id,\
-                        #                                     DetSimilarity.detection_2==detection1_id)\
-                        #                             )).first()
+                        detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                    or_(\
+                                                        and_(\
+                                                            DetSimilarity.detection_1==detection1_id,\
+                                                            DetSimilarity.detection_2==detection2_id),\
+                                                        and_(\
+                                                            DetSimilarity.detection_1==detection2_id,\
+                                                            DetSimilarity.detection_2==detection1_id)\
+                                                    )).first()
 
-                        # if detSimilarity == None:
-                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id, score=float(score))
-                        db.session.add(detSimilarity)
+                        if detSimilarity == None:
+                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=detection2_id)
+                            db.session.add(detSimilarity)
 
-                        # detSimilarity.score = float(score)
+                        detSimilarity.score = float(score)
 
                     non_covered_detections = [r[0] for r in db.session.query(Detection.id)\
                                                     .join(Labelgroup)\
@@ -233,26 +233,25 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                                     .distinct().all()]
 
                     for non_covered in non_covered_detections:
-                        # detSimilarity = db.session.query(DetSimilarity).filter(\
-                        #                                 or_(\
-                        #                                     and_(\
-                        #                                         DetSimilarity.detection_1==detection1_id,\
-                        #                                         DetSimilarity.detection_2==non_covered.id),\
-                        #                                     and_(\
-                        #                                         DetSimilarity.detection_1==non_covered.id,\
-                        #                                         DetSimilarity.detection_2==detection1_id)\
-                        #                                 )).first()
+                        detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                        or_(\
+                                                            and_(\
+                                                                DetSimilarity.detection_1==detection1_id,\
+                                                                DetSimilarity.detection_2==non_covered),\
+                                                            and_(\
+                                                                DetSimilarity.detection_1==non_covered,\
+                                                                DetSimilarity.detection_2==detection1_id)\
+                                                        )).first()
 
-                        # if detSimilarity == None:
-                        detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered, score=0)
-                        db.session.add(detSimilarity)
+                        if detSimilarity == None:
+                            detSimilarity = DetSimilarity(detection_1=detection1_id, detection_2=non_covered)
+                            db.session.add(detSimilarity)
 
-                        # if detSimilarity.score == None:
-                        #     detSimilarity.score = 0
+                        if detSimilarity.score == None:
+                            detSimilarity.score = 0
 
                     # db.session.commit()
-                    endTime = time.time()
-                    if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,endTime - startTime))
+                    if Config.DEBUGGING: app.logger.info("Hotspotter run for detection {} in {}s".format(detection1_id,time.time() - startTime))
 
                 # Delete images & db
                 shutil.rmtree(dbName, ignore_errors=True)
@@ -264,24 +263,23 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                 for queryDetection in queryDetections:
                     allDetections.remove(queryDetection)
                     for detection in allDetections:
-                        # detSimilarity = db.session.query(DetSimilarity).filter(\
-                        #                                 or_(\
-                        #                                     and_(\
-                        #                                         DetSimilarity.detection_1==queryDetection,\
-                        #                                         DetSimilarity.detection_2==detection),\
-                        #                                     and_(\
-                        #                                         DetSimilarity.detection_1==detection,\
-                        #                                         DetSimilarity.detection_2==queryDetection)\
-                        #                                 )).first()
+                        detSimilarity = db.session.query(DetSimilarity).filter(\
+                                                        or_(\
+                                                            and_(\
+                                                                DetSimilarity.detection_1==queryDetection,\
+                                                                DetSimilarity.detection_2==detection),\
+                                                            and_(\
+                                                                DetSimilarity.detection_1==detection,\
+                                                                DetSimilarity.detection_2==queryDetection)\
+                                                        )).first()
 
-                        # if detSimilarity == None:
-                        detSimilarity = DetSimilarity(detection_1=queryDetection, detection_2=detection, score=1)
-                        db.session.add(detSimilarity)
+                        if detSimilarity == None:
+                            detSimilarity = DetSimilarity(detection_1=queryDetection, detection_2=detection)
+                            db.session.add(detSimilarity)
 
-                        # detSimilarity.score = 1
+                        detSimilarity.score = 1
 
-        endTime = time.time()
-        app.logger.info("Hotspotter run completed in {}s".format(endTime - OverallStartTime))
+        app.logger.info("Hotspotter run completed in {}s".format(time.time() - OverallStartTime))
 
         if len(task_ids)==1:
             active_jobs = [r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_ids[0]))]

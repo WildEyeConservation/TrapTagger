@@ -23,7 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
-    VERSION = 19
+    VERSION = 21
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
@@ -91,6 +91,7 @@ class Config(object):
     MAX_CLASSIFICATION = 18
     MAX_PARALLEL = 25
     MAX_DEFAULT = 8
+    MAX_STATS = 4
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -194,6 +195,49 @@ class Config(object):
             'branch': BRANCH,
             'user_data':
                 'bash /home/ubuntu/TrapTagger/launch.sh ' + 
+                'default_worker_{}' + ' ' + 
+                'default' + " '" + 
+                HOST_IP + "' '" + 
+                SQLALCHEMY_DATABASE_NAME + "' '" + 
+                HOST_IP + "' '" + 
+                DNS + "' '" + 
+                SQLALCHEMY_DATABASE_SERVER + "' '" + 
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                AWS_REGION + "' '" + 
+                SECRET_KEY + "' '" + 
+                MAIL_USERNAME + "' '" + 
+                MAIL_PASSWORD + "' '" + 
+                BRANCH + "' '" + 
+                SG_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
+                TOKEN + "' '" + 
+                PARALLEL_AMI + "' '" + 
+                KEY_NAME + "' '" + 
+                SETUP_PERIOD['default'] + "' '" + 
+                'IDLE_MULTIPLIER' + "' '" + 
+                os.environ.get('MAIN_GIT_REPO') + "' '" + 
+                str(CONCURRENCY['default']) + "' '" + 
+                MONITORED_EMAIL_ADDRESS + "' '" + 
+                BUCKET + "' '" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                ' -l info'
+        },
+        'statistics': {
+            'type': 'CPU',
+            'ami': PARALLEL_AMI,
+            'instances': CPU_INSTANCE_TYPES,
+            'max_instances': MAX_STATS,
+            'launch_delay': 120,
+            'rate': 2,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/WorkR/launch.sh ' + 
                 'default_worker_{}' + ' ' + 
                 'default' + " '" + 
                 HOST_IP + "' '" + 

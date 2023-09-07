@@ -1420,6 +1420,7 @@ function switchToTask(task){
                     populateLevels()
                     populateSpeciesSelector(0)
                     populateTagSelector()
+                    populateSiteSelector()
                 } else if (isKnockdown) {
                     clusters['map1'] = []
                     clusterIndex['map1'] = 0
@@ -2649,36 +2650,6 @@ function sendNote(mapID = 'map1') {
     
         modalNote.modal('hide');
     }
-}
-
-function searchNotes(mapID='map1'){
-    /** Searches for clusters with notes specified in explore page search bar */
-    var xhttp = new XMLHttpRequest();
-    var formData = new FormData()
-    notes = noteSearchTextBox.value
-    formData.append('notes', JSON.stringify(notes))
-    xhttp.onreadystatechange =
-        function () {
-            if (this.readyState == 4 && this.status == 200) {
-                clusters[mapID]=[]
-                clusterReadAheadIndex = 0
-                clusterIndex[mapID] = 0
-                imageIndex[mapID] = 0
-                updateClusterLabels()
-                clusterIDs = JSON.parse(this.responseText);
-                if (clusterIDs[0]){
-                    for (let i=0;i<3;i++){
-                        loadNewCluster()
-                    }
-                    document.getElementById('notif1').innerHTML = ''
-                }
-                else{
-                    document.getElementById('notif1').innerHTML = 'No notes matches your search.'
-                }
-            }
-        };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag);
-    xhttp.send(formData);
 }
 
 function exploreNotes(mapID='map1'){

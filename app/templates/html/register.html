@@ -69,6 +69,15 @@ limitations under the License. -->
                         {% endfor %}
                         <br>
                         <br>
+
+                        <div align="'justify">What is 3 + 4?</div>
+                        {{ enquiryForm.sum_check(size=30) }}
+                        {% for error in enquiryForm.sum_check.errors %}
+                            <br>
+                            <span style="color: #DF691A;">[{{ error }}]</span>
+                        {% endfor %}
+                        <br>
+                        <br>
             
                         <div class="row">
                             <div class='col-lg-3'>

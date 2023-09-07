@@ -101,6 +101,7 @@ var detailledStatusCount = 0
 var next_camera_url = null
 var prev_camera_url = null
 var global_corrected_timestamps = {}
+var global_original_timestamps = {}
 var checkingTrapgroupCode = false
 var next_classifier_url
 var prev_classifier_url
@@ -1642,6 +1643,7 @@ function buildCameras(camera_url='/getCameraStamps') {
                         input = document.createElement('input')
                         input.setAttribute('type','text')
                         input.classList.add('form-control')
+                        global_original_timestamps[reply[trapgroup].cameras[camera].id] = reply[trapgroup].cameras[camera].corrected_timestamp
                         if (reply[trapgroup].cameras[camera].id in global_corrected_timestamps) {
                             input.value = global_corrected_timestamps[reply[trapgroup].cameras[camera].id]
                         } else {
@@ -1682,6 +1684,7 @@ function buildEditTimestamp() {
     document.getElementById('addImagesAdvanced').disabled = true
 
     global_corrected_timestamps = {}
+    global_original_timestamps = {}
 
     addImagesEditTimestampsDiv = document.getElementById('addImagesEditTimestampsDiv')
 
@@ -3098,7 +3101,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                     formData.append("kml", kmlFileUpload.files[0])
 
                                     if (document.getElementById('addImagesEditTimestamps').checked) {
-                                        formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
+                                        timestampData = {}
+                                        for (camera_id in global_corrected_timestamps) {
+                                            timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                                        }
+                                        formData.append("timestamps", JSON.stringify(timestampData))
                                     }
 
                                     addImagesSendRequest(formData)
@@ -3125,7 +3132,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                             formData.append("kml", kmlFileUpload.files[0])
                             
                             if (document.getElementById('addImagesEditTimestamps').checked) {
-                                formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
+                                timestampData = {}
+                                for (camera_id in global_corrected_timestamps) {
+                                    timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                                }
+                                formData.append("timestamps", JSON.stringify(timestampData))
                             }
 
                             addImagesSendRequest(formData)
@@ -3145,7 +3156,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             formData.append("checkbox", addImagesCheckboxChecked.toString())
 
             if (document.getElementById('addImagesEditTimestamps').checked) {
-                formData.append("timestamps", JSON.stringify(global_corrected_timestamps))
+                timestampData = {}
+                for (camera_id in global_corrected_timestamps) {
+                    timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
+                }
+                formData.append("timestamps", JSON.stringify(timestampData))
             }                
 
             addImagesSendRequest(formData)
@@ -3218,7 +3233,20 @@ function addImagesSendRequest(formData) {
                     } else if (document.getElementById('addImagesAddImages').checked) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
                     } else if (document.getElementById('addImagesEditTimestamps').checked) {
-                        document.getElementById('modalAlertBody').innerHTML = 'Your camera timestamps have been edited. The survey must now be re-clustered. This may take a while.'
+                        document.getElementById('modalAlertBody').innerHTML = `<p>Your camera timestamps will now be edited.</p><p>Please note that if you have muliple cameras per site, 
+                                                                                the images from the affected sites will need to be re-clustered if the operation periods of the edited 
+                                                                                cameras overlap with any others (before or after having  had their timestamps edited). In such a case, 
+                                                                                auto-classification will need to be performed again and any old auto-classifications will be overwritten. 
+                                                                                In addition, any manually-annotated clusters that were incorrectly clustered (ie. specifically those that 
+                                                                                need to be split up) will have their labels removed to ensure accurate annoation of your data. However, 
+                                                                                any sighting-level labels that were manually checked in the "sighting (box) correction" workflow will be 
+                                                                                retained.</p><p>In light of the above, your annotation sets for this survey may need some more annotation 
+                                                                                upon completion of the processing required. Moreover, this process may take a while depending on the number 
+                                                                                of affected images.</p><p>In general, it is strongly recommended that camera timestamps should be corrected 
+                                                                                prior to the annotation of your data due to the cluster-centric approach used in TrapTagger. In particular, 
+                                                                                this step should be peformed directly after data importation for best results. However, editing your 
+                                                                                timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
+                                                                                percentage it.</p>`
                     } else if (document.getElementById('addImagesEditClassifier').checked) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {

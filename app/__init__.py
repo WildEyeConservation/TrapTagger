@@ -82,6 +82,7 @@ def make_celery(flask_app):
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
         Queue('ram_intensive',     routing_key='ram_intensive.#'),
+        Queue('statistics',     routing_key='statistics.#')
     ]
 
     if not Config.INITIAL_SETUP:
@@ -103,7 +104,7 @@ def make_celery(flask_app):
     celery.conf.beat_schedule = {
         'updateStatistics': {
             'task': 'app.functions.admin.updateStatistics',
-            'schedule': crontab(0, 0, day_of_month='1'),
+            'schedule': crontab(hour=0,minute=0),
         },
     }
 

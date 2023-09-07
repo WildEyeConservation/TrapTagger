@@ -241,7 +241,7 @@ def importKML(survey_id):
 
     return True
 
-def recluster_large_clusters(task,updateClassifications,session=None,reClusters = None):
+def recluster_large_clusters(task,updateClassifications,session=None,reClusters=None):
     '''
     Reclusters all clusters with over 50 images, by more strictly defining clusters based on classifications. Failing that, clusters are simply limited to 50 images.
 
@@ -378,10 +378,11 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters 
     return newClusters
 
 @celery.task(bind=True,max_retries=29)
-def cluster_trapgroup(self,trapgroup_id):
+def cluster_trapgroup(self,trapgroup_id,force=False):
     '''Clusters the specified trapgroup. Handles pre-existing clusters cleanly, reusing labels etc where possible.'''
     
     try:
+        downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
         trapgroup = db.session.query(Trapgroup).get(trapgroup_id)
         survey = trapgroup.survey
 
@@ -425,9 +426,8 @@ def cluster_trapgroup(self,trapgroup_id):
                 cluster.images.append(image)
             # db.session.commit()
 
-        if previouslyClustered:
+        if previouslyClustered and not force:
             #Clustering an already-clustered survey, trying to preserve labels etc.
-            downLabel = db.session.query(Label).get(GLOBALS.knocked_id)
             for task in survey.tasks:
                 sq = db.session.query(Image.id).join(Cluster, Image.clusters).filter(Cluster.task==task).subquery()
                 images = db.session.query(Image)\
@@ -534,26 +534,36 @@ def cluster_trapgroup(self,trapgroup_id):
 
         else:
             #Clustering with a clean slate
-            images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).all()
-            prev = None
-            if images != []:
-                for image in images:
-                    timestamp = image.corrected_timestamp
-                    if not (prev) or ((timestamp - prev).total_seconds() > 60):
-                        if prev is not None:
-                            for cluster in clusters:
+            if not force:
+                images = db.session.query(Image).join(Camera).filter(Camera.trapgroup == trapgroup).filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).all()
+
+            for task in survey.tasks:
+                if force:
+                    # If we are re-clustering after a timestamp change, we want to leave the knock-downs
+                    images = db.session.query(Image)\
+                                    .join(Camera)\
+                                    .join(Detection)\
+                                    .join(Labelgroup)\
+                                    .filter(Labelgroup.task==task)\
+                                    .filter(~Labelgroup.labels.contains(downLabel))\
+                                    .filter(Camera.trapgroup == trapgroup)\
+                                    .filter(Image.corrected_timestamp!=None)\
+                                    .order_by(Image.corrected_timestamp).distinct().all()
+                
+                prev = None
+                if images != []:
+                    for image in images:
+                        timestamp = image.corrected_timestamp
+                        if not (prev) or ((timestamp - prev).total_seconds() > 60):
+                            if prev is not None:
                                 cluster.images=imList
-                        clusters = []
-                        for task in survey.tasks:
                             cluster = Cluster(task_id=task.id)
                             db.session.add(cluster)
-                            clusters.append(cluster)
-                        imList = []
-                    prev = timestamp
-                    imList.append(image)
-                for cluster in clusters:
+                            imList = []
+                        prev = timestamp
+                        imList.append(image)
                     cluster.images=imList
-            # db.session.commit()
+                # db.session.commit()
 
             # # add task detection labels
             # for task in survey.tasks:
@@ -587,7 +597,7 @@ def cluster_trapgroup(self,trapgroup_id):
 
     return True
 
-def cluster_survey(survey_id,queue='parallel'):
+def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
     '''Cluster the specified survey. Automatically handles additional images vs. initial clustering. Returns the default task id for the survey.'''
     
     survey = db.session.query(Survey).get(survey_id)
@@ -603,9 +613,12 @@ def cluster_survey(survey_id,queue='parallel'):
 
     db.session.commit()
 
+    if trapgroup_ids == None:
+        trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]
+
     results = []
-    for trapgroup_id in [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==survey_id).all()]:
-        results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup_id},queue=queue))
+    for trapgroup_id in trapgroup_ids:
+        results.append(cluster_trapgroup.apply_async(kwargs={'trapgroup_id':trapgroup_id,'force':force},queue=queue))
 
     task_id = task.id
 
@@ -818,7 +831,7 @@ def processStaticDetections(survey_id):
 
     return True
 
-def removeHumans(task_id):
+def removeHumans(task_id,trapgroup_ids=None):
     '''Marks clusters from specified as containing humans if the majority of their detections are classified as non-animal by MegaDetector.'''
 
     admin = db.session.query(User.id).filter(User.username == 'Admin').first()
@@ -837,8 +850,11 @@ def removeHumans(task_id):
     
     clusters = db.session.query(Cluster)\
                                 .join(sq,sq.c.cluster_id==Cluster.id)\
-                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
-                                .all()
+                                .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)
+
+    if trapgroup_ids: clusters = clusters.join(Image,Cluster.images).join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids)).distinct()
+
+    clusters = clusters.all()
 
     labelgroups = db.session.query(Labelgroup)\
                                 .join(Detection)\
@@ -846,8 +862,11 @@ def removeHumans(task_id):
                                 .join(Cluster,Image.clusters)\
                                 .join(sq,sq.c.cluster_id==Cluster.id)\
                                 .filter(sq.c.non_animal_dets/sq.c.total_dets>0.5)\
-                                .filter(Labelgroup.task_id==task_id)\
-                                .distinct().all()
+                                .filter(Labelgroup.task_id==task_id)
+
+    if trapgroup_ids: labelgroups = labelgroups.join(Camera).filter(Camera.trapgroup_id.in_(trapgroup_ids))
+
+    labelgroups = labelgroups.distinct().all()
 
     for cluster in clusters:
         cluster.labels = [human_label]
@@ -1846,28 +1865,37 @@ def delete_duplicate_images(images):
     '''Helper function for remove_duplicate_images that deletes the specified image objects and their detections from the database.'''
 
     # If adding images - delete the new imports rather than the old ones
-    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).distinct().all()
-    if len(candidateImages) == len(images): candidateImages = candidateImages[1:]
+    candidateImages = db.session.query(Image).filter(~Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
+    
+    if len(candidateImages) == len(images):
+        # all are unclustered - delete all but one
+        candidateImages = candidateImages[1:]
+
+    elif len(candidateImages) < (len(images)-1):
+        # some are clustered
+        clusteredImages = db.session.query(Image).filter(Image.clusters.any()).filter(Image.id.in_([r.id for r in images])).order_by(Image.id).distinct().all()
+        candidateImages.extend(clusteredImages[1:])
     
     for image in candidateImages:
         for detection in image.detections:
 
-            # for labelgroup in detection.labelgroups:
-            #     labelgroup.labels = []
-            #     labelgroup.tags = []
-            #     db.session.delete(labelgroup)
+            for labelgroup in detection.labelgroups:
+                labelgroup.labels = []
+                labelgroup.tags = []
+                db.session.delete(labelgroup)
             
-            # detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
-            # for detSimilarity in detSimilarities:
-            #     db.session.delete(detSimilarity)
+            detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+            for detSimilarity in detSimilarities:
+                db.session.delete(detSimilarity)
             
-            # detection.individuals = []
+            detection.individuals = []
             db.session.delete(detection)
         
-        # image.clusters = []
+        image.clusters = []
         db.session.delete(image)
     
-    # db.session.commit()
+    db.session.commit()
+    
     return True
 
 def remove_duplicate_videos(survey_id):
@@ -1944,6 +1972,14 @@ def remove_duplicate_images(survey_id):
                     .filter(Image.hash==hash[0])\
                     .distinct().all()
         delete_duplicate_images(images)
+
+    # delete any empty clusters
+    clusters = db.session.query(Cluster).join(Task).filter(Task.survey_id==survey_id).filter(~Cluster.images.any()).all()
+    for cluster in clusters:
+        cluster.labels = []
+        cluster.tags = []
+        cluster.required_images = []
+        db.session.delete(cluster)
 
     #delete any empty cameras
     cameras = db.session.query(Camera).join(Trapgroup).filter(~Camera.images.any()).filter(Trapgroup.survey_id==survey_id).all()
@@ -3068,14 +3104,14 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         db.session.commit()
         
         skip = False
-        if correctTimestamps:
-            survey.status='Correcting Timestamps'
-            db.session.commit()
-            correct_timestamps(survey_id)
-            if addingImages:
-                from app.functions.admin import reclusterAfterTimestampChange
-                reclusterAfterTimestampChange(survey_id)
-                skip = True
+        # if correctTimestamps:
+        #     survey.status='Correcting Timestamps'
+        #     db.session.commit()
+        #     correct_timestamps(survey_id)
+        #     if addingImages:
+        #         from app.functions.admin import reclusterAfterTimestampChange
+        #         reclusterAfterTimestampChange(survey_id)
+        #         skip = True
         if not skip:
             task_id=cluster_survey(survey_id)
             survey = db.session.query(Survey).get(survey_id)
