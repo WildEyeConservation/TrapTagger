@@ -446,7 +446,6 @@ function generateResults(){
         document.getElementById('cameraTrapDiv').hidden = true
         document.getElementById('dataUnitDiv').hidden = false
         document.getElementById('indivCharacteristicsDiv').hidden = true 
-        generateActivity()
     }
     else if (analysisType=='6') {
         //Builds the selectors for the occupancy analysis
@@ -531,6 +530,31 @@ function generateTemporal(){
     /** Updates the results div for temporal analysis */
     // Polar map
     mainDiv = document.getElementById('resultsDiv')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style','margin:0px')
+    mainDiv.appendChild(row)
+
+    var h5 = document.createElement('h5');
+    h5.innerHTML = 'Temporal Analysis'
+    h5.setAttribute('style','margin-bottom: 2px')
+    row.appendChild(h5);
+
+    var help = document.createElement('button');
+    help.setAttribute('type', 'button');
+    help.setAttribute('class', 'btn btn-link btn-sm');
+    help.setAttribute('align', 'left');
+    help.setAttribute('value', 'help');
+    help.setAttribute('onclick', 'helpOpen(\'temporal_analysis\')');
+    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+    help.innerHTML = '?';
+    row.appendChild(help);
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i> The following chart shows the unit counts for each hour of the day. </i></div>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.classList.add('row')
@@ -642,6 +666,31 @@ function generateSpatial(){
             trapgroupInfo = info.trapgroups
 
             mainDiv = document.getElementById('resultsDiv')
+
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            mainDiv.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Spatial Analysis'
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+        
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'spatial_analysis\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+        
+            h5 = document.createElement('h5')
+            h5.innerHTML = '<div><i> The following map showcase the a heatmap of the unit counts for each site.</i></div>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            mainDiv.appendChild(h5)
 
             div = document.createElement('div')
             div.classList.add('row')
@@ -783,6 +832,31 @@ function generateNumerical(){
     // Bar chart
     mainDiv = document.getElementById('resultsDiv')
 
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style','margin:0px')
+    mainDiv.appendChild(row)
+
+    var h5 = document.createElement('h5');
+    h5.innerHTML = 'Numerical Analysis'
+    h5.setAttribute('style','margin-bottom: 2px')
+    row.appendChild(h5);
+
+    var help = document.createElement('button');
+    help.setAttribute('type', 'button');
+    help.setAttribute('class', 'btn btn-link btn-sm');
+    help.setAttribute('align', 'left');
+    help.setAttribute('value', 'help');
+    help.setAttribute('onclick', 'helpOpen(\'numerical_analysis\')');
+    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+    help.innerHTML = '?';
+    row.appendChild(help);
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i> The following chart shows the unit counts for a species at a specified site or the total unit counts for a species across all sites. </i></div>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+
     div = document.createElement('div')
     div.classList.add('row')
     mainDiv.appendChild(div)
@@ -895,6 +969,31 @@ function generateTime(){
     // Line chart
     var mainDiv = document.getElementById('resultsDiv')
 
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style','margin:0px')
+    mainDiv.appendChild(row)
+
+    var h5 = document.createElement('h5');
+    h5.innerHTML = 'Time Analysis'
+    h5.setAttribute('style','margin-bottom: 2px')
+    row.appendChild(h5);
+
+    var help = document.createElement('button');
+    help.setAttribute('type', 'button');
+    help.setAttribute('class', 'btn btn-link btn-sm');
+    help.setAttribute('align', 'left');
+    help.setAttribute('value', 'help');
+    help.setAttribute('onclick', 'helpOpen(\'time_analysis\')');
+    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+    help.innerHTML = '?';
+    row.appendChild(help);
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i> The following chart shows the unit counts for a species as a function of time. </i></div>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+
     var div = document.createElement('div')
     div.classList.add('row')
     mainDiv.appendChild(div)
@@ -1004,6 +1103,33 @@ function generateActivity(){
     // Chart generated from R script
 
     var mainDiv = document.getElementById('resultsDiv')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style','margin:0px')
+    mainDiv.appendChild(row)
+
+    var h5 = document.createElement('h5');
+    h5.innerHTML = 'Activity Pattern'
+    h5.setAttribute('style','margin-bottom: 2px')
+    row.appendChild(h5);
+
+    var help = document.createElement('button');
+    help.setAttribute('type', 'button');
+    help.setAttribute('class', 'btn btn-link btn-sm');
+    help.setAttribute('align', 'left');
+    help.setAttribute('value', 'help');
+    help.setAttribute('onclick', 'helpOpen(\'activity_pattern\')');
+    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+    help.innerHTML = '?';
+    row.appendChild(help);
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i> The following chart shows the activity pattern of the selected species at the selected site(s). The activity pattern is the proportion of the total number of detections of the species at each hour of the day. </i></div>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+
+    mainDiv.appendChild(document.createElement('br'))
 
     div = document.createElement('div')
     div.classList.add('row')
@@ -2168,7 +2294,7 @@ function getSelectedSites(text=false){
         allSites = document.querySelectorAll('[id^=siteSelector-]')
     }
     else if (analysis=='0' || analysis=='-1'){
-        return '0'
+        return ['0','0']
     }
     else {
         allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
@@ -2979,16 +3105,17 @@ function getSurveysAndAnnotationSets(clear=false){
     var formData = new FormData()
 
     if (clear) {
-        sites_ids = '0'
-        start_date = ''
-        end_date = ''
+        var sites_ids = '0'
+        var start_date = ''
+        var end_date = ''
+        var groups = '0'
     }
     else{
-        selectedSites = getSelectedSites()
-        sites_ids = selectedSites[0]
-        groups = selectedSites[1]
-        start_date = document.getElementById('startDate').value
-        end_date = document.getElementById('endDate').value
+        var selectedSites = getSelectedSites()
+        var sites_ids = selectedSites[0]
+        var groups = selectedSites[1]
+        var start_date = document.getElementById('startDate').value
+        var end_date = document.getElementById('endDate').value
     }
 
     if (start_date != '') {
@@ -4248,21 +4375,36 @@ function buildSummaryTab(summary, tab){
 
             var row = document.createElement('div')
             row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            dataSummaryTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Data Summary';
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+        
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'data_summary\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following table shows the number of images, clusters and sightings for your surveys.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            dataSummaryTab.appendChild(h5)
+
+            var row = document.createElement('div')
+            row.classList.add('row')
             dataSummaryTab.appendChild(row)
 
             var col0 = document.createElement('div')
             col0.classList.add('col-lg-12')
             row.appendChild(col0)
-
-            var h5 = document.createElement('h5');
-            h5.innerHTML = 'Data Summary';
-            h5.setAttribute('style','margin-bottom: 2px')
-            col0.appendChild(h5);
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>The following table shows the number of images, clusters and sightings for your surveys.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col0.appendChild(h5)
 
             //Data summary table
             var table = document.createElement('table');
@@ -4318,21 +4460,36 @@ function buildSummaryTab(summary, tab){
 
             var row = document.createElement('div')
             row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            diversityTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Diversity Indices';
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+        
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'diversity_indices\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following indices are a measure of diversity in a community.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            diversityTab.appendChild(h5)
+
+            var row = document.createElement('div')
+            row.classList.add('row')
             diversityTab.appendChild(row)
 
             var col1 = document.createElement('div')
             col1.classList.add('col-lg-12')
             row.appendChild(col1)
-
-            var h5 = document.createElement('h5');
-            h5.innerHTML = 'Diversity Indices';
-            h5.setAttribute('style','margin-bottom: 2px')
-            col1.appendChild(h5);
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>The following indices are a measure of diversity in a community.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col1.appendChild(h5)
 
             var table = document.createElement('table');
             table.id = 'diversityTable'
@@ -4385,6 +4542,31 @@ function buildSummaryTab(summary, tab){
 
         if (abundanceTab.firstChild == null) {
 
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            abundanceTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Species Abundance';
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'species_abundance\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph shows the abundance of each species in your data.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            abundanceTab.appendChild(h5)
+
             var row1 = document.createElement('div')
             row1.classList.add('row')
             abundanceTab.appendChild(row1)
@@ -4392,16 +4574,6 @@ function buildSummaryTab(summary, tab){
             var col2 = document.createElement('div')
             col2.classList.add('col-lg-12')
             row1.appendChild(col2)
-
-            var h5 = document.createElement('h5');
-            h5.innerHTML = 'Species Abundance';
-            h5.setAttribute('style','margin-bottom: 2px')
-            col2.appendChild(h5);
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>The following graph shows the abundance of each species in your data.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col2.appendChild(h5)
 
             var rowc = document.createElement('div')
             rowc.classList.add('row')
@@ -4502,21 +4674,36 @@ function buildSummaryTab(summary, tab){
         if (effortDaysTab.firstChild == null) {
             var row = document.createElement('div')
             row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            effortDaysTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Effort Days';
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'effort_days\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph shows the total number of days that each site/camera was active.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            effortDaysTab.appendChild(h5)
+
+            var row = document.createElement('div')
+            row.classList.add('row')
             effortDaysTab.appendChild(row)
 
             var col = document.createElement('div')
             col.classList.add('col-lg-12')
             row.appendChild(col)
-
-            var h5 = document.createElement('h5');
-            h5.innerHTML = 'Effort Days';
-            h5.setAttribute('style','margin-bottom: 2px')
-            col.appendChild(h5);
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>The following graph shows the total number of days that each site/camera was active.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col.appendChild(h5)
 
             var row_ct1 = document.createElement('div')
             row_ct1.classList.add('row')
@@ -4620,21 +4807,36 @@ function buildSummaryTab(summary, tab){
 
             var row = document.createElement('div')
             row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            cameraTrapDataCountsTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = ' Data Unit Counts'; 
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'data_counts\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph shows the total cluster/image/sighting count of each site/camera.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            cameraTrapDataCountsTab.appendChild(h5)
+
+            var row = document.createElement('div')
+            row.classList.add('row')
             cameraTrapDataCountsTab.appendChild(row)
 
             var col = document.createElement('div')
             col.classList.add('col-lg-12')
             row.appendChild(col)
-
-            var h5 = document.createElement('h5');
-            h5.innerHTML = ' Data Unit Counts'; 
-            h5.setAttribute('style','margin-bottom: 2px')
-            col.appendChild(h5);
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>The following graph shows the total cluster/image/sighting count of each site/camera.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col.appendChild(h5)
 
             var row_ct2 = document.createElement('div')
             row_ct2.classList.add('row')
@@ -4741,21 +4943,36 @@ function buildSummaryTab(summary, tab){
 
             var row = document.createElement('div')
             row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            cameraTrapActivityTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Active Days';
+            h5.setAttribute('style','margin-bottom: 2px')
+            row.appendChild(h5);
+
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'active_days\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
+
+            h5 = document.createElement('div')
+            h5.innerHTML = '<i>The following graph indicates on which days each site/camera was active. The heatmap represents the image count of each site/camera on each day.</i>'
+            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+            cameraTrapActivityTab.appendChild(h5)
+
+            var row = document.createElement('div')
+            row.classList.add('row')
             cameraTrapActivityTab.appendChild(row)
 
             var col = document.createElement('div')
             col.classList.add('col-lg-12')
             row.appendChild(col)
-
-            var h5 = document.createElement('h5');
-            h5.innerHTML = 'Active Days';
-            h5.setAttribute('style','margin-bottom: 2px')
-            col.appendChild(h5);
-
-            h5 = document.createElement('div')
-            h5.innerHTML = '<i>The following graph indicates on which days each site/camera was active. The heatmap represents the image count of each site/camera on each day.</i>'
-            h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
-            col.appendChild(h5)
 
             var row_ct3 = document.createElement('div')
             row_ct3.classList.add('row')
@@ -5765,10 +5982,25 @@ function buildOccupancyResults(results, tab){
             var total_sites = results.total_sites
             var total_sites_occupied = results.total_sites_occupied
 
-            var h5 = document.createElement('h5')
-            h5.innerHTML = 'Occupancy Summary'
-            h5.setAttribute('style', 'margin-bottom: 2px;')
-            summaryOccuTab.appendChild(h5)
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            summaryOccuTab.appendChild(row)
+
+            var h5 = document.createElement('h5');
+            h5.innerHTML = 'Occupancy Summary';
+            h5.setAttribute('style', 'margin-bottom: 2px;');
+            row.appendChild(h5);
+        
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'occupancy\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
 
             h5 = document.createElement('h5')
             h5.innerHTML = '<div><i> The following table displays a summary of the occupancy analysis for the selected species. Naive occupancy is the proportion of sites occupied by the species. The best model formula is the covariate formula that best explains the occupancy of the species. </i></div>'
@@ -6065,6 +6297,13 @@ function buildOccupancyResults(results, tab){
             occuTab.removeChild(occuTab.firstChild)
         }
 
+
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute('style','margin:0px')
+        occuTab.appendChild(row)
+    
         var h5 = document.createElement('h5')
         if (cov_name == '~1 ~ 1'){
             h5.innerHTML = 'Covariate Results: No Covariates'
@@ -6072,7 +6311,17 @@ function buildOccupancyResults(results, tab){
             h5.innerHTML = 'Covariate Results: ' + cov_name
         }
         h5.setAttribute('style','margin-bottom: 2px')
-        occuTab.appendChild(h5)
+        row.appendChild(h5)
+    
+        var help = document.createElement('button');
+        help.setAttribute('type', 'button');
+        help.setAttribute('class', 'btn btn-link btn-sm');
+        help.setAttribute('align', 'left');
+        help.setAttribute('value', 'help');
+        help.setAttribute('onclick', 'helpOpen(\'covariates_results\')');
+        help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+        help.innerHTML = '?';
+        row.appendChild(help);
 
         // Create a radio button to select the type of graph
         var divRadio = document.createElement('div')
@@ -7280,11 +7529,26 @@ function buildSCR(results, tab){
             var cr = results.cr
             var message = results.message
 
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            summarySCRtab.appendChild(row)
+
             // Capture Recapture
             var h5 = document.createElement('h5')
             h5.innerHTML = 'Capture Recapture'
             h5.setAttribute('style', 'margin-bottom: 2px;')
-            summarySCRtab.appendChild(h5)
+            row.appendChild(h5)
+        
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'capture_recapture\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
 
             var h5 = document.createElement('h5')
             h5.innerHTML = '<div><i> The following table displays the Capture Recapture results. It displays abundance estimates for your species calculated by different models without the use of any spatial information. </i></div>'
@@ -7358,10 +7622,16 @@ function buildSCR(results, tab){
             summarySCRtab.appendChild(document.createElement('br'))
 
             // Spatial Capture Recapture
+            var row = document.createElement('div')
+            row.classList.add('row')
+            row.setAttribute('style','margin:0px')
+            summarySCRtab.appendChild(row)
+
+            // Capture Recapture
             var h5 = document.createElement('h5')
             h5.innerHTML = 'Spatial Capture Recapture'
             h5.setAttribute('style', 'margin-bottom: 2px;')
-            summarySCRtab.appendChild(h5)
+            row.appendChild(h5)
 
             if (message != ''){
                 var h5 = document.createElement('h5')
@@ -7369,8 +7639,18 @@ function buildSCR(results, tab){
                 h5.setAttribute('style','font-size: 80%; margin-bottom: 2px; color: #DF691A;')
                 summarySCRtab.appendChild(h5)
             }
+        
+            var help = document.createElement('button');
+            help.setAttribute('type', 'button');
+            help.setAttribute('class', 'btn btn-link btn-sm');
+            help.setAttribute('align', 'left');
+            help.setAttribute('value', 'help');
+            help.setAttribute('onclick', 'helpOpen(\'spatial_capture_recapture\')');
+            help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+            help.innerHTML = '?';
+            row.appendChild(help);
 
-            // Spatial Capture RecaptureSummary 
+            // Spatial Capture Recapture Summary 
             var h5 = document.createElement('h5')
             h5.innerHTML = 'SCR Data Summary'
             h5.setAttribute('style', 'margin-bottom: 2px;')
@@ -7770,11 +8050,26 @@ function buildSCR(results, tab){
             spatialCapturesTab.removeChild(spatialCapturesTab.firstChild)
         }
         
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute('style','margin:0px')
+        spatialCapturesTab.appendChild(row)
+    
         // Builds the tab for the spatial captures plot
         var h5 = document.createElement('h5')
         h5.innerHTML = 'Spatial Captures'
         h5.setAttribute('style', 'margin-bottom: 2px;')
-        spatialCapturesTab.appendChild(h5)
+        row.appendChild(h5)
+    
+        var help = document.createElement('button');
+        help.setAttribute('type', 'button');
+        help.setAttribute('class', 'btn btn-link btn-sm');
+        help.setAttribute('align', 'left');
+        help.setAttribute('value', 'help');
+        help.setAttribute('onclick', 'helpOpen(\'spatial_captures\')');
+        help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+        help.innerHTML = '?';
+        row.appendChild(help);
 
         h5 = document.createElement('h5')
         h5.innerHTML = '<div><i> The following plot displays the spatial captures of the species. The circles indicate the average spatial location of the individual. The crosses indicate the site locations. The lines indicate the sites visited by the individual (if an individual is detected at more than one site). </i></div>'
@@ -7819,12 +8114,27 @@ function buildSCR(results, tab){
             stateSpaceTab.removeChild(stateSpaceTab.firstChild)
         }
         
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute('style','margin:0px')
+        stateSpaceTab.appendChild(row)
+    
         // Builds the tab for the state space plot
         var h5 = document.createElement('h5')
         h5.innerHTML = 'State Space'
         h5.setAttribute('style', 'margin-bottom: 2px;')
-        stateSpaceTab.appendChild(h5)
-
+        row.appendChild(h5)
+    
+        var help = document.createElement('button');
+        help.setAttribute('type', 'button');
+        help.setAttribute('class', 'btn btn-link btn-sm');
+        help.setAttribute('align', 'left');
+        help.setAttribute('value', 'help');
+        help.setAttribute('onclick', 'helpOpen(\'state_space\')');
+        help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+        help.innerHTML = '?';
+        row.appendChild(help);
+        
         h5 = document.createElement('h5')
         h5.innerHTML = '<div><i> The following plot displays the state space of the population. All the grey pixels indicate your state space (including the buffer). The state space is dicretised reprensentation of the sites. The circles or points indicate your sites. The red S\'s indicate the area where individuals were detected (sites or average spatial location). The lines indicate whether individuals were seen at multiple sites. </i></div>'
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
@@ -7878,11 +8188,26 @@ function buildSCR(results, tab){
             densityMapTab.removeChild(densityMapTab.firstChild)
         }
         
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute('style','margin:0px')
+        densityMapTab.appendChild(row)
+    
         // Builds the tab for the density map plot
         var h5 = document.createElement('h5')
         h5.innerHTML = 'Density Map'
         h5.setAttribute('style', 'margin-bottom: 2px;')
-        densityMapTab.appendChild(h5)
+        row.appendChild(h5)
+    
+        var help = document.createElement('button');
+        help.setAttribute('type', 'button');
+        help.setAttribute('class', 'btn btn-link btn-sm');
+        help.setAttribute('align', 'left');
+        help.setAttribute('value', 'help');
+        help.setAttribute('onclick', 'helpOpen(\'density_map\')');
+        help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+        help.innerHTML = '?';
+        row.appendChild(help);
 
         h5 = document.createElement('h5')
         h5.id = 'densityMapDescription'
@@ -8105,6 +8430,8 @@ function buildSCR(results, tab){
 
         document.getElementById('showHeatMapDHM').checked = true
 
+        densityMapTab.appendChild(document.createElement('br'))
+
         var div = document.createElement('div')
         div.classList.add('row')
         densityMapTab.appendChild(div)
@@ -8143,11 +8470,26 @@ function buildSCR(results, tab){
             srcHeatmapTab.removeChild(srcHeatmapTab.firstChild)
         }
         
+        var row = document.createElement('div')
+        row.classList.add('row')
+        row.setAttribute('style','margin:0px')
+        srcHeatmapTab.appendChild(row)
+    
         // Builds the tab for the heatmap plot
         var h5 = document.createElement('h5')
         h5.innerHTML = 'Individual Counts Heatmap'
         h5.setAttribute('style', 'margin-bottom: 2px;')
-        srcHeatmapTab.appendChild(h5)
+        row.appendChild(h5)
+    
+        var help = document.createElement('button');
+        help.setAttribute('type', 'button');
+        help.setAttribute('class', 'btn btn-link btn-sm');
+        help.setAttribute('align', 'left');
+        help.setAttribute('value', 'help');
+        help.setAttribute('onclick', 'helpOpen(\'individual_counts\')');
+        help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+        help.innerHTML = '?';
+        row.appendChild(help);
 
         h5 = document.createElement('h5')
         h5.innerHTML = '<div><i> The following map displays a heatmap of the individual counts at each site. The heatmap is a representation of the density of the individuals at each site. The darker the colour, the higher the density of individuals. </i></div>'
@@ -8880,7 +9222,7 @@ function pingServer() {
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
-                setTimeout(function() { pingServer(); }, 30000);
+                                setTimeout(function() { pingServer(); }, 30000);
             }
         }
         xhttp.open("POST", '/ping');

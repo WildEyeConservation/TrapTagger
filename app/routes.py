@@ -9032,7 +9032,7 @@ def getSurveysAndTasksForResults():
     end_date = ast.literal_eval(request.form['end_date'])
     groups = ast.literal_eval(request.form['groups'])
 
-    if Config.DEBUGGING: app.logger.info('Surveys for results page - sites_ids: {} start_date: {} end_date: {}'.format(sites_ids, start_date, end_date))
+    if Config.DEBUGGING: app.logger.info('Surveys for results page - sites_ids: {} groups: {} start_date: {} end_date: {}'.format(sites_ids, groups, start_date, end_date))
 
     surveys = db.session.query(
                                     Survey.id,
@@ -9043,13 +9043,18 @@ def getSurveysAndTasksForResults():
                                 .outerjoin(Task,Task.survey_id==Survey.id)\
                                 .outerjoin(Cluster,Cluster.task_id==Task.id)\
                                 .outerjoin(Image, Cluster.images)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                                 .filter(Survey.user_id==current_user.id)\
                                 .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))\
                                 .filter(Task.name != 'default')
 
 
-    if sites_ids != '0':
+    if sites_ids != '0' and sites_ids != '-1' and groups != '0' and groups != '-1':
+        surveys = surveys.filter(or_(Trapgroup.id.in_(sites_ids),Sitegroup.id.in_(groups)))
+    elif sites_ids != '0' and sites_ids != '-1':
         surveys = surveys.filter(Trapgroup.id.in_(sites_ids))
+    elif groups != '0' and groups != '-1':
+        surveys = surveys.filter(Sitegroup.id.in_(groups))
 
     if start_date:
         surveys = surveys.filter(Image.corrected_timestamp >= start_date)

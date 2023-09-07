@@ -1,0 +1,67 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<h4>Activity Pattern</h4>
+
+<p align="justify">
+    The activity pattern analysis is a statistical analysis that is used to determin the activity pattern of a species in a 24 hour period. 
+    The analysis is based on the number of detections per hour of the day. Multiple species can be selected to give an overview of when the activity pattern of the species overlap. 
+    On the graph the average sunrise and sunset time is shown as a vertical line to give an indication of the time of day. Activity patterns can be used to view predator-prey relationships,
+    foraging behaviour, and the effect of human disturbance on the activity of a species as well as many other things.
+</p>
+
+<p align="justify">
+    For the activity pattern analysis a date range can be selected to limit the analysis to a specific period. The analysis can be done for multiple species at the same time. Please note that if you select 
+    to do overlap estimation only two species can be selected. THe overlap estimation will show the overlap between the two species in the graph. The axis can be either centered
+    around midday or midnight. The results can either showcase the frequercy of detections of the species or the density of detections. The analysis can either be done using solar time or clock time. Solar time
+    is based on the average location of the sites where the species were detected. Clock time is based on the time of day. The activity pattern graph can be exported as a PNG file by clicking on the <i>Export</i> button.
+</p>
+
+<p align="justify">
+    The activity pattern analysis was calculated using an R script. The script can be viewed by clicking the <i>View R Script</i> button. The data used in the analysis can be downloaded
+    as a CSV file by clicking the <i>Download CSV</i> button. A function is created in the R script where the CSV file can be loaded into R and the analysis can be done using the function if further 
+    analysis is required or modifications to the analysis is needed for your own purposes.
+</p>
+<p align="justify">
+    The activity pattern analysis is based on the following packages:
+<ul>
+    <li><a href="https://cran.r-project.org/web/packages/activity/index.html">activity</a></li>
+    <p>
+        The activity package is used to calculate the activity pattern of the species. It estimates the activity level of the species per hour of the day. 
+    </p>
+    
+    <li><a href="https://cran.r-project.org/web/packages/overlap/index.html">overlap</a></li>
+    <p>
+        The overlap package is used to calculate the overlap between two species. It calculates an overlap coefficient based on the activity pattern of the two species.
+    </p>
+    <li><a href="https://cran.r-project.org/web/packages/lubridate/index.html">lubridate</a></li>
+    <p>
+        The lubridate package is used for date and time calculations. The package is used to convert the date and time of the detections to the correct format.
+    </p>
+
+    <li><a href="https://cran.r-project.org/web/packages/solartime/index.html">solartime</a></li>
+    <p>
+        The solartime package is used to calculate the sunrise and sunset time of the detections. The sunrise and sunset time is calculated based on the average location of the sites where the species were detected.
+    </p>
+    <li><a href="https://cran.r-project.org/web/packages/ggplot2/index.html">ggplot2</a></li>
+    <p>
+        The ggplot2 package is used to plot the activity pattern graph.
+    </p>
+</ul>
+</p>
+
+<p align="justify">
+    Please click the <i>Generate Results</i> button to generate the activity pattern results. Please note the activity pattern results may take a while to generate. Do not 
+    navigate away from the page or refreshh the page while the results are being generated.
+</p>
