@@ -82,7 +82,8 @@ class Config(object):
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
         'parallel':         {'t2.large': 1000, 't3a.large': 1000},  #estimated
-        'default':         {'t2.large': 1000, 't3a.large': 1000}  #estimated
+        'default':         {'t2.large': 1000, 't3a.large': 1000},  #estimated
+        'statistics':         {'t2.large': 1000, 't3a.large': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
@@ -116,7 +117,8 @@ class Config(object):
         'celery': '300',
         'classification': '300',
         'parallel': '300',
-        'default': '300'
+        'default': '300',
+        'statistics': '300'
     }
 
     #Aurora DB stuff
@@ -129,13 +131,15 @@ class Config(object):
         'celery': 12,
         'classification': 12,
         'parallel': 48,
-        'default': 12
+        'default': 12,
+        'statistics': 12
     }
 
     # Celery Worker concurrency
     CONCURRENCY = {
         'parallel': 1,
-        'default': 1
+        'default': 1,
+        'statistics': 1
     }
 
     # Queue config
@@ -238,8 +242,8 @@ class Config(object):
             'branch': BRANCH,
             'user_data':
                 'bash /home/ubuntu/TrapTagger/WorkR/launch.sh ' + 
-                'default_worker_{}' + ' ' + 
-                'default' + " '" + 
+                'statistics_worker_{}' + ' ' + 
+                'statistics' + " '" + 
                 HOST_IP + "' '" + 
                 SQLALCHEMY_DATABASE_NAME + "' '" + 
                 HOST_IP + "' '" + 
@@ -257,10 +261,10 @@ class Config(object):
                 TOKEN + "' '" + 
                 PARALLEL_AMI + "' '" + 
                 KEY_NAME + "' '" + 
-                SETUP_PERIOD['default'] + "' '" + 
+                SETUP_PERIOD['statistics'] + "' '" + 
                 'IDLE_MULTIPLIER' + "' '" + 
                 os.environ.get('MAIN_GIT_REPO') + "' '" + 
-                str(CONCURRENCY['default']) + "' '" + 
+                str(CONCURRENCY['statistics']) + "' '" + 
                 MONITORED_EMAIL_ADDRESS + "' '" + 
                 BUCKET + "' '" + 
                 IAM_ADMIN_GROUP + "' '" + 
