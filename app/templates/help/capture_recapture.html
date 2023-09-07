@@ -11,3 +11,36 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. -->
+
+<h4> Capture-Recapture Results</h4>
+
+<p align="justify">
+    Capture-Recapture provides abundance estimates for a species. The capture-recapture table showcase the abundance estimates for multiple models. Capture-recapture is done on an individual level. Capture-recapture do not use any spacial information
+    to calculate the estimates.
+</p>
+
+<p align="justify">
+    The capture-recapture analysis can be filtered by a date range to only include data from a specific time period. The observation window is specified in days and is the number of days in a sampling occasion. Capture-recapture can be applied to one or multiple species as 
+    well as one or multiple sites. The analysis can be applied to one or multiple species as well as one or multiple sites.
+</p>
+
+<p align="justify">
+    The capture-recapture analysis was calculated using an R script. The script can be viewed by clicking the <i>View R Script</i> button. The data used in the analysis can be downloaded 
+    as a CSV file by clicking the <i>Download CSV</i> button. A function is created in the R script where the CSV file can be loaded into R and the analysis can be done using the function if further 
+    analysis is required or modifications to the analysis is needed for your own purposes.
+</p>
+
+<p align="justify">
+    The capture-recapture analysis is based on the following packages:
+    <ul>
+        <li><a href="https://cran.r-project.org/web/packages/Rcapture/index.html">Rcapture</a></li>
+        <p>
+            The Rcapture package is used to create capture-recapture models and to calculate the abundance estimates of a species. 
+        </p>
+    </ul>
+</p>
+
+<p align="justify">
+    Please note that capture-recapture is done on an individual level so individual id needs to be completed for a more accurate analysis. To run the analysis click the <i>Generate Results</i> button. Please note the capture-recapture results may take a while to generate. Do not
+    navigate away from the page or refresh the page while the results are being generated.
+</p>

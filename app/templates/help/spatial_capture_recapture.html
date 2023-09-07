@@ -11,3 +11,74 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. -->
+
+<h4> Spatial Capture-Recapture Results</h4>
+
+<p align="justify">
+    Spatial Capture-Recapture provides abundance estimates, detection probability, sigma estimates for a species. Spatial Capture-Recapture is done on an individual level. Spatial Capture-Recapture uses spacial information
+    to calculate the estimates.
+</p>
+
+<p align="justify">
+    The spatial capture-recapture summary ressults include the following:
+    <ul>
+        <li>SCR Data Summary</li>
+        <p>
+            The SCR Data summary includes the a summary of data usd in the SCR analysis such as number of individuals, number of sampling occasions and number of sites. It also 
+            includes the mean maximum distace move (MMDM) and half the mean maximum distace move (HMMDM) by an individual. If the MMDM is 0 then the analysis is not valid. It can indicate
+            that the sites do not have coordinates or that the indivdiuals were not detected at more than one site (individual id may not be complete).
+        </p>
+        <li>AICc</li>
+        <p>
+            The AICc table includes the AICc values for each model. The AICc values can be used to compare the models to each other. The model with the lowest AICc value is the best model.
+        </p>
+        <li>Density per 100km<sup>2</sup></li>
+        <p>
+            The density per 100km<sup>2</sup> table includes the density per 100km<sup>2</sup> estimate for the best model. It also includes the standard error and the 95% confidence interval for the density estimate.
+        </p>
+        <li>Abundance</li>
+        <p>
+            The abundance table includes the abundance estimate for the best model. It also includes the standard error and the 95% confidence interval for the abundance estimate.
+        </p>
+        <li>Detection Probability</li>
+        <p>
+            The detection probability table includes the detection probability for the best model. It also includes the standard error and the 95% confidence interval for the detection probability.
+        </p>
+        <li>Sigma</li>
+        <p>
+            The sigma table includes the sigma estimate for the best model. It also includes the standard error and the 95% confidence interval for the sigma estimate.
+        </p>
+    </ul>
+</p>
+
+<p align="justify">
+    The spatial capture-recapture analysis can be filtered by a date range to only include data from a specific time period. The observation window is specified in days and is the number of days in a sampling occasion. Capture-recapture can be applied to one or multiple species as 
+    well as one or multiple sites. The analysis can be applied to one or multiple species as well as one or multiple sites. Site level covariates can be included in the analysis. 
+    individual characterics such as the sex of the individual can be included in the analysis.
+</p>
+
+<p align="justify">
+    The spatial capture-recapture analysis was calculated using an R script. The script can be viewed by clicking the <i>View R Script</i> button. The data used in the analysis can be downloaded 
+    as a CSV file by clicking the <i>Download CSV</i> button. A function is created in the R script where the CSV file can be loaded into R and the analysis can be done using the function if further 
+    analysis is required or modifications to the analysis is needed for your own purposes.
+</p>
+
+<p align="justify">
+    The spatial capture-recapture analysis is based on the following packages:
+    <ul>
+        <li><a href="https://sites.google.com/site/spatialcapturerecapture/oscr-package">oSCR</a>
+        <p>
+            The oSCR package is used to create spatial capture-recapture models and to calculate the abundance estimates of a species.
+        </p>
+
+        <li><a href="https://cran.r-project.org/web/packages/raster/index.html">raster</a>
+        <p>
+            The raster package is used to create a raster object from the site coordinates to plot density maps.
+        </p>
+    </ul>
+
+<p align="justify">
+    Please note that spatial capture-recapture is done on an individual level so individual id needs to be completed for a more accurate analysis. Spatial capture-recapture uses spacial information so the site coordinates need to be completed for the analysis.
+    To run the analysis click the <i>Generate Results</i> button. Please note the capture-recapture results may take a while to generate. Do not
+    navigate away from the page or refresh the page while the results are being generated.
+</p>
