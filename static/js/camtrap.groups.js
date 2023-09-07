@@ -1267,10 +1267,10 @@ function getSitesForGroup(){
     else if (analysisType == '3'){
         allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
-    else if (analysisType=='5' || analysisType=='6' || analysisType=='7'){
+    else if (analysisType=='0' || analysisType=='5' || analysisType=='6' || analysisType=='7'){
         allSites = document.querySelectorAll('[id^=siteSelector-]')
     }
-    else if (analysisType=='0' || analysisType=='-1'){
+    else if (analysisType=='-1'){
         return '0'
     }
     else {

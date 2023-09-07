@@ -2543,7 +2543,7 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
     return True
 
 @celery.task(bind=True,soft_time_limit=82800)
-def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit):
+def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit):
     ''' Calculates the results summary '''
     try:
         summary = {}
@@ -2569,6 +2569,9 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
             .join(Image, Cluster.images)\
             .join(Detection)\
             .join(Labelgroup)\
+            .join(Camera)\
+            .join(Trapgroup)\
+            .outerjoin(Sitegroup, Trapgroup.sitegroups)\
             .filter(Cluster.task_id.in_(task_ids))\
             .filter(Labelgroup.task_id.in_(task_ids))\
             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -2578,6 +2581,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
             if startDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp >= startDate)
 
             if endDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp <= endDate)
+
+            if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                summaryQuery = summaryQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+            elif sites != '0' and sites != '-1':
+                summaryQuery = summaryQuery.filter(Trapgroup.id.in_(sites))
+            elif groups != '0' and groups != '-1':
+                summaryQuery = summaryQuery.filter(Sitegroup.id.in_(groups))
 
             summaryTotals = summaryQuery.all()
             
@@ -2718,6 +2728,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
 
             if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
+            if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                baseQuery = baseQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+            elif sites != '0' and sites != '-1':
+                baseQuery = baseQuery.filter(Trapgroup.id.in_(sites))
+            elif groups != '0' and groups != '-1':
+                baseQuery = baseQuery.filter(Sitegroup.id.in_(groups))
+
             if baseUnit == '1' or baseUnit == '4':
                 baseQuery = baseQuery.group_by(Image.id, Label.id, Camera.id, Trapgroup.id, Sitegroup.id).all()
             elif baseUnit == '2':
@@ -2825,12 +2842,20 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                     Trapgroup.altitude,
                 ).join(Camera, Image.camera_id == Camera.id)\
                 .join(Trapgroup)\
+                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .filter(Image.corrected_timestamp != None)
 
                 if startDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp >= startDate)
 
                 if endDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp <= endDate)
+
+                if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                    baseTrapQuery = baseTrapQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+                elif sites != '0' and sites != '-1':
+                    baseTrapQuery = baseTrapQuery.filter(Trapgroup.id.in_(sites))
+                elif groups != '0' and groups != '-1':
+                    baseTrapQuery = baseTrapQuery.filter(Sitegroup.id.in_(groups))
 
                 base_trap_df = pd.DataFrame(baseTrapQuery.all(), columns=['id','timestamp', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
                 base_trap_df = base_trap_df.drop_duplicates()
@@ -2911,6 +2936,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                     Trapgroup.tag
                 ).join(Camera, Image.camera_id == Camera.id)\
                 .join(Trapgroup)\
+                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .filter(Image.corrected_timestamp != None)\
                 .filter(~Camera.path.contains('_video_images_'))
@@ -2918,6 +2944,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 if startDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp >= startDate)
 
                 if endDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp <= endDate)
+
+                if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                    baseCamQuery = baseCamQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+                elif sites != '0' and sites != '-1':
+                    baseCamQuery = baseCamQuery.filter(Trapgroup.id.in_(sites))
+                elif groups != '0' and groups != '-1':
+                    baseCamQuery = baseCamQuery.filter(Sitegroup.id.in_(groups))
                 
                 base_cam_df = pd.DataFrame(baseCamQuery.distinct().all(), columns=['id','timestamp', 'camera_id', 'path', 'site_id', 'site_tag'])
                 base_cam_df = base_cam_df.drop_duplicates()
@@ -2982,6 +3015,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 # Calculate how many counts each camera has capture for either clusters, images or detections
                 # Dataframe with the number of counts for each camera
                 camera_counts_df = df[['id', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude']].copy()
+                camera_counts_df = camera_counts_df[~camera_counts_df['path'].str.contains('_video_images_')]
                 camera_counts_df.rename(columns={'name': 'site_tag'}, inplace=True)
                 camera_counts_df = camera_counts_df.drop_duplicates(subset=['id', 'camera_id'])
                 camera_counts_df['count'] = 1
@@ -3014,6 +3048,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 if startDate: baseGroupQuery = baseGroupQuery.filter(Image.corrected_timestamp >= startDate)
 
                 if endDate: baseGroupQuery = baseGroupQuery.filter(Image.corrected_timestamp <= endDate)
+
+                if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                    baseGroupQuery = baseGroupQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+                elif sites != '0' and sites != '-1':
+                    baseGroupQuery = baseGroupQuery.filter(Trapgroup.id.in_(sites))
+                elif groups != '0' and groups != '-1':
+                    baseGroupQuery = baseGroupQuery.filter(Sitegroup.id.in_(groups))
 
                 base_group_df = pd.DataFrame(baseGroupQuery.distinct().all(), columns=['id','timestamp','group_id', 'name'])
                 base_group_df = base_group_df.drop_duplicates()

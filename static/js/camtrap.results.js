@@ -294,16 +294,16 @@ function generateResults(){
         document.getElementById('analysisDataDiv').hidden = true
         document.getElementById('comparisonDiv').hidden = true
         document.getElementById('numericalDataDiv').hidden = true
-        document.getElementById('btnSaveGroupFromData').disabled = true
+        document.getElementById('btnSaveGroupFromData').disabled = false
         document.getElementById('trendlineDiv').hidden = true
-        document.getElementById('siteDataDiv').hidden = true
+        document.getElementById('siteDataDiv').hidden = false
         document.getElementById('speciesDataDiv').hidden = true
         document.getElementById('optionsDiv').hidden = true
         document.getElementById('buttonsR').hidden = false
         document.getElementById('btnViewScript').hidden = true
         document.getElementById('btnDownloadResultsCSV').hidden = true
         document.getElementById('scriptDiv').hidden = true
-        document.getElementById('groupButtonsDiv').hidden = true
+        document.getElementById('groupButtonsDiv').hidden = false
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
         document.getElementById('cameraTrapDiv').hidden = false
@@ -437,6 +437,7 @@ function generateResults(){
         document.getElementById('siteDataDiv').hidden = false
         document.getElementById('speciesDataDiv').hidden = false
         document.getElementById('optionsDiv').hidden = false
+        document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = false
         document.getElementById('btnViewScript').hidden = false
         document.getElementById('btnDownloadResultsCSV').hidden = false
@@ -463,6 +464,7 @@ function generateResults(){
         document.getElementById('siteDataDiv').hidden = false
         document.getElementById('speciesDataDiv').hidden = false
         document.getElementById('optionsDiv').hidden = true
+        document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = false
         document.getElementById('btnViewScript').hidden = false
         document.getElementById('btnDownloadResultsCSV').hidden = false
@@ -489,6 +491,7 @@ function generateResults(){
         document.getElementById('siteDataDiv').hidden = false
         document.getElementById('speciesDataDiv').hidden = false
         document.getElementById('optionsDiv').hidden = true
+        document.getElementById('scriptDiv').hidden = true
         document.getElementById('buttonsR').hidden = false
         document.getElementById('btnViewScript').hidden = false
         document.getElementById('btnDownloadResultsCSV').hidden = false
@@ -2290,10 +2293,10 @@ function getSelectedSites(text=false){
     else if (analysis == '3'){
         allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
     }
-    else if (analysis=='5' || analysis=='6' || analysis=='7'){
+    else if (analysis=='0'||analysis=='5' || analysis=='6' || analysis=='7'){
         allSites = document.querySelectorAll('[id^=siteSelector-]')
     }
-    else if (analysis=='0' || analysis=='-1'){
+    else if (analysis=='-1'){
         return ['0','0']
     }
     else {
@@ -4146,6 +4149,9 @@ function getSummary(check){
             var trap_unit = '0'
         }
         summaryTrapUnit = trap_unit
+        var selected = getSelectedSites()
+        var sites = selected[0]
+        var groups = selected[1]
     
         var formData = new FormData()
         formData.append('task_ids', JSON.stringify(task_ids))
@@ -4165,6 +4171,8 @@ function getSummary(check){
             formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
             formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
         }
+        formData.append('sites', JSON.stringify(sites))
+        formData.append('groups', JSON.stringify(groups))
 
         document.getElementById('resultsDiv').style.display = 'none'
         document.getElementById('loadingDiv').style.display = 'block'

@@ -9127,6 +9127,7 @@ def getActivityPattern():
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -9185,6 +9186,8 @@ def getResultsSummary():
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         baseUnit = ast.literal_eval(request.form['baseUnit'])
+        sites = ast.literal_eval(request.form['sites'])
+        groups = ast.literal_eval(request.form['groups'])
         if 'startDate' in request.form:
             startDate = ast.literal_eval(request.form['startDate'])
         else:
@@ -9201,7 +9204,7 @@ def getResultsSummary():
             timeToIndependence = None
             timeToIndependenceUnit = None
         
-        if Config.DEBUGGING: app.logger.info('Results summary for {} {} {} {}'.format(task_ids,baseUnit,startDate,endDate))
+        if Config.DEBUGGING: app.logger.info('Results summary for tasks:{} baseUnit:{} sites:{} groups:{} startDate:{} endDate:{} trapUnit:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,baseUnit,sites,groups,startDate,endDate,trapUnit,timeToIndependence,timeToIndependenceUnit))
     else:
         task_ids = None
 
@@ -9215,12 +9218,13 @@ def getResultsSummary():
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
 
             user_id = current_user.id
-            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'sites': sites, 'groups': groups,'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
@@ -9300,6 +9304,7 @@ def getOccupancy():
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
@@ -9423,6 +9428,7 @@ def getSpatialCaptureRecapture():
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
