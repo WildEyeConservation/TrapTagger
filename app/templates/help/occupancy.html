@@ -16,62 +16,65 @@ limitations under the License. -->
     Occupancy analysis
 </h4>
 
-<p align="justify">
-    Occupancy is a statistical analysis on your camera trap data to determine the proportion of area or sites that is occupied by a species. Occupancy analysis is based on the assumption that a species is either present or absent at a site, and that the probability of detection is less than 1. 
-    Occupancy is useful for determining the occupancy probability of a species at a site, and the probability of detection of a species at a site. The analysis also allows you to view what covariates has an effect on the occupancy probability and detection probability of a species at a site.
+<p>
+    <strong>Occupancy Analysis</strong> is a powerful statistical tool that allows you to gain insights from your camera trap data. This analysis helps determine the proportion of areas or sites occupied by a specific species. Key features of Occupancy Analysis include:
 </p>
-
-<p align="justify">
-    The occupancy summary results provides the naive occupancy calculated from the number of sites where a species was detected divided by the total number of sites. It displays the best model's formula that was selected based on the AICc results.
-    The AICc results can be viewed for all models that were calculated in the occupancy analysis. The best model is the model with the lowest Delta AICc. The Best Model Occupancy Simmar provides 
-    the estimate summary of the best model. The best model detection summary provides the estimate summary of the best model's detection probability. Please note that the values for the occupancy and detection summary in the tables
-    are in logit scale. The plots in the next tab will show the occupancy and detection probability on a regular scale.
-</p>
-
-<p align="justify">
-    For the occupancy analysis a date range can be selected to limit the analysis to a specific period. The analysis can be done for multiple species at the same time. The analysis can be done for a single site or for multiple sites. The observarion window is specified in days. 
-    The observation window is the number of days that is in a sampling period. To use covariates in your occupancy analysis click the <i>Enter Covariates</i> button where you can enter 
-    or import your covariates on a site level.
-</p>
-
-<p align="justify">
-    The occupancy analysis was calculated using an R script. The script can be viewed by clicking the <i>View R Script</i> button. The data used in the analysis can be downloaded 
-    as a CSV file by clicking the <i>Download CSV</i> button. A function is created in the R script where the CSV file can be loaded into R and the analysis can be done using the function if further 
-    analysis is required or modifications to the analysis is needed for your own purposes.
-</p>
-
-<p align="justify">
-    The occupancy analysis is based on the following packages:
 
 <ul>
-    <li><a href="https://cran.r-project.org/web/packages/unmarked/index.html">unmarked</a></li>
-    <p>
-        The unmarked package is used to create occupancy models and to calculate the occupancy probability and detection probability of a species at a site. The package is also used to calculate the effect of covariates on the occupancy probability and detection probability of a species at a site.
-    </p>
-
-    <li><a href="https://cran.r-project.org/web/packages/camtrapR/index.html">camtrapR</a></li>
-    <p>
-        The camtrapR package is used to get a site operation matrix that is used in the occupancy analysis.
-    </p>
-
-    <li><a href="https://cran.r-project.org/web/packages/AICcmodavg/index.html">AICcmodavg</a></li>
-    <p>
-        The AICcmodavg package is used to calculate the model selection. The package is used to select the best model based on the AICc value.
-    </p>
-    
-    <li><a href="https://cran.r-project.org/web/packages/lubridate/index.html">lubridate</a></li>
-    <p>
-        The lubridate package is used for date and time calculations. The package is used to convert the date and time of the detections to the correct format.
-    </p>
-    
-    <li><a href="https://cran.r-project.org/web/packages/ggplot2/index.html">ggplot2</a></li>
-    <p>
-        The ggplot2 package is used to plot the occupancy graph.
-    </p>
+    <li>
+        <strong>Occupancy Probability:</strong> It calculates the likelihood of a species being present at a given site. This is essential for understanding species distribution.
+    </li>
+    <li>
+        <strong>Detection Probability:</strong> It estimates the probability of detecting a species at a site, assuming it is present. This is useful for assessing the effectiveness of detection methods.
+    </li>
+    <li>
+        <strong>Covariate Effects:</strong> You can explore how various covariates impact both occupancy and detection probability, providing deeper ecological insights.
+    </li>
 </ul>
+
+<p>
+    The Occupancy Analysis results include:
 </p>
 
-<p align="justify">
-    Please click the <i>Generate Results</i> button to generate the occupancy results. Please note the occupancy results may take a while to generate. Do not 
-    navigate away from the page or refreshh the page while the results are being generated.
+<ul>
+    <li>
+        <strong>Naive Occupancy:</strong> The proportion of sites where the species was detected out of the total sites.
+    </li>
+    <li>
+        <strong>Best Model Formula:</strong> Displays the formula of the best model selected based on AICc results.
+    </li>
+    <li>
+        <strong>AICc Results:</strong> View AICc results for all calculated models to identify the model with the lowest Delta AICc (indicating the best fit).
+    </li>
+    <li>
+        <strong>Best Model Estimates:</strong> Provides summary estimates for the best model, including occupancy and detection probability. Note that values in the tables are in the logit scale.
+    </li>
+</ul>
+
+<p>
+    You have the flexibility to specify the date range, select multiple species, and choose to analyze a single site or multiple sites. Additionally, you can set the observation window (sampling period) in days.
+</p>
+
+<p>
+    To incorporate covariates in your analysis, click the <em>Enter Covariates</em> button, where you can input or import your covariates on a site level.
+</p>
+
+<p>
+    The Occupancy Analysis is executed using an R script, which you can view by clicking the <em>View R Script</em> button. You can also download the data used in the analysis as a CSV file by clicking the <em>Download CSV</em> button. This enables further analysis or modifications using R.
+</p>
+
+<p>
+    The analysis is dependent on the following R packages:
+</p>
+
+<ul>
+    <li><a href="https://cran.r-project.org/web/packages/unmarked/index.html">unmarked</a>: Used for occupancy model creation and probability calculations.</li>
+    <li><a href="https://cran.r-project.org/web/packages/camtrapR/index.html">camtrapR</a>: Provides a site operation matrix used in occupancy analysis.</li>
+    <li><a href="https://cran.r-project.org/web/packages/AICcmodavg/index.html">AICcmodavg</a>: Used for model selection based on AICc values.</li>
+    <li><a href="https://cran.r-project.org/web/packages/lubridate/index.html">lubridate</a>: Handles date and time calculations.</li>
+    <li><a href="https://cran.r-project.org/web/packages/ggplot2/index.html">ggplot2</a>: Used for plotting occupancy graphs.</li>
+</ul>
+
+<p>
+    To generate the Occupancy Analysis results, click the <em>Generate Results</em> button. Please be patient, as the analysis may take some time to complete, especially with large datasets. Avoid navigating away from the page or refreshing it during the process.
 </p>

@@ -14,33 +14,32 @@ limitations under the License. -->
 
 <h4> Capture-Recapture Results</h4>
 
-<p align="justify">
-    Capture-Recapture provides abundance estimates for a species. The capture-recapture table showcase the abundance estimates for multiple models. Capture-recapture is done on an individual level. Capture-recapture do not use any spacial information
-    to calculate the estimates.
+<p>
+    <strong>Capture-recapture</strong> analysis provides abundance estimates for a species. The results table displays these estimates for multiple models. It's important to note that capture-recapture is performed at the individual level and doesn't rely on spatial information for calculation.
 </p>
 
-<p align="justify">
-    The capture-recapture analysis can be filtered by a date range to only include data from a specific time period. The observation window is specified in days and is the number of days in a sampling occasion. Capture-recapture can be applied to one or multiple species as 
-    well as one or multiple sites. The analysis can be applied to one or multiple species as well as one or multiple sites.
+<p>
+    Key aspects of the capture-recapture analysis include:
 </p>
 
-<p align="justify">
-    The capture-recapture analysis was calculated using an R script. The script can be viewed by clicking the <i>View R Script</i> button. The data used in the analysis can be downloaded 
-    as a CSV file by clicking the <i>Download CSV</i> button. A function is created in the R script where the CSV file can be loaded into R and the analysis can be done using the function if further 
-    analysis is required or modifications to the analysis is needed for your own purposes.
+<ul>
+    <li><strong>Date Range Filtering:</strong> You can filter the analysis by specifying a date range, allowing you to focus on data from a specific time period.</li>
+    <li><strong>Observation Window:</strong> The observation window, specified in days, represents the duration of a sampling occasion.</li>
+    <li><strong>Species and Sites:</strong> You can apply the analysis to one or multiple species and one or multiple sites simultaneously.</li>
+</ul>
+
+<p>
+    The capture-recapture analysis is performed using an R script. You can access the script by clicking the <em>View R Script</em> button. Additionally, you have the option to download the data used in the analysis as a CSV file by clicking <em>Download CSV</em>. The R script includes a function that allows you to load the CSV file into R for further analysis or customization.
 </p>
 
-<p align="justify">
-    The capture-recapture analysis is based on the following packages:
-    <ul>
-        <li><a href="https://cran.r-project.org/web/packages/Rcapture/index.html">Rcapture</a></li>
-        <p>
-            The Rcapture package is used to create capture-recapture models and to calculate the abundance estimates of a species. 
-        </p>
-    </ul>
+<p>
+    The capture-recapture analysis relies on the following R package:
 </p>
 
-<p align="justify">
-    Please note that capture-recapture is done on an individual level so individual id needs to be completed for a more accurate analysis. To run the analysis click the <i>Generate Results</i> button. Please note the capture-recapture results may take a while to generate. Do not
-    navigate away from the page or refresh the page while the results are being generated.
+<ul>
+    <li><a href="https://cran.r-project.org/web/packages/Rcapture/index.html">Rcapture</a>: This package is used to create capture-recapture models and calculate abundance estimates for species.</li>
+</ul>
+
+<p>
+    Please be aware that individual identification is crucial for accurate capture-recapture analysis. To initiate the analysis, click the <em>Generate Results</em> button. Keep in mind that generating capture-recapture results may take some time, so refrain from navigating away from the page or refreshing it during the process.
 </p>
