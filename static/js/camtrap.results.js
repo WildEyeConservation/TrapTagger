@@ -6671,7 +6671,10 @@ modalCovariates.on('hidden.bs.modal', function(){
 
 modalImportCovariates.on('hidden.bs.modal', function(){
     /** When modalImportCovariates is hidden, show the scroll bar on the body. */
-    modalCovariates.modal({keyboard: true})
+    if (!helpReturn){
+        modalCovariates.modal({keyboard: true})
+        helpReturn = false
+    }
 })
 
 function importCovariates(){

@@ -1321,43 +1321,52 @@ modalGroups.on('show.bs.modal', function(){
 
 modalGroups.on('hidden.bs.modal', function(){
     /** Clears the groups modal when closed. */
-    document.body.style.overflow = 'auto'
-    modalGroups.css('overflow', 'auto')
-    if (!modalSiteActive) {
-        var addSitesDiv = document.getElementById('addSitesDiv');
-        while(addSitesDiv.firstChild) {
-            addSitesDiv.removeChild(addSitesDiv.firstChild);
-        }
-        var groupSitesDiv = document.getElementById('groupSitesDiv');
-        while(groupSitesDiv.firstChild) {
-            groupSitesDiv.removeChild(groupSitesDiv.firstChild);
-        }
-        document.getElementById('groupName').value = '';
-        document.getElementById('groupDescription').value = '';
-        document.getElementById('groupErrors').innerHTML = '';
-        allCheckboxes = []
-        groupSites = []
-        selectedGroup = null
-        document.getElementById('groupHeader').innerHTML = ''
-        site_col_count = 0
+    console.log(!modalSiteActive)
+    console.log(!helpReturn)
+    if (!helpReturn) {
+        document.body.style.overflow = 'auto'
+        modalGroups.css('overflow', 'auto')
+        if (!modalSiteActive) {
+            var addSitesDiv = document.getElementById('addSitesDiv');
+            while(addSitesDiv.firstChild) {
+                addSitesDiv.removeChild(addSitesDiv.firstChild);
+            }
+            var groupSitesDiv = document.getElementById('groupSitesDiv');
+            while(groupSitesDiv.firstChild) {
+                groupSitesDiv.removeChild(groupSitesDiv.firstChild);
+            }
+            document.getElementById('groupName').value = '';
+            document.getElementById('groupDescription').value = '';
+            document.getElementById('groupErrors').innerHTML = '';
+            allCheckboxes = []
+            groupSites = []
+            selectedGroup = null
+            document.getElementById('groupHeader').innerHTML = ''
+            site_col_count = 0
 
-        modalViewGroups.modal({keyboard: true});
+            modalViewGroups.modal({keyboard: true});
+
+        }
+        helpReturn = false
     }
 });
 
 modalSitesMap.on('hidden.bs.modal', function(){
     /** Clears the sites map modal when closed. */
-    mapSites.remove()
-    mapSites = null
-    drawnItems = null
-    sitesMarkers = null
-    var mapSitesDiv = document.getElementById('mapSitesDiv'); 
-    while(mapSitesDiv.firstChild) {
-        mapSitesDiv.removeChild(mapSitesDiv.firstChild);
-    }
+    if (!helpReturn) {	
+        mapSites.remove()
+        mapSites = null
+        drawnItems = null
+        sitesMarkers = null
+        var mapSitesDiv = document.getElementById('mapSitesDiv'); 
+        while(mapSitesDiv.firstChild) {
+            mapSitesDiv.removeChild(mapSitesDiv.firstChild);
+        }
 
-    modalGroups.modal({keyboard: true});
-    modalSiteActive = false
+        modalGroups.modal({keyboard: true});
+        modalSiteActive = false
+        helpReturn = false
+    }
     
 });
 
