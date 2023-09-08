@@ -2359,7 +2359,7 @@ def createAccount(token):
         )).first()
         
         if (check == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder)
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder, previous_image_count=0, image_count=0)
             newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
             newTurkcode.user = newUser
             newPassword = randomString()
