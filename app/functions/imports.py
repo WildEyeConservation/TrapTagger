@@ -3286,7 +3286,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         if fileAttached:
             fileName = 'csvFiles/' + surveyName + '.csv'
             with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-	            GLOBALS.s3client.download_file(Bucket=bucketName, Key=fileName, Filename=temp_file.name)
+                GLOBALS.s3client.download_file(Bucket=bucketName, Key=fileName, Filename=temp_file.name)
                 df = pd.read_csv(temp_file.name)
 
             # Works on the assumption that multi-labels are handled with duplicate image rows - remove all of these
