@@ -2199,7 +2199,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
             trapgroup = Trapgroup.get_or_create(localsession, tag, survey_id)
             survey.images_processing += number_of_images
             localsession.commit()
-            camera = Camera.get_or_create(localsession, trapgroup.id, surveyName+'/'+dirpath)
+            camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
             localsession.commit()
             trapgroup_id=trapgroup.id
             camera_id=camera.id
