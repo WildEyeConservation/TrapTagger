@@ -3173,7 +3173,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
 
 def extract_label(path,filename,species,translations,survey_id):
     '''Helper function for extract_dirpath_labels that extracts the label for an individual row of the dataframe.'''
-    label = db.session.query(Label).get(translations[species])
+    label = translations[species]
     image = db.session.query(Image)\
                         .join(Camera)\
                         .join(Trapgroup)\
@@ -3189,7 +3189,6 @@ def extract_label(path,filename,species,translations,survey_id):
                             .distinct().all()
         for labelgroup in labelgroups:
             labelgroup.labels = [label]
-        db.session.commit()
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=False)
@@ -3200,7 +3199,11 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
             df = pd.read_csv(temp_file.name)
+        for key in translations:
+            label = db.session.query(Label).get(translations[key])
+            translations[key] = label
         df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
+        db.session.commit()
     
     except Exception as exc:
         app.logger.info(' ')
@@ -3280,9 +3283,9 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         else:
             task = Task(name='default', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
         localsession.add(task)
-        task_id=task.id
 
         localsession.commit()
+        task_id=task.id
         localsession.close()
 
         if fileAttached:
