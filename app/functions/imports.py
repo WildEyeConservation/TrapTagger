@@ -1521,6 +1521,8 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             if label_source:
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='import').first()
                 task_id = task.id
+            else:
+                task_id = None
             pool = Pool(processes=4)
             for item in batch:
                 sourceBucket = item['sourceBucket']
@@ -2197,7 +2199,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
             trapgroup = Trapgroup.get_or_create(localsession, tag, survey_id)
             survey.images_processing += number_of_images
             localsession.commit()
-            camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+            camera = Camera.get_or_create(localsession, trapgroup.id, surveyName+'/'+dirpath)
             localsession.commit()
             trapgroup_id=trapgroup.id
             camera_id=camera.id
