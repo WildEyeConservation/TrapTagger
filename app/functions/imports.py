@@ -3566,6 +3566,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
         video = Video(camera=camera, filename=filename, hash=video_hash)
         localsession.add(video)
+        GLOBALS.s3client.delete_object(Bucket=bucketName, Key=sourceKey)
 
     except:
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
