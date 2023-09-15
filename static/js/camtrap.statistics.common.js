@@ -140,6 +140,28 @@ function clearBarColours() {
     }
 }
 
+function clearData() {
+    /** Clears the polarData, barData, lineData objects */
+    for (let key in polarData) {
+        polarData[key]['data'] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        polarData[key]['total'] = 0
+        polarData[key]['legend'] = null
+        updatePolarDisplay(key)
+    }
+    for (let key in barData) {
+        barData[key]['data'] = [0]
+        barData[key]['total'] = 0
+        barData[key]['legend'] = null
+        updateBarDisplay(key)
+    }
+    for (let key in lineData) {
+        lineData[key]['data'] = []
+        lineData[key]['labels'] = []
+        lineData[key]['legend'] = null
+        updateLineDisplay(key)
+    }
+}
+
 function editPolarData(data,IDNum,legend) {
     /** 
      * Edits the data associated with the specified colour in the active polar chart.
@@ -279,23 +301,25 @@ function updatePolarErrors() {
                 var tasks = getSelectedTasks()
             }
 
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify(tasks))
-            formData.append("species", JSON.stringify(species))
-
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        document.getElementById('statisticsErrors').innerHTML = reply.message
+            if (tasks != '-1') {
+                var formData = new FormData()
+                formData.append("task_ids", JSON.stringify(tasks))
+                formData.append("species", JSON.stringify(species))
+    
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkSightingEditStatus');
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+                        if ((reply.status=='warning')&&(species_count_warning==false)) {
+                            species_count_warning = true
+                            document.getElementById('statisticsErrors').innerHTML = reply.message
+                        }
                     }
                 }
+                xhttp.send(formData);
             }
-            xhttp.send(formData);
         }
     }
 }
@@ -319,39 +343,42 @@ function updateBarErrors() {
             }else{
                 var tasks = getSelectedTasks()
             }
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify(tasks))
-            formData.append("species", JSON.stringify(species))
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        document.getElementById('statisticsErrors').innerHTML = reply.message
+            if (tasks != '-1') {
+                var formData = new FormData()
+                formData.append("task_ids", JSON.stringify(tasks))
+                formData.append("species", JSON.stringify(species))
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkSightingEditStatus');
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+                        if ((reply.status=='warning')&&(species_count_warning==false)) {
+                            species_count_warning = true
+                            document.getElementById('statisticsErrors').innerHTML = reply.message
+                        }
                     }
                 }
+                xhttp.send(formData);
             }
-            xhttp.send(formData);
         }
     }
 }
 
 function updatePolarData(IDNum) {
     /** Requests the dataset associated with the specified ID number, for the active polar chart. */
-
-    trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
-    trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
-    site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
-    speciesSelector = document.getElementById('speciesSelect-'+IDNum)
-    species = speciesSelector.options[speciesSelector.selectedIndex].text
-    baseUnitSelector = document.getElementById('baseUnitSelector')
-    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-    startDate = document.getElementById('startDate').value
-    endDate = document.getElementById('endDate').value
+    var trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
+    var trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
+    var site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
+    var speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+    var species = speciesSelector.options[speciesSelector.selectedIndex].text
+    var baseUnitSelector = document.getElementById('baseUnitSelector')
+    var baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    var startDate = document.getElementById('startDate').value
+    var endDate = document.getElementById('endDate').value
+    var validDates = checkDates()
 
     if(startDate != ''){
         startDate = startDate + ' 00:00:00'
@@ -387,6 +414,7 @@ function updatePolarData(IDNum) {
 
     var traps = null
     var group = '-1'
+    console.log(trapgroup)
     if (trapgroup.includes('s-')) {
         var trapgroupVal = trapgroup.split('-')[1]
     }
@@ -411,7 +439,7 @@ function updatePolarData(IDNum) {
         }
     }
     
-    if (((traps!='-1' && traps!= 'None')||(group!='-1')) && (species!= 'None' && species!= '-1')){
+    if (((traps!='-1' && traps!= 'None')||(group!='-1')) && (species!= 'None' && species!= '-1') && (tasks!='-1') && (validDates)) {
         var reqID = Math.floor(Math.random() * 100000) + 1;
         activeRequest[IDNum.toString()] = reqID
 
@@ -432,6 +460,10 @@ function updatePolarData(IDNum) {
             formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
         }
 
+        if (document.getElementById('analysisSelector')){
+            disablePanel()
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapIDNum, wrapSpecies, wrapSite){
@@ -440,6 +472,11 @@ function updatePolarData(IDNum) {
                     response = JSON.parse(this.responseText);
                     console.log(response)
                     IDkey = wrapIDNum.toString()
+
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
+                    }
+
                     if (parseInt(response.reqID)==activeRequest[IDkey]) {
                         reply = response.data
                         
@@ -507,6 +544,11 @@ function updatePolarData(IDNum) {
                         polarData[IDkey]['total'] = total
         
                         updatePolarDisplay(wrapIDNum)
+                    }
+                }
+                else if (this.readyState == 4 && this.status != 200) {
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
                     }
                 }
             }
@@ -834,14 +876,15 @@ function updatePolarData(IDNum) {
 function updateBarData(IDNum) {
     /** Requests the dataset associated with the specified ID number, for the active bar chart. */
 
-    speciesSelector = document.getElementById('speciesSelectNum-'+IDNum)
-    species = speciesSelector.options[speciesSelector.selectedIndex].text
-    baseUnitSelector = document.getElementById('baseUnitSelector')
-    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-    xAxisSelector = document.getElementById('xAxisSelector')
-    xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
-    startDate = document.getElementById('startDate').value
-    endDate = document.getElementById('endDate').value
+    var speciesSelector = document.getElementById('speciesSelectNum-'+IDNum)
+    var species = speciesSelector.options[speciesSelector.selectedIndex].text
+    var baseUnitSelector = document.getElementById('baseUnitSelector')
+    var baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    var xAxisSelector = document.getElementById('xAxisSelector')
+    var xAxisSelection = xAxisSelector.options[xAxisSelector.selectedIndex].value
+    var startDate = document.getElementById('startDate').value
+    var endDate = document.getElementById('endDate').value
+    var validDates = checkDates()
 
     if(startDate != ''){
         startDate = startDate + ' 00:00:00'
@@ -889,7 +932,12 @@ function updateBarData(IDNum) {
         formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
     }
 
-    if (species!='-1' && species!='None') {
+    if (species!='-1' && species!='None' && tasks!='-1' && validDates) {
+
+        if (document.getElementById('analysisSelector')){
+            disablePanel()
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapIDNum, wrapSpecies){
@@ -898,6 +946,10 @@ function updateBarData(IDNum) {
                     reply = JSON.parse(this.responseText);
                     console.log(reply)
                     IDkey = wrapIDNum.toString()
+
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
+                    }
 
                     trapgroupNames = reply.labels
                     chart.data.labels = trapgroupNames
@@ -959,6 +1011,11 @@ function updateBarData(IDNum) {
     
                     updateBarDisplay(wrapIDNum)
                 }
+                else if (this.readyState == 4 && this.status != 200) {
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
+                    }
+                }
             }
         }(IDNum, species);
         xhttp.open("POST", 'getBarData');
@@ -1005,23 +1062,25 @@ function updateBaseUnitPolar() {
                 var tasks = getSelectedTasks()
             }
 
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify(tasks))
-            formData.append("species", JSON.stringify(species))
+            if (tasks != '-1') {
+                var formData = new FormData()
+                formData.append("task_ids", JSON.stringify(tasks))
+                formData.append("species", JSON.stringify(species))
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkSightingEditStatus');
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+                        if ((reply.status=='warning')&&(species_count_warning==false)) {
+                            species_count_warning = true
+                            document.getElementById('statisticsErrors').innerHTML = reply.message
+                        }
                     }
                 }
+                xhttp.send(formData);
             }
-            xhttp.send(formData);
         }
     }
 }
@@ -1042,23 +1101,25 @@ function updateBaseUnitBar() {
             }else{
                 var tasks = getSelectedTasks()
             }
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify(tasks))
-            formData.append("species", JSON.stringify(species))
+            if (tasks != '-1') {
+                var formData = new FormData()
+                formData.append("task_ids", JSON.stringify(tasks))
+                formData.append("species", JSON.stringify(species))
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkSightingEditStatus');
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+                        if ((reply.status=='warning')&&(species_count_warning==false)) {
+                            species_count_warning = true
+                            document.getElementById('statisticsErrors').innerHTML = reply.message
+                        }
                     }
                 }
+                xhttp.send(formData);
             }
-            xhttp.send(formData);
         }
     }
 }
@@ -1125,6 +1186,7 @@ function updateHeatMap() {
     var baseUnit = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
     var startDate = document.getElementById('startDate').value
     var endDate = document.getElementById('endDate').value
+    var validDates = checkDates()
 
     if(startDate != ''){
         startDate = startDate + ' 00:00:00'
@@ -1155,94 +1217,109 @@ function updateHeatMap() {
 
     document.getElementById('statisticsErrors').innerHTML = ''
 
-    if (baseUnit=='3') {
-        var formData = new FormData()
-        formData.append("task_ids", JSON.stringify(tasks))
-        formData.append("species", JSON.stringify(species))
+    if (tasks != '-1' && validDates) {
+        if (baseUnit=='3') {
+            var formData = new FormData()
+            formData.append("task_ids", JSON.stringify(tasks))
+            formData.append("species", JSON.stringify(species))
 
-        var xhttp = new XMLHttpRequest();
-        xhttp.open("POST", '/checkSightingEditStatus');
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);  
-                if (reply.status=='warning') {
-                    document.getElementById('statisticsErrors').innerHTML = reply.message
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("POST", '/checkSightingEditStatus');
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);  
+                    if (reply.status=='warning') {
+                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                    }
                 }
             }
+            xhttp.send(formData);
         }
-        xhttp.send(formData);
-    }
 
-    if (selection == '-1') {
-        heatmapLayer._data = []
-        heatmapLayer._update()
-    } else {
-        if (selection == '0') {
-            excludeNothing = document.getElementById('excludeNothing').checked
-            excludeKnocks = document.getElementById('excludeKnocks').checked
-            excludeVHL = document.getElementById('excludeVHL').checked
+        if (selection == '-1') {
+            heatmapLayer._data = []
+            heatmapLayer._update()
         } else {
-            excludeNothing = null
-            excludeKnocks = null
-            excludeVHL = null
-        }
+            if (selection == '0') {
+                excludeNothing = document.getElementById('excludeNothing').checked
+                excludeKnocks = document.getElementById('excludeKnocks').checked
+                excludeVHL = document.getElementById('excludeVHL').checked
+            } else {
+                excludeNothing = null
+                excludeKnocks = null
+                excludeVHL = null
+            }
 
-        var formData = new FormData();
-        formData.append('task_ids', JSON.stringify(tasks));
-        formData.append('species', JSON.stringify(species));
-        formData.append('baseUnit', JSON.stringify(baseUnit));
-        formData.append('startDate', JSON.stringify(startDate));
-        formData.append('endDate', JSON.stringify(endDate));
-        if (!selectedTask) {
-            formData.append('sites', JSON.stringify(sites));
-            formData.append('groups', JSON.stringify(groups));
-        }
+            var formData = new FormData();
+            formData.append('task_ids', JSON.stringify(tasks));
+            formData.append('species', JSON.stringify(species));
+            formData.append('baseUnit', JSON.stringify(baseUnit));
+            formData.append('startDate', JSON.stringify(startDate));
+            formData.append('endDate', JSON.stringify(endDate));
+            if (!selectedTask) {
+                formData.append('sites', JSON.stringify(sites));
+                formData.append('groups', JSON.stringify(groups));
+            }
 
-        if (baseUnit == '4'){
-            var timeToIndependence = document.getElementById('timeToIndependence').value
-            var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
-            formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
-            formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
-        }
+            if (baseUnit == '4'){
+                var timeToIndependence = document.getElementById('timeToIndependence').value
+                var timeToIndependenceUnit = document.getElementById('timeToIndependenceUnit').value
+                formData.append('timeToIndependence', JSON.stringify(timeToIndependence))
+                formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
+            }
 
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 200) {
-                reply = JSON.parse(this.responseText);
-                console.log(reply)
-                heatMapData = JSON.parse(JSON.stringify(reply))
+            if (document.getElementById('analysisSelector')){
+                disablePanel()
+            }
 
-                if (document.getElementById('normalisationCheckBox').checked) {
-                    if (document.getElementById('heatMapCheckBox').checked) {
-                        map.removeLayer(heatmapLayer)
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    console.log(reply)
+                    heatMapData = JSON.parse(JSON.stringify(reply))
+
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
                     }
-                    map.addLayer(invHeatmapLayer)
-                    maxVal = 0
-                    for (let i=0;i<reply.data.length;i++) {
-                        value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[i].lat, lng:reply.data[i].lng})))
-                        if (value!=0) {
-                            reply.data[i].count = (1000*reply.data[i].count)/value
-                            if (reply.data[i].count>maxVal) {
-                                maxVal = reply.data[i].count
+
+                    if (document.getElementById('normalisationCheckBox').checked) {
+                        if (document.getElementById('heatMapCheckBox').checked) {
+                            map.removeLayer(heatmapLayer)
+                        }
+                        map.addLayer(invHeatmapLayer)
+                        maxVal = 0
+                        for (let i=0;i<reply.data.length;i++) {
+                            value = invHeatmapLayer._heatmap.getValueAt(map.latLngToLayerPoint(L.latLng({lat:reply.data[i].lat, lng:reply.data[i].lng})))
+                            if (value!=0) {
+                                reply.data[i].count = (1000*reply.data[i].count)/value
+                                if (reply.data[i].count>maxVal) {
+                                    maxVal = reply.data[i].count
+                                }
                             }
                         }
+                        reply.max = 1.25*maxVal
+                        map.removeLayer(invHeatmapLayer)
+                        if (document.getElementById('heatMapCheckBox').checked) {
+                            map.addLayer(heatmapLayer)
+                        }
                     }
-                    reply.max = 1.25*maxVal
-                    map.removeLayer(invHeatmapLayer)
-                    if (document.getElementById('heatMapCheckBox').checked) {
-                        map.addLayer(heatmapLayer)
+
+                    heatmapLayer._data = []
+                    heatmapLayer.setData(reply);
+                    heatmapLayer._update()
+                }
+                else if (this.readyState == 4 && this.status != 200) {
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
                     }
                 }
-
-                heatmapLayer._data = []
-                heatmapLayer.setData(reply);
-                heatmapLayer._update()
             }
+            xhttp.open("POST", '/getTrapgroupCounts?excludeNothing='+excludeNothing+'&excludeKnocks='+excludeKnocks+'&excludeVHL='+excludeVHL);
+            xhttp.send(formData);
         }
-        xhttp.open("POST", '/getTrapgroupCounts?excludeNothing='+excludeNothing+'&excludeKnocks='+excludeKnocks+'&excludeVHL='+excludeVHL);
-        xhttp.send(formData);
     }
 }
 
@@ -1265,19 +1342,31 @@ function checkDates(){
 
 function updateLineData(IDNum){
     /** Updates the line chart data. */
-    trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
-    trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
-    site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
-    speciesSelector = document.getElementById('speciesSelect-'+IDNum)
-    species = speciesSelector.options[speciesSelector.selectedIndex].text
-    selection = speciesSelector.options[speciesSelector.selectedIndex].value
-    baseUnitSelector = document.getElementById('baseUnitSelector')
-    baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
-    timeUnitSelector = document.getElementById('timeUnitSelector')
-    timeUnitSelection = timeUnitSelector.options[timeUnitSelector.selectedIndex].value
-    timeUnitNumber = document.getElementById('timeUnitNumber').value
-    startDate = document.getElementById('startDate').value
-    endDate = document.getElementById('endDate').value
+    var trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
+    var trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
+    var site = trapgroupSelector.options[trapgroupSelector.selectedIndex].text
+    var speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+    var species = speciesSelector.options[speciesSelector.selectedIndex].text
+    var selection = speciesSelector.options[speciesSelector.selectedIndex].value
+    var baseUnitSelector = document.getElementById('baseUnitSelector')
+    var baseUnitSelection = baseUnitSelector.options[baseUnitSelector.selectedIndex].value
+    var timeUnitSelector = document.getElementById('timeUnitSelector')
+    var timeUnitSelection = timeUnitSelector.options[timeUnitSelector.selectedIndex].value
+    var timeUnitNumber = document.getElementById('timeUnitNumber').value
+    var startDate = document.getElementById('startDate').value
+    var endDate = document.getElementById('endDate').value
+    var startDateTA = document.getElementById('startDateTA').value
+    var endDateTA = document.getElementById('endDateTA').value
+    var validDates = checkDates()
+
+    if (startDateTA != '' && endDateTA != '') {
+        if (startDateTA > endDateTA) {
+            validDates = false
+        }
+    }
+
+    startDate = startDateTA
+    endDate = endDateTA
 
     if(startDate != ''){
         startDate = startDate + ' 00:00:00'
@@ -1357,7 +1446,12 @@ function updateLineData(IDNum){
         formData.append('timeToIndependenceUnit', JSON.stringify(timeToIndependenceUnit))
     }
 
-    if (trapgroup!='-1' && selection != '-1') {
+    if (trapgroup!='-1' && selection != '-1' && tasks!='-1' && validDates) {
+
+        if (document.getElementById('analysisSelector')){
+            disablePanel()
+        }
+
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
         function(wrapIDNum, wrapSpecies, wrapSite, wrapTimeUnit){
@@ -1376,7 +1470,11 @@ function updateLineData(IDNum){
                     //     }
                     //     updateTimeLabels(response.labels, response.timeUnit, timeUnitNumber)
                     // }
-                    
+   
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
+                    }
+    
 
                     if (!lineData.hasOwnProperty(IDkey)) {
                         colour = null
@@ -1461,6 +1559,11 @@ function updateLineData(IDNum){
                     //         updateLineDisplay(IDNum)
                     //     }
                     // }
+                }
+                else if (this.readyState == 4 && this.status != 200) {
+                    if (document.getElementById('analysisSelector')){
+                        enablePanel()
+                    }
                 }
             }
         }(IDNum, species, site, timeUnitSelection);
@@ -1554,23 +1657,25 @@ function updateLineErrors() {
                 var tasks = getSelectedTasks()
             }
 
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify(tasks))
-            formData.append("species", JSON.stringify(species))
+            if (tasks != '-1') {
+                var formData = new FormData()
+                formData.append("task_ids", JSON.stringify(tasks))
+                formData.append("species", JSON.stringify(species))
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkSightingEditStatus');
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+                        if ((reply.status=='warning')&&(species_count_warning==false)) {
+                            species_count_warning = true
+                            document.getElementById('statisticsErrors').innerHTML = reply.message
+                        }
                     }
                 }
+                xhttp.send(formData);
             }
-            xhttp.send(formData);
         }
     }
 }
@@ -1593,23 +1698,25 @@ function updateBaseUnitLine() {
                 var tasks = getSelectedTasks()
             }
 
-            var formData = new FormData()
-            formData.append("task_ids", JSON.stringify(tasks))
-            formData.append("species", JSON.stringify(species))
+            if (tasks != '-1') {
+                var formData = new FormData()
+                formData.append("task_ids", JSON.stringify(tasks))
+                formData.append("species", JSON.stringify(species))
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("POST", '/checkSightingEditStatus');
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);  
-                    if ((reply.status=='warning')&&(species_count_warning==false)) {
-                        species_count_warning = true
-                        document.getElementById('statisticsErrors').innerHTML = reply.message
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkSightingEditStatus');
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+                        if ((reply.status=='warning')&&(species_count_warning==false)) {
+                            species_count_warning = true
+                            document.getElementById('statisticsErrors').innerHTML = reply.message
+                        }
                     }
                 }
+                xhttp.send(formData);
             }
-            xhttp.send(formData);
         }
     }
 }

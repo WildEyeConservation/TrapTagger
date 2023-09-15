@@ -41,6 +41,7 @@ from celery.result import allow_join_result
 import redis
 from datetime import datetime, timedelta
 import numpy as np
+from app.functions.imports import s3traverse
 
 def translate(labels, dictionary):
     '''
@@ -1721,13 +1722,13 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
                     if flat_structure:
                         filename = baseName
                         for videoLabel in videoLabels: filename += '_' + videoLabel.description.replace(' ','_').replace('/','_').replace('\\','_')
-                        filename += '_' + str(video.id) + '.avi'
+                        filename += '_' + str(video.id) + '.mp4'
                         videoPath += '/' + filename
                     else:
                         startPoint = 1
                         if splitPath[1]==task.survey.name: startPoint=2
                         for split in splitPath[startPoint:]: videoPath += '/' + split
-                        videoPath += '/' +video.filename
+                        videoPath += '/' +video.filename.split('.')[0] + '.mp4'
                     videoPaths.append(videoPath)
 
     return list(set(videoPaths)), [label.description for label in videoLabels], [tag.description for tag in videoTags]
@@ -2763,17 +2764,20 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 df = df[df['timedelta'] >= timeToIndependence]
                 df = df.drop(columns=['timedelta'])
 
+            if len(df) > 0:
+                # Species count
+                label_list.append(GLOBALS.unknown_id)
+                species_df = df[~df['label_id'].isin(label_list)].copy()
+                species_df = species_df[['id','label_id','species']]
+                species_df.drop_duplicates(subset=['id','species'], inplace=True)
+                species_df['count'] = 1
+                species_count = species_df.groupby('species').sum().reset_index().drop('id', axis=1)
 
-            # Species count
-            label_list.append(GLOBALS.unknown_id)
-            species_df = df[~df['label_id'].isin(label_list)].copy()
-            species_df = species_df[['id','label_id','species']]
-            species_df.drop_duplicates(subset=['id','species'], inplace=True)
-            species_df['count'] = 1
-            species_count = species_df.groupby('species').sum().reset_index().drop('id', axis=1)
-
-            # get total count
-            total_count = species_count['count'].sum()
+                # get total count
+                total_count = species_count['count'].sum()
+            else:
+                species_count = pd.DataFrame(columns=['species','count'])
+                total_count = 0
 
             # Diversity Indexes
             shannon_index = 0
@@ -3137,3 +3141,35 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
         db.session.remove()
 
     return { 'status': status, 'error': error, 'summary': summary }
+
+@celery.task(bind=True, ignore_result=True)
+def clean_up_R_results(self,R_type, user_folder):
+    ''' Deletes any R results files for the given user folder and R type '''
+    try: 
+        if R_type == 'activity':
+            isFile = re.compile('^Activity_Pattern_', re.I)
+
+        elif R_type == 'occupancy':
+            isFile = re.compile('^Occupancy_', re.I)
+
+        elif R_type == 'scr':
+            isFile = re.compile('^SCR_', re.I)
+
+        sourceBucket = Config.BUCKET
+        s3Folder = user_folder + '/docs'
+
+        if Config.DEBUGGING: app.logger.info('Cleaning up R results (' + R_type + ') for ' + user_folder)
+
+        for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+            files = list(filter(isFile.search, filenames))
+            for file in files:
+                fileName = s3Folder + '/' + file
+                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+
+    except:
+        pass
+
+    finally:
+        db.session.remove()
+
+    return True

@@ -22,12 +22,92 @@ limitations under the License. -->
                 <h3>Generate Analysis</h3>
             </div>
             <div class="tab">
-                <button id='openAnalysisTab' class="tablinks" onclick="openAnalysisEdit(event, 'baseAnalysisDiv')">Analysis Options</button>
-                <button id='openChartTab'class="tablinks" onclick="openAnalysisEdit(event, 'baseChartDiv')">Chart Options</button>
-                <button id="openTasksTab" class="tablinks" onclick="openAnalysisEdit(event, 'baseTasksDiv')">Task Selection</button>
+                <button id="openDataTab" class="tablinks" onclick="openAnalysisEdit(event, 'baseDataDiv')">Datasets</button>
+                <button id="openSiteTab" class="tablinks" onclick="openAnalysisEdit(event, 'baseSitesDiv')">Sites</button>
+                <button id='openAnalysisTab' class="tablinks" onclick="openAnalysisEdit(event, 'baseAnalysisDiv')">Analysis</button>
+                <button id='openChartTab'class="tablinks" onclick="openAnalysisEdit(event, 'baseChartDiv')">Chart</button>
             </div>
 
             <div class="card-body" id="filterCardDiv">
+                <div id="baseDataDiv" class="tabcontent">
+                    <!-- 1. Surveys -->
+                    <h5 style="margin-bottom: 2px">Surveys and Annotation Sets</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select which surveys you would like to see results for.</i></div>
+                    <div class="row">
+                        <div class="col-lg-5">Surveys</div>
+                        <div class="col-lg-5">Annotation Sets</div>
+                    </div>
+                    <div id="surveyAndAsDiv"></div>
+                    <button class="btn btn-info" type="button" id="btnAddSurveyAndAs" onclick=buildSurveyAndAsRow()>+</button>
+                    <div id="surveyAndAsErrors" style="font-size: 80%; color: #DF691A"></div>	
+                    <br>
+
+                    <!-- 2. Multiple AS Selection -->
+                    <div id="annotationSetDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Multiple Annotation Sets</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which annotation set should be used for you results for surveys which have multiple annotation sets.</i></div>
+                        <div id="annotationDiv"></div>
+                        <div id="annotationSetErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
+                    </div>
+
+                    <!-- 3. Date range -->
+                    <h5 style="margin-bottom: 2px">Date range</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see results for. If no dates are selected, the full date range will be used.</i></div>
+                    <div class="row">
+                        <div class='col-lg-6'>
+                            <label for="startDate">Start date:</label><br>
+                            <input type="date" id="startDate" name="startDate">
+                        </div>
+                        <div class='col-lg-6'>
+                            <label for="endDate">End date:</label><br>
+                            <input type="date" id="endDate" name="endDate">
+                        </div>
+                    </div>
+                    <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
+                    <br>
+
+                </div>
+                <div id="baseSitesDiv" class="tabcontent">
+                    <h5 style="margin-bottom: 2px"> Add Sites</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the sites you would like to use in your analysis. Search the sites by name or select the sites on the map. </i></div>
+                    <div class="row">
+                        <div class='col-lg-12'>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="searchSitesRb" name="addSitesMethod" value='1' checked>
+                                <label class="custom-control-label" for="searchSitesRb">Search</label>
+                            </div>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" class="custom-control-input" id="selectSitesRb" name="addSitesMethod" value='2'>
+                                <label class="custom-control-label" for="selectSitesRb">Select on map</label>
+                            </div> 
+                        </div>
+                    </div>
+                    <br>
+                    <div id='addSitesDiv'></div>
+                    <br>
+
+                    <h5 style="margin-bottom: 2px"> Sites</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>View the sites you selected for your analysis. </i></div>
+                    <div id="groupSitesDiv"></div>
+                    <br>
+
+                    <!-- 3. Sites -->
+                    <h5 style="margin-bottom: 2px">Site Groups</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Site groups are used to group sites together for analysis. </i></div>
+
+                    <div id="groupButtonsDiv">
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <button type='button' class='btn btn-primary btn-block' id='btnCreateGroupDT'>Save Sites as Group</button>
+                            </div>
+                            <div class="col-lg-6">
+                                <button type='button' class='btn btn-primary btn-block' id='btnViewGroups' onclick=viewGroups()>Load Groups</button>  
+                            </div>
+                        </div>
+                        <br>
+                    </div>
+                </div>
                 <div id="baseAnalysisDiv" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Analysis</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which analysis you want to apply.</i></div>
@@ -73,7 +153,7 @@ limitations under the License. -->
                                     <option value="2">Clusters</option>
                                     <option value="3">Sightings</option>
                                     <option value="1">Images</option>
-                                    <option value="4">Time to Independance</option>
+                                    <option value="4">Time to Independence</option>
                                 </select>
                                 <div id="timeToIndependenceDiv" hidden>
                                     <div class="row">
@@ -93,21 +173,23 @@ limitations under the License. -->
                         </div>
                         <br>
                     </div>
-
-                    <h5 style="margin-bottom: 2px">Date range</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see results for.</i></div>
-                    <div class="row">
-                        <div class='col-lg-5'>
-                            <label for="startDate">Start date:</label><br>
-                            <input type="date" id="startDate" name="startDate">
+                    
+                    <div id="dateDivTA" hidden>
+                        <h5 style="margin-bottom: 2px">Date range</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the date range you would like to see your time analysis results for. If no dates are selected, the full date range will be used.</i></div>
+                        <div class="row">
+                            <div class='col-lg-5'>
+                                <label for="startDateTA">Start date:</label><br>
+                                <input type="date" id="startDateTA" name="startDate">
+                            </div>
+                            <div class='col-lg-5'>
+                                <label for="endDateTA">End date:</label><br>
+                                <input type="date" id="endDateTA" name="endDate">
+                            </div>
                         </div>
-                        <div class='col-lg-5'>
-                            <label for="endDate">End date:</label><br>
-                            <input type="date" id="endDate" name="endDate">
-                        </div>
+                        <div id="dateErrorsTA" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
                     </div>
-                    <div id="dateErrors" style="font-size: 80%; color: #DF691A"></div>
-                    <br>
 
                     <div id="cameraTrapDiv" hidden>
                         <h5 style="margin-bottom: 2px">Camera Trap</h5>
@@ -145,21 +227,10 @@ limitations under the License. -->
                             <select class="form-control" id="xAxisSelector">
                                 <option value="1">Survey Counts</option>
                                 <option value="2">Site Counts</option>
-                                <!-- <option value="3">Group Counts</option> -->
                             </select>
                         </div>
                         </div>
                         <br>
-                        <div id="siteCountDiv" hidden>
-                            <h5 style="margin-bottom: 2px">Site</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px">
-                                <i>Select the site you would like to compare.</i>
-                            </div>
-                            <div id="siteCountSelectorDiv"></div>
-                            <button class="btn btn-info" type="button" id="btnAddSiteCount" onclick=buildSiteCountSelectorRow()>+</button>
-                            <div id="siteCountErrors" style="font-size: 80%; color: #DF691A"></div>
-                            <br>
-                        </div>
                     </div>
 
                     <div id="normalisationDiv" hidden>
@@ -230,15 +301,6 @@ limitations under the License. -->
                         </div>
                         </div>
                         <br>
-
-                        <h5 style="margin-bottom: 2px">Sites</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px">
-                        <i>Select the sites you would like to see results for.</i>
-                        </div>
-                        <div id="selectorColumn"></div>
-                        <button class="btn btn-info" type="button" id="btnAddSites" onclick=buildSiteSelectorRow()>+</button>
-                        <div id="spatialDataErrors" style="font-size: 80%; color: #DF691A"></div>
-                        <br>
                     </div>
 
                     <div id="speciesDataDiv" hidden>
@@ -247,42 +309,8 @@ limitations under the License. -->
                         <i>Select the species you would like to see results for.</i>
                         </div>
                         <div id="speciesSelectorDiv"></div>
-                        <button class="btn btn-info" type="button" id="btnAddSpecie" onclick=buildRSpeciesRows()>+</button>
+                        <button class="btn btn-info" type="button" id="btnAddSpeciesR" onclick=buildRSpeciesRows()>+</button>
                         <br>
-                        <br>
-                    </div>
-
-                    <div id="siteDataDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Site</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px">
-                            <i>Select the sites you would like to see results for.</i>
-                        </div>
-                        <div id="siteSelectorDiv"></div>
-                        <button class="btn btn-info" type="button" id="btnAddSite" onclick=buildRSiteRows()>+</button>
-                        <div id="siteDivErrors" style="font-size: 80%; color: #DF691A"></div>
-                        <br>
-                    </div>
-
-                    <div id="groupButtonsDiv" hidden>
-                        <div class="row">
-                            <div class="col-lg-6">
-                                <button type='button' class='btn btn-primary btn-block' id='btnViewGroups' onclick=viewGroups()>View Groups</button>  
-                            </div>
-                            <div class="col-lg-6">
-                                <button type='button' class='btn btn-primary btn-block' id='btnSaveGroupFromData' onclick=saveGroupFromData() disabled>Save Group</button>  
-                            </div>
-                        </div>
-                        <br>
-                    </div>
-
-                    <div id="covariatesDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Covariates</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Fill in the covariates you would like to see results for.</i></div>
-                        <div class="row">
-                            <div class="col-lg-12">
-                                <button type='button' class='btn btn-primary btn-block' id='btnCreateCovariates' onclick=buildCovariates()>Enter Covariates</button>
-                            </div>
-                        </div>
                         <br>
                     </div>
 
@@ -299,6 +327,17 @@ limitations under the License. -->
                             </div>
                         </div>
                         <div id="indivCharErrors" style="font-size: 80%; color: #DF691A"></div>
+                        <br>
+                    </div>
+
+                    <div id="covariatesDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Covariates</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Fill in the covariates you would like to see results for.</i></div>
+                        <div class="row">
+                            <div class="col-lg-12">
+                                <button type='button' class='btn btn-primary btn-block' id='btnCreateCovariates' onclick=buildCovariates()>Enter Covariates</button>
+                            </div>
+                        </div>
                         <br>
                     </div>
 
@@ -371,8 +410,11 @@ limitations under the License. -->
 
                     <div id="buttonsR" hidden>
                         <div class="row">
-                            <div class="col-lg-12">
-                                <button type='button' class='btn btn-primary btn-block' id='btnRunScript' onclick="updateResults(true)">Generate Results</button>
+                            <div class="col-lg-6">
+                                <button type='button' class='btn btn-primary btn-block' id='btnRunScript' onclick="updateResults(true)">Generate</button>
+                            </div>
+                            <div class="col-lg-6">
+                                <button type='button' class='btn btn-danger btn-block' id='btnCancelResults' onclick="cancelResults()" disabled>Cancel</button>
                             </div>
                         </div>
                         <br>
@@ -464,8 +506,10 @@ limitations under the License. -->
                         </div>
 
                         <div id="extraSpatOptionsDiv"></div>
+                        <br>
                     </div>
 
+                    <div id="analysisOptionsErrors" style="font-size: 80%; color: #DF691A"></div>
                 </div>
 
                 <div id="baseChartDiv" class="tabcontent">
@@ -474,12 +518,14 @@ limitations under the License. -->
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select the background for your chart.</i></div>
                         <div class="row">
                             <div class="col-lg-10">
-                                <select id="backgroundSelector" class='form-control' onchange="updateChartStyle()">
+                                <select id="backgroundSelector" class='form-control'>
                                     <option value="1">Transparent</option>
                                     <option value="2">White</option>
                                     <option value="3">Black</option>
                                     <option value="4">Grey</option>
+                                    <option value="c-0">Custom</option>
                                 </select>
+                                <input type="color" id="bgColourPicker" class="form-control" value="#ffffff" style="display: none"></input>
                             </div>
                         </div>
                         <br>
@@ -488,10 +534,12 @@ limitations under the License. -->
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select the text colour for your chart.</i></div>
                         <div class="row">
                             <div class="col-lg-10">
-                                <select id="textColourSelector" class='form-control' onchange="updateChartStyle()">
+                                <select id="textColourSelector" class='form-control'>
                                     <option value="white">White</option>
                                     <option value="black">Black</option>
+                                    <option value="c-0">Custom</option>
                                 </select>
+                                <input type="color" id="textColourPicker" class="form-control" value="#ffffff" style="display: none"></input>
                             </div>
                         </div>
                         <br>
@@ -500,10 +548,12 @@ limitations under the License. -->
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select the axis colour style for your chart.</i></div>
                         <div class="row">
                             <div class="col-lg-10">
-                                <select id="axisColourSelector" class='form-control' onchange="updateChartStyle()">
+                                <select id="axisColourSelector" class='form-control'>
                                     <option value="1">Light</option>
                                     <option value="2" selected>Dark</option>
+                                    <option value="c-0">Custom</option>
                                 </select>
+                                <input type="color" id="axisColourPicker" class="form-control" value="#ffffff" style="display: none"></input>
                             </div>
                         </div>
                         <br>
@@ -512,10 +562,12 @@ limitations under the License. -->
                         <div style="font-size: 80%; margin-bottom: 2px"><i>Select the border colour for the data on your chart.</i></div>
                         <div class="row">
                             <div class="col-lg-10">
-                                <select id="borderColourSelector" class='form-control' onchange="updateChartStyle()">
+                                <select id="borderColourSelector" class='form-control'>
                                     <option value="white">White</option>
                                     <option value="black">Black</option>
+                                    <option value="c-0">Custom</option>
                                 </select>
+                                <input type="color" id="borderColourPicker" class="form-control" value="#ffffff" style="display: none"></input>
                             </div>
                         </div>
                         <br>
@@ -548,29 +600,12 @@ limitations under the License. -->
                         </div>
                     </div>
                 </div>       
-
-                <div id="baseTasksDiv" class="tabcontent">
-                    <div id="annotationSetDiv">
-                        <h5 style="margin-bottom: 2px">Surveys and Annotation Sets</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which annotation set should be used for you results for surveys which have multiple annotation sets.</i></div>
-                        <div class="row">
-                            <div class="col-lg-6">Surveys</div>
-                            <div class="col-lg-6">Annotation Sets</div>
-                        </div>
-                        <div id="annotationDiv"></div>
-                        <div id="annotationSetErrors" style="font-size: 80%; color: #DF691A"></div>
-                        <br>
-
-                        <button id="btnSaveSets" type='button' class='btn btn-primary btn-block'>Save</button>
-
-                    </div>
-                </div>
             </div>
             <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
                 <div class="row">
                     <div class="col-lg-3"></div>
                     <div class="col-lg-6">
-                        <button type='button' class='btn btn-primary btn-block' id='btnClearResults' onclick=clearResults()>Clear</button>  
+                        <button type='button' class='btn btn-primary btn-block' id='btnClearResults' onclick=clearResults()>Reset</button>  
                     </div>
                     <div class="col-lg-3"></div>
                 </div>
@@ -598,11 +633,6 @@ limitations under the License. -->
                 </div>
                 <div id="resultsDiv" ></div>   
                 <br>
-                <div id="scriptDiv" hidden>
-                    <h5 style="margin-bottom: 2px">R Script</h5>
-                    <div style="font-size: 80%; margin-bottom: 2px"><i>Copy and paste the R script below into R to generate the results.</i></div>
-                    <textarea id="scriptTextArea" class="form-control" rows="20"></textarea>
-                </div>
             </div>
     
             <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
@@ -621,7 +651,7 @@ limitations under the License. -->
 
 <!-- View Groups Modal -->
 <div id="modalViewGroups" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 75%;">
+    <div class="modal-dialog" style="max-width: 75%; min-height: 400px;">
 
         <!-- Modal content-->
         <div class="modal-content">
@@ -641,16 +671,13 @@ limitations under the License. -->
                     </div>
                 </div>
             </div>
-            <div class="modal-body" id="viewGroupsBody" style="padding: 0px;">
+            <div class="modal-body" id="viewGroupsBody" style="padding: 0px; min-height: 200px;">
 
                 <div id="groupsDiv"></div>
                 
             </div>
             <div class="modal-footer">
                 <div class="col-lg-8"></div>
-                <div class="col-lg-2">
-                    <button type='button' class='btn btn-primary btn-block' id='btnCreateGroup'>Create Group</button>
-                </div>
                 <div class="col-lg-2">
                     <button type='button' class='btn btn-info btn-block' id='btnCloseViewGroups' data-dismiss="modal">Close</button>  
                 </div>
@@ -706,22 +733,22 @@ limitations under the License. -->
                     <div class="row">
                         <div class='col-lg-6'>
                             <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="searchSitesRb" name="addSitesMethod" value='1' checked>
-                                <label class="custom-control-label" for="searchSitesRb">Search sites</label>
+                                <input type="radio" class="custom-control-input" id="searchSitesRbM" name="addSitesMethodM" value='1' checked>
+                                <label class="custom-control-label" for="searchSitesRbM">Search sites</label>
                             </div>
                             <div class="custom-control custom-radio custom-control-inline">
-                                <input type="radio" class="custom-control-input" id="selectSitesRb" name="addSitesMethod" value='2'>
-                                <label class="custom-control-label" for="selectSitesRb">Select sites on map</label>
+                                <input type="radio" class="custom-control-input" id="selectSitesRbM" name="addSitesMethodM" value='2'>
+                                <label class="custom-control-label" for="selectSitesRbM">Select sites on map</label>
                             </div> 
                         </div>
                     </div>
                     <br>
-                    <div id='addSitesDiv'></div>
+                    <div id='addSitesDivM'></div>
                     <br>
 
                     <h5 style="margin-bottom: 2px"> Sites</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>View the sites you have added to your group. </i></div>
-                    <div id="groupSitesDiv"></div>
+                    <div id="groupSitesDivM"></div>
                     <br>
 
                     <div id="groupErrors" style="font-size: 80%; color: #DF691A"></div>
@@ -802,31 +829,6 @@ limitations under the License. -->
                     <button id="btnConfirmDelete" type='button' class='btn btn-danger btn-block' 
                     data-dismiss='modal'>Confirm</button>
                 </div>
-                <div class='col-lg-3'>
-                    <button id="confirmclose" type='button' class='btn btn-info btn-block' 
-                    data-dismiss='modal'>Close</button>
-                </div>
-
-            </div>
-        </div>
-  
-    </div>
-</div>
-
-<!--Export Alert modal-->
-<div id="modalExportAlert" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog">
-  
-        <!-- Modal content-->
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 id='modalConfirmHeader' class="modal-title">Export</h4>
-                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p id='modalConfirmBody' align="justify">Spatial Analysis can only be exported if your map selection is from OpenStreetMaps. Please select an OpenStreetMaps map and try again.</p>
-            </div>
-            <div class='modal-footer'>
                 <div class='col-lg-3'>
                     <button id="confirmclose" type='button' class='btn btn-info btn-block' 
                     data-dismiss='modal'>Close</button>
@@ -1010,7 +1012,6 @@ limitations under the License. -->
                 <br>
                 </div>
 
-
                 <div id="covariatesImportError" style="font-size: 80%; color: #DF691A"></div>
             </div>
             <div class="modal-footer">
@@ -1022,6 +1023,47 @@ limitations under the License. -->
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- R Script Modal -->
+<div id="modalRScript" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 80%; min-height: 500px">
+    <!-- Modal content-->
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class='col-lg-11' style="padding: 0px">
+                <h4 style="margin-bottom: 2px;">R Script</h4>                   
+            </div>
+            <div class='col-lg-1' style="padding: 0px">
+                <div class="row">
+                    <div class='col-lg-6' style="padding: 0px">
+                        <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('r_script')">Help</button>
+                    </div>
+                    <div class='col-lg-5' style="padding: 0px">
+                        <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class='col-lg-1' style="padding: 0px"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-body">
+            <h5 style="margin-bottom: 2px">R Script</h5>
+            <div style="font-size: 80%; margin-bottom: 2px"><i>The R script which was used to generate your results. Export the script to your clipboard and paste it into R to run the script.</i></div>
+            <textarea id="scriptTextArea" class="form-control" rows="25" style="resize: none; background-color: white;" readonly></textarea>
+            <div id="scriptNotice" style="font-size: 80%; color: #DF691A"></div>
+        </div>   
+        <div class='modal-footer'>
+            <div class='col-lg-2'>
+                <button id="btnExportScript" type='button' class='btn btn-primary btn-block'>Copy</button>
+            </div>
+            <div class='col-lg-2'>
+                <button id="groupsClose" type='button' class='btn btn-info btn-block' 
+                data-dismiss='modal'>Close</button>
+            </div>
+
+        </div>
+    </div>
     </div>
 </div>
 
@@ -1051,4 +1093,5 @@ limitations under the License. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/regression/2.0.1/regression.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.24.1/plotly.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.11/jquery.csv.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 {% endblock %}

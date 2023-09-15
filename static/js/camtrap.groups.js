@@ -22,28 +22,38 @@ var mapSites = null
 var sitesMarkers = []
 var drawnItems = null
 var markersInPoly = []
-var allCheckboxes = []
+var allCheckboxes = {'S':[], 'M':[]} // S = sites tab, M = modal
 var selectedGroup = null
-var groupSites = []
-var site_col_count = 0
+var groupSites = {'S':[], 'M':[]} // S = sites tab, M = modal
+var site_col_count = {'S':0, 'M':0}
 var modalGroupsReturn = false
 var modalGroupsViewReturn = false
 var modalSitesMapReturn = false
 var modalSiteActive = false
+var isModalOpen = false
+var gID = 'S'
 
 
 function searchSites() {
     /** Searches for the sited based on the search bar and allow user to select sites*/
     
-    var search = document.getElementById('searchSites').value;
-    var sitesDiv = document.getElementById('sitesDiv');
-    var advancedSearch = document.getElementById('advancedSearch').checked;
+    if (isModalOpen) {
+        var search = document.getElementById('searchSitesM').value;
+        var sitesDiv = document.getElementById('sitesDivM');
+        var advancedSearch = document.getElementById('advancedSearchM').checked;
+        var col_name = 'colM-'
+    }
+    else {
+        var search = document.getElementById('searchSites').value;
+        var sitesDiv = document.getElementById('sitesDiv');
+        var advancedSearch = document.getElementById('advancedSearch').checked;
+        var col_name = 'col-'
+    }
     
     while(sitesDiv.firstChild) {
         sitesDiv.removeChild(sitesDiv.firstChild);
     }
 
-    console.log(advancedSearch.toString());
     var formData = new FormData();
     formData.append('search', JSON.stringify(search));
     formData.append('advanced', JSON.stringify(advancedSearch.toString()));
@@ -62,11 +72,11 @@ function searchSites() {
             for ( let i = 0; i < 4; i++) {
                 let col = document.createElement('div')
                 col.setAttribute('class','col-lg-3')
-                col.id = 'col-' + i
+                col.setAttribute('id',col_name+i)
                 row.appendChild(col)
             }
 
-            var col0 = document.getElementById('col-0')
+            var col0 = document.getElementById(col_name+'0')
 
             checkDiv = document.createElement('div')
             checkDiv.setAttribute('class','custom-control custom-checkbox')
@@ -76,41 +86,46 @@ function searchSites() {
             input = document.createElement('input')
             input.setAttribute('type','checkbox')
             input.classList.add('custom-control-input')
-            input.setAttribute('id','AllSites-box')
-            input.setAttribute('name','AllSites-box')
+            if (isModalOpen) {
+                input.setAttribute('id','selectAllM-box')
+            }
+            else {
+                input.setAttribute('id','selectAll-box')
+            }
+            input.setAttribute('name','selectAll-box')
             input.setAttribute('value',0)
             checkDiv.appendChild(input)
 
             label = document.createElement('label')
             label.classList.add('custom-control-label')
-            label.setAttribute('for','AllSites-box')
+            label.setAttribute('for', input.id)
             label.innerHTML = 'Select All'
             checkDiv.appendChild(label)
 
-            $('#AllSites-box').change( function() {
+            $('#' + input.id).change( function() {
                 /** Listens for changes in the select all check box and selects or unselects all boxes */
-                for (let i = 0; i < allCheckboxes.length; i++) {
-                    document.getElementById(allCheckboxes[i]).checked = this.checked
+                for (let i = 0; i < allCheckboxes[gID].length; i++) {
+                    document.getElementById(allCheckboxes[gID][i]).checked = this.checked
                     if (this.checked) {
-                        addSiteToGroup(document.getElementById(allCheckboxes[i]))
+                        addSiteToGroup(document.getElementById(allCheckboxes[gID][i]))
                     }
                     else {
-                        removeSiteFromGroup(document.getElementById(allCheckboxes[i]))
+                        removeSiteFromGroup(document.getElementById(allCheckboxes[gID][i]))
                     }
                 }
             });
-
-            allCheckboxes = []
+            
+            allCheckboxes[gID] = []
             var col_count = 1
             var check = false
             for ( let i = 0; i < reply.sites.length; i++) {
-                if (groupSites.includes(reply.ids[i].join(','))) {
+                if (groupSites[gID].includes(reply.ids[i].join(','))) {
                     check = true
                 } else {
                     check = false
                 }
                 
-                addSite(reply.sites[i].tag, reply.sites[i].latitude, reply.sites[i].longitude , reply.ids[i].join(','), 'col-'+col_count, check)
+                addSite(reply.sites[i].tag, reply.sites[i].latitude, reply.sites[i].longitude , reply.ids[i].join(','), col_name+col_count, check)
                 col_count += 1
                 if (col_count == 4) {
                     col_count = 0
@@ -130,7 +145,14 @@ function addSite(site_tag, site_lat, site_lng, ids, col_id, check = false) {
     var site_text = site_tag + ' (' + site_lat + ', ' + site_lng + ')'
     var site_ids = ids
     var tag = site_tag + '_' + site_lat + '_' + site_lng
-    allCheckboxes.push(tag+'-box')
+    if (isModalOpen) {
+        var id = tag+'-boxM'
+    }
+    else {
+        var id = tag+'-box'
+    }
+
+    allCheckboxes[gID].push(id)
 
     var col = document.getElementById(col_id)
 
@@ -142,14 +164,14 @@ function addSite(site_tag, site_lat, site_lng, ids, col_id, check = false) {
     input = document.createElement('input')
     input.setAttribute('type','checkbox')
     input.classList.add('custom-control-input')
-    input.setAttribute('id',tag+'-box')
-    input.setAttribute('name',tag+'-box')
+    input.setAttribute('id',id)
+    input.setAttribute('name',id)
     input.setAttribute('value',site_ids)
     checkDiv.appendChild(input)
 
     label = document.createElement('label')
     label.classList.add('custom-control-label')
-    label.setAttribute('for',tag+'-box')
+    label.setAttribute('for',id)
     label.innerHTML = site_text
     checkDiv.appendChild(label)
 
@@ -157,12 +179,20 @@ function addSite(site_tag, site_lat, site_lng, ids, col_id, check = false) {
 
     input.addEventListener('change', function() {
         if (this.checked) {
+            document.getElementById('allSites-box').checked = false
             addSiteToGroup(this)
         }
         else {
             removeSiteFromGroup(this)
-            if (document.getElementById('AllSites-box').checked) {
-                document.getElementById('AllSites-box').checked = false
+            if (isModalOpen) {
+                if (document.getElementById('selectAll-boxM').checked) {
+                    document.getElementById('selectAll-boxM').checked = false
+                }
+            }
+            else {
+                if (document.getElementById('selectAll-box').checked) {
+                    document.getElementById('selectAll-box').checked = false
+                }
             }
         }
     });
@@ -171,15 +201,22 @@ function addSite(site_tag, site_lat, site_lng, ids, col_id, check = false) {
 function addSiteToGroup(checkbox) {
     /** Adds the site to the group site div*/
 
-    if (!groupSites.includes(checkbox.value)) {
+    if (isModalOpen) {
+        var groupSitesCol = 'groupSitesColM-'
+    }
+    else {
+        var groupSitesCol = 'groupSitesCol-'
+    }
+
+    if (!groupSites[gID].includes(checkbox.value)) {
         var checkBoxExists = false
         for (let j = 0; j < 4; j++) {
-            var col = document.getElementById('groupSitesCol-' + j)
+            var col = document.getElementById(groupSitesCol + j)
             var colDivs = col.childNodes
             for (let i = 0; i < colDivs.length; i++) {
                 if (colDivs[i].childNodes[0].id == checkbox.id) {
                     colDivs[i].childNodes[0].checked = true
-                    groupSites.push(checkbox.value)
+                    groupSites[gID].push(checkbox.value)
                     checkBoxExists = true
                     break
                 }
@@ -189,11 +226,11 @@ function addSiteToGroup(checkbox) {
 
         if (!checkBoxExists) {
 
-            if (site_col_count == 4) {
-                site_col_count = 0
+            if (site_col_count[gID] == 4) {
+                site_col_count[gID] = 0
             }
                 
-            var col = document.getElementById('groupSitesCol-' + site_col_count)
+            var col = document.getElementById(groupSitesCol + site_col_count[gID])
 
             var groupSiteDiv = document.createElement('div')
             groupSiteDiv.setAttribute('class','custom-control custom-checkbox')
@@ -216,30 +253,38 @@ function addSiteToGroup(checkbox) {
 
             input.checked = true
 
-            groupSites.push(checkbox.value)
-            site_col_count += 1
+            groupSites[gID].push(checkbox.value)
+            site_col_count[gID] += 1
         }
     }
+    
     
 }
 
 function removeSiteFromGroup(checkbox) {
     /** Removes the site from the group site div*/   
+    if (isModalOpen) {
+        var groupSitesCol = 'groupSitesColM-'
+    }
+    else {
+        var groupSitesCol = 'groupSitesCol-'
+    }
+
     for (let j = 0; j < 4; j++) {
-        var col = document.getElementById('groupSitesCol-' + j)
+        var col = document.getElementById(groupSitesCol + j)
         var colDivs = col.childNodes
         for (let i = 0; i < colDivs.length; i++) {
             if (colDivs[i].childNodes[0].id == checkbox.id) {
                 // col.removeChild(colDivs[i])
-                // site_col_count -= 1
+                // site_col_count[gID] -= 1
                 colDivs[i].childNodes[0].checked = false
                 break
             }
         }
     }
-    var index = groupSites.indexOf(checkbox.value)
+    var index = groupSites[gID].indexOf(checkbox.value)
     if (index > -1) {
-        groupSites.splice(index, 1);
+        groupSites[gID].splice(index, 1);
     }
 }
 
@@ -247,149 +292,150 @@ function initialiseSitesMap() {
     /** Initialises the sites map */
 
     var tasks = getSelectedTasks()
-    
-    var formData = new FormData();
-    formData.append('task_ids', JSON.stringify(tasks));
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            info = JSON.parse(this.responseText);
-            trapgroupInfo = info.trapgroups
+    if (tasks != '-1'){
+        var formData = new FormData();
+        formData.append('task_ids', JSON.stringify(tasks));
 
-            mainDiv = document.getElementById('mapSitesDiv')
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                info = JSON.parse(this.responseText);
+                trapgroupInfo = info.trapgroups
 
-            div = document.createElement('div')
-            div.classList.add('row')
-            mainDiv.appendChild(div)
+                mainDiv = document.getElementById('mapSitesDiv')
 
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
+                div = document.createElement('div')
+                div.classList.add('row')
+                mainDiv.appendChild(div)
 
-            col1 = document.createElement('div')
-            col1.classList.add('col-lg-10')
-            div.appendChild(col1)
+                space = document.createElement('div')
+                space.classList.add('col-lg-1')
+                div.appendChild(space)
 
-            mapDiv = document.createElement('div')
-            mapDiv.setAttribute('id','mapDivDraw')
-            mapDiv.setAttribute('style','height: 800px')
-            col1.appendChild(mapDiv)
+                col1 = document.createElement('div')
+                col1.classList.add('col-lg-10')
+                div.appendChild(col1)
 
-            space = document.createElement('div')
-            space.classList.add('col-lg-1')
-            div.appendChild(space)
+                mapDiv = document.createElement('div')
+                mapDiv.setAttribute('id','mapDivDraw')
+                mapDiv.setAttribute('style','height: 800px')
+                col1.appendChild(mapDiv)
 
-            selectorDiv = document.createElement('div')
-            selectorDiv.classList.add('col-lg-2')
-            div.appendChild(selectorDiv)
+                space = document.createElement('div')
+                space.classList.add('col-lg-1')
+                div.appendChild(space)
 
-            // Create all the layers
-            osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-                maxZoom: 18,
-                id: 'mapbox/satellite-v9',
-                tileSize: 512,
-                zoomOffset: -1,
-                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-            })
+                selectorDiv = document.createElement('div')
+                selectorDiv.classList.add('col-lg-2')
+                div.appendChild(selectorDiv)
 
-            osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
-                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-                maxZoom: 18,
-                id: 'mapbox/streets-v11',
-                tileSize: 512,
-                zoomOffset: -1,
-                accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
-            })
+                // Create all the layers
+                osmSat = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                    maxZoom: 18,
+                    id: 'mapbox/satellite-v9',
+                    tileSize: 512,
+                    zoomOffset: -1,
+                    accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+                })
 
-            gSat = L.gridLayer.googleMutant({type: 'satellite'})
-            // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
-            // gTer = L.gridLayer.googleMutant({type: 'terrain'})
-            gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
+                osmSt = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                    maxZoom: 18,
+                    id: 'mapbox/streets-v11',
+                    tileSize: 512,
+                    zoomOffset: -1,
+                    accessToken: 'pk.eyJ1IjoibmljaG9sYXNpbm5vdmVudGl4IiwiYSI6ImNrZTJrdjdjcjBhYTIyeXBkamd2N2ZlengifQ.IXU45GintSGY47C7PlBGXA'
+                })
 
-            mapSites = new L.map('mapDivDraw', {
-                layers: [gSat]
-            });
+                gSat = L.gridLayer.googleMutant({type: 'satellite'})
+                // gStr = L.gridLayer.googleMutant({type: 'roadmap'})    
+                // gTer = L.gridLayer.googleMutant({type: 'terrain'})
+                gHyb = L.gridLayer.googleMutant({type: 'hybrid' })
 
-            baseMaps = {
-                "Google Satellite": gSat,
-                // "Google Roadmap": gStr,
-                // "Google Terrain": gTer,
-                "Google Hybrid": gHyb,
-                "OpenStreetMaps Satellite": osmSat,
-                "OpenStreetMaps Roadmap": osmSt
-            };
-
-            L.control.layers(baseMaps).addTo(mapSites);
-            L.control.scale().addTo(mapSites);
-            mapSites._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-            mapSites._controlCorners['bottomright'].style.marginBottom = "14px";
-
-            mapSites.on('baselayerchange', function(e) {
-                if (e.name.includes('Google')) {
-                    mapSites._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
-                    mapSites._controlCorners['bottomright'].style.marginBottom = "14px";
-                }
-            });
-
-            siteMarkers = []
-            for (let i=0;i<trapgroupInfo.length;i++) {
-                marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSites)
-                siteMarkers.push(marker)
-                mapSites.addLayer(marker)
-                marker.bindPopup(trapgroupInfo[i].tag);
-                marker.on('mouseover', function (e) {
-                    this.openPopup();
+                mapSites = new L.map('mapDivDraw', {
+                    layers: [gSat]
                 });
-                marker.on('mouseout', function (e) {
-                    this.closePopup();
-                });
-            }
 
-            var group = new L.featureGroup(siteMarkers);
-            mapSites.fitBounds(group.getBounds().pad(0.1))
-            if(siteMarkers.length == 1) {
-                mapSites.setZoom(10)
-            }
+                baseMaps = {
+                    "Google Satellite": gSat,
+                    // "Google Roadmap": gStr,
+                    // "Google Terrain": gTer,
+                    "Google Hybrid": gHyb,
+                    "OpenStreetMaps Satellite": osmSat,
+                    "OpenStreetMaps Roadmap": osmSt
+                };
 
-            drawnItems = L.featureGroup().addTo(mapSites);
-            var drawOptions = {
-                position: 'topleft',
-                draw: {
-                    polyline: false,
-                    polygon: {
-                        allowIntersection: false,
-                        shapeOptions: {
-                            color: "rgba(223,105,26,1)"
-                        }   
-                    },
-                    circle: false,
-                    circlemarker: false,
-                    rectangle: false,
-                    marker: false,
-                },
-                edit: {
-                    featureGroup: drawnItems,
-                    poly: {
-                        allowIntersection: false
+                L.control.layers(baseMaps).addTo(mapSites);
+                L.control.scale().addTo(mapSites);
+                mapSites._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+                mapSites._controlCorners['bottomright'].style.marginBottom = "14px";
+
+                mapSites.on('baselayerchange', function(e) {
+                    if (e.name.includes('Google')) {
+                        mapSites._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
+                        mapSites._controlCorners['bottomright'].style.marginBottom = "14px";
                     }
+                });
+
+                siteMarkers = []
+                for (let i=0;i<trapgroupInfo.length;i++) {
+                    marker = L.marker([trapgroupInfo[i].latitude, trapgroupInfo[i].longitude]).addTo(mapSites)
+                    siteMarkers.push(marker)
+                    mapSites.addLayer(marker)
+                    marker.bindPopup(trapgroupInfo[i].tag);
+                    marker.on('mouseover', function (e) {
+                        this.openPopup();
+                    });
+                    marker.on('mouseout', function (e) {
+                        this.closePopup();
+                    });
                 }
-            };
-            mapSites.addControl(new L.Control.Draw(drawOptions));
-        
-            mapSites.on(L.Draw.Event.CREATED, function (event) {
-                var layer = event.layer;
-                var polygon = layer
-                drawnItems.addLayer(layer);
-            });
 
+                var group = new L.featureGroup(siteMarkers);
+                mapSites.fitBounds(group.getBounds().pad(0.1))
+                if(siteMarkers.length == 1) {
+                    mapSites.setZoom(10)
+                }
+
+                drawnItems = L.featureGroup().addTo(mapSites);
+                var drawOptions = {
+                    position: 'topleft',
+                    draw: {
+                        polyline: false,
+                        polygon: {
+                            allowIntersection: false,
+                            shapeOptions: {
+                                color: "rgba(223,105,26,1)"
+                            }   
+                        },
+                        circle: false,
+                        circlemarker: false,
+                        rectangle: false,
+                        marker: false,
+                    },
+                    edit: {
+                        featureGroup: drawnItems,
+                        poly: {
+                            allowIntersection: false
+                        }
+                    }
+                };
+                mapSites.addControl(new L.Control.Draw(drawOptions));
+            
+                mapSites.on(L.Draw.Event.CREATED, function (event) {
+                    var layer = event.layer;
+                    var polygon = layer
+                    drawnItems.addLayer(layer);
+                });
+
+            }
         }
+        xhttp.open("POST", '/getCoords');
+        xhttp.send(formData);
     }
-    xhttp.open("POST", '/getCoords');
-    xhttp.send(formData);
-
 }
 
 function saveSitesOnMap(){
@@ -416,8 +462,7 @@ function saveSitesOnMap(){
         
     }
 
-    allCheckboxes = []
-    console.log(markersInPoly)
+    allCheckboxes[gID] = []
     for (let i=0;i<markersInPoly.length;i++) {
         var site_tag = markersInPoly[i].getPopup().getContent();
         var site_lat = parseFloat(markersInPoly[i].getLatLng().lat).toFixed(4).toString();
@@ -426,17 +471,26 @@ function saveSitesOnMap(){
         var site_ids = globalSitesIDs[globalSites.indexOf(site_text)]
         var tag = site_tag + '_' + site_lat + '_' + site_lng
 
-        if (!groupSites.includes(site_ids)) {
-            allCheckboxes.push(tag+'-box')
+        if (isModalOpen) {
+            var id = tag+'-boxM'
+            var groupSitesCol = 'groupSitesColM-'
+        }
+        else {
+            var id = tag+'-box'
+            var groupSitesCol = 'groupSitesCol-'
+        }
+
+        if (!groupSites[gID].includes(site_ids)) {
+            allCheckboxes[gID].push(id)
 
             var checkBoxExists = false
             for (let j = 0; j < 4; j++) {
-                var col = document.getElementById('groupSitesCol-' + j)
+                var col = document.getElementById(groupSitesCol+ j)
                 var colDivs = col.childNodes
                 for (let i = 0; i < colDivs.length; i++) {
                     if (colDivs[i].childNodes[0].value == site_ids) {
                         colDivs[i].childNodes[0].checked = true
-                        groupSites.push(site_ids)
+                        groupSites[gID].push(site_ids)
                         checkBoxExists = true
                         break
                     }
@@ -446,11 +500,11 @@ function saveSitesOnMap(){
 
             if (!checkBoxExists) {
 
-                if (site_col_count == 4) {
-                    site_col_count = 0
+                if (site_col_count[gID] == 4) {
+                    site_col_count[gID] = 0
                 }
 
-                var col = document.getElementById('groupSitesCol-'+site_col_count)
+                var col = document.getElementById(groupSitesCol+site_col_count[gID])
             
                 checkDiv = document.createElement('div')
                 checkDiv.setAttribute('class','custom-control custom-checkbox')
@@ -460,28 +514,36 @@ function saveSitesOnMap(){
                 input = document.createElement('input')
                 input.setAttribute('type','checkbox')
                 input.classList.add('custom-control-input')
-                input.setAttribute('id',tag+'-box')
-                input.setAttribute('name',tag+'-box')
+                input.setAttribute('id',id)
+                input.setAttribute('name',id)
                 input.setAttribute('value',site_ids)
                 checkDiv.appendChild(input)
             
                 label = document.createElement('label')
                 label.classList.add('custom-control-label')
-                label.setAttribute('for',tag+'-box')
+                label.setAttribute('for',id)
                 label.innerHTML = site_text
                 checkDiv.appendChild(label)
             
                 input.checked = true
                 
-                groupSites.push(site_ids)
-                site_col_count += 1
+                groupSites[gID].push(site_ids)
+                site_col_count[gID] += 1
 
                 input.addEventListener('change', function() {
                     if (!this.checked) {
                         // this.parentNode.remove()
-                        var index = groupSites.indexOf(this.value)
-                        if (index > -1) {
-                            groupSites.splice(index, 1);
+                        if (this.id.includes('-boxM')) {
+                            var index = groupSites['M'].indexOf(this.value)
+                            if (index > -1) {
+                                groupSites['M'].splice(index, 1);
+                            }
+                        }
+                        else {
+                            var index = groupSites['S'].indexOf(this.value)
+                            if (index > -1) {
+                                groupSites['S'].splice(index, 1);
+                            }
                         }
                     }
                 });
@@ -512,7 +574,7 @@ function checkValidGroup() {
         error += 'Description must be less than 500 characters. '
     }
 
-    if (groupSites.length == 0) {
+    if (groupSites[gID].length == 0) {
         noSites = true
         error += 'Please add at least one site. '
     }
@@ -534,8 +596,8 @@ function saveGroup() {
     var groupDescription = document.getElementById('groupDescription').value
     var sites_ids = []
 
-    for (let i = 0; i < groupSites.length; i++) {
-        var split = groupSites[i].split(',')
+    for (let i = 0; i < groupSites[gID].length; i++) {
+        var split = groupSites[gID][i].split(',')
         sites_ids.push(...split)
     }
 
@@ -571,16 +633,24 @@ function getGroups() {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            groups = reply.groups
+            var reply = JSON.parse(this.responseText);
+            var groups = reply.groups
             console.log(groups)
-
-            for (let i=0; i<groups.length; i++) {
-                buildGroup(groups[i])
+            if (groups.length == 0) {
+                var noGroups = document.createElement('h5')
+                noGroups.align = 'center'
+                noGroups.innerHTML = 'You have no site groups. You can create a group by clicking the "Create Group" button.'
+                groupsDiv.appendChild(noGroups)
             }
+            else{
+                for (let i=0; i<groups.length; i++) {
+                    buildGroup(groups[i])
+                }
+            }
+
         }
     }
-    xhttp.open("GET", '/getGroups');
+    xhttp.open("GET", '/getGroups');    
     xhttp.send();
 }
 
@@ -602,7 +672,7 @@ function buildGroup(group) {
     row.appendChild(col0)
 
     var col1 = document.createElement('div')
-    col1.setAttribute('class','col-lg-7')
+    col1.setAttribute('class','col-lg-6')
     row.appendChild(col1)
 
     var col2 = document.createElement('div')
@@ -612,6 +682,10 @@ function buildGroup(group) {
     var col3 = document.createElement('div')
     col3.setAttribute('class','col-lg-1')
     row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.setAttribute('class','col-lg-1')
+    row.appendChild(col4)
 
     var groupName = document.createElement('h5')
     groupName.innerHTML = group.name
@@ -633,36 +707,31 @@ function buildGroup(group) {
     groupSitesDiv.innerHTML = sites
     col1.appendChild(groupSitesDiv)
 
-    var groupEdit = document.createElement('button')
-    groupEdit.id = 'btnGroupEdit-' + group.id
-    groupEdit.setAttribute("class","btn btn-primary btn-block btn-sm")
-    groupEdit.innerHTML = 'Edit'
-    col2.appendChild(groupEdit)
+    var groupSelect = document.createElement('button')
+    groupSelect.id = 'btnGroupSelect-' + group.id
+    groupSelect.setAttribute("class","btn btn-primary btn-block btn-sm")
+    groupSelect.innerHTML = 'Select'
+    col2.appendChild(groupSelect)
 
-    groupEdit.addEventListener('click', function(wrapGroup) {
+    groupSelect.addEventListener('click', function(wrapGroup) {
         return function() {
             selectedGroup = wrapGroup.id
-            
+            // Load sites into sitesDIv in site tab for site selection 
+            // var groupSitesDiv = document.getElementById('groupSitesDiv')
 
-            document.getElementById('groupHeader').innerHTML = 'Edit Group: ' + wrapGroup.name
-            document.getElementById('groupName').value = wrapGroup.name
-            document.getElementById('groupDescription').value = wrapGroup.description
+            // var row = document.createElement('div')
+            // row.setAttribute('class','row')
+            // groupSitesDiv.appendChild(row)
+            // site_col_count[gID] = 0
+            // for (let i = 0; i < 4 ; i++) {
+            //     var col = document.createElement('div')
+            //     col.setAttribute('class','col-3')
+            //     col.setAttribute('id','groupSitesColM-'+i)
+            //     row.appendChild(col)
+            // }
 
-            var groupSitesDiv = document.getElementById('groupSitesDiv')
-
-            var row = document.createElement('div')
-            row.setAttribute('class','row')
-            groupSitesDiv.appendChild(row)
-            site_col_count = 0
-            for (let i = 0; i < 4 ; i++) {
-                var col = document.createElement('div')
-                col.setAttribute('class','col-3')
-                col.setAttribute('id','groupSitesCol-'+i)
-                row.appendChild(col)
-            }
-
-            allCheckboxes = []
-            groupSites = []
+            // allCheckboxes[gID] = []
+            // groupSites[gID] = []
 
             for (let i=0;i<wrapGroup.sites.length;i++) {
                 var site = wrapGroup.sites[i]
@@ -673,15 +742,15 @@ function buildGroup(group) {
                 var site_ids = site.ids
                 var tag = site_tag + '_' + site_lat + '_' + site_lng
 
-                if (!groupSites.includes(site_ids)) {
+                if (!groupSites['S'].includes(site_ids)) {
         
-                    if (site_col_count == 4) {
-                        site_col_count = 0
+                    if (site_col_count['S'] == 4) {
+                        site_col_count['S'] = 0
                     }
     
-                    var col = document.getElementById('groupSitesCol-'+site_col_count)
+                    var col = document.getElementById('groupSitesCol-'+site_col_count['S'])
 
-                    allCheckboxes.push(tag+'-box')
+                    allCheckboxes['S'].push(tag+'-box')
                     checkDiv = document.createElement('div')
                     checkDiv.setAttribute('class','custom-control custom-checkbox')
                     checkDiv.setAttribute('style','display: inline-block')
@@ -702,15 +771,104 @@ function buildGroup(group) {
                     checkDiv.appendChild(label)
                 
                     input.checked = true
-                    groupSites.push(site_ids)
-                    site_col_count += 1
+                    groupSites['S'].push(site_ids)
+                    site_col_count['S'] += 1
         
                     input.addEventListener('change', function() {
                         if (!this.checked) {
-                            groupSites.splice(groupSites.indexOf(this.value),1)
+                            groupSites['S'].splice(groupSites['S'].indexOf(this.value),1)
                         }
                         else {
-                            groupSites.push(this.value)
+                            groupSites['S'].push(this.value)
+                        }
+                    });
+                    
+                }
+
+                document.getElementById('allSites-box').checked = false
+            }
+
+            modalViewGroups.modal('hide');
+        }
+    }(group))
+
+    var groupEdit = document.createElement('button')
+    groupEdit.id = 'btnGroupEdit-' + group.id
+    groupEdit.setAttribute("class","btn btn-primary btn-block btn-sm")
+    groupEdit.innerHTML = 'Edit'
+    col3.appendChild(groupEdit)
+
+    groupEdit.addEventListener('click', function(wrapGroup) {
+        return function() {
+            selectedGroup = wrapGroup.id
+        
+            document.getElementById('groupHeader').innerHTML = 'Edit Group: ' + wrapGroup.name
+            document.getElementById('groupName').value = wrapGroup.name
+            document.getElementById('groupDescription').value = wrapGroup.description
+
+            var groupSitesDiv = document.getElementById('groupSitesDivM')
+
+            var row = document.createElement('div')
+            row.setAttribute('class','row')
+            groupSitesDiv.appendChild(row)
+            site_col_count[gID] = 0
+            for (let i = 0; i < 4 ; i++) {
+                var col = document.createElement('div')
+                col.setAttribute('class','col-3')
+                col.setAttribute('id','groupSitesColM-'+i)
+                row.appendChild(col)
+            }
+
+            allCheckboxes[gID] = []
+            groupSites[gID] = []
+
+            for (let i=0;i<wrapGroup.sites.length;i++) {
+                var site = wrapGroup.sites[i]
+                var site_tag = site.tag
+                var site_lat = parseFloat(site.latitude).toFixed(4).toString()
+                var site_lng = parseFloat(site.longitude).toFixed(4).toString()
+                var site_text = site_tag + ' (' + site_lat + ', ' + site_lng + ')'
+                var site_ids = site.ids
+                var tag = site_tag + '_' + site_lat + '_' + site_lng
+
+                if (!groupSites[gID].includes(site_ids)) {
+        
+                    if (site_col_count[gID] == 4) {
+                        site_col_count[gID] = 0
+                    }
+    
+                    var col = document.getElementById('groupSitesColM-'+site_col_count[gID])
+
+                    allCheckboxes[gID].push(tag+'-boxM')
+                    checkDiv = document.createElement('div')
+                    checkDiv.setAttribute('class','custom-control custom-checkbox')
+                    checkDiv.setAttribute('style','display: inline-block')
+                    col.appendChild(checkDiv)
+                
+                    input = document.createElement('input')
+                    input.setAttribute('type','checkbox')
+                    input.classList.add('custom-control-input')
+                    input.setAttribute('id',tag+'-boxM')
+                    input.setAttribute('name',tag+'-boxM')
+                    input.setAttribute('value',site_ids)
+                    checkDiv.appendChild(input)
+                
+                    label = document.createElement('label')
+                    label.classList.add('custom-control-label')
+                    label.setAttribute('for',tag+'-boxM')
+                    label.innerHTML = site_text
+                    checkDiv.appendChild(label)
+                
+                    input.checked = true
+                    groupSites[gID].push(site_ids)
+                    site_col_count[gID] += 1
+        
+                    input.addEventListener('change', function() {
+                        if (!this.checked) {
+                            groupSites['M'].splice(groupSites["M"].indexOf(this.value),1)
+                        }
+                        else {
+                            groupSites["M"].push(this.value)
                         }
                     });
                     
@@ -727,7 +885,7 @@ function buildGroup(group) {
     groupDelete.id = 'btnGroupDelete-' + group.id
     groupDelete.setAttribute("class","btn btn-danger btn-block btn-sm")
     groupDelete.innerHTML = 'Delete'
-    col3.appendChild(groupDelete)
+    col4.appendChild(groupDelete)
 
     groupDelete.addEventListener('click', function(wrapId, wrapName) {
         return function() {
@@ -750,8 +908,8 @@ function editGroup() {
     var groupName = document.getElementById('groupName').value
     var groupDescription = document.getElementById('groupDescription').value
 
-    for (let i = 0; i < groupSites.length; i++) {
-        var split = groupSites[i].split(',')
+    for (let i = 0; i < groupSites[gID].length; i++) {
+        var split = groupSites[gID][i].split(',')
         sites_ids.push(...split)
     }
 
@@ -801,8 +959,26 @@ function deleteGroup() {
 function updateSitesSelectionMethod(){
     /** Updates the sites seleection metod for adding sites to groups - either by searching or drawing an are on a map */
 
-    var searchSitesRb = document.getElementById('searchSitesRb')
-    var addSitesDiv = document.getElementById('addSitesDiv')
+    if (isModalOpen){
+        var searchSitesRb = document.getElementById('searchSitesRbM')
+        var selectSitesRb = document.getElementById('selectSitesRbM')
+        var addSitesDiv = document.getElementById('addSitesDivM')
+        var searchSitesId = 'searchSitesM'
+        var advancedSearchId = 'advancedSearchM'
+        var advancedSearchDivID = 'advancedSearchDivM'
+        var sitesDivID = 'sitesDivM'
+        var btnDrawSitesMapId = 'btnDrawSitesMapM'
+    }
+    else{
+        var searchSitesRb = document.getElementById('searchSitesRb')
+        var selectSitesRb = document.getElementById('selectSitesRb')
+        var addSitesDiv = document.getElementById('addSitesDiv')
+        var searchSitesId = 'searchSites'
+        var advancedSearchId = 'advancedSearch'
+        var advancedSearchDivID = 'advancedSearchDiv'
+        var sitesDivID = 'sitesDiv'
+        var btnDrawSitesMapId = 'btnDrawSitesMap'
+    }   
 
     while(addSitesDiv.firstChild) {
         addSitesDiv.removeChild(addSitesDiv.firstChild);
@@ -812,22 +988,22 @@ function updateSitesSelectionMethod(){
     addSitesDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.setAttribute('class','col-6')
+    col1.setAttribute('class','col-8')
     row.appendChild(col1)
 
     var col2 = document.createElement('div')
-    col2.setAttribute('class','col-6')
+    col2.setAttribute('class','col-4')
     row.appendChild(col2)
 
     if (searchSitesRb.checked) {
         var searchSitesInput = document.createElement('input')
         searchSitesInput.setAttribute('type','text')
         searchSitesInput.setAttribute('class','form-control')
-        searchSitesInput.setAttribute('id','searchSites')
+        searchSitesInput.setAttribute('id',searchSitesId)
         searchSitesInput.setAttribute('placeholder','Search')
         col1.appendChild(searchSitesInput)
 
-        $('#searchSites').change( function() {
+        $('#'+searchSitesId).change( function() {
             /** Listens for changes in the sites search bar */
             searchSites();
         });
@@ -840,19 +1016,24 @@ function updateSitesSelectionMethod(){
         var input = document.createElement('input')
         input.setAttribute('type','checkbox')
         input.classList.add('custom-control-input')
-        input.setAttribute('id','advancedSearch')
+        input.setAttribute('id',advancedSearchId)
         checkDiv.appendChild(input)
 
         var label = document.createElement('label')
         label.classList.add('custom-control-label')
-        label.setAttribute('for','advancedSearch')
+        label.setAttribute('for',advancedSearchId)
         label.innerHTML = 'Advanced'
         checkDiv.appendChild(label)
 
 
-        $('#advancedSearch').change( function() {
+        $('#'+advancedSearchId).change( function() {
             // Regular expression search
-            var advancedSearchDiv = document.getElementById('advancedSearchDiv')
+            if (isModalOpen){
+                var advancedSearchDiv = document.getElementById('advancedSearchDivM')
+            }
+            else{
+                var advancedSearchDiv = document.getElementById('advancedSearchDiv')
+            }
             while(advancedSearchDiv.firstChild) {
                 advancedSearchDiv.removeChild(advancedSearchDiv.firstChild);
             }
@@ -870,26 +1051,26 @@ function updateSitesSelectionMethod(){
         row2.appendChild(col3)
 
         var advancedSearchDiv = document.createElement('div')
-        advancedSearchDiv.setAttribute('id','advancedSearchDiv')
+        advancedSearchDiv.setAttribute('id',advancedSearchDivID)
         col3.appendChild(advancedSearchDiv)
 
         addSitesDiv.appendChild(document.createElement('br'))
 
         sitesDiv = document.createElement('div')
-        sitesDiv.setAttribute('id','sitesDiv')
+        sitesDiv.setAttribute('id',sitesDivID)
         addSitesDiv.appendChild(sitesDiv)
 
     }
-    else {
+    else if (selectSitesRb.checked) {
         var btnDrawSitesMap = document.createElement('button')
         btnDrawSitesMap.setAttribute('class','btn btn-primary btn-block')
-        btnDrawSitesMap.setAttribute('id','btnDrawSitesMap')
+        btnDrawSitesMap.setAttribute('id',btnDrawSitesMapId)
         btnDrawSitesMap.innerHTML = 'Draw on map'
         col1.appendChild(btnDrawSitesMap)
 
-        $('#btnDrawSitesMap').click( function() {
+        $('#'+btnDrawSitesMapId).click( function() {
             /** Listens for clicks on the draw sites map button and opens the map modal */
-            allCheckboxes = []
+            allCheckboxes[gID] = []
             initialiseSitesMap();
 
             modalSiteActive = true
@@ -904,80 +1085,52 @@ function updateSitesSelectionMethod(){
 
 function buildRegExp(){
     /** Builds the advanced search div for the sites search bar */
-    
-    IDNum = getIdNumforNext('charSelect')
 
-    if (IDNum==0) {
-        // Initialising - build headings
-        tgBuilder = document.getElementById('advancedSearchDiv')
-        tgBuilder.append(document.createElement('br'))
-
-        tgBuilderRows = document.createElement('div')
-        tgBuilderRows.setAttribute('id','tgBuilderRows')
-        tgBuilder.append(tgBuilderRows)
-
-        // Add add-row button
-        tgBuilderBtnRow = document.createElement('div')
-        tgBuilderBtnRow.classList.add('row')
-        tgBuilder.append(tgBuilderBtnRow)
-
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-11')
-        tgBuilderBtnRow.appendChild(col1)
-
-        col2 = document.createElement('div')
-        col2.classList.add('col-lg-1')
-        tgBuilderBtnRow.appendChild(col2)  
-        
-        btnAdd = document.createElement('button');
-        btnAdd.classList.add('btn');
-        btnAdd.classList.add('btn-primary');
-        btnAdd.innerHTML = '+';
-        col2.appendChild(btnAdd)
-        
-        btnAdd.addEventListener('click', (evt)=>{
-            buildRegExp();
-        });
-
-        // Heading Row
-        row = document.createElement('div')
-        row.classList.add('row')
-        tgBuilderRows.append(row)
-
-        // Character column
-        col1 = document.createElement('div')
-        col1.classList.add('col-lg-2')
-        col1.innerHTML = 'Character(s)'
-        row.appendChild(col1)
-
-        // Custom Character Column
-        col2 = document.createElement('div')
-        col2.classList.add('col-lg-3')
-        row.appendChild(col2)
-
-        // Custom Character Operation Column
-        col3 = document.createElement('div')
-        col3.classList.add('col-lg-2')
-        row.appendChild(col3)
-
-        // Occurrence Column
-        col4 = document.createElement('div')
-        col4.classList.add('col-lg-2')
-        col4.innerHTML = 'Occurence'
-        row.appendChild(col4)
-
-        // Custom Occurrence Column
-        col5 = document.createElement('div')
-        col5.classList.add('col-lg-2')
-        row.appendChild(col5)
-
-        // Delete Button Column
-        col6 = document.createElement('div')
-        col6.classList.add('col-lg-1')
-        row.appendChild(col6)
-    } else {
-        tgBuilderRows = document.getElementById('tgBuilderRows')
+    if (isModalOpen){
+        var advancedSearchDivId = 'advancedSearchDivM'
+        var charSelectId = 'charSelectM-'
+        var tgBuilderRowsId = 'tgBuilderRowsM'
+        var tgBuilderCol2Id = 'tgBuilderCol2M-'
+        var tgBuilderCol3Id = 'tgBuilderCol3M-'
+        var customCharId = 'customCharactersM-'
+        var customCharSelectId = 'CustomCharSelectM-'
+        var occurrenceSelectId = 'occurrenceSelectM-'
+        var tgBuilderCol5Id = 'tgBuilderCol5M-'
+        var customOccurrence = 'customOccurrenceM-'
     }
+    else{
+        var advancedSearchDivId = 'advancedSearchDiv'
+        var charSelectId = 'charSelect-'
+        var tgBuilderRowsId = 'tgBuilderRows'
+        var tgBuilderCol2Id = 'tgBuilderCol2-'
+        var tgBuilderCol3Id = 'tgBuilderCol3-'
+        var customCharId = 'customCharacters-'
+        var customCharSelectId = 'CustomCharSelect-'
+        var occurrenceSelectId = 'occurrenceSelect-'
+        var tgBuilderCol5Id = 'tgBuilderCol5-'
+        var customOccurrence = 'customOccurrence-'
+    }
+
+    
+    IDNum = getIdNumforNext(charSelectId)
+
+    tgBuilder = document.getElementById(advancedSearchDivId)
+    tgBuilder.append(document.createElement('br'))
+
+    tgBuilderRows = document.createElement('div')
+    tgBuilderRows.setAttribute('id',tgBuilderRowsId)
+    tgBuilder.append(tgBuilderRows)
+
+    // Heading Row
+    rowh = document.createElement('div')
+    rowh.classList.add('row')
+    tgBuilderRows.append(rowh)
+
+    // Character column
+    col1 = document.createElement('div')
+    col1.classList.add('col-lg-12')
+    col1.innerHTML = 'Character(s)'
+    rowh.appendChild(col1)
 
     row = document.createElement('div')
     row.classList.add('row')
@@ -985,10 +1138,10 @@ function buildRegExp(){
 
     // Character column
     col1 = document.createElement('div')
-    col1.classList.add('col-lg-2')
+    col1.classList.add('col-lg-4')
     row.appendChild(col1)
 
-    selectID = 'charSelect-'+IDNum
+    selectID = charSelectId+IDNum
     select = document.createElement('select')
     select.classList.add('form-control')
     select.setAttribute('id',selectID)
@@ -996,31 +1149,31 @@ function buildRegExp(){
 
     $("#"+selectID).change( function(wrapIDNum) {
         return function() {
-            select = document.getElementById('charSelect-'+wrapIDNum)
+            select = document.getElementById(charSelectId+wrapIDNum)
             selection = select.options[select.selectedIndex].text
             if (selection == 'Custom Set') {
                 //Build custom row
-                col2 = document.getElementById('tgBuilderCol2-'+wrapIDNum)
+                col2 = document.getElementById(tgBuilderCol2Id+wrapIDNum)
 
                 input = document.createElement('input')
                 input.setAttribute('type','text')
                 input.classList.add('form-control')
                 input.required = true
-                input.setAttribute('id','customCharacters-'+wrapIDNum)
+                input.setAttribute('id',customCharId+wrapIDNum)
                 col2.appendChild(input)
 
-                $("#customCharacters-"+wrapIDNum).change( function() {
+                $("#"+customCharId+wrapIDNum).change( function() {
                     updateRegExp()
                 })
 
-                col3 = document.getElementById('tgBuilderCol3-'+wrapIDNum)
+                col3 = document.getElementById(tgBuilderCol3Id+wrapIDNum)
                 
                 select = document.createElement('select')
                 select.classList.add('form-control')
-                select.setAttribute('id','CustomCharSelect-'+wrapIDNum)
+                select.setAttribute('id',customCharSelectId+wrapIDNum)
                 col3.appendChild(select)
 
-                $("#CustomCharSelect-"+wrapIDNum).change( function() {
+                $("#"+customCharSelectId+wrapIDNum).change( function() {
                     updateRegExp()
                 })
 
@@ -1028,12 +1181,12 @@ function buildRegExp(){
 
             } else {
                 // Remove any custom row
-                div = document.getElementById('tgBuilderCol2-'+wrapIDNum)
+                div = document.getElementById(tgBuilderCol2Id+wrapIDNum)
                 while(div.firstChild){
                     div.removeChild(div.firstChild);
                 }
 
-                div = document.getElementById('tgBuilderCol3-'+wrapIDNum)
+                div = document.getElementById(tgBuilderCol3Id+wrapIDNum)
                 while(div.firstChild){
                     div.removeChild(div.firstChild);
                 }
@@ -1046,22 +1199,37 @@ function buildRegExp(){
 
     // Custom Character Column
     col2 = document.createElement('div')
-    col2.classList.add('col-lg-3')
-    col2.setAttribute('id','tgBuilderCol2-'+IDNum)
+    col2.classList.add('col-lg-4')
+    col2.setAttribute('id',tgBuilderCol2Id+IDNum)
     row.appendChild(col2)
 
     // Custom Character Operation Column
     col3 = document.createElement('div')
-    col3.classList.add('col-lg-2')
-    col3.setAttribute('id','tgBuilderCol3-'+IDNum)
+    col3.classList.add('col-lg-4')
+    col3.setAttribute('id',tgBuilderCol3Id+IDNum)
     row.appendChild(col3)
+
+    // Ocuurence Row
+    rowh1 = document.createElement('div')
+    rowh1.classList.add('row')
+    tgBuilderRows.append(rowh1)
+
+    row1 = document.createElement('div')
+    row1.classList.add('row')
+    tgBuilderRows.append(row1)
+
+    // Occurrence Column Heading
+    col4 = document.createElement('div')
+    col4.classList.add('col-lg-12')
+    col4.innerHTML = 'Occurence'
+    rowh1.appendChild(col4)
 
     // Occurrence Column
     col4 = document.createElement('div')
-    col4.classList.add('col-lg-2')
-    row.appendChild(col4)
+    col4.classList.add('col-lg-4')
+    row1.appendChild(col4)
 
-    selectID = 'occurrenceSelect-'+IDNum
+    selectID = occurrenceSelectId+IDNum
     select = document.createElement('select')
     select.classList.add('form-control')
     select.setAttribute('id',selectID)
@@ -1069,25 +1237,25 @@ function buildRegExp(){
 
     $("#"+selectID).change( function(wrapIDNum) {
         return function() {
-            select = document.getElementById('occurrenceSelect-'+wrapIDNum)
+            select = document.getElementById(occurrenceSelectId+wrapIDNum)
             selection = select.options[select.selectedIndex].text
             if (selection == 'Custom Count') {
                 //Build custom row
-                col5 = document.getElementById('tgBuilderCol5-'+wrapIDNum)
+                col5 = document.getElementById(tgBuilderCol5Id+wrapIDNum)
 
                 input = document.createElement('input')
                 input.setAttribute('type','text')
                 input.classList.add('form-control')
                 input.required = true
-                input.setAttribute('id','customOccurrence-'+wrapIDNum)
+                input.setAttribute('id',customOccurrence+wrapIDNum)
                 col5.appendChild(input)
 
-                $("#customOccurrence-"+wrapIDNum).change( function() {
+                $("#"+customOccurrence+wrapIDNum).change( function() {
                     updateRegExp()
                 })
             } else {
                 // Remove any custom row
-                div = document.getElementById('tgBuilderCol5-'+wrapIDNum)
+                div = document.getElementById(tgBuilderCol5Id+wrapIDNum)
                 while(div.firstChild){
                     div.removeChild(div.firstChild);
                 }
@@ -1100,39 +1268,78 @@ function buildRegExp(){
 
     // Custom Occurrence Column
     col5 = document.createElement('div')
-    col5.classList.add('col-lg-2')
-    col5.setAttribute('id','tgBuilderCol5-'+IDNum)
-    row.appendChild(col5)
+    col5.classList.add('col-lg-4')
+    col5.setAttribute('id',tgBuilderCol5Id+IDNum)
+    row1.appendChild(col5)
+
+    //Space column
+    cols = document.createElement('div')
+    cols.classList.add('col-lg-1')
+    row1.appendChild(cols)
+
 
     // Delete Column
     col6 = document.createElement('div')
     col6.classList.add('col-lg-1')
-    row.appendChild(col6)
+    row1.appendChild(col6)
 
-    btnRemove = document.createElement('button');
-    btnRemove.classList.add('btn');
-    btnRemove.classList.add('btn-default');
-    // btnRemove.id = 'btnRemove-'+IDNum;
-    btnRemove.innerHTML = '&times;';
-    col6.appendChild(btnRemove)
+    if (IDNum > 0) {
+        btnRemove = document.createElement('button');
+        btnRemove.classList.add('btn');
+        btnRemove.classList.add('btn-default');
+        // btnRemove.id = 'btnRemove-'+IDNum;
+        btnRemove.innerHTML = '&times;';
+        col6.appendChild(btnRemove)
+        
+        btnRemove.addEventListener('click', (evt)=>{
+            evt.target.parentNode.parentNode.parentNode.remove()
+            updateRegExp()
+        });
+    }
+
+    // Add add-row button
+    col7 = document.createElement('div')
+    col7.classList.add('col-lg-1')
+    row1.appendChild(col7)
+
+    btnAdd = document.createElement('button');
+    btnAdd.classList.add('btn');
+    btnAdd.classList.add('btn-primary');
+    btnAdd.innerHTML = '+';
+    col7.appendChild(btnAdd)
     
-    btnRemove.addEventListener('click', (evt)=>{
-        evt.target.parentNode.parentNode.remove();
-        updateRegExp()
+    btnAdd.addEventListener('click', (evt)=>{
+        buildRegExp();
     });
 
     if (IDNum!=0) {
         updateRegExp()
     }
 
-
 }
 
 function updateRegExp() {
     /** Extracts the info from the trapgroup code builder and populates the trapgroup code accordingly. */
 
+    if (isModalOpen){
+        var charSelectId = 'charSelectM-'
+        var customCharId = 'customCharactersM-'
+        var customCharSelectId = 'CustomCharSelectM-'
+        var occurrenceSelectId = 'occurrenceSelectM-'
+        var customOccurrence = 'customOccurrenceM-'
+        var searchSitesId = 'searchSitesM'
+    }
+    else{
+        var charSelectId = 'charSelect-'
+        var customCharId = 'customCharacters-'
+        var customCharSelectId = 'CustomCharSelect-'
+        var occurrenceSelectId = 'occurrenceSelect-'
+        var customOccurrence = 'customOccurrence-'
+        var searchSitesId = 'searchSites'
+    }
+
     tgCode = ''
-    charSelects = document.querySelectorAll('[id^=charSelect-]')
+    charSelects = document.querySelectorAll('[id^='+charSelectId+']')
     for (let i=0;i<charSelects.length;i++) {
         IDNum = charSelects[i].id.split("-")[charSelects[i].id.split("-").length-1]
         
@@ -1148,8 +1355,8 @@ function updateRegExp() {
         } else if (selection=='Any Character') {
             tgCode += '.'
         } else if (selection=='Custom Set') {
-            customCharacters = document.getElementById('customCharacters-'+IDNum).value
-            CustomCharSelect = document.getElementById('CustomCharSelect-'+IDNum)
+            customCharacters = document.getElementById(customCharId+IDNum).value
+            CustomCharSelect = document.getElementById(customCharSelectId+IDNum)
             selection = CustomCharSelect.options[CustomCharSelect.selectedIndex].text
             if (selection=='Exactly') {
                 tgCode += customCharacters
@@ -1158,7 +1365,7 @@ function updateRegExp() {
             }
         }
         
-        occurrenceSelect = document.getElementById('occurrenceSelect-'+IDNum)
+        occurrenceSelect = document.getElementById(occurrenceSelectId+IDNum)
         selection = occurrenceSelect.options[occurrenceSelect.selectedIndex].text
         if (selection=='Once') {
             //pass
@@ -1169,12 +1376,12 @@ function updateRegExp() {
         } else if (selection=='One or More') {
             tgCode += '+'
         } else if (selection=='Custom Count') {
-            customOccurrence = document.getElementById('customOccurrence-'+IDNum).value
+            customOccurrence = document.getElementById(customOccurrence+IDNum).value
             tgCode += '{'+customOccurrence.toString()+'}'
         }
     }
 
-    document.getElementById('searchSites').value = tgCode
+    document.getElementById(searchSitesId).value = tgCode
     searchSites()
 
 }
@@ -1183,25 +1390,34 @@ function viewGroups(){
     modalViewGroups.modal({keyboard: true});
 }
 
-function saveGroupFromData(){
-    // Opens the createGroup modal and populates it with the data selected from the generate analysis card
-    document.getElementById('groupHeader').innerHTML = 'Create Group'
-    var groupSitesDiv = document.getElementById('groupSitesDiv')
+function loadFromSites(){
+    // Loads the sites from site selection card into the group modal
+    gID = 'M'
+    var groupSitesDiv = document.getElementById('groupSitesDivM')
     var row = document.createElement('div')
     row.setAttribute('class','row')
     groupSitesDiv.appendChild(row)
-    site_col_count = 0
+    site_col_count[gID] = 0
+
     for (let i = 0; i < 4 ; i++) {
         var col = document.createElement('div')
         col.setAttribute('class','col-3')
-        col.setAttribute('id','groupSitesCol-'+i)
+        col.setAttribute('id','groupSitesColM-'+i)
         row.appendChild(col)
     }
 
-    var sites = getSitesForGroup()
+    var site_ids = groupSites['S']
+    var sites = []
+    for (let i = 0; i < site_ids.length; i++) {
+        sites.push({
+            'ids': site_ids[i],
+            'text': globalSites[globalSitesIDs.indexOf(site_ids[i])]
+        })
+    }
 
-    allCheckboxes = []
-    groupSites = []
+    allCheckboxes[gID] = []
+    groupSites[gID] = []
+
     console.log(sites)
 
     for (let i=0;i<sites.length;i++) {
@@ -1211,15 +1427,15 @@ function saveGroupFromData(){
         var splits = site.text.split(' ')
         var tag = splits[0] + '_' + splits[1].split('(')[1].split(',')[0] + '_' + splits[2].split(')')[0]
 
-        if (!groupSites.includes(site_ids)) {
+        if (!groupSites[gID].includes(site_ids)) {
 
-            if (site_col_count == 4) {
-                site_col_count = 0
+            if (site_col_count[gID] == 4) {
+                site_col_count[gID] = 0
             }
 
-            var col = document.getElementById('groupSitesCol-'+site_col_count)
+            var col = document.getElementById('groupSitesColM-'+site_col_count[gID])
 
-            allCheckboxes.push(tag+'-box')
+            allCheckboxes[gID].push(tag+'-box')
             checkDiv = document.createElement('div')
             checkDiv.setAttribute('class','custom-control custom-checkbox')
             checkDiv.setAttribute('style','display: inline-block')
@@ -1228,123 +1444,71 @@ function saveGroupFromData(){
             input = document.createElement('input')
             input.setAttribute('type','checkbox')
             input.classList.add('custom-control-input')
-            input.setAttribute('id',tag+'-box')
-            input.setAttribute('name',tag+'-box')
+            input.setAttribute('id',tag+'-boxM')
+            input.setAttribute('name',tag+'-boxM')
             input.setAttribute('value',site_ids)
             checkDiv.appendChild(input)
         
             label = document.createElement('label')
             label.classList.add('custom-control-label')
-            label.setAttribute('for',tag+'-box')
+            label.setAttribute('for',tag+'-boxM')
             label.innerHTML = site_text
             checkDiv.appendChild(label)
         
             input.checked = true
-            groupSites.push(site_ids)
-            site_col_count += 1
+            groupSites[gID].push(site_ids)
+            site_col_count[gID] += 1
 
             input.addEventListener('change', function() {
                 if (!this.checked) {
-                    groupSites.splice(groupSites.indexOf(this.value),1)
+                    groupSites['M'].splice(groupSites['M'].indexOf(this.value),1)
                 }
                 else {
-                    groupSites.push(this.value)
+                    groupSites['M'].push(this.value)
                 }
             });
             
         }
     }
 
-    modalGroups.modal({keyboard: true});
-}
-
-function getSitesForGroup(){
-    /** Gets the sites for the group from the generate analysis card */
-    var analysisType = document.getElementById('analysisSelector').value    
-    if (analysisType == '2'){
-        allSites = document.querySelectorAll('[id^=trapgroupSelectSpat-]')
-    }
-    else if (analysisType == '3'){
-        allSites = document.querySelectorAll('[id^=trapgroupSelectNum-]')
-    }
-    else if (analysisType=='0' || analysisType=='5' || analysisType=='6' || analysisType=='7'){
-        allSites = document.querySelectorAll('[id^=siteSelector-]')
-    }
-    else if (analysisType=='-1'){
-        return '0'
-    }
-    else {
-        allSites = document.querySelectorAll('[id^=trapgroupSelect-]')
-    }
-
-    var sites = []
-    var selectAll = false
-
-    if (allSites){
-        for (let i = 0; i < allSites.length; i++) {
-            if (allSites[i].value != '0' && allSites[i].value != '-1'){
-                if (allSites[i].value.includes('s-')){
-                    sites.push({
-                        'ids': allSites[i].value.split('-')[1],
-                        'text': allSites[i].options[allSites[i].selectedIndex].text
-                    })
-                }
-            }
-            else if (allSites[i].value == '0'){
-                selectAll = true
-                break
-            }
-        }
-    
-        if (selectAll) {
-            sites = []
-            for (let i = 0; i < globalSites.length; i++) {
-                sites.push({
-                    'ids': globalSitesIDs[i], 
-                    'text': globalSites[i]
-                })
-            }
-        }
-    }
-
-    return sites
 }
 
 modalGroups.on('show.bs.modal', function(){
+    isModalOpen = true
+    gID = 'M'
     document.body.style.overflow = 'hidden';
     modalGroups.css('overflow', 'auto');
     modalGroupReturn = true 
-    document.getElementById('searchSitesRb').checked = true
+    document.getElementById('searchSitesRbM').checked = true
     updateSitesSelectionMethod()
-
 });
 
 modalGroups.on('hidden.bs.modal', function(){
     /** Clears the groups modal when closed. */
-    console.log(!modalSiteActive)
-    console.log(!helpReturn)
     if (!helpReturn) {
         document.body.style.overflow = 'auto'
         modalGroups.css('overflow', 'auto')
         if (!modalSiteActive) {
-            var addSitesDiv = document.getElementById('addSitesDiv');
+            var addSitesDiv = document.getElementById('addSitesDivM');
             while(addSitesDiv.firstChild) {
                 addSitesDiv.removeChild(addSitesDiv.firstChild);
             }
-            var groupSitesDiv = document.getElementById('groupSitesDiv');
+            var groupSitesDiv = document.getElementById('groupSitesDivM');
             while(groupSitesDiv.firstChild) {
                 groupSitesDiv.removeChild(groupSitesDiv.firstChild);
             }
             document.getElementById('groupName').value = '';
             document.getElementById('groupDescription').value = '';
             document.getElementById('groupErrors').innerHTML = '';
-            allCheckboxes = []
-            groupSites = []
+            allCheckboxes[gID] = []
+            groupSites[gID] = []
             selectedGroup = null
             document.getElementById('groupHeader').innerHTML = ''
-            site_col_count = 0
+            site_col_count[gID] = 0
 
             modalViewGroups.modal({keyboard: true});
+            isModalOpen = false
+            gID = 'S'
 
         }
         helpReturn = false
@@ -1363,7 +1527,9 @@ modalSitesMap.on('hidden.bs.modal', function(){
             mapSitesDiv.removeChild(mapSitesDiv.firstChild);
         }
 
-        modalGroups.modal({keyboard: true});
+        if (isModalOpen) {
+            modalGroups.modal({keyboard: true});
+        }
         modalSiteActive = false
         helpReturn = false
     }
@@ -1377,7 +1543,12 @@ modalConfirmDelete.on('hidden.bs.modal', function(){
 
 modalViewGroups.on('show.bs.modal', function(){
     selectedGroup = null
+    gID = 'M'
     getGroups()
+});
+
+modalViewGroups.on('hidden.bs.modal', function(){
+    gID = 'S'
 });
 
 $('#btnSaveGroup').click( function() {
@@ -1394,25 +1565,59 @@ $('#btnSaveGroup').click( function() {
 
 $('#btnSaveSitesOnMap').click( function() {
     markersInPoly = []
+    document.getElementById('allSites-box').checked = false
     saveSitesOnMap()
 });
 
-$('#searchSitesRb').change( function() {
+$('#searchSitesRb, #searchSitesRbM').change( function() {
     updateSitesSelectionMethod()
 });
 
-$('#selectSitesRb').change( function() {
+$('#selectSitesRb, #selectSitesRbM').change( function() {
     updateSitesSelectionMethod()
 });
 
 
-$('#btnCreateGroup').on('click', function() {
+$('#btnCreateGroupDT').on('click', function() {
     document.getElementById('groupHeader').innerHTML = 'Create Group'
-    var groupSitesDiv = document.getElementById('groupSitesDiv')
+    var groupSitesDiv = document.getElementById('groupSitesDivM')
     var row = document.createElement('div')
     row.setAttribute('class','row')
     groupSitesDiv.appendChild(row)
-    site_col_count = 0
+    site_col_count['M'] = 0
+    for (let i = 0; i < 4 ; i++) {
+        var col = document.createElement('div')
+        col.setAttribute('class','col-3')
+        col.setAttribute('id','groupSitesColM-'+i)
+        row.appendChild(col)
+    }
+
+    loadFromSites()
+    
+    modalViewGroups.modal('hide');
+    modalGroups.modal({keyboard: true});
+
+});
+
+function initialiseGroups() {
+    gID = 'S'
+    var addSitesDiv = document.getElementById('addSitesDiv');
+    while(addSitesDiv.firstChild) {
+        addSitesDiv.removeChild(addSitesDiv.firstChild);
+    }
+    var groupSitesDiv = document.getElementById('groupSitesDiv');
+    while(groupSitesDiv.firstChild) {
+        groupSitesDiv.removeChild(groupSitesDiv.firstChild);
+    }
+
+    allCheckboxes[gID] = []
+    groupSites[gID] = []
+    site_col_count[gID] = 0
+
+    var row = document.createElement('div')
+    row.setAttribute('class','row')
+    groupSitesDiv.appendChild(row)
+    site_col_count[gID] = 0
     for (let i = 0; i < 4 ; i++) {
         var col = document.createElement('div')
         col.setAttribute('class','col-3')
@@ -1420,10 +1625,34 @@ $('#btnCreateGroup').on('click', function() {
         row.appendChild(col)
     }
 
-    modalViewGroups.modal('hide');
-    modalGroups.modal({keyboard: true});
+    // Create a ALl sites checkbox
+    var col = document.getElementById('groupSitesCol-0')
+    allCheckboxes[gID].push('allSites-box')
+    checkDiv = document.createElement('div')
+    checkDiv.setAttribute('class','custom-control custom-checkbox')
+    checkDiv.setAttribute('style','display: inline-block')
+    col.appendChild(checkDiv)
 
-});
+    input = document.createElement('input')
+    input.setAttribute('type','checkbox')
+    input.classList.add('custom-control-input')
+    input.setAttribute('id','allSites-box')
+    input.setAttribute('name','allSites-box')
+    input.setAttribute('value','0')
+    checkDiv.appendChild(input)
 
+    label = document.createElement('label')
+    label.classList.add('custom-control-label')
+    label.setAttribute('for','allSites-box')
+    label.innerHTML = 'All Sites'
+    checkDiv.appendChild(label)
 
+    input.checked = true
+    site_col_count[gID] += 1
+
+    searchSitesRb = document.getElementById('searchSitesRb')
+    searchSitesRb.checked = true
+
+    updateSitesSelectionMethod()
+}
 
