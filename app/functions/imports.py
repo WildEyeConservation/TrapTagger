@@ -3204,6 +3204,7 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
             translations[key] = label
         df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
         db.session.commit()
+        GLOBALS.s3client.delete_object(Bucket=destBucket, Key=key)
     
     except Exception as exc:
         app.logger.info(' ')
@@ -3298,7 +3299,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             df = df.drop_duplicates(subset=['filepath'], keep=False)
 
             # Remove all empty images including humans
-            empty_names = ['empty','nothing','unknown','none','fire','blank','human','null']
+            empty_names = ['unknown','none','fire','blank','human','null']
             df = df[~df['species'].str.contains('|'.join(empty_names), case=False)]
 
             # Remove all extra info
