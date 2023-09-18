@@ -3402,7 +3402,9 @@ def getJobs():
                                 Task.id, #temp replacement for Task.clusters_remaining
                                 Task.id, #availableJobsSQ.c.count,
                                 completeJobsSQ.c.count,
-                                Survey.name
+                                Survey.name,
+                                Task.init_complete,
+                                Task.is_bounding
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .join(User,Survey.user_id==User.id)\
                             .outerjoin(Worker, User.workers)\
@@ -3451,9 +3453,38 @@ def getJobs():
 
             jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[0]))
 
+            # Get the task type and species-level
+            if '-4' in item[1] or '-5' in item[1]:
+                task_type = 'Individual Identification'
+                species = re.split(',',item[1])[1]
+            elif '-3' in item[1]:
+                task_type = 'AI Species Check'
+                species = 'All'
+            elif '-2' in item[1]:
+                task_type = 'Informational Tagging'
+                if ',' in item[1]:
+                    species = db.session.query(Label).get(re.split(',',item[1])[1]).description
+                else:
+                    species = 'All'
+            elif '-1' in item[1]:
+                if item[7] == False:
+                    task_type = 'Species Labelling'
+                    species = 'Top-level'
+                else:
+                    task_type = 'Multi-Species Differentiation'
+                    species = 'All'
+            else:
+                if item[8] == False:
+                    task_type = 'Species Labelling'
+                else:
+                    task_type = 'Sighting Correction'
+                species = db.session.query(Label).get(item[1]).description
+
             taskInfo = {'id': item[0],
                         'name': item[6],
                         'tagging_level': item[1],
+                        'species': species,
+                        'type': task_type,
                         'total': item[2],
                         'remaining': clusters_remaining,
                         'jobsAvailable': jobsAvailable,
