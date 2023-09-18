@@ -25,6 +25,7 @@ var markersInPoly = []
 var allCheckboxes = {'S':[], 'M':[]} // S = sites tab, M = modal
 var selectedGroup = null
 var groupSites = {'S':[], 'M':[]} // S = sites tab, M = modal
+var groupSitesTags = {'S':[], 'M':[]} // S = sites tab, M = modal
 var site_col_count = {'S':0, 'M':0}
 var modalGroupsReturn = false
 var modalGroupsViewReturn = false
@@ -217,6 +218,7 @@ function addSiteToGroup(checkbox) {
                 if (colDivs[i].childNodes[0].id == checkbox.id) {
                     colDivs[i].childNodes[0].checked = true
                     groupSites[gID].push(checkbox.value)
+                    groupSitesTags[gID].push(checkbox.id.split('-')[0])
                     checkBoxExists = true
                     break
                 }
@@ -254,6 +256,7 @@ function addSiteToGroup(checkbox) {
             input.checked = true
 
             groupSites[gID].push(checkbox.value)
+            groupSitesTags[gID].push(checkbox.id.split('-')[0])
             site_col_count[gID] += 1
         }
     }
@@ -285,6 +288,7 @@ function removeSiteFromGroup(checkbox) {
     var index = groupSites[gID].indexOf(checkbox.value)
     if (index > -1) {
         groupSites[gID].splice(index, 1);
+        groupSitesTags[gID].splice(index, 1);
     }
 }
 
@@ -491,6 +495,7 @@ function saveSitesOnMap(){
                     if (colDivs[i].childNodes[0].value == site_ids) {
                         colDivs[i].childNodes[0].checked = true
                         groupSites[gID].push(site_ids)
+                        groupSitesTags[gID].push(tag)
                         checkBoxExists = true
                         break
                     }
@@ -528,6 +533,7 @@ function saveSitesOnMap(){
                 input.checked = true
                 
                 groupSites[gID].push(site_ids)
+                groupSitesTags[gID].push(tag)
                 site_col_count[gID] += 1
 
                 input.addEventListener('change', function() {
@@ -537,12 +543,14 @@ function saveSitesOnMap(){
                             var index = groupSites['M'].indexOf(this.value)
                             if (index > -1) {
                                 groupSites['M'].splice(index, 1);
+                                groupSitesTags['M'].splice(index, 1);
                             }
                         }
                         else {
                             var index = groupSites['S'].indexOf(this.value)
                             if (index > -1) {
                                 groupSites['S'].splice(index, 1);
+                                groupSitesTags['S'].splice(index, 1);
                             }
                         }
                     }
@@ -772,14 +780,19 @@ function buildGroup(group) {
                 
                     input.checked = true
                     groupSites['S'].push(site_ids)
+                    groupSitesTags['S'].push(tag)
                     site_col_count['S'] += 1
         
                     input.addEventListener('change', function() {
                         if (!this.checked) {
-                            groupSites['S'].splice(groupSites['S'].indexOf(this.value),1)
+                            var remIdx = groupSites["S"].indexOf(this.value)
+                            groupSites['S'].splice(remIdx,1)
+                            groupSitesTags['S'].splice(remIdx,1)
                         }
                         else {
                             groupSites['S'].push(this.value)
+                            var g_tag = this.id.split('-')[0]
+                            groupSitesTags['S'].push(g_tag)
                         }
                     });
                     
@@ -821,6 +834,7 @@ function buildGroup(group) {
 
             allCheckboxes[gID] = []
             groupSites[gID] = []
+            groupSitesTags[gID] = []
 
             for (let i=0;i<wrapGroup.sites.length;i++) {
                 var site = wrapGroup.sites[i]
@@ -861,14 +875,19 @@ function buildGroup(group) {
                 
                     input.checked = true
                     groupSites[gID].push(site_ids)
+                    groupSitesTags[gID].push(tag)
                     site_col_count[gID] += 1
         
                     input.addEventListener('change', function() {
                         if (!this.checked) {
-                            groupSites['M'].splice(groupSites["M"].indexOf(this.value),1)
+                            var remIdx = groupSites["M"].indexOf(this.value)
+                            groupSites['M'].splice(remIdx,1)
+                            groupSitesTags['M'].splice(remIdx,1)
                         }
                         else {
                             groupSites["M"].push(this.value)
+                            var g_tag = this.id.split('-')[0]
+                            groupSitesTags['M'].push(g_tag)
                         }
                     });
                     
@@ -1407,16 +1426,18 @@ function loadFromSites(){
     }
 
     var site_ids = groupSites['S']
+    var site_tags = groupSitesTags['S']
     var sites = []
     for (let i = 0; i < site_ids.length; i++) {
         sites.push({
             'ids': site_ids[i],
-            'text': globalSites[globalSitesIDs.indexOf(site_ids[i])]
+            'text': site_tags[i].split('_')[0] + ' (' + site_tags[i].split('_')[1] + ', ' + site_tags[i].split('_')[2] + ')'
         })
     }
 
     allCheckboxes[gID] = []
     groupSites[gID] = []
+    groupSitesTags[gID] = []
 
     console.log(sites)
 
@@ -1457,14 +1478,19 @@ function loadFromSites(){
         
             input.checked = true
             groupSites[gID].push(site_ids)
+            groupSitesTags[gID].push(tag)
             site_col_count[gID] += 1
 
             input.addEventListener('change', function() {
                 if (!this.checked) {
-                    groupSites['M'].splice(groupSites['M'].indexOf(this.value),1)
+                    remIdx = groupSites[gID].indexOf(this.value)
+                    groupSites['M'].splice(remIdx,1)
+                    groupSitesTags['M'].splice(remIdx,1)
                 }
                 else {
                     groupSites['M'].push(this.value)
+                    var g_tag = this.id.split('-')[0]
+                    groupSitesTags['M'].push(g_tag)
                 }
             });
             
@@ -1502,17 +1528,19 @@ modalGroups.on('hidden.bs.modal', function(){
             document.getElementById('groupErrors').innerHTML = '';
             allCheckboxes[gID] = []
             groupSites[gID] = []
+            groupSitesTags[gID] = []
             selectedGroup = null
             document.getElementById('groupHeader').innerHTML = ''
             site_col_count[gID] = 0
 
             modalViewGroups.modal({keyboard: true});
             isModalOpen = false
-            gID = 'S'
+            gID = 'M'
 
         }
         helpReturn = false
     }
+
 });
 
 modalSitesMap.on('hidden.bs.modal', function(){
@@ -1548,7 +1576,12 @@ modalViewGroups.on('show.bs.modal', function(){
 });
 
 modalViewGroups.on('hidden.bs.modal', function(){
-    gID = 'S'
+    if (isModalOpen){
+        gID = 'M'
+    }
+    else{
+        gID = 'S'
+    }
 });
 
 $('#btnSaveGroup').click( function() {
@@ -1612,6 +1645,7 @@ function initialiseGroups() {
 
     allCheckboxes[gID] = []
     groupSites[gID] = []
+    groupSitesTags[gID] = []
     site_col_count[gID] = 0
 
     var row = document.createElement('div')

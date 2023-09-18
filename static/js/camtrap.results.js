@@ -153,6 +153,10 @@ var globalTasks = {}
 var multipleAnnotationSets = false
 var selectedTasks = []
 var covariateSites = []
+var globalSummaryResults = null
+var globalActivityResults = null 
+var globalOccupancyResults = null
+var globalSCRResults = null
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -275,6 +279,10 @@ function generateResults(){
         resultsDiv = document.getElementById('resultsDiv')
         while(resultsDiv.firstChild){
             resultsDiv.removeChild(resultsDiv.firstChild)
+        }
+
+        if (globalSummaryResults) {
+            buildSummary(globalSummaryResults)
         }
     }
     else if (analysisType=='1') {
@@ -400,6 +408,11 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
+
+        if (globalActivityResults) {
+            generateActivity()
+            initialiseImageMap(globalActivityResults)
+        }
     }
     else if (analysisType=='6') {
         //Builds the selectors for the occupancy analysis
@@ -425,6 +438,10 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
+
+        if (globalOccupancyResults) {
+            buildOccupancyTabs(globalOccupancyResults)	
+        }
     }
     else if (analysisType=='7') {
         //Builds the selectors for spatial capture recapture analysis
@@ -450,6 +467,10 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = false
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
+
+        if (globalSCRResults) {
+            buildSCRtabs(globalSCRResults)
+        }
     }
     else{
         document.getElementById('btnExportResults').disabled = true
@@ -613,6 +634,10 @@ function disablePanel(){
         document.getElementById('btnViewScript').disabled = false
         document.getElementById('btnDownloadResultsCSV').disabled = true
         document.getElementById('speciesSelect').disabled = true
+        if (document.getElementById('maleSelector')) {
+            document.getElementById('maleSelector').disabled = true
+            document.getElementById('femaleSelector').disabled = true
+        }
     }
 
 }
@@ -757,6 +782,10 @@ function enablePanel(){
         document.getElementById('btnViewScript').disabled = false
         document.getElementById('btnDownloadResultsCSV').disabled = false
         document.getElementById('speciesSelect').disabled = false
+        if (document.getElementById('maleSelector')) {
+            document.getElementById('maleSelector').disabled = false
+            document.getElementById('femaleSelector').disabled = false
+        }
     }
     else{
         document.getElementById('cameraSelector').disabled = false;
@@ -798,33 +827,37 @@ function enablePanel(){
         document.getElementById('btnAddSpeciesR').disabled = false;
         document.getElementById('observationWindow').disabled = false;
         document.getElementById('indivCharSelector').disabled = false;
-
-        var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]');
-        var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]');
-        var allColourSelectors = document.querySelectorAll('[id^=colourSelect-]');
-        var allRemoveButtons = document.querySelectorAll('[id^=btnRemove-]');
-        for (let i = 0; i < allTrapgroupSelectors.length; i++) {
-            allTrapgroupSelectors[i].disabled = false;
-            allSpeciesSelectors[i].disabled = false;
-            allColourSelectors[i].disabled = false;
-            allRemoveButtons[i].disabled = false;
+        if (document.getElementById('maleSelector')) {
+            document.getElementById('maleSelector').disabled = false
+            document.getElementById('femaleSelector').disabled = false
         }
+
+        // var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]');
+        // var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]');
+        // var allColourSelectors = document.querySelectorAll('[id^=colourSelect-]');
+        // var allRemoveButtons = document.querySelectorAll('[id^=btnRemove-]');
+        // for (let i = 0; i < allTrapgroupSelectors.length; i++) {
+        //     allTrapgroupSelectors[i].disabled = false;
+        //     allSpeciesSelectors[i].disabled = false;
+        //     allColourSelectors[i].disabled = false;
+        //     allRemoveButtons[i].disabled = false;
+        // }
         
-        var allSpeciesSelectorsNum = document.querySelectorAll('[id^=speciesSelectNum-]');
-        var allColourSelectorsSpecies = document.querySelectorAll('[id^=colourSelectSpecies-]');
-        var allRemoveButtonsSpecies = document.querySelectorAll('[id^=btnRemoveSpecies-]');
-        for (let i = 0; i < allSpeciesSelectorsNum.length; i++) {
-            allSpeciesSelectorsNum[i].disabled = false;
-            allColourSelectorsSpecies[i].disabled = false;
-            allRemoveButtonsSpecies[i].disabled = false;
-        }
+        // var allSpeciesSelectorsNum = document.querySelectorAll('[id^=speciesSelectNum-]');
+        // var allColourSelectorsSpecies = document.querySelectorAll('[id^=colourSelectSpecies-]');
+        // var allRemoveButtonsSpecies = document.querySelectorAll('[id^=btnRemoveSpecies-]');
+        // for (let i = 0; i < allSpeciesSelectorsNum.length; i++) {
+        //     allSpeciesSelectorsNum[i].disabled = false;
+        //     allColourSelectorsSpecies[i].disabled = false;
+        //     allRemoveButtonsSpecies[i].disabled = false;
+        // }
 
-        var speciesSelectorsR = document.querySelectorAll('[id^=speciesSelector-]');
-        var removeButtonsR = document.querySelectorAll('[id^=btnRemoveSpeciesR-]');
-        for (let i = 0; i < speciesSelectorsR.length; i++) {
-            speciesSelectorsR[i].disabled = false;
-            removeButtonsR[i].disabled = false;
-        }
+        // var speciesSelectorsR = document.querySelectorAll('[id^=speciesSelector-]');
+        // var removeButtonsR = document.querySelectorAll('[id^=btnRemoveSpeciesR-]');
+        // for (let i = 0; i < speciesSelectorsR.length; i++) {
+        //     speciesSelectorsR[i].disabled = false;
+        //     removeButtonsR[i].disabled = false;
+        // }
     }
 }
 
@@ -2112,6 +2145,8 @@ function updateActivity(check=false){
                     document.getElementById('statisticsErrors').innerHTML = ''
                     enablePanel()
 
+                    globalActivityResults = image_url
+
                     if (image_url){
                         if (activeImage['mapDiv']) {
                             activeImage['mapDiv'].setUrl(image_url)
@@ -2411,7 +2446,8 @@ function getSelectedSites(text=false){
     var sites = []
     var groups = '-1'
     var allSites = groupSites['S']
-    var  allSitesChecked = document.getElementById('allSites-box').checked
+    var allSitesTags = groupSitesTags['S']
+    var allSitesChecked = document.getElementById('allSites-box').checked
 
     if (allSitesChecked) {
         sites = '0'
@@ -2423,11 +2459,9 @@ function getSelectedSites(text=false){
         }
         else{
             if (text) {
-                for (let i=0;i<allSites.length;i++) {
-                    sitesIndex = globalSitesIDs.indexOf(allSites[i])
-                    if (sitesIndex != -1){
-                        let split = globalSites[sitesIndex].split(' ')
-                        let site = split[0] + ',' + split[1].split('(')[1].split(',')[0] + ',' + split[2].split(')')[0]
+                for (let i=0;i<allSitesTags.length;i++) {
+                    if (allSitesTags[i].includes('_')){
+                        let site = allSitesTags[i].replace('_',',')
                         if(sites.indexOf(site) == -1){
                             sites.push(site)
                         }
@@ -3849,6 +3883,11 @@ function clearAnalysis(){
     barData = {}
     polarData = {}
     lineData = {} 
+
+    // globalSummaryResults = null
+    // globalActivityResults = null 
+    // globalOccupancyResults = null
+    // globalSCRResults = null
 }
 
 
@@ -4267,6 +4306,8 @@ function getSummary(check){
                     while(resultsTab.firstChild){
                         resultsTab.removeChild(resultsTab.firstChild);
                     }
+
+                    globalSummaryResults = reply.summary
 
                     buildSummary(reply.summary)
                 }
@@ -5949,6 +5990,8 @@ function updateOccupancy(check=false){
                     while(resultsTab.firstChild){
                         resultsTab.removeChild(resultsTab.firstChild)
                     }
+
+                    globalOccupancyResults = results
                     buildOccupancyTabs(results)
 
                 }
@@ -7766,6 +7809,8 @@ function updateSCR(check=false){
                     while(resultsTab.firstChild){
                         resultsTab.removeChild(resultsTab.firstChild)
                     }
+
+                    globalSCRResults = results
 
                     buildSCRtabs(results)
                 }
