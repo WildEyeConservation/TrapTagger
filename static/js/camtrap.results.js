@@ -286,7 +286,7 @@ function generateResults(){
         }
     }
     else if (analysisType=='1') {
-        //Builds the selectors for the temporal analysis
+        //Builds the selectors for the naive activity analysis
         document.getElementById('btnExportResults').disabled = false
         document.getElementById('chartTypeDiv').hidden = false
         document.getElementById('chartTypeSelector').value = 'polarArea'
@@ -308,7 +308,7 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= false
-        generateTemporal()
+        generateNaiveActivity()
     }
     else if (analysisType=='2') {
         //Builds the selectors for the spatial analysis
@@ -360,7 +360,7 @@ function generateResults(){
         generateNumerical()
     }
     else if (analysisType=='4') {
-        //Builds the selectors for the time series analysis
+        //Builds the selectors for the temporal analysis
         document.getElementById('btnExportResults').disabled = false
         document.getElementById('chartTypeDiv').hidden = false
         document.getElementById('chartTypeSelector').value = 'line'
@@ -382,7 +382,7 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = false
         document.getElementById('openChartTab').disabled= false
-        generateTime()
+        generateTemporal()
     }
     else if (analysisType=='5') {
         //Builds the selectors for the activity analysis
@@ -518,7 +518,7 @@ function disablePanel(){
         document.getElementById('btnCancelResults').disabled = false
     }
     else if (analysisType=='1') {
-        // Temporal analysis
+        // Naive Activity analysis
         document.getElementById('chartTypeSelector').disabled = true
         document.getElementById('normalisationSelector').disabled = true
         document.getElementById('trendlineSelector').disabled = true
@@ -568,7 +568,7 @@ function disablePanel(){
         }
     }
     else if (analysisType=='4') {
-        // Time series analysis
+        // Temporal analysis
         document.getElementById('chartTypeSelector').disabled = true
         document.getElementById('startDateTA').disabled = true
         document.getElementById('endDateTA').disabled = true
@@ -665,7 +665,7 @@ function enablePanel(){
         document.getElementById('btnCancelResults').disabled = true
     }
     else if (analysisType=='1') {
-        // Temporal analysis
+        // Naive Activity analysis
         document.getElementById('chartTypeSelector').disabled = false
         document.getElementById('normalisationSelector').disabled = false
         document.getElementById('trendlineSelector').disabled = false
@@ -715,7 +715,7 @@ function enablePanel(){
         }
     }
     else if (analysisType=='4') {
-        // Time series analysis
+        // Temporal analysis
         document.getElementById('chartTypeSelector').disabled = false
         document.getElementById('startDateTA').disabled = false
         document.getElementById('endDateTA').disabled = false
@@ -861,8 +861,8 @@ function enablePanel(){
     }
 }
 
-function generateTemporal(){
-    /** Updates the results div for temporal analysis */
+function generateNaiveActivity(){
+    /** Updates the results div for Naive Activity analysis */
     // Polar map
     mainDiv = document.getElementById('resultsDiv')
 
@@ -872,7 +872,7 @@ function generateTemporal(){
     mainDiv.appendChild(row)
 
     var h5 = document.createElement('h5');
-    h5.innerHTML = 'Temporal Analysis'
+    h5.innerHTML = 'Naive Activity Analysis'
     h5.setAttribute('style','margin-bottom: 2px')
     row.appendChild(h5);
 
@@ -883,7 +883,7 @@ function generateTemporal(){
     help.setAttribute('value', 'help');
     help.setAttribute('data-toggle', 'tooltip');
     help.setAttribute('title', 'Help');
-    help.setAttribute('onclick', 'helpOpen(\'temporal_analysis\')');
+    help.setAttribute('onclick', 'helpOpen(\'naive_activity_analysis\')');
     help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
     help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
     row.appendChild(help);
@@ -1307,8 +1307,8 @@ function generateNumerical(){
 
 }
 
-function generateTime(){
-    /** Updates the generate results div for time series analysis */
+function generateTemporal(){
+    /** Updates the generate results div for temporal analysis */
     // Line chart
     var mainDiv = document.getElementById('resultsDiv')
 
@@ -1318,7 +1318,7 @@ function generateTime(){
     mainDiv.appendChild(row)
 
     var h5 = document.createElement('h5');
-    h5.innerHTML = 'Time Analysis'
+    h5.innerHTML = 'Temporal Analysis'
     h5.setAttribute('style','margin-bottom: 2px')
     row.appendChild(h5);
 
@@ -1329,7 +1329,7 @@ function generateTime(){
     help.setAttribute('value', 'help');
     help.setAttribute('data-toggle', 'tooltip');
     help.setAttribute('title', 'Help');
-    help.setAttribute('onclick', 'helpOpen(\'time_analysis\')');
+    help.setAttribute('onclick', 'helpOpen(\'temporal_analysis\')');
     help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
     help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
     row.appendChild(help);
@@ -2821,7 +2821,9 @@ function updateChart(chartType){
         options: options
     });
 
-    updateTrendline()
+    if (analysisSelection != '3') {
+        updateTrendline()
+    }
 }
 
 function updateChartData(chartType, data, fillData){

@@ -1588,7 +1588,7 @@ function addData(data, colour, chartType, legend, IDkey){
     /** Adds data to the active chart */
     if (chartType=='line'){
         addLineData(data, colour, legend, IDkey)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
@@ -1597,13 +1597,13 @@ function addData(data, colour, chartType, legend, IDkey){
     }
     else if (chartType=='bar'){
         addBarData(data, colour, legend, IDkey)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector')&& document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
     else if (chartType=='scatter'){
         addScatterData(data, colour, legend, IDkey)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
@@ -1616,7 +1616,7 @@ function editData(data, colour, chartType, legend, IDkey){
     /** Edits the active chart's data */
     if (chartType=='line'){
         editLineData(data, IDkey, legend)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
@@ -1625,13 +1625,13 @@ function editData(data, colour, chartType, legend, IDkey){
     }
     else if (chartType=='bar'){
         editBarData(data, IDkey, legend)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
     else if (chartType=='scatter'){
         editScatterData(data, IDkey, legend)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
@@ -1644,7 +1644,7 @@ function removeData(IDkey, chartType){
     /** Removes data from the active chart */
     if (chartType=='line'){
         removeLineData(IDkey)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
@@ -1653,13 +1653,13 @@ function removeData(IDkey, chartType){
     }
     else if (chartType=='bar'){
         removeBarData(IDkey)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }
     else if (chartType=='scatter'){
         removeScatterData(IDkey)
-        if (document.getElementById('trendlineSelector')){
+        if (document.getElementById('trendlineSelector') && document.getElementById('analysisSelector').value!='3'){
             updateTrendline()
         }
     }

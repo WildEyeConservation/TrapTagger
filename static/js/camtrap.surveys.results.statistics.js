@@ -32,7 +32,7 @@ var chartColours = {
 }
 
 function buildPolarSelectorRow() {
-    /** Builds a new species selector row for the temporal analysis polar chart. */
+    /** Builds a new species selector row for the Naive Activity analysis polar chart. */
 
     IDNum = getIdNumforNext('trapgroupSelect')
     selectorColumn = document.getElementById('selectorColumn')
@@ -186,7 +186,7 @@ function buildBarSelectorRow() {
 }
 
 function createPolarChart() {
-    /** Initialises a temporal analysis polar chart. */
+    /** Initialises a Naive Activity analysis polar chart. */
 
     polarData = {}
 
@@ -1331,7 +1331,7 @@ function clearStatistics() {
 }
 
 function createLine(){
-    /** Creates the line chart for time analysis */
+    /** Creates the line chart for temporal analysis */
     lineData = {}
 
     var formData = new FormData();
@@ -1422,11 +1422,11 @@ function createLine(){
                     selectorDiv.appendChild(row)
 
                     var col0 = document.createElement('div')
-                    col0.classList.add('col-lg-4')
+                    col0.classList.add('col-lg-5')
                     row.appendChild(col0)
                 
                     var col1 = document.createElement('div')
-                    col1.classList.add('col-lg-6')
+                    col1.classList.add('col-lg-7')
                     row.appendChild(col1)
 
                     var input = document.createElement('input')

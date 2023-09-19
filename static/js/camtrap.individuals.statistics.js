@@ -623,7 +623,7 @@ function reScaleNormalisation(newScale) {
 }
 
 function createIndivPolarChart() {
-    /** Initialises a temporal analysis polar chart. */
+    /** Initialises a Naive Activity analysis polar chart. */
 
     polarData = {}
                     
@@ -880,7 +880,7 @@ function createIndivPolarChart() {
 }
 
 function buildSiteSelectorRow() {
-    /** Builds a new site selector row for the temporal analysis polar chart. */
+    /** Builds a new site selector row for the Naive Activity polar chart. */
     sites = []
     sites_id = []
     for (let i=0;i<allSites.length;i++) {
