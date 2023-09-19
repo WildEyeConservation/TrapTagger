@@ -3287,6 +3287,7 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id):
                         .filter(Camera.path==dirpath)\
                         .filter(Image.filename.in_(filenames))\
                         .distinct().all()
+        
         for cluster in clusters:
             cluster.labels = [label]
 
@@ -3298,8 +3299,10 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id):
                         .filter(Camera.path==dirpath)\
                         .filter(Image.filename.in_(filenames))\
                         .distinct().all()
+        
         for labelgroup in labelgroups:
             labelgroup.labels = [label]
+
         db.session.commit()
     
     except Exception as exc:
@@ -3354,10 +3357,11 @@ def pipeline_cluster_camera(self,camera_id,task_id):
             cluster = Cluster(task_id=task_id)
             db.session.add(cluster)
             cluster.images = [image]
-            for detection in image.detections:
-                labelgroup = Labelgroup(detection_id=detection.id,task_id=task_id,checked=False)
+            detection_ids = [r[0] for r in db.session.query(Detection.id).filter(Detection.image_id==image.id).all()]
+            for detection_id in detection_ids:
+                labelgroup = Labelgroup(detection_id=detection_id,task_id=task_id,checked=False)
                 db.session.add(labelgroup)
-            db.session.commit()
+        db.session.commit()
     
     except Exception as exc:
         app.logger.info(' ')
@@ -3452,13 +3456,14 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:
             results = []
-            for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
-                results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera.id,'task_id':task_id},queue='parallel'))
+            camera_ids = [r[0] for r in db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+            db.session.remove()
+            for camera_id in camera_ids:
+                results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera_id,'task_id':task_id},queue='parallel'))
 
             # Wait for processing to finish
             # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
             # See https://github.com/celery/celery/issues/4480
-            db.session.remove()
             GLOBALS.lock.acquire()
             with allow_join_result():
                 for result in results:
@@ -3480,7 +3485,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 db.session.commit()
 
                 # Create labels
-                translations = {}
+                # translations = {}
                 for species in df['species'].unique():
                     if species.lower() in ['nothing','empty','blank']:
                         label = db.session.query(Label).get(GLOBALS.nothing_id)
@@ -3488,7 +3493,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                         label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
                         db.session.add(label)
                         db.session.commit()
-                    translations[species] = label.id
+                    # translations[species] = label.id
 
                 # Run the folders in parallel
                 results = []
