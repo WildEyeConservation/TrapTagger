@@ -16,10 +16,39 @@ limitations under the License. -->
     Welcome to the Analysis page. Here, you can apply various analyses to your data and customize their parameters to gain insights from your survey.
 </p>
 
-<h4>Analysis Options</h4>
+<h4>Datasets</h4>
 
 <p>
-    The <strong>Analysis Options</strong> section allows you to choose from different analyses and configure their parameters. You can specify the species, sites, date range, data unit, and other necessary settings for each analysis. The following analyses are available:
+    The <strong>Datasets</strong> section allows you to select the datasets you want to analyze. You have the option to select 'All' surveys. If you have selected 'All' surveys,
+    you have to specify which annotation set to use for surveys that have multiple annotation sets. You can also select specific surveys and annotation sets.
+</p>
+
+<p> A date range filter can be specified to use across all analyses. Please note if no date range is specified, the full date range of the selected surveys will be used. </p>
+
+
+<h4>Sites</h4>
+
+<p>
+    The <strong>Sites</strong> section allows you to select the sites you want to analyze. You have the option to select 'All' sites or specific sites. You can select sites using the following
+    methods:
+</p>
+
+<ul>
+    <li><strong>Search:</strong> Search for sites by name or use the advanced search to search by regular expression. Once you have found the sites you want to select, click 'Select All' or select individual sites.</li>
+    <li><strong>Select on Map:</strong> Select sites by drawing a polygon on the map. Once you have drawn the polygon, click 'Save' to select the sites within the polygon.</li>
+    <li><strong>Load from Group:</strong> Select sites from a previously saved site group. Click 'Load Groups' to view your saved site groups and select the group you want to use.</li>
+</ul>
+
+<p>
+    The sites that will be used in the analyses will appear in the 'Sites' section. Only the checked sites will be used. You can uncheck sites to remove them from the analyses.
+    If you wish you can create a new site group from the selected sites by clicking 'Save Sites as Group'. 
+</p>
+
+
+<h4>Analysis</h4>
+
+<p>
+    The <strong>Analysis</strong> section allows you to choose from different analyses and configure their parameters. You can specify the species, sites, date range, data unit, and other necessary settings for each analysis. The following analyses are available:
 </p>
 
 <ol>
@@ -33,14 +62,9 @@ limitations under the License. -->
     <li><strong>Spatial Capture-Recapture</strong>: Estimations of density, abundance, and detection probabilities based on identified individuals.</li>
 </ol>
 
-<h4>Chart Options</h4>
+<h4>Chart</h4>
 
 <p>
-    In the <strong>Chart Options</strong> section, you can customize how your charts are displayed. Configure background colours, font colours, axis colours, borders, legends, and gridlines for your charts. Your selected chart options will be applied when exporting the charts. Note that specific chart types may have limitations on certain options.
+    In the <strong>Chart</strong> section, you can customize how your charts are displayed. Configure background colours, font colours, axis colours, borders, legends, and gridlines for your charts. Your selected chart options will be applied when exporting the charts. Note that specific chart types may have limitations on certain options.
 </p>
 
-<h4>Task Selection</h4>
-
-<p>
-    The <strong>Task Selection</strong> section allows you to choose which annotation sets should be used for your surveys in the analysis. By default, the first annotation set for each survey is selected. To save your task selection, click the "Save" button. Please note that the task selection will be saved only for the current analysis session, and it will reset if you refresh the page.
-</p>
