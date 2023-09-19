@@ -3253,40 +3253,54 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
 
     return True
 
-def extract_label(path,filename,species,translations,survey_id):
-    '''Helper function for extract_dirpath_labels that extracts the label for an individual row of the dataframe.'''
-    label = translations[species]
-    image = db.session.query(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Camera.path==path)\
-                        .filter(Image.filename==filename)\
-                        .first()
-    if label and image:
-        image.clusters[0].labels = [label]
-        labelgroups = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .filter(Detection.image_id==image.id)\
-                            .distinct().all()
-        for labelgroup in labelgroups:
-            labelgroup.labels = [label]
-    return True
+# def extract_label(path,filename,species,translations,survey_id):
+#     '''Helper function for extract_dirpath_labels that extracts the label for an individual row of the dataframe.'''
+#     label = translations[species]
+#     image = db.session.query(Image)\
+#                         .join(Camera)\
+#                         .join(Trapgroup)\
+#                         .filter(Trapgroup.survey_id==survey_id)\
+#                         .filter(Camera.path==path)\
+#                         .filter(Image.filename==filename)\
+#                         .first()
+#     if label and image:
+#         image.clusters[0].labels = [label]
+#         labelgroups = db.session.query(Labelgroup)\
+#                             .join(Detection)\
+#                             .filter(Detection.image_id==image.id)\
+#                             .distinct().all()
+#         for labelgroup in labelgroups:
+#             labelgroup.labels = [label]
+#     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=False)
-def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
+def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
     try:
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-            GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
-            df = pd.read_csv(temp_file.name)
-        for key in translations:
-            label = db.session.query(Label).get(translations[key])
-            translations[key] = label
-        df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
+        label = db.session.query(Label).get(label_id)
+
+        clusters = db.session.query(Cluster)\
+                        .join(Image,Cluster.images)\
+                        .join(Camera)\
+                        .filter(Cluster.task_id==task_id)\
+                        .filter(Camera.path==dirpath)\
+                        .filter(Image.filename.in_(filenames))\
+                        .distinct().all()
+        for cluster in clusters:
+            cluster.labels = [label]
+
+        labelgroups = db.session.query(Labelgroup)\
+                        .join(Detection)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Camera.path==dirpath)\
+                        .filter(Image.filename.in_(filenames))\
+                        .distinct().all()
+        for labelgroup in labelgroups:
+            labelgroup.labels = [label]
         db.session.commit()
-        GLOBALS.s3client.delete_object(Bucket=destBucket, Key=key)
     
     except Exception as exc:
         app.logger.info(' ')
@@ -3300,6 +3314,34 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
         db.session.remove()
 
     return True
+
+# @celery.task(bind=True,max_retries=29,ignore_result=False)
+# def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
+#     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
+    
+#     try:
+#         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+#             GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
+#             df = pd.read_csv(temp_file.name)
+#         for key in translations:
+#             label = db.session.query(Label).get(translations[key])
+#             translations[key] = label
+#         df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
+#         db.session.commit()
+#         GLOBALS.s3client.delete_object(Bucket=destBucket, Key=key)
+    
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+#     finally:
+#         db.session.remove()
+
+#     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=False)
 def pipeline_cluster_camera(self,camera_id,task_id):
@@ -3449,11 +3491,13 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 results = []
                 for dirpath in df['dirpath'].unique():
                     dirpathDF = df.loc[df['dirpath'] == dirpath]
-                    key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-                        dirpathDF.to_csv(temp_file.name,index=False)
-                        GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
-                    results.append(extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey_id,'destBucket':bucketName},queue='parallel'))
+                    # key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
+                    # with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    #     dirpathDF.to_csv(temp_file.name,index=False)
+                    #     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                    for species in dirpathDF['species'].unique():
+                        filenames = dirpathDF[dirpathDF['species']==species]['filename'].unique()
+                        results.append(extract_dirpath_labels.apply_async(kwargs={'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id},queue='parallel'))
 
                 # Wait for processing to finish
                 # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
