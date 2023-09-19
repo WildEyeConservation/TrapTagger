@@ -3482,9 +3482,12 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 # Create labels
                 translations = {}
                 for species in df['species'].unique():
-                    label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
-                    db.session.add(label)
-                    db.session.commit()
+                    if species.lower() in ['nothing','empty','blank']:
+                        label = db.session.query(Label).get(GLOBALS.nothing_id)
+                    else:
+                        label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
+                        db.session.add(label)
+                        db.session.commit()
                     translations[species] = label.id
 
                 # Run the folders in parallel
