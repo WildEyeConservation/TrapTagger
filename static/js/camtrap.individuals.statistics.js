@@ -1781,16 +1781,75 @@ function createIndivLine() {
     h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     selectorDiv.appendChild(h5)
 
+    var row = document.createElement('div')
+    row.classList.add('row')
+    selectorDiv.appendChild(row)
+
+    var colt0 = document.createElement('div')
+    colt0.classList.add('col-lg-5')
+    row.appendChild(colt0)
+
+    var colt1 = document.createElement('div')
+    colt1.classList.add('col-lg-7')
+    row.appendChild(colt1)
+
+    var input = document.createElement('input')
+    input.setAttribute('type','number')
+    input.setAttribute('id','timeUnitNumber')
+    input.setAttribute('class','form-control')
+    input.setAttribute('min','1')
+    input.setAttribute('value','1')
+    input.setAttribute('step','1')
+    colt0.appendChild(input)
+
+    $("#timeUnitNumber").change( function() {
+        var timeUnitNumber = this.value
+        var valid = true
+        var error = document.getElementById('timeUnitError')
+        var message = ''
+    
+        if (timeUnitNumber == '') {
+            valid = false
+            message = 'Time unit cannot be empty. Please enter a number.'
+        }
+        else if (timeUnitNumber < 1) {
+            valid = false
+            message = 'Time unit must be greater than 0.'
+        }
+        else if (timeUnitNumber > 100) {
+            valid = false
+            message = 'Time unit must be less than 100. Change the time unit to a larger unit.'
+        }
+        else if (parseFloat(timeUnitNumber) != parseInt(timeUnitNumber) ){
+            valid = false
+            message = 'Time unit must be an integer.'
+        }
+
+        if (valid) {
+            error.innerHTML = ''
+            updateLine()
+        }
+        else{
+            error.innerHTML = message
+        }
+    });
+
     var select = document.createElement('select')
     select.classList.add('form-control')
     select.setAttribute('id','timeUnitSelector')
-    selectorDiv.appendChild(select)
+    colt1.appendChild(select)
 
     fillSelect(select, ['Day', 'Month', 'Year'], ['1','2','3'])
     $("#timeUnitSelector").change( function() {
         updateLine()
     });
     select.value = '2'
+
+    var timeUnitErrors = document.createElement('div')
+    timeUnitErrors.setAttribute('id', 'timeUnitError')
+    timeUnitErrors.setAttribute('style', 'color: #DF691A; font-size: 80%')
+    timeUnitErrors.innerHTML = ''
+    selectorDiv.appendChild(timeUnitErrors)
 
     selectorDiv.appendChild(document.createElement('br'))
     
@@ -1898,6 +1957,7 @@ function updateLineData(IDNum=0) {
     var endDateTime = document.getElementById('endDateTime').value
     var baseUnit = document.getElementById('baseUnitSelector').value
     var timeUnit = document.getElementById('timeUnitSelector').value
+    var timeUnitNumber = document.getElementById('timeUnitNumber').value
     var trapgroupSelector = document.getElementById('trapgroupSelect-'+IDNum);
     var trapgroup = trapgroupSelector.options[trapgroupSelector.selectedIndex].value
 
@@ -1921,6 +1981,7 @@ function updateLineData(IDNum=0) {
     formData.append('individual_id',JSON.stringify(selectedIndividual))
     formData.append('baseUnit',JSON.stringify(baseUnit))
     formData.append('timeUnit',JSON.stringify(timeUnit))
+    formData.append('timeUnitNumber',JSON.stringify(timeUnitNumber))
     formData.append('trapgroup',JSON.stringify(trapgroup))
 
     if (trapgroup!='-1') {

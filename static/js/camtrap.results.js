@@ -2895,6 +2895,10 @@ function checkTimeUnit(){
         valid = false
         message = 'Time unit must be less than 100. Change the time unit to a larger unit.'
     }
+    else if (parseFloat(timeUnitNumber) != parseInt(timeUnitNumber) ){
+        valid = false
+        message = 'Time unit must be an integer.'
+    }
 
     if (valid) {
         error.innerHTML = ''
