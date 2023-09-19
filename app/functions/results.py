@@ -1942,7 +1942,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 #     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def generate_training_csv(self,tasks,destBucket,min_area):
+def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
     '''
     Generates a csv file for classification trainingg purposes.
 
@@ -1958,7 +1958,8 @@ def generate_training_csv(self,tasks,destBucket,min_area):
             task = db.session.query(Task).get(task_id)
 
             # we want to include all child-level labels
-            labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
+            labels = [r[0] for r in db.session.query(Label.id).filter(Label.task_id==task_id).filter(~Label.children.any()).all()]
+            if include_empties: labels.append(GLOBALS.nothing_id)
 
             df = pd.read_sql(db.session.query(\
                         Detection.id.label('detection_id'),\
@@ -1976,7 +1977,7 @@ def generate_training_csv(self,tasks,destBucket,min_area):
                         .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
                         .join(Label,Labelgroup.labels)\
                         .filter(Labelgroup.task_id==task_id)\
-                        .filter(Label.id.in_([r.id for r in labels]))\
+                        .filter(Label.id.in_(labels))\
                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static == False)\
@@ -2039,7 +2040,7 @@ def generate_training_csv(self,tasks,destBucket,min_area):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def crop_survey_images(self,task_id,min_area,destBucket):
+def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
     '''
     Helper task for generate_training_csv that allows the image-cropping process to be parallelised.
 
@@ -2054,6 +2055,8 @@ def crop_survey_images(self,task_id,min_area,destBucket):
 
         # we want to include all child-level labels
         labels = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
+        labels = [r[0] for r in db.session.query(Label.id).filter(Label.task_id==task_id).filter(~Label.children.any()).all()]
+        if include_empties: labels.append(GLOBALS.nothing_id)
 
         df = pd.read_sql(db.session.query(\
                     Detection.id.label('detection_id'),\
@@ -2071,7 +2074,7 @@ def crop_survey_images(self,task_id,min_area,destBucket):
                     .join(Labelgroup,Labelgroup.detection_id==Detection.id)\
                     .join(Label,Labelgroup.labels)\
                     .filter(Labelgroup.task_id==task_id)\
-                    .filter(Label.id.in_([r.id for r in labels]))\
+                    .filter(Label.id.in_(labels))\
                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static == False)\
