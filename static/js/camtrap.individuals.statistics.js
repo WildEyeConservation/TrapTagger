@@ -17,6 +17,8 @@ var timeLabels = []
 var polarData = {}
 var barData = {}
 var lineData = {}
+var activeBaseLayer = null
+var spatialExportControl = null
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
                     'rgba(223,105,26,0.2)':false,
@@ -160,6 +162,7 @@ function createIndivMap() {
                     mapStats._controlCorners['bottomleft'].firstChild.style.marginBottom = "25px";
                     mapStats._controlCorners['bottomright'].style.marginBottom = "14px";
                 }
+                activeBaseLayer = e
             });
 
             markers = []
@@ -188,6 +191,8 @@ function createIndivMap() {
             if(markers.length == 1) {
                 mapStats.setZoom(10)
             }
+
+            spatialExportControl = L.control.bigImage({position: 'topright', maxScale: 1}).addTo(mapStats);
 
             h5 = document.createElement('h5')
             h5.innerHTML = 'Date'
@@ -2143,7 +2148,22 @@ function exportIndivResults(){
         link.download = 'chart.png';
         link.href = image;
         link.click();
-    }    
+    }
+    else{
+        if (spatialExportControl){
+            if (activeBaseLayer.name.includes('Google')){
+                document.getElementById('statisticsErrors').innerHTML = 'Cannot export analysis with Google map. The analysis will be exported with the OpenStreetMaps Satellite map.'
+                var baseLayer = baseMaps['OpenStreetMaps Satellite']
+                mapStats.removeLayer(activeBaseLayer)
+                mapStats.addLayer(baseLayer)
+                activeBaseLayer = baseLayer
+                spatialExportControl._print();
+            }
+            else{
+                spatialExportControl._print();
+            }  
+        }
+    }  
 }
 
 

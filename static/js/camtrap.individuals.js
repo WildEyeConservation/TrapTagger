@@ -1308,7 +1308,7 @@ function initialiseStats(){
     }
     else if(statsSelect.value == '2'){
         statisticsDiv.appendChild(document.createElement('br'))
-        document.getElementById('btnExportIndivStats').disabled = true
+        document.getElementById('btnExportIndivStats').disabled = false
         createIndivMap()
     }
     else if(statsSelect.value == '3'){
