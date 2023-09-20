@@ -3274,33 +3274,39 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
 #     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=False)
-def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id):
+def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
     try:
         label = db.session.query(Label).get(label_id)
 
-        clusters = db.session.query(Cluster)\
-                        .join(Image,Cluster.images)\
+        images = db.session.query(Image)\
                         .join(Camera)\
-                        .filter(Cluster.task_id==task_id)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==survey)\
                         .filter(Camera.path==dirpath)\
                         .filter(Image.filename.in_(filenames))\
                         .distinct().all()
-        
-        for cluster in clusters:
+
+        for image in images:
+            image.detection_rating = 1
+            cluster = Cluster(task_id=task_id)
+            db.session.add(cluster)
+            cluster.images = [image]
             cluster.labels = [label]
 
-        labelgroups = db.session.query(Labelgroup)\
-                        .join(Detection)\
+        detections = [r[0] for r in db.session.query(Detection.id)\
                         .join(Image)\
                         .join(Camera)\
-                        .filter(Labelgroup.task_id==task_id)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==survey)\
                         .filter(Camera.path==dirpath)\
                         .filter(Image.filename.in_(filenames))\
-                        .distinct().all()
+                        .distinct().all()]
         
-        for labelgroup in labelgroups:
+        for detection_id in detection_ids:
+            labelgroup = Labelgroup(detection_id=detection_id,task_id=task_id,checked=False)
+            db.session.add(labelgroup)
             labelgroup.labels = [label]
 
         db.session.commit()
@@ -3448,44 +3454,45 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             #import from S3 folder
             import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,user_id,True,min_area,exclusions,4,label_source)
 
-        # Cluster survey
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
-        survey.status = 'Clustering'
-        db.session.commit()
-
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:
-            results = []
-            camera_ids = [r[0] for r in db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
-            db.session.remove()
-            for camera_id in camera_ids:
-                results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera_id,'task_id':task_id},queue='parallel'))
 
-            # Wait for processing to finish
-            # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-            # See https://github.com/celery/celery/issues/4480
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()        
+            if not fileAttached:
+                # Cluster survey
+                survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
+                survey.status = 'Clustering'
+                db.session.commit()
+                results = []
+                camera_ids = [r[0] for r in db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+                db.session.remove()
+                for camera_id in camera_ids:
+                    results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera_id,'task_id':task_id},queue='parallel'))
 
-            # Extract labels:
-            if fileAttached:
+                # Wait for processing to finish
+                # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+                # See https://github.com/celery/celery/issues/4480
+                GLOBALS.lock.acquire()
+                with allow_join_result():
+                    for result in results:
+                        try:
+                            result.get()
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                        result.forget()
+                GLOBALS.lock.release()        
+
+            else:
+                # Extract labels:
                 survey = db.session.query(Survey).get(survey_id)
                 survey.status = 'Extracting Labels'
                 db.session.commit()
 
                 # Create labels
-                # translations = {}
+                translations = {}
                 for species in df['species'].unique():
                     if species.lower() in ['nothing','empty','blank']:
                         label = db.session.query(Label).get(GLOBALS.nothing_id)
@@ -3493,7 +3500,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                         label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
                         db.session.add(label)
                         db.session.commit()
-                    # translations[species] = label.id
+                    translations[species] = label.id
 
                 # Run the folders in parallel
                 results = []
@@ -3505,7 +3512,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                     #     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
                     for species in df[df['dirpath'] == dirpath]['species'].unique():
                         filenames = df[(df['dirpath'] == dirpath) & (df['species']==species)]['filename'].unique()
-                        results.append(extract_dirpath_labels.apply_async(kwargs={'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id},queue='parallel'))
+                        results.append(extract_dirpath_labels.apply_async(kwargs={'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id,'survey_id':survey_id},queue='parallel'))
 
                 # Wait for processing to finish
                 # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
