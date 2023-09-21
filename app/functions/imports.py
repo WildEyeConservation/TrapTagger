@@ -2045,7 +2045,6 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 already_processed = [r[0] for r in localsession.query(Video.filename)\
                                             .join(Camera)\
                                             .filter(Camera.trapgroup_id==trapgroup.id)\
-                                            .filter(Video.filename.in_(videos))\
                                             .filter(Camera.path.contains(dirpath+'/_video_images_/'))\
                                             .all()]
 
@@ -2100,7 +2099,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 tid=trapgroup.id
 
                 already_processed = [r[0] for r in localsession.query(Image.filename)\
-                                            .filter(Camera==camera)\
+                                            .filter(Image.camera==camera)\
                                             .all()]
 
                 to_process = [filename for filename in jpegs if filename not in already_processed]
