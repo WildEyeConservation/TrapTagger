@@ -3510,7 +3510,7 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                     #     dirpathDF.to_csv(temp_file.name,index=False)
                     #     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
                     for species in df[df['dirpath'] == dirpath]['species'].unique():
-                        filenames = df[(df['dirpath'] == dirpath) & (df['species']==species)]['filename'].unique()
+                        filenames = list(df[(df['dirpath'] == dirpath) & (df['species']==species)]['filename'].unique())
                         results.append(extract_dirpath_labels.apply_async(kwargs={'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id,'survey_id':survey_id},queue='parallel'))
 
                 # Wait for processing to finish
