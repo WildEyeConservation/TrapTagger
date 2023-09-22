@@ -3282,7 +3282,7 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
         images = db.session.query(Image)\
                         .join(Camera)\
                         .join(Trapgroup)\
-                        .filter(Trapgroup.survey==survey)\
+                        .filter(Trapgroup.survey_id==survey_id)\
                         .filter(Camera.path==dirpath)\
                         .filter(Image.filename.in_(filenames))\
                         .distinct().all()
@@ -3294,11 +3294,11 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
             cluster.images = [image]
             cluster.labels = [label]
 
-        detections = [r[0] for r in db.session.query(Detection.id)\
+        detection_ids = [r[0] for r in db.session.query(Detection.id)\
                         .join(Image)\
                         .join(Camera)\
                         .join(Trapgroup)\
-                        .filter(Trapgroup.survey==survey)\
+                        .filter(Trapgroup.survey_id==survey_id)\
                         .filter(Camera.path==dirpath)\
                         .filter(Image.filename.in_(filenames))\
                         .distinct().all()]
