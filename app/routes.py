@@ -6345,7 +6345,7 @@ def editSightings(image_id,task_id):
 
                     for detID in detectionsDict:
 
-                        if detectionsDict[detID]['label'] in ['Vehicles/Humans/Livestock','Unknown']:
+                        if detectionsDict[detID]['label'] in ['Vehicles/Humans/Livestock','Unknown','Nothing']:
                             label = db.session.query(Label).filter(Label.description==detectionsDict[detID]['label']).first()
                         else:
                             label = db.session.query(Label).filter(Label.task_id==int(task_id)).filter(Label.description==detectionsDict[detID]['label']).first()
