@@ -3720,3 +3720,22 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
 
     return True
+
+@celery.task(bind=True,max_retries=29)
+def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):   
+    try:
+        for image_id in images:
+            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    
+    finally:
+        db.session.remove()
+
+    return True
