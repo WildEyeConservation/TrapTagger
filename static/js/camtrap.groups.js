@@ -105,6 +105,7 @@ function searchSites() {
 
             $('#' + input.id).change( function() {
                 /** Listens for changes in the select all check box and selects or unselects all boxes */
+                document.getElementById('allSites-box').checked = false
                 for (let i = 0; i < allCheckboxes[gID].length; i++) {
                     document.getElementById(allCheckboxes[gID][i]).checked = this.checked
                     if (this.checked) {

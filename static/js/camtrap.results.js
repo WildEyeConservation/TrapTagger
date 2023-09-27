@@ -2491,7 +2491,7 @@ function getActivityPatternCSV(check=false){
                 // console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
-                    csv_url = reply.activity_url
+                    csv_url = reply.activity_results.activity_url
                     filename = csv_url.split('/')[csv_url.split('/').length-1]
                     
                     var link = document.createElement('a');
