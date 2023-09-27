@@ -2544,7 +2544,7 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
     return True
 
 @celery.task(bind=True,soft_time_limit=82800)
-def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit):
+def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit, normaliseBySite):
     ''' Calculates the results summary '''
     try:
         summary = {}
@@ -2830,9 +2830,6 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
             }
 
             summary['summary_indexes'] = summary_indexes
-            
-            # Species abundance
-            summary['species_count'] = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
 
             # Camera Trap effort
             if trapUnit == '0':  # Sites
@@ -3125,6 +3122,65 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                 # Convert the DataFrame to a list of dictionaries
                 summary['unit_counts'] = group_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
 
+
+            # Species abundance
+            if normaliseBySite: # Normalise by site effort (Relative Abundance)
+                trapgroups = db.session.query(
+                                        Trapgroup.tag, 
+                                        Trapgroup.latitude, 
+                                        Trapgroup.longitude,
+                                        func.count(distinct(func.date(Image.corrected_timestamp)))
+                                    )\
+                                    .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                    .join(Image)\
+                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                    .filter(Trapgroup.survey_id.in_(survey_ids))
+                                        
+
+                if sites and sites != '0' and sites != '-1' and groups and groups != '0' and groups != '-1':
+                    trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(sites), Sitegroup.id.in_(groups)))
+                elif sites and sites != '0' and sites != '-1':
+                    trapgroups = trapgroups.filter(Trapgroup.id.in_(sites))
+                elif groups and groups != '0' and groups != '-1':
+                    trapgroups = trapgroups.filter(Sitegroup.id.in_(groups))
+
+                trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
+
+                site_counts = pd.DataFrame(trapgroups, columns=['name', 'latitude', 'longitude', 'count'])
+                label_list.append(GLOBALS.unknown_id)
+                species_df = df[~df['label_id'].isin(label_list)].copy()
+                species_df = species_df[['id','label_id','species', 'name', 'latitude', 'longitude']]
+                species_df.drop_duplicates(subset=['id','species', 'name', 'latitude', 'longitude'], inplace=True)	
+
+                species_df['count'] = 1
+                species_df = species_df.groupby(['species', 'name', 'latitude', 'longitude'])['count'].sum().reset_index()
+
+                site_counts.rename(columns={'count': 'effort_days'}, inplace=True)
+
+                # create empty new dataframe where we will store the new values
+                new_df = pd.DataFrame(columns=['species', 'name', 'latitude', 'longitude', 'count', 'effort_days'])
+                for species in species_df['species'].unique():
+                    species_df_temp = species_df[species_df['species'] == species]
+                    species_df_temp = species_df_temp.merge(site_counts, on=['name', 'latitude', 'longitude'], how='outer')
+                    species_df_temp['count'] = species_df_temp['count'].fillna(0)
+                    species_df_temp['species'] = species
+                    new_df = new_df.append(species_df_temp)
+
+                species_df = new_df.reset_index(drop=True)
+
+                # calculate abundance
+                species_df['count'] = species_df['count'].astype(float)
+                species_df['effort_days'] = species_df['effort_days'].astype(float)
+                species_df['abundance'] = species_df['count']/species_df['effort_days'] * 100
+                
+                species_df = species_df.groupby('species')['abundance'].mean().reset_index()
+                species_df['abundance'] = species_df['abundance'].round(3)
+                species_df.rename(columns={'abundance': 'count'}, inplace=True)
+                summary['species_count'] = species_df.sort_values(by='count', ascending=False).to_dict(orient='records')
+
+            else: # Total counts (Absolute Abundance)
+                summary['species_count'] = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
+
         status = 'SUCCESS'
         error = None
 
@@ -3146,6 +3202,16 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
 def clean_up_R_results(self,R_type, user_folder):
     ''' Deletes any R results files for the given user folder and R type '''
     try: 
+        # Check if delete file task is already in queue
+        scheduled_files = []
+        inspector = celery.control.inspect()
+        inspector_scheduled = inspector.scheduled()
+
+        for worker in inspector_scheduled:
+            for task in inspector_scheduled[worker]:
+                if 'deleteFile' in task['request']['name']:
+                        scheduled_files.append(task['request']['kwargs']['fileName'])
+
         if R_type == 'activity':
             isFile = re.compile('^Activity_Pattern_', re.I)
 
@@ -3154,6 +3220,8 @@ def clean_up_R_results(self,R_type, user_folder):
 
         elif R_type == 'scr':
             isFile = re.compile('^SCR_', re.I)
+        else:
+            isFile = re.compile('^(Activity_Pattern_|Occupancy_|SCR_)', re.I)
 
         sourceBucket = Config.BUCKET
         s3Folder = user_folder + '/docs'
@@ -3164,7 +3232,8 @@ def clean_up_R_results(self,R_type, user_folder):
             files = list(filter(isFile.search, filenames))
             for file in files:
                 fileName = s3Folder + '/' + file
-                deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                if fileName not in scheduled_files:
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
     except:
         pass

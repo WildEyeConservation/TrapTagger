@@ -193,7 +193,7 @@ limitations under the License. -->
 
                     <div id="cameraTrapDiv" hidden>
                         <h5 style="margin-bottom: 2px">Camera Trap</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Please select whether you want to evaluate by site or by camera for the camera trap summaryresults.</i></div>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Please select whether you want to evaluate by site or by camera for the camera trap summary results.</i></div>
                         <div class="row">
                             <div class='col-lg-10'>
                                 <select id="cameraSelector" class='form-control'>
@@ -245,6 +245,20 @@ limitations under the License. -->
                                 <option value="2">Normalised</option>
                             </select>
                         </div>
+                        </div>
+                        <br>
+                    </div>
+
+                    <div id="relativeAbundanceDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Relative Abundance Index</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>RAI is a measure of how many data units of a species would be expected if a site was operational for 100 days in an area. </i></div>
+                        <div class="row">
+                            <div class="col-lg-10">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="normaliseBySiteEffort" name="normaliseBySiteEffort">
+                                    <label class="custom-control-label" for="normaliseBySiteEffort">Normalise by Site Effort Days</label>
+                                </div>
+                            </div>
                         </div>
                         <br>
                     </div>
@@ -337,6 +351,59 @@ limitations under the License. -->
                             <div class="col-lg-12">
                                 <button type='button' class='btn btn-primary btn-block' id='btnCreateCovariates' onclick=buildCovariates()>Enter Covariates</button>
                             </div>
+                        </div>
+                        <br>
+                    </div>
+
+                    <div id="shapefileDiv" hidden>
+                        <h5 style="margin-bottom: 2px">State Space</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select whether you would like to mask your state space otherwise the full state space including a buffer will be used.</i></div>
+                        <div class="row">
+                            <div class="col-lg-10">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="maskArea" name="maskArea">
+                                    <label class="custom-control-label" for="maskArea">Mask Area for State Space</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="shapefileOptionsDiv" hidden>
+                            <div class="row">
+                                <div class="col-lg-10">
+                                    <div class="custom-control custom-radio custom-control-inline">
+                                        <input type="radio" class="custom-control-input" id="rbUploadShp" name="maskAreaOption" value='1' checked>
+                                        <label class="custom-control-label" for="rbUploadShp">Upload Shapefile</label>
+                                    </div>
+                                    <div class="custom-control custom-radio custom-control-inline">
+                                        <input type="radio" class="custom-control-input" id="rbDrawPoly" name="maskAreaOption" value='2'>
+                                        <label class="custom-control-label" for="rbDrawPoly">Draw polygon on map</label>
+                                    </div> 
+                                </div>
+                            </div>
+                            <div id="uploadShpDiv">
+                                <div class="row">
+                                    <div class="col-lg-12">
+                                        <label for="shapefileInput">Upload .shp file:</label>
+                                        <input type="file" id="shapefileInput" name="shapefileInput" accept=".shp">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-lg-12">
+                                        <label for="shxfileInput">Upload .shx file:</label>
+                                        <input type="file" id="shxfileInput" name="shxfileInput" accept=".shx">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="drawPolygonDiv" hidden>
+                                <div class="row">
+                                    <div class="col-lg-12">
+                                        <button type='button' class='btn btn-primary btn-block' id='btnDrawPolygon'>Draw Polygon</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="maskErrors" style="font-size: 80%; color: #DF691A"></div>	
+
                         </div>
                         <br>
                     </div>
@@ -791,7 +858,7 @@ limitations under the License. -->
         <div class="modal-body">
             <div id="drawSitesDiv">
                 <h5 style="margin-bottom: 2px">Instruction</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Draw an area around the sites on the map which you want to include in your group. </i></div>
+                <div id=drawMapInstruction style="font-size: 80%; margin-bottom: 2px"><i> </i></div>
                 <div id="mapSiteErrors" style="font-size: 80%; color: #DF691A"></div>
                 <br>
                 <div id="mapSitesDiv" style="min-height: 400px;"></div>

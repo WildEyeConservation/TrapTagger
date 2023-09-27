@@ -64,7 +64,7 @@ function searchSites() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply);
+            // console.log(reply);
 
             var row = document.createElement('div')
             row.setAttribute('class','row')
@@ -432,8 +432,26 @@ function initialiseSitesMap() {
                 mapSites.on(L.Draw.Event.CREATED, function (event) {
                     var layer = event.layer;
                     var polygon = layer
-                    drawnItems.addLayer(layer);
+                    drawnItems.addLayer(polygon);
                 });
+
+                if (tabActive == 'baseAnalysisDiv'){
+                    if (ssPolygon != null){
+                        var polygonCoords =  ssPolygon.geometry.coordinates[0]
+                        for (let i=0;i<polygonCoords.length - 1;i++) {
+                            var temp = polygonCoords[i][0]
+                            polygonCoords[i][0] = polygonCoords[i][1]
+                            polygonCoords[i][1] = temp
+                        }
+
+                        var polygon = L.polygon(polygonCoords).addTo(mapSites);
+                        polygon.setStyle({
+                            color: "rgba(223,105,26,1)"
+                        });
+                        drawnItems.addLayer(polygon);
+                        mapSites.fitBounds(polygon.getBounds().pad(0.1))
+                    }
+                }
 
             }
         }
@@ -643,7 +661,7 @@ function getGroups() {
         if (this.readyState == 4 && this.status == 200) {
             var reply = JSON.parse(this.responseText);
             var groups = reply.groups
-            console.log(groups)
+            // console.log(groups)
             if (groups.length == 0) {
                 var noGroups = document.createElement('h5')
                 noGroups.align = 'center'
@@ -749,8 +767,7 @@ function buildGroup(group) {
                 var site_text = site_tag + ' (' + site_lat + ', ' + site_lng + ')'
                 var site_ids = site.ids
                 var tag = site_tag + '_' + site_lat + '_' + site_lng
-
-                if (!groupSites['S'].includes(site_ids)) {
+                if (!groupSitesTags['S'].includes(tag)) {
         
                     if (site_col_count['S'] == 4) {
                         site_col_count['S'] = 0
@@ -1090,7 +1107,20 @@ function updateSitesSelectionMethod(){
         $('#'+btnDrawSitesMapId).click( function() {
             /** Listens for clicks on the draw sites map button and opens the map modal */
             allCheckboxes[gID] = []
+
+            if (mapSites != null) {
+                mapSites.remove()
+                mapSites = null
+            }
+
+            var mapSitesDiv = document.getElementById('mapSitesDiv')
+            while(mapSitesDiv.firstChild) {
+                mapSitesDiv.removeChild(mapSitesDiv.firstChild);
+            }
+
             initialiseSitesMap();
+
+            document.getElementById('drawMapInstruction').innerHTML = 'Draw an area around the sites on the map which you want to include in your group.'
 
             modalSiteActive = true
             // modalGroups.modal('hide');
@@ -1439,8 +1469,6 @@ function loadFromSites(){
     groupSites[gID] = []
     groupSitesTags[gID] = []
 
-    console.log(sites)
-
     for (let i=0;i<sites.length;i++) {
         var site = sites[i]
         var site_text = site.text
@@ -1597,9 +1625,15 @@ $('#btnSaveGroup').click( function() {
 });
 
 $('#btnSaveSitesOnMap').click( function() {
-    markersInPoly = []
-    document.getElementById('allSites-box').checked = false
-    saveSitesOnMap()
+    if (tabActive == 'baseSitesDiv') {
+        markersInPoly = []
+        document.getElementById('allSites-box').checked = false
+        saveSitesOnMap()
+    }
+    else{
+        ssPolygon = null
+        savePolygon()
+    }
 });
 
 $('#searchSitesRb, #searchSitesRbM').change( function() {

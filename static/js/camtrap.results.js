@@ -157,6 +157,7 @@ var globalSummaryResults = null
 var globalActivityResults = null 
 var globalOccupancyResults = null
 var globalSCRResults = null
+var ssPolygon = null
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -176,7 +177,7 @@ function getLabelsSitesTagsAndGroups(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             globalLabels = reply.labels
             globalTags = reply.tags
             globalSites = []
@@ -271,15 +272,13 @@ function generateResults(){
         document.getElementById('btnDownloadResultsCSV').hidden = true
         document.getElementById('covariatesDiv').hidden = true
         document.getElementById('observationWindowDiv').hidden = true
-        document.getElementById('cameraTrapDiv').hidden = false
+        document.getElementById('cameraTrapDiv').hidden = true
         document.getElementById('dataUnitDiv').hidden = false
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= false
-        resultsDiv = document.getElementById('resultsDiv')
-        while(resultsDiv.firstChild){
-            resultsDiv.removeChild(resultsDiv.firstChild)
-        }
+        document.getElementById('relativeAbundanceDiv').hidden = false
+        document.getElementById('shapefileDiv').hidden = true
 
         if (globalSummaryResults) {
             buildSummary(globalSummaryResults)
@@ -308,6 +307,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= false
+        document.getElementById('relativeAbundanceDiv').hidden = false
+        document.getElementById('shapefileDiv').hidden = true
         generateNaiveActivity()
     }
     else if (analysisType=='2') {
@@ -332,6 +333,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
+        document.getElementById('relativeAbundanceDiv').hidden = false
+        document.getElementById('shapefileDiv').hidden = true
         generateSpatial()
     }
     else if (analysisType=='3') {
@@ -357,6 +360,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= false
+        document.getElementById('relativeAbundanceDiv').hidden = false
+        document.getElementById('shapefileDiv').hidden = true
         generateNumerical()
     }
     else if (analysisType=='4') {
@@ -382,6 +387,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = false
         document.getElementById('openChartTab').disabled= false
+        document.getElementById('relativeAbundanceDiv').hidden = false
+        document.getElementById('shapefileDiv').hidden = true
         generateTemporal()
     }
     else if (analysisType=='5') {
@@ -408,10 +415,10 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
-
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = true
         if (globalActivityResults) {
-            generateActivity()
-            initialiseImageMap(globalActivityResults)
+            generateActivity(globalActivityResults)
         }
     }
     else if (analysisType=='6') {
@@ -438,7 +445,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
-
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = true
         if (globalOccupancyResults) {
             buildOccupancyTabs(globalOccupancyResults)	
         }
@@ -467,7 +475,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = false
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= true
-
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = false
         if (globalSCRResults) {
             buildSCRtabs(globalSCRResults)
         }
@@ -493,6 +502,8 @@ function generateResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= false
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = true
     }
 
 }
@@ -516,6 +527,8 @@ function disablePanel(){
         document.getElementById('cameraSelector').disabled = true
         document.getElementById('btnRunScript').disabled = true
         document.getElementById('btnCancelResults').disabled = false
+        document.getElementById('relativeAbundanceDiv').disabled = true
+        document.getElementById('normaliseBySiteEffort').disabled = true
     }
     else if (analysisType=='1') {
         // Naive Activity analysis
@@ -524,6 +537,8 @@ function disablePanel(){
         document.getElementById('trendlineSelector').disabled = true
         document.getElementById('trendlineOnlyCheckbox').disabled = true
         document.getElementById('btnAddSpeciesAndSite').disabled = true
+        document.getElementById('relativeAbundanceDiv').disabled = true
+        document.getElementById('normaliseBySiteEffort').disabled = true
 
         var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]') 
         var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]')
@@ -544,6 +559,8 @@ function disablePanel(){
         document.getElementById('markerCheckBox').disabled = true
         document.getElementById('normalisationCheckBox').disabled = true
         document.getElementById('heatMapCheckBox').disabled = true
+        document.getElementById('relativeAbundanceDiv').disabled = true
+        document.getElementById('normaliseBySiteEffort').disabled = true
         if (document.getElementById('excludeNothing')) {
             document.getElementById('excludeNothing').disabled = true
             document.getElementById('excludeKnocks').disabled = true
@@ -556,7 +573,8 @@ function disablePanel(){
         document.getElementById('xAxisSelector').disabled = true
         document.getElementById('normalisationSelector').disabled = true
         document.getElementById('btnAddSpecies').disabled = true
-
+        document.getElementById('relativeAbundanceDiv').disabled = true
+        document.getElementById('normaliseBySiteEffort').disabled = true
         var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelectNum-]')
         var allColourSelectors = document.querySelectorAll('[id^=colourSelectSpecies-]')
         var allRemoveButtons = document.querySelectorAll('[id^=btnRemoveSpecies-]')
@@ -577,7 +595,8 @@ function disablePanel(){
         document.getElementById('trendlineSelector').disabled = true
         document.getElementById('trendlineOnlyCheckbox').disabled = true
         document.getElementById('btnAddSpeciesAndSite').disabled = true
-
+        document.getElementById('relativeAbundanceDiv').disabled = true
+        document.getElementById('normaliseBySiteEffort').disabled = true
         var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]') 
         var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]')
         var allColourSelectors = document.querySelectorAll('[id^=colourSelect-]')
@@ -638,6 +657,12 @@ function disablePanel(){
             document.getElementById('maleSelector').disabled = true
             document.getElementById('femaleSelector').disabled = true
         }
+        document.getElementById('maskArea').disabled = true
+        document.getElementById('btnDrawPolygon').disabled = true
+        document.getElementById('shapefileInput').disabled = true
+        document.getElementById('shxfileInput').disabled = true
+        document.getElementById('rbDrawPoly').disabled = true
+        document.getElementById('rbUploadShp').disabled = true
     }
 
 }
@@ -663,6 +688,8 @@ function enablePanel(){
         document.getElementById('cameraSelector').disabled = false
         document.getElementById('btnRunScript').disabled = false
         document.getElementById('btnCancelResults').disabled = true
+        document.getElementById('relativeAbundanceDiv').disabled = false
+        document.getElementById('normaliseBySiteEffort').disabled = false
     }
     else if (analysisType=='1') {
         // Naive Activity analysis
@@ -671,7 +698,8 @@ function enablePanel(){
         document.getElementById('trendlineSelector').disabled = false
         document.getElementById('trendlineOnlyCheckbox').disabled = false
         document.getElementById('btnAddSpeciesAndSite').disabled = false
-
+        document.getElementById('relativeAbundanceDiv').disabled = false
+        document.getElementById('normaliseBySiteEffort').disabled = false
         var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]')
         var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]')
         var allColourSelectors = document.querySelectorAll('[id^=colourSelect-]')
@@ -691,6 +719,8 @@ function enablePanel(){
         document.getElementById('markerCheckBox').disabled = false
         document.getElementById('normalisationCheckBox').disabled = false
         document.getElementById('heatMapCheckBox').disabled = false
+        document.getElementById('relativeAbundanceDiv').disabled = false
+        document.getElementById('normaliseBySiteEffort').disabled = false
         if (document.getElementById('excludeNothing')) {
             document.getElementById('excludeNothing').disabled = false
             document.getElementById('excludeKnocks').disabled = false
@@ -703,7 +733,8 @@ function enablePanel(){
         document.getElementById('xAxisSelector').disabled = false
         document.getElementById('normalisationSelector').disabled = false
         document.getElementById('btnAddSpecies').disabled = false
-
+        document.getElementById('relativeAbundanceDiv').disabled = false
+        document.getElementById('normaliseBySiteEffort').disabled = false
         var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelectNum-]')
         var allColourSelectors = document.querySelectorAll('[id^=colourSelectSpecies-]')
         var allRemoveButtons = document.querySelectorAll('[id^=btnRemoveSpecies-]')
@@ -724,7 +755,8 @@ function enablePanel(){
         document.getElementById('trendlineSelector').disabled = false
         document.getElementById('trendlineOnlyCheckbox').disabled = false
         document.getElementById('btnAddSpeciesAndSite').disabled = false
-
+        document.getElementById('relativeAbundanceDiv').disabled = false
+        document.getElementById('normaliseBySiteEffort').disabled = false
         var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]')
         var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]')
         var allColourSelectors = document.querySelectorAll('[id^=colourSelect-]')
@@ -786,6 +818,12 @@ function enablePanel(){
             document.getElementById('maleSelector').disabled = false
             document.getElementById('femaleSelector').disabled = false
         }
+        document.getElementById('maskArea').disabled = false
+        document.getElementById('btnDrawPolygon').disabled = false
+        document.getElementById('shapefileInput').disabled = false
+        document.getElementById('shxfileInput').disabled = false
+        document.getElementById('rbDrawPoly').disabled = false
+        document.getElementById('rbUploadShp').disabled = false
     }
     else{
         document.getElementById('cameraSelector').disabled = false;
@@ -827,37 +865,18 @@ function enablePanel(){
         document.getElementById('btnAddSpeciesR').disabled = false;
         document.getElementById('observationWindow').disabled = false;
         document.getElementById('indivCharSelector').disabled = false;
+        document.getElementById('relativeAbundanceDiv').disabled = false
         if (document.getElementById('maleSelector')) {
             document.getElementById('maleSelector').disabled = false
             document.getElementById('femaleSelector').disabled = false
         }
-
-        // var allTrapgroupSelectors = document.querySelectorAll('[id^=trapgroupSelect-]');
-        // var allSpeciesSelectors = document.querySelectorAll('[id^=speciesSelect-]');
-        // var allColourSelectors = document.querySelectorAll('[id^=colourSelect-]');
-        // var allRemoveButtons = document.querySelectorAll('[id^=btnRemove-]');
-        // for (let i = 0; i < allTrapgroupSelectors.length; i++) {
-        //     allTrapgroupSelectors[i].disabled = false;
-        //     allSpeciesSelectors[i].disabled = false;
-        //     allColourSelectors[i].disabled = false;
-        //     allRemoveButtons[i].disabled = false;
-        // }
-        
-        // var allSpeciesSelectorsNum = document.querySelectorAll('[id^=speciesSelectNum-]');
-        // var allColourSelectorsSpecies = document.querySelectorAll('[id^=colourSelectSpecies-]');
-        // var allRemoveButtonsSpecies = document.querySelectorAll('[id^=btnRemoveSpecies-]');
-        // for (let i = 0; i < allSpeciesSelectorsNum.length; i++) {
-        //     allSpeciesSelectorsNum[i].disabled = false;
-        //     allColourSelectorsSpecies[i].disabled = false;
-        //     allRemoveButtonsSpecies[i].disabled = false;
-        // }
-
-        // var speciesSelectorsR = document.querySelectorAll('[id^=speciesSelector-]');
-        // var removeButtonsR = document.querySelectorAll('[id^=btnRemoveSpeciesR-]');
-        // for (let i = 0; i < speciesSelectorsR.length; i++) {
-        //     speciesSelectorsR[i].disabled = false;
-        //     removeButtonsR[i].disabled = false;
-        // }
+        document.getElementById('maskArea').disabled = false
+        document.getElementById('btnDrawPolygon').disabled = false
+        document.getElementById('shapefileInput').disabled = false
+        document.getElementById('shxfileInput').disabled = false
+        document.getElementById('rbDrawPoly').disabled = false
+        document.getElementById('rbUploadShp').disabled = false
+        document.getElementById('normaliseBySiteEffort').disabled = false
     }
 }
 
@@ -1443,7 +1462,7 @@ function generateTemporal(){
 
 }
 
-function generateActivity(){
+function generateActivity(activity_results){
     /** Updates the generate results div for activity pattern analysis */
     // Chart generated from R script
 
@@ -1501,6 +1520,99 @@ function generateActivity(){
     space = document.createElement('div')
     space.classList.add('col-lg-1')
     div.appendChild(space)
+
+
+    mainDiv.appendChild(document.createElement('br'))
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    row.setAttribute('style','margin:0px')
+    mainDiv.appendChild(row)
+
+    var h5 = document.createElement('h5');
+    h5.innerHTML = 'Activity Pattern Summary'
+    h5.setAttribute('style','margin-bottom: 2px')
+    row.appendChild(h5)
+
+    var copyClipboard = document.createElement('button');
+    copyClipboard.setAttribute('type', 'button');
+    copyClipboard.setAttribute('class', 'btn btn-link btn-sm');
+    copyClipboard.setAttribute('align', 'left');
+    copyClipboard.setAttribute('data-toggle', 'tooltip');
+    copyClipboard.setAttribute('title', 'Copy to clipboard');
+    copyClipboard.setAttribute('onclick', "copyToClipboard(\'" + 'activityTable' + "\')");
+    copyClipboard.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
+    copyClipboard.innerHTML = '<i class="fa fa-clipboard" aria-hidden="true"></i>';
+    row.appendChild(copyClipboard);
+
+    h5 = document.createElement('h5')
+    h5.innerHTML = '<div><i> The following table displays average sunrise and sunset times for the selected site(s) and the overlap estimator used if the overlap estimation option is selected. </i></div>'
+    h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
+    mainDiv.appendChild(h5)
+
+    div = document.createElement('div')
+    div.classList.add('row')
+    mainDiv.appendChild(div)
+
+    col = document.createElement('div')
+    col.classList.add('col-lg-12')
+    div.appendChild(col)
+
+    var table = document.createElement('table')
+    table.classList.add('table');
+    table.classList.add('table-bordered');
+    table.classList.add('table-striped');
+    table.classList.add('table-hover');
+    table.style.borderCollapse = 'collapse';
+    table.style.width = '100%';
+    table.setAttribute('id','activityTable')
+    col.appendChild(table)
+
+    var thead = document.createElement('thead')
+    table.appendChild(thead)
+
+    var tr = document.createElement('tr')
+    thead.appendChild(tr)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Sunrise'
+    tr.appendChild(th)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Sunset'
+    tr.appendChild(th)
+
+    var th = document.createElement('th')
+    th.innerHTML = 'Overlap Estimator'
+    tr.appendChild(th)
+    
+    var tbody = document.createElement('tbody')
+    table.appendChild(tbody)
+
+    var tr = document.createElement('tr')
+    tbody.appendChild(tr)
+
+    var td = document.createElement('td')
+    td.setAttribute('id','sunrise')
+    td.innerHTML = activity_results.sunrise
+    tr.appendChild(td)
+
+    var td = document.createElement('td')
+    td.setAttribute('id','sunset')
+    td.innerHTML = activity_results.sunset
+    tr.appendChild(td)
+
+    var td = document.createElement('td')
+    td.setAttribute('id','overlapEstimator')
+    td.innerHTML = activity_results.estimator
+    tr.appendChild(td)
+    
+    mainDiv.appendChild(document.createElement('br'))
+
+    var image_url = activity_results.activity_url
+    if (image_url) {
+        initialiseImageMap(image_url)
+    }
 
 }
 
@@ -2015,8 +2127,7 @@ function updateMap(){
             if (this.readyState == 4 && this.status == 200) {
                 info = JSON.parse(this.responseText);
                 trapgroupInfo = info.trapgroups
-
-                console.log(trapgroupInfo)
+                // console.log(trapgroupInfo)
 
                 for (let i=0;i<markers.length;i++) {
                     if (map.hasLayer(markers[i])) {
@@ -2134,30 +2245,26 @@ function updateActivity(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 resultsDiv = document.getElementById('resultsDiv')
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
-                    image_url = reply.activity_url
+                    activity_results = reply.activity_results
                     document.getElementById('loadingDiv').style.display = 'none'
                     document.getElementById('loadingCircle').style.display = 'none'
                     resultsDiv.style.display = 'block'
                     document.getElementById('statisticsErrors').innerHTML = ''
                     enablePanel()
 
-                    globalActivityResults = image_url
+                    globalActivityResults = activity_results
+
+                    image_url = activity_results['activity_url']
 
                     if (image_url){
-                        if (activeImage['mapDiv']) {
-                            activeImage['mapDiv'].setUrl(image_url)
+                        while(resultsDiv.firstChild){
+                            resultsDiv.removeChild(resultsDiv.firstChild);
                         }
-                        else{
-                            while(resultsDiv.firstChild){
-                                resultsDiv.removeChild(resultsDiv.firstChild);
-                            }
-                            generateActivity()
-                            initialiseImageMap(image_url)
-                        }
+                        generateActivity(activity_results)
                     }
                     else{
 
@@ -2381,7 +2488,7 @@ function getActivityPatternCSV(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     csv_url = reply.activity_url
@@ -2936,7 +3043,6 @@ function updateChartStyle(){
     }
     else if (backgroundValue.includes('c-')){
         backgroundColour = backgroundValue.split('-')[1]
-        console.log(backgroundColour)
         if (backgroundColour == '0') {
             backgroundColour = null
         }
@@ -2944,7 +3050,6 @@ function updateChartStyle(){
 
     if (borderColour.includes('c-')){
         borderColour = borderColour.split('-')[1]
-        console.log(borderColour)
         if (borderColour == '0') {
             borderColour = 'white'
         }
@@ -2952,7 +3057,6 @@ function updateChartStyle(){
 
     if (textColour.includes('c-')){
         textColour = textColour.split('-')[1]
-        console.log(textColour)
         if (textColour == '0') {
             textColour = 'white'
         }
@@ -2966,7 +3070,6 @@ function updateChartStyle(){
     }
     else if (axisColourSelector.includes('c-')){
         axisColour = axisColourSelector.split('-')[1]
-        console.log(axisColour)
         if (axisColour == '0') {
             axisColour = 'rgba(0,0,0,0.2)'
         }
@@ -3240,7 +3343,7 @@ function getSurveysAndAnnotationSets(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             globalSurveys = reply.surveys
             globalTasks = reply.tasks
             buildSurveyAndAsRow()
@@ -3936,6 +4039,8 @@ function clearResults(){
         document.getElementById('indivCharacteristicsDiv').hidden = true 
         document.getElementById('dateDivTA').hidden = true
         document.getElementById('openChartTab').disabled= false
+        document.getElementById('relativeAbundanceDiv').hidden = true
+        document.getElementById('shapefileDiv').hidden = true
 
         getLabelsSitesTagsAndGroups()
         enablePanel()
@@ -4243,7 +4348,8 @@ function getSummary(check){
         var start_date = document.getElementById('startDate').value
         var end_date = document.getElementById('endDate').value
         if (document.getElementById('cameraSelector')){
-            var trap_unit = document.getElementById('cameraSelector').value
+            // var trap_unit = document.getElementById('cameraSelector').value
+            var trap_unit = '0'
         }
         else{
             var trap_unit = '0'
@@ -4252,6 +4358,13 @@ function getSummary(check){
         var selected = getSelectedSites()
         var sites = selected[0]
         var groups = selected[1]
+        var normaliseBySiteEffort = document.getElementById('normaliseBySiteEffort').checked
+        if (normaliseBySiteEffort) {
+            var normaliseBySite = '1'
+        }
+        else {
+            var normaliseBySite = '0'
+        }
 
         var validDates = checkDates()
     
@@ -4275,6 +4388,7 @@ function getSummary(check){
         }
         formData.append('sites', JSON.stringify(sites))
         formData.append('groups', JSON.stringify(groups))
+        formData.append('normaliseBySite', JSON.stringify(normaliseBySite))
 
         document.getElementById('resultsDiv').style.display = 'none'
         document.getElementById('loadingDiv').style.display = 'block'
@@ -4294,7 +4408,7 @@ function getSummary(check){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 if (reply.status == 'SUCCESS') {
                     clearTimeout(timeout)
                     document.getElementById('loadingDiv').style.display = 'none'
@@ -5291,7 +5405,7 @@ function buildCovariates(){
     }
     else if (sites == '0' && groups != '-1'){
         sites = []
-        console.log(groups)
+        // console.log(groups)
         
         var formData = new FormData()
         formData.append('group_ids', JSON.stringify(groups))
@@ -5301,7 +5415,7 @@ function buildCovariates(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 var response = JSON.parse(this.responseText)
-                console.log(response)
+                // console.log(response)
                 sites_data = response.sites
                 sites = []
                 for (let i=0; i<sites_data.length; i++){
@@ -5341,7 +5455,7 @@ function buildCovariates(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 var response = JSON.parse(this.responseText)
-                console.log(response)
+                // console.log(response)
                 sites_data = response.sites
                 for (let i=0; i<sites_data.length; i++){
                     var site_tag = sites_data[i].tag
@@ -5958,8 +6072,6 @@ function updateOccupancy(check=false){
         }
     }
 
-    console.log(species)
-
     if (species != '-1' && validOccupancy && tasks != '-1' && validDates){
 
         if (!check) {
@@ -5980,7 +6092,7 @@ function updateOccupancy(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     results = reply.results
@@ -6112,7 +6224,7 @@ function getOccupancyCSV(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     csv_urls = reply.results.csv_urls
@@ -7687,9 +7799,6 @@ function exportCSV(){
     }
     else {
 
-        console.log(siteCovariates)
-        console.log(detectionCovariates)
-
         var formData = new FormData();
         formData.append('siteCovs', JSON.stringify(siteCovariates));
         formData.append('detCovs', JSON.stringify(detectionCovariates));
@@ -7701,7 +7810,7 @@ function exportCSV(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 var csv_url = reply.cov_url
                 if (csv_url){
                     var filename = csv_url.split('/')[csv_url.split('/').length-1]
@@ -7731,6 +7840,7 @@ function updateSCR(check=false){
         var tasks = '0'
         var validSCR = true 
         var validDates = true
+        var validMask = true
         var formData = new FormData();
     }
     else{
@@ -7777,9 +7887,49 @@ function updateSCR(check=false){
             endDate = endDate + ' 23:59:59'
             formData.append('endDate', JSON.stringify(endDate));
         }
+
+        var maskArea = document.getElementById('maskArea').checked
+        var validMask = true
+        if (maskArea){
+            var uploadShp = document.getElementById('rbUploadShp').checked
+            if (uploadShp){
+                var shapefile = document.getElementById('shapefileInput').files[0]
+                var shxfile = document.getElementById('shxfileInput').files[0]
+
+                if (shapefile != undefined){
+                    formData.append('shapefile', shapefile);
+                }
+                else{
+                    validMask = false
+                    document.getElementById('maskErrors').innerHTML = 'Please upload a shapefile.'
+                }
+
+                if (shxfile != undefined){
+                    formData.append('shxfile', shxfile);
+                }
+                else{
+                    validMask = false
+                    document.getElementById('maskErrors').innerHTML = 'Please upload a shxfile.'
+                }
+
+            }
+            else{
+                var polygonGeoJSON = ssPolygon
+                if (polygonGeoJSON != null){
+                    formData.append('polygonGeoJSON', JSON.stringify(polygonGeoJSON));
+                }
+                else{
+                    validMask = false
+                    document.getElementById('maskErrors').innerHTML = 'Please draw a polygon.'
+                }
+            }
+        }
+        else{
+            document.getElementById('maskErrors').innerHTML = ''
+        }
     }
 
-    if (species != '-1' && validSCR && tasks != '-1' && validDates){
+    if (species != '-1' && validSCR && tasks != '-1' && validDates && validMask){
 
         if (!check) {
             document.getElementById('resultsDiv').style.display = 'none'
@@ -7799,7 +7949,7 @@ function updateSCR(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     results = reply.results
@@ -8814,7 +8964,7 @@ function buildSCR(results, tab){
         row.appendChild(help);
         
         h5 = document.createElement('h5')
-        h5.innerHTML = '<div><i> The following plot displays the state space of the population. All the grey pixels indicate your state space (including the buffer). The state space is dicretised reprensentation of the sites. The circles or points indicate your sites. The red S\'s indicate the area where individuals were detected (sites or average spatial location). The lines indicate whether individuals were seen at multiple sites. </i></div>'
+        h5.innerHTML = '<div><i> The following plot displays the state space of the population. All the grey pixels indicate your state space. If you have not selected to mask your area it will include a buffer otherwise you will see the masked border in the state space. The state space is dicretised reprensentation of the sites.</i></div>'
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         stateSpaceTab.appendChild(h5)
 
@@ -8923,6 +9073,7 @@ function buildSCR(results, tab){
 
                     if (map[map_id]){
                         map[map_id].remove()
+                        delete map[map_id]
                     }
 
                     while (mapDiv.firstChild){
@@ -8965,6 +9116,7 @@ function buildSCR(results, tab){
 
                     if (map[map_id]){
                         map[map_id].remove()
+                        delete map[map_id]
                     }
 
                     mapDiv = document.getElementById(map_id)
@@ -9766,7 +9918,7 @@ function getSCRcsv(check=false){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     csv_urls = reply.results
@@ -9913,7 +10065,7 @@ function pingServer() {
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
-                                setTimeout(function() { pingServer(); }, 30000);
+                setTimeout(function() { pingServer(); }, 30000);
             }
         }
         xhttp.open("POST", '/ping');
@@ -10092,12 +10244,33 @@ function saveDataSelection(){
 
 function cancelResults(){
     /**Function for cancelling the R results. */
+
+    var formData = new FormData();
+    var result_type = ''
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+    if (analysisSelection == '0'){
+        result_type = 'summary'
+    }
+    else if (analysisSelection == '5'){
+        result_type = 'activity'
+    }
+    else if (analysisSelection == '6'){
+        result_type = 'occupancy'
+    } 
+    else if (analysisSelection == '7'){
+        result_type = 'scr'
+    }
+
+    formData.append('result_type', JSON.stringify(result_type));
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
 
             document.getElementById('rErrors').innerHTML = ''
             document.getElementById('loadingDiv').style.display = 'none'
@@ -10114,7 +10287,7 @@ function cancelResults(){
         }
     }
     xhttp.open("POST", '/cancelResults');
-    xhttp.send();
+    xhttp.send(formData);
 }
 
 function copyToClipboard(id) {
@@ -10217,6 +10390,93 @@ $('#borderColourPicker').on('change', function(){
     updateChartStyle()
 });
 
+$('#normaliseBySiteEffort').on('change', function(){
+    /** Update results (RAI) */
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+
+    if (analysisSelection != 0){
+        updateResults()
+    }
+})
+
+$('#maskArea').on('change', function(){
+    /** EVent listerner for whether to include an areamask in the SCR analysis */
+    if (this.checked){
+        document.getElementById('shapefileOptionsDiv').hidden = false
+    }
+    else{
+        document.getElementById('shapefileOptionsDiv').hidden = true
+    }
+})
+
+$('#rbUploadShp').on('change', function(){
+    /** Event listener for uploading a shapefile */
+    if (this.checked){
+        document.getElementById('maskErrors').innerHTML = ''
+        document.getElementById('uploadShpDiv').hidden = false
+        document.getElementById('drawPolygonDiv').hidden = true
+    }
+})
+
+$('#rbDrawPoly').on('change', function(){
+    /** Event listener for drawing a polygon */
+    if (this.checked){
+        document.getElementById('maskErrors').innerHTML = ''
+        document.getElementById('uploadShpDiv').hidden = true
+        document.getElementById('drawPolygonDiv').hidden = false
+    }
+})
+
+$('#btnDrawPolygon').on('click', function(){
+    /** Event listener for drawing a polygon */
+    if (mapSites != null) {
+        mapSites.remove()
+    }
+    
+    var mapSitesDiv = document.getElementById('mapSitesDiv')
+    while(mapSitesDiv.firstChild) {
+        mapSitesDiv.removeChild(mapSitesDiv.firstChild);
+    }
+
+    initialiseSitesMap();
+
+    document.getElementById('drawMapInstruction').innerHTML = 'Draw a polygon on the map to use as a mask for your state space.'
+
+    modalSitesMap.modal({keyboard: true});
+
+})
+
+function savePolygon(){
+    /** Function for saving the polygon drawn on the map to GEOJSON */
+
+    var polygons = [];
+
+    mapSites.eachLayer(function(layer) {
+    if (layer instanceof L.Polygon) {
+        polygons.push(layer);
+    }
+    });
+
+    if (polygons.length > 0){
+        var polygon = polygons[0]
+        var geojson = polygon.toGeoJSON()
+        ssPolygon = geojson
+        if (polygons.length == 1){
+            document.getElementById('maskErrors').innerHTML = 'Polygon saved.'
+        }
+        else{
+            document.getElementById('maskErrors').innerHTML = 'More than one polygon drawn. Only the first polygon will be used.'
+        }
+    }
+    else{
+        ssPolygon = null
+        document.getElementById('maskErrors').innerHTML = 'No polygon drawn.'
+    }
+
+    modalSitesMap.modal('hide');
+
+}
 
 function onload(){
     /**Function for initialising the page on load.*/

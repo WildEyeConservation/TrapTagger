@@ -1911,6 +1911,15 @@ def getPolarData():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('Polar data requested for tasks:{} species:{} base:{} reqID:{} trapgroup:{} group:{} sD:{} eD:{} TTI:{} TTIU:{}'.format(task_ids,species,baseUnit,reqID,trapgroup,group,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     reply = []
@@ -1988,6 +1997,28 @@ def getPolarData():
         if group != '0' and group != '-1':
             baseQuery = baseQuery.filter(Sitegroup.id==int(group))
 
+        
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))                            
+
+            if trapgroup and trapgroup != '0' and trapgroup != '-1' and group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(trapgroup), Sitegroup.id.in_(group)))
+            elif trapgroup and trapgroup != '0' and trapgroup != '-1':
+                trapgroups = trapgroups.filter(Trapgroup.id.in_(trapgroup))
+            elif group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(Sitegroup.id.in_(group))
+
+            trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
+
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
             label_list = []
@@ -2026,9 +2057,21 @@ def getPolarData():
                 df = df.drop(columns=['timedelta'])
 
             df['hour'] = df['timestamp'].dt.hour
-            df = df.groupby(['hour']).count()
-            df = df.reindex(range(24),fill_value=0)
-            reply = df['id'].tolist()
+
+            if normaliseBySite:
+                if trapgroups:
+                    for hour in range(24):
+                        hour_count = []
+                        for tag, lat, lng, effort in trapgroups:
+                            species_count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==lng) & (df['hour']==hour)]['id'].count()
+                            count = species_count / effort * 100
+                            hour_count.append(count)
+                        reply.append(round(sum(hour_count)/len(hour_count),3))
+            else:
+                
+                df = df.groupby(['hour']).count()
+                df = df.reindex(range(24),fill_value=0)
+                reply = df['id'].tolist()
 
     return json.dumps({'reqID':reqID, 'data':reply})
 
@@ -2117,6 +2160,15 @@ def getBarData():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('Bar data requested for tasks:{} species:{} base:{} axis:{} sites:{} groups:{} sD:{} eD:{} TTI:{} TTIU:{}'.format(task_ids,species,baseUnit,axis,sites_ids,groups,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     data = []
@@ -2185,35 +2237,36 @@ def getBarData():
 
         baseQuery = rDets(baseQuery)
 
-        if sites_ids and sites_ids != '0' and sites_ids != '-1' and groups and groups != '0' and groups != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(or_(Trapgroup.id.in_(sites_ids), Sitegroup.id.in_(groups)))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
-        elif sites_ids and sites_ids != '0' and sites_ids != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(Trapgroup.id.in_(sites_ids))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
-        elif groups and groups != '0' and groups != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(Sitegroup.id.in_(groups))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
         else:
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
+            trapgroups = db.session.query(
+                                    Trapgroup.tag,
+                                    Trapgroup.latitude,
+                                    Trapgroup.longitude
+                                )\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
+                                           
+
+        if sites_ids and sites_ids != '0' and sites_ids != '-1' and groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(sites_ids), Sitegroup.id.in_(groups)))
+        elif sites_ids and sites_ids != '0' and sites_ids != '-1':
+            trapgroups = trapgroups.filter(Trapgroup.id.in_(sites_ids))
+        elif groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(Sitegroup.id.in_(groups))
+
+        trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
+
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
             label_list = []
@@ -2252,17 +2305,30 @@ def getBarData():
                 df = df[df['timedelta'] >= timeToIndependence]
                 df = df.drop(columns=['timedelta'])
 
-            if axis == '1': #survey count
-                count = df.nunique()['id']
-                data = [int(count)]
-                data_labels = ['Surveys Count']
-
-            elif axis == '2': #Trapgroup count
+            if normaliseBySite:
                 if trapgroups:
-                    for tag, lat, long in trapgroups:
-                        count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==long)].nunique()['id']
-                        data.append(int(count))
+                    for tag, lat, long, effort in trapgroups:
+                        species_count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==long)].nunique()['id']
+                        count = species_count / effort * 100
+                        data.append(float(round(count,3)))
                         data_labels.append(str(tag))
+
+                    if axis == '1': #survey count
+                        data = [round(sum(data)/len(data),3)]
+                        data_labels = ['Mean RAI']
+
+            else:
+                if axis == '1': #survey count
+                    count = df.nunique()['id']
+                    data = [int(count)]
+                    data_labels = ['Survey Count']
+
+                elif axis == '2': #Trapgroup count
+                    if trapgroups:
+                        for tag, lat, long in trapgroups:
+                            count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==long)].nunique()['id']
+                            data.append(int(count))
+                            data_labels.append(str(tag))
 
     return json.dumps({'data' :data, 'labels': data_labels})
 
@@ -5759,6 +5825,15 @@ def getTrapgroupCounts():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, sites: {}, groups: {}, startDate: {}, endDate: {}, timeToIndependence: {}, timeToIndependenceUnit: {}'.format(task_ids, species, baseUnit, sites, groups, startDate, endDate, timeToIndependence, timeToIndependenceUnit))
     data = []
     maxVal = 0
@@ -5859,35 +5934,34 @@ def getTrapgroupCounts():
 
         if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
-        if sites and sites != '0' and sites != '-1' and groups and groups != '0' and groups != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(or_(Trapgroup.id.in_(sites), Sitegroup.id.in_(groups)))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
-        elif sites and sites != '0' and sites != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(Trapgroup.id.in_(sites))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
-        elif groups and groups != '0' and groups != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(Sitegroup.id.in_(groups))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
         else:
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
+            trapgroups = db.session.query(
+                                    Trapgroup.tag,
+                                    Trapgroup.latitude,
+                                    Trapgroup.longitude
+                                )\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))                               
+
+        if sites and sites != '0' and sites != '-1' and groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(sites), Sitegroup.id.in_(groups)))
+        elif sites and sites != '0' and sites != '-1':
+            trapgroups = trapgroups.filter(Trapgroup.id.in_(sites))
+        elif groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(Sitegroup.id.in_(groups))
+
+        trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
 
         baseQuery = baseQuery.distinct().all()
         
@@ -5910,11 +5984,20 @@ def getTrapgroupCounts():
                 df = df[df['timedelta'] >= timeToIndependence]
                 df = df.drop(columns=['timedelta'])
 
-            for tag, latitude, longitude in trapgroups:
-                count = df[(df['tag']==tag) & (df['latitude']==latitude) & (df['longitude']==longitude)].nunique()['id']
-                item = {'lat':latitude,'lng':longitude,'count': int(count),'tag':tag}
-                data.append(item)
-                maxVal = max(maxVal,count)
+            if normaliseBySite:
+                for tag, latitude, longitude, effort in trapgroups:
+                    site_count = df[(df['tag']==tag) & (df['latitude']==latitude) & (df['longitude']==longitude)].nunique()['id']
+                    count = site_count / effort * 100
+                    item = {'lat':latitude,'lng':longitude,'count': float(count),'tag':tag}
+                    data.append(item)
+                    maxVal = max(maxVal,count)
+
+            else:
+                for tag, latitude, longitude in trapgroups:
+                    count = df[(df['tag']==tag) & (df['latitude']==latitude) & (df['longitude']==longitude)].nunique()['id']
+                    item = {'lat':latitude,'lng':longitude,'count': int(count),'tag':tag}
+                    data.append(item)
+                    maxVal = max(maxVal,count)
 
     return json.dumps({'max':int(maxVal),'data':data})
 
@@ -8590,6 +8673,15 @@ def getLineData():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('Line data requested for tasks:{} species:{} baseUnit:{} trapgroup:{} timeUnit:{} timeUnitNumber:{} group:{} startDate:{} endDate:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,species,baseUnit,trapgroup,timeUnit,timeUnitNumber,group,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     data = []
@@ -8686,7 +8778,28 @@ def getLineData():
                 baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup)
 
         if group != '0' and group != '-1':
-            baseQuery = baseQuery.filter(Sitegroup.id==int(group))        
+            baseQuery = baseQuery.filter(Sitegroup.id==int(group))     
+
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
+
+            if trapgroup and trapgroup != '0' and trapgroup != '-1' and group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(trapgroup), Sitegroup.id.in_(group)))
+            elif trapgroup and trapgroup != '0' and trapgroup != '-1':
+                trapgroups = trapgroups.filter(Trapgroup.id.in_(trapgroup))
+            elif group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(Sitegroup.id.in_(group))
+
+            trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()   
 
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
@@ -8748,17 +8861,37 @@ def getLineData():
 
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
 
-                for i, date in enumerate(dates):
-                    if i < len(dates)-1:
-                        data.append(df[(df['timestamp'] >= date) & (df['timestamp'] < dates[i+1])].id.nunique())
-                    else:
-                        data.append(df[(df['timestamp'] >= date)].id.nunique())
-                    if timeUnit == '1':
-                        data_labels.append(date.strftime('%d %b %Y'))
-                    elif timeUnit == '2':
-                        data_labels.append(date.strftime('%b %Y'))
-                    elif timeUnit == '3':
-                        data_labels.append(date.strftime('%Y'))
+                if normaliseBySite:
+                    for i, date in enumerate(dates):
+                        trap_data = []
+                        for tag,lat,lng,effort in trapgroups:
+                            if i < len(dates)-1:
+                                species_count = df[(df['timestamp'] >= date) & (df['timestamp'] < dates[i+1]) & (df['tag'] == tag) & (df['latitude'] == lat) & (df['longitude'] == lng)].id.nunique()        
+                            else:
+                                species_count = df[(df['timestamp'] >= date) & (df['tag'] == tag) & (df['latitude'] == lat) & (df['longitude'] == lng)].id.nunique()
+                            count = species_count/effort * 100
+                            trap_data.append(count)
+
+                        data.append(round(sum(trap_data)/len(trap_data), 3))
+                        if timeUnit == '1':
+                            data_labels.append(date.strftime('%d %b %Y'))
+                        elif timeUnit == '2':
+                            data_labels.append(date.strftime('%b %Y'))
+                        elif timeUnit == '3':
+                            data_labels.append(date.strftime('%Y'))
+
+                else:     
+                    for i, date in enumerate(dates):
+                        if i < len(dates)-1:
+                            data.append(df[(df['timestamp'] >= date) & (df['timestamp'] < dates[i+1])].id.nunique())
+                        else:
+                            data.append(df[(df['timestamp'] >= date)].id.nunique())
+                        if timeUnit == '1':
+                            data_labels.append(date.strftime('%d %b %Y'))
+                        elif timeUnit == '2':
+                            data_labels.append(date.strftime('%b %Y'))
+                        elif timeUnit == '3':
+                            data_labels.append(date.strftime('%Y'))
 
     return json.dumps({'data': data, 'labels': data_labels, 'timeUnit': timeUnit})
 
@@ -9154,7 +9287,7 @@ def getActivityPattern():
         task_ids = None
     
     status = 'FAILURE'
-    activity_url = None
+    activity_results = None
     message = None
     celery_result = None
     R_type = 'activity'
@@ -9182,7 +9315,7 @@ def getActivityPattern():
                 if status == 'SUCCESS':
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
-                        activity_url = celery_result['activity_url']
+                        activity_results = celery_result['activity_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                         clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
@@ -9198,12 +9331,12 @@ def getActivityPattern():
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                     clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
             else:
-                activity_url = None
+                activity_results = None
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                 clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
 
-    return json.dumps({'status': status, 'activity_url': activity_url, 'message': message})
+    return json.dumps({'status': status, 'activity_results': activity_results, 'message': message})
 
 
 @app.route('/getRScript', methods=['POST'])
@@ -9245,6 +9378,12 @@ def getResultsSummary():
             timeToIndependence = None
             timeToIndependenceUnit = None
         
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+
         if Config.DEBUGGING: app.logger.info('Results summary for tasks:{} baseUnit:{} sites:{} groups:{} startDate:{} endDate:{} trapUnit:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,baseUnit,sites,groups,startDate,endDate,trapUnit,timeToIndependence,timeToIndependenceUnit))
     else:
         task_ids = None
@@ -9265,12 +9404,13 @@ def getResultsSummary():
                     pass
 
             user_id = current_user.id
-            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'sites': sites, 'groups': groups,'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'sites': sites, 'groups': groups,'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit, 'normaliseBySite': normaliseBySite})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
+                result_id = result_id.decode()
                 result = calculate_results_summary.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
@@ -9461,6 +9601,21 @@ def getSpatialCaptureRecapture():
         else:
             csv = False
 
+        if 'shapefile' in request.files:
+            shapefile_file = request.files['shapefile']
+        else:
+            shapefile_file = None
+
+        if 'shxfile' in request.files:
+            shxfile_file = request.files['shxfile']
+        else:
+            shxfile_file = None
+
+        if 'polygonGeoJSON' in request.form:
+            polygonGeoJSON = ast.literal_eval(request.form['polygonGeoJSON'])
+        else:
+            polygonGeoJSON = None
+
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
     else:
         task_ids = None
@@ -9490,7 +9645,28 @@ def getSpatialCaptureRecapture():
             else:
                 user_id = current_user.id
                 bucket = Config.BUCKET
-                result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
+
+                # save shapefile to user folder
+                if shapefile_file:
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shp') as temp_file:
+                        shapefile_file.save(temp_file.name)
+                        fileName = current_user.folder +'/docs/SCR_' + shapefile_file.filename
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                        shapefile = fileName
+                else:
+                    shapefile = None
+
+                # save shxfile to user folder
+                if shxfile_file:
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shx') as temp_file:
+                        shxfile_file.save(temp_file.name)
+                        fileName = current_user.folder +'/docs/SCR_' + shxfile_file.filename
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                        shxfile = fileName
+                else:
+                    shxfile = None
+
+                result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
                 GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
                 status = 'PENDING'
         else:
@@ -9544,17 +9720,23 @@ def populateSiteSelector():
 @login_required
 def cancelResults():
     ''' Cancel a results analysis '''
-    status = 'FAILURE'
+    status = ''
+    result_type = ast.literal_eval(request.form['result_type'])
     if current_user.is_authenticated and current_user.admin:
         result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
         if result_id:
             try:
                 result_id = result_id.decode()
-                celery.control.revoke(result_id, terminate=True)
+                if result_type == 'summary':
+                    celery.control.revoke(result_id, terminate=True)
+                else:
+                    celery.control.revoke(result_id, terminate=True)
+                    clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'user_folder': current_user.folder})
                 if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                 status = 'SUCCESS'
             except:
+                status = 'FAILURE'
                 pass
 
     return json.dumps({'status': status})

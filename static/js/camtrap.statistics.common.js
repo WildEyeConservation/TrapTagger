@@ -390,6 +390,13 @@ function updatePolarData(IDNum) {
         var tasks = [selectedTask]
     }else{
         var tasks = getSelectedTasks()
+        var normliseBySite = document.getElementById('normaliseBySiteEffort').checked
+        if (normliseBySite) {
+            normliseBySite = '1'
+        }
+        else {
+            normliseBySite = '0'
+        }
     }
 
     if (species == 'All') {
@@ -406,7 +413,6 @@ function updatePolarData(IDNum) {
 
     var traps = null
     var group = '-1'
-    console.log(trapgroup)
     if (trapgroup.includes('s-')) {
         var trapgroupVal = trapgroup.split('-')[1]
     }
@@ -453,6 +459,7 @@ function updatePolarData(IDNum) {
         }
 
         if (!selectedTask){
+            formData.append('normaliseBySite', JSON.stringify(normliseBySite));
             disablePanel()
         }
 
@@ -462,7 +469,7 @@ function updatePolarData(IDNum) {
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     response = JSON.parse(this.responseText);
-                    console.log(response)
+                    // console.log(response)
                     IDkey = wrapIDNum.toString()
 
                     if (!selectedTask){
@@ -494,7 +501,6 @@ function updatePolarData(IDNum) {
                                     if (colour != null) {
                                         colourSelector.value = colour
                                         colourSelector.style.backgroundColor = colour
-                                        console.log(colour)
                                         polarData[IDkey] = {}
                                         polarData[IDkey]['colour'] = colour
                                         polarData[IDkey]['new'] = true
@@ -595,6 +601,13 @@ function updateBarData(IDNum) {
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
         var groups = selectedSites[1]
+        var normaliseBySite = document.getElementById('normaliseBySiteEffort').checked
+        if (normaliseBySite) {
+            normaliseBySite = '1'
+        }
+        else {
+            normaliseBySite = '0'
+        }
     }
 
     if(species == 'All'){
@@ -611,6 +624,7 @@ function updateBarData(IDNum) {
     if (!selectedTask) {
         formData.append('sites_ids', JSON.stringify(sites));
         formData.append('groups', JSON.stringify(groups));
+        formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
     }
 
     if (baseUnitSelection == '4'){
@@ -632,7 +646,7 @@ function updateBarData(IDNum) {
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-                    console.log(reply)
+                    // console.log(reply)
                     IDkey = wrapIDNum.toString()
 
                     if (!selectedTask){
@@ -664,7 +678,6 @@ function updateBarData(IDNum) {
                                 if (colour != null) {
                                     colourSelector.value = colour
                                     colourSelector.style.backgroundColor = colour
-                                    console.log(colour)
                                     barData[IDkey] = {}
                                     barData[IDkey]['colour'] = colour
                                     barData[IDkey]['new'] = true
@@ -901,6 +914,13 @@ function updateHeatMap() {
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
         var groups = selectedSites[1]
+        var normaliseBySite = document.getElementById('normaliseBySiteEffort').checked
+        if (normaliseBySite) {
+            normaliseBySite = '1'
+        }
+        else {
+            normaliseBySite = '0'
+        }
     }
 
     if(species == 'All'){
@@ -952,6 +972,7 @@ function updateHeatMap() {
             if (!selectedTask) {
                 formData.append('sites', JSON.stringify(sites));
                 formData.append('groups', JSON.stringify(groups));
+                formData.append('normaliseBySite', JSON.stringify(normaliseBySite));
             }
 
             if (baseUnit == '4'){
@@ -970,7 +991,7 @@ function updateHeatMap() {
             function(){
                 if (this.readyState == 4 && this.status == 200) {
                     reply = JSON.parse(this.responseText);
-                    console.log(reply)
+                    // console.log(reply)
                     heatMapData = JSON.parse(JSON.stringify(reply))
 
                     if (!selectedTask){
@@ -1081,6 +1102,13 @@ function updateLineData(IDNum){
         var tasks = [selectedTask]
     }else{
         var tasks = getSelectedTasks()
+        var normliseBySite = document.getElementById('normaliseBySiteEffort').checked
+        if (normliseBySite) {
+            normliseBySite = '1'
+        }
+        else {
+            normliseBySite = '0'
+        }
     }
 
     if (species == 'All') {
@@ -1145,6 +1173,7 @@ function updateLineData(IDNum){
 
         if (!selectedTask){
             disablePanel()
+            formData.append('normaliseBySite', JSON.stringify(normliseBySite));
         }
 
         var xhttp = new XMLHttpRequest();
@@ -1153,7 +1182,7 @@ function updateLineData(IDNum){
             return function() {
                 if (this.readyState == 4 && this.status == 200) {
                     response = JSON.parse(this.responseText);
-                    console.log(response)
+                    // console.log(response)
                     IDkey = wrapIDNum.toString()
    
                     if (!selectedTask){
@@ -1182,7 +1211,6 @@ function updateLineData(IDNum){
                                 if (colour != null) {
                                     colourSelector.value = colour
                                     colourSelector.style.backgroundColor = colour
-                                    console.log(colour)
                                     lineData[IDkey] = {}
                                     lineData[IDkey]['colour'] = colour
                                     lineData[IDkey]['new'] = true
