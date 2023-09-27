@@ -50,6 +50,7 @@ import random
 import cv2
 import piexif
 import ffmpeg
+import json
 
 def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
     '''
