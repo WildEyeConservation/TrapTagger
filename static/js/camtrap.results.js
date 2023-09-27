@@ -248,6 +248,10 @@ function generateResults(){
     map = {}
     activeImage = {}
 
+    globalSiteCovariates = []
+    globalDetectionCovariates = []
+    globalCovariateOptions = []
+
     clearChartColours()
     clearButtonColours()
 
