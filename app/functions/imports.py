@@ -1521,6 +1521,8 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             if label_source:
                 task = db.session.query(Task).filter(Task.survey_id==survey_id).filter(Task.name=='import').first()
                 task_id = task.id
+            else:
+                task_id = None
             pool = Pool(processes=4)
             for item in batch:
                 sourceBucket = item['sourceBucket']
@@ -2043,7 +2045,6 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 already_processed = [r[0] for r in localsession.query(Video.filename)\
                                             .join(Camera)\
                                             .filter(Camera.trapgroup_id==trapgroup.id)\
-                                            .filter(Video.filename.in_(videos))\
                                             .filter(Camera.path.contains(dirpath+'/_video_images_/'))\
                                             .all()]
 
@@ -2098,7 +2099,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
                 tid=trapgroup.id
 
                 already_processed = [r[0] for r in localsession.query(Image.filename)\
-                                            .filter(Camera==camera)\
+                                            .filter(Image.camera==camera)\
                                             .all()]
 
                 to_process = [filename for filename in jpegs if filename not in already_processed]
@@ -2153,92 +2154,172 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     if not pipeline: remove_duplicate_images(sid)
 
-def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions,label_source):
-    '''
-    Imports a survey of images for classifier training purposes. Saves only the detection crops.
+# def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclusions,label_source):
+#     '''
+#     Imports a survey of images for classifier training purposes. Saves only the detection crops.
 
-        Parameters:
-            df (dataframe): The Pandas dataframe being imported
-            surveyName (str): The name for the survey
-            tgcode (str): The regular expression trapgroup code
-            source (str): The base URL where the images are to be sourced from if external is true, a regular S3 bucket name if otherwise
-            external (bool): Whether the images are sourced from a site external to S3
-            min_area (float): The minimum detection size to be cropped 
-            destBucket (str): The bucket where the crops must be saved
-            exclusions (list): List of folders to exclude from the import
-            label_source (str): The exif field wfrom which labels should be extracted
-    '''
+#         Parameters:
+#             df (dataframe): The Pandas dataframe being imported
+#             surveyName (str): The name for the survey
+#             tgcode (str): The regular expression trapgroup code
+#             source (str): The base URL where the images are to be sourced from if external is true, a regular S3 bucket name if otherwise
+#             external (bool): Whether the images are sourced from a site external to S3
+#             min_area (float): The minimum detection size to be cropped 
+#             destBucket (str): The bucket where the crops must be saved
+#             exclusions (list): List of folders to exclude from the import
+#             label_source (str): The exif field wfrom which labels should be extracted
+#     '''
 
-    # Create survey
+#     # Create survey
+#     localsession=db.session()
+#     admin = localsession.query(User).filter(User.username=='Admin').first()
+#     survey = Survey.get_or_create(localsession,name=surveyName,user_id=admin.id,trapgroup_code=tgcode)
+#     survey.status = 'Importing'
+#     survey.images_processing = 0
+#     survey.processing_initialised = True
+#     localsession.commit()
+#     survey_id=survey.id
+#     tgcode = re.compile(tgcode)
+
+#     results = []
+#     batch_count = 0
+#     batch = []
+#     chunk_size = round(Config.QUEUES['parallel']['rate']/8)
+#     for dirpath in df['dirpath'].unique():
+#         tags = tgcode.findall(dirpath.replace(survey.name+'/',''))
+
+#         if len(tags) and not any(exclusion in dirpath for exclusion in exclusions):
+#             tag = tags[0]
+
+#             current_df = df.loc[df['dirpath'] == dirpath]
+#             current_df.reset_index(drop=True,inplace=True)
+#             number_of_images = len(current_df)
+            
+#             trapgroup = Trapgroup.get_or_create(localsession, tag, survey_id)
+#             survey.images_processing += number_of_images
+#             localsession.commit()
+#             camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+#             localsession.commit()
+#             trapgroup_id=trapgroup.id
+#             camera_id=camera.id
+
+#             #Break folders down into chunks to prevent overly-large folders causing issues
+#             number_of_chunks = math.ceil(number_of_images/chunk_size)
+#             for n in range(number_of_chunks):
+#                 lower_index = n*chunk_size
+#                 upper_index = ((n+1)*chunk_size)-1
+#                 chunked_df = current_df.loc[lower_index:upper_index]
+
+#                 # key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
+#                 key = 'pipelineCSVs/' + surveyName + '_' + randomString(20) + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
+#                 with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+#                     chunked_df.to_csv(temp_file.name,index=False)
+#                     GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
+
+#                 batch.append({'sourceBucket':source,
+#                                 'dirpath':dirpath,
+#                                 # 'jpegs':chunk,
+#                                 'key': key,
+#                                 'lower_index': n*chunk_size,
+#                                 'upper_index': (n+1)*chunk_size,
+#                                 'trapgroup_id':trapgroup_id,
+#                                 'camera_id':camera_id,
+#                                 'survey_id':survey_id,
+#                                 'destBucket':destBucket})
+
+#                 if n < number_of_chunks-1:
+#                     batch_count += chunk_size
+#                 else:
+#                     batch_count += number_of_images - (n*chunk_size)
+
+#                 if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/4) ) >= 1:
+#                     results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
+#                     app.logger.info('Queued batch with {} images'.format(batch_count))
+#                     batch_count = 0
+#                     batch = []
+
+#     if batch_count!=0:
+#         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
+
+#     survey.processing_initialised = False
+#     localsession.commit()
+#     localsession.close()
+    
+#     #Wait for import to complete
+#     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+#     # See https://github.com/celery/celery/issues/4480
+#     GLOBALS.lock.acquire()
+#     with allow_join_result():
+#         for result in results:
+#             try:
+#                 result.get()
+#             except Exception:
+#                 app.logger.info(' ')
+#                 app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                 app.logger.info(traceback.format_exc())
+#                 app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#                 app.logger.info(' ')
+#             result.forget()
+#     GLOBALS.lock.release()
+
+#     # Remove any duplicate images that made their way into the database due to the parallel import process.
+#     remove_duplicate_images(survey_id)
+
+def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external,label_source):
+    isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
+    
     localsession=db.session()
-    admin = localsession.query(User).filter(User.username=='Admin').first()
-    survey = Survey.get_or_create(localsession,name=surveyName,user_id=admin.id,trapgroup_code=tgcode)
+    survey = localsession.query(Survey).get(survey_id)
     survey.status = 'Importing'
     survey.images_processing = 0
     survey.processing_initialised = True
     localsession.commit()
-    survey_id=survey.id
-    tgcode = re.compile(tgcode)
+    tag = re.compile(tag)
 
+    # Now handle images
     results = []
     batch_count = 0
     batch = []
-    chunk_size = round(Config.QUEUES['parallel']['rate']/8)
+    chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    # for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
     for dirpath in df['dirpath'].unique():
-        tags = tgcode.findall(dirpath.replace(survey.name+'/',''))
-
-        if len(tags) and not any(exclusion in dirpath for exclusion in exclusions):
-            tag = tags[0]
-
-            current_df = df.loc[df['dirpath'] == dirpath]
-            current_df.reset_index(drop=True,inplace=True)
-            number_of_images = len(current_df)
+        filenames = df[df['dirpath']==dirpath]['filename'].unique()
+        jpegs = list(filter(isjpeg.search, filenames))
+        
+        if len(jpegs) and not any(exclusion in dirpath for exclusion in exclusions):
+            tags = tag.findall(dirpath.replace(survey.name+'/',''))
             
-            trapgroup = Trapgroup.get_or_create(localsession, tag, survey_id)
-            survey.images_processing += number_of_images
-            localsession.commit()
-            camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
-            localsession.commit()
-            trapgroup_id=trapgroup.id
-            camera_id=camera.id
+            if len(tags) > 0:
+                trapgroup = Trapgroup.get_or_create(localsession, tags[0], survey_id)
+                survey.images_processing += len(jpegs)
+                localsession.commit()
+                camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+                localsession.commit()
+                trapgroup_id=trapgroup.id
 
-            #Break folders down into chunks to prevent overly-large folders causing issues
-            number_of_chunks = math.ceil(number_of_images/chunk_size)
-            for n in range(number_of_chunks):
-                lower_index = n*chunk_size
-                upper_index = ((n+1)*chunk_size)-1
-                chunked_df = current_df.loc[lower_index:upper_index]
+                #Break folders down into chunks to prevent overly-large folders causing issues
+                for chunk in chunker(jpegs,chunk_size):
+                    batch.append({'sourceBucket':source,
+                                    'dirpath':dirpath,
+                                    'filenames': chunk,
+                                    'trapgroup_id':trapgroup_id,
+                                    'camera_id': camera.id,
+                                    'survey_id':survey_id,
+                                    'destBucket':destBucket})
 
-                # key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
-                key = 'pipelineCSVs/' + surveyName + '_' + randomString(20) + '_' + str(lower_index) + '_' + str(upper_index) + '.csv'
-                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-                    chunked_df.to_csv(temp_file.name,index=False)
-                    GLOBALS.s3client.put_object(Bucket=destBucket,Key=key,Body=temp_file)
+                    batch_count += len(chunk)
 
-                batch.append({'sourceBucket':source,
-                                'dirpath':dirpath,
-                                # 'jpegs':chunk,
-                                'key': key,
-                                'lower_index': n*chunk_size,
-                                'upper_index': (n+1)*chunk_size,
-                                'trapgroup_id':trapgroup_id,
-                                'camera_id':camera_id,
-                                'survey_id':survey_id,
-                                'destBucket':destBucket})
+                    if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
+                        app.logger.info('Queued batch with {} images'.format(batch_count))
+                        batch_count = 0
+                        batch = []
 
-                if n < number_of_chunks-1:
-                    batch_count += chunk_size
-                else:
-                    batch_count += number_of_images - (n*chunk_size)
-
-                if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/4) ) >= 1:
-                    results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
-                    app.logger.info('Queued batch with {} images'.format(batch_count))
-                    batch_count = 0
-                    batch = []
+            else:
+                app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':True,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
@@ -2247,6 +2328,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
     #Wait for import to complete
     # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
     # See https://github.com/celery/celery/issues/4480
+    app.logger.info('Waiting for image processing to complete')
     GLOBALS.lock.acquire()
     with allow_join_result():
         for result in results:
@@ -2260,6 +2342,7 @@ def pipeline_csv(df,surveyName,tgcode,source,external,min_area,destBucket,exclus
                 app.logger.info(' ')
             result.forget()
     GLOBALS.lock.release()
+    app.logger.info('Image processing complete')
 
     # Remove any duplicate images that made their way into the database due to the parallel import process.
     remove_duplicate_images(survey_id)
@@ -3169,36 +3252,63 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
 
     return True
 
-def extract_label(path,filename,species,translations,survey_id):
-    '''Helper function for extract_dirpath_labels that extracts the label for an individual row of the dataframe.'''
-    label = db.session.query(Label).get(translations[species])
-    image = db.session.query(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey_id==survey_id)\
-                        .filter(Camera.path==path)\
-                        .filter(Image.filename==filename)\
-                        .first()
-    if label and image:
-        image.clusters[0].labels = [label]
-        labelgroups = db.session.query(Labelgroup)\
-                            .join(Detection)\
-                            .filter(Detection.image_id==image.id)\
-                            .distinct().all()
-        for labelgroup in labelgroups:
-            labelgroup.labels = [label]
-        db.session.commit()
-    return True
+# def extract_label(path,filename,species,translations,survey_id):
+#     '''Helper function for extract_dirpath_labels that extracts the label for an individual row of the dataframe.'''
+#     label = translations[species]
+#     image = db.session.query(Image)\
+#                         .join(Camera)\
+#                         .join(Trapgroup)\
+#                         .filter(Trapgroup.survey_id==survey_id)\
+#                         .filter(Camera.path==path)\
+#                         .filter(Image.filename==filename)\
+#                         .first()
+#     if label and image:
+#         image.clusters[0].labels = [label]
+#         labelgroups = db.session.query(Labelgroup)\
+#                             .join(Detection)\
+#                             .filter(Detection.image_id==image.id)\
+#                             .distinct().all()
+#         for labelgroup in labelgroups:
+#             labelgroup.labels = [label]
+#     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=False)
-def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
+def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
     try:
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-            GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
-            df = pd.read_csv(temp_file.name)
-        df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
+        label = db.session.query(Label).get(label_id)
+
+        images = db.session.query(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Camera.path==dirpath)\
+                        .filter(Image.filename.in_(filenames))\
+                        .distinct().all()
+
+        for image in images:
+            image.detection_rating = 1
+            cluster = Cluster(task_id=task_id)
+            db.session.add(cluster)
+            cluster.images = [image]
+            cluster.labels = [label]
+
+        detection_ids = [r[0] for r in db.session.query(Detection.id)\
+                        .join(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey_id==survey_id)\
+                        .filter(Camera.path==dirpath)\
+                        .filter(Image.filename.in_(filenames))\
+                        .distinct().all()]
+        
+        for detection_id in detection_ids:
+            labelgroup = Labelgroup(detection_id=detection_id,task_id=task_id,checked=False)
+            db.session.add(labelgroup)
+            labelgroup.labels = [label]
+
+        db.session.commit()
     
     except Exception as exc:
         app.logger.info(' ')
@@ -3213,6 +3323,34 @@ def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
 
     return True
 
+# @celery.task(bind=True,max_retries=29,ignore_result=False)
+# def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
+#     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
+    
+#     try:
+#         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+#             GLOBALS.s3client.download_file(Bucket=destBucket, Key=key, Filename=temp_file.name)
+#             df = pd.read_csv(temp_file.name)
+#         for key in translations:
+#             label = db.session.query(Label).get(translations[key])
+#             translations[key] = label
+#         df.apply(lambda x: extract_label(x.dirpath,x.filename,x.species,translations,survey_id), axis=1)
+#         db.session.commit()
+#         GLOBALS.s3client.delete_object(Bucket=destBucket, Key=key)
+    
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
+#         self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+#     finally:
+#         db.session.remove()
+
+#     return True
+
 @celery.task(bind=True,max_retries=29,ignore_result=False)
 def pipeline_cluster_camera(self,camera_id,task_id):
     '''Helper function to parallelise pipeline clustering'''
@@ -3224,10 +3362,11 @@ def pipeline_cluster_camera(self,camera_id,task_id):
             cluster = Cluster(task_id=task_id)
             db.session.add(cluster)
             cluster.images = [image]
-            for detection in image.detections:
-                labelgroup = Labelgroup(detection_id=detection.id,task_id=task_id,checked=False)
+            detection_ids = [r[0] for r in db.session.query(Detection.id).filter(Detection.image_id==image.id).all()]
+            for detection_id in detection_ids:
+                labelgroup = Labelgroup(detection_id=detection_id,task_id=task_id,checked=False)
                 db.session.add(labelgroup)
-            db.session.commit()
+        db.session.commit()
     
     except Exception as exc:
         app.logger.info(' ')
@@ -3272,26 +3411,29 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
         survey = Survey.get_or_create(localsession,name=surveyName,user_id=user_id,trapgroup_code=trapgroupCode)
         survey.status = 'Importing'
         localsession.commit()
+        survey_id = survey.id
 
         if fileAttached or label_source:
             task = Task(name='import', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
         else:
             task = Task(name='default', survey_id=survey.id, tagging_level='-1', test_size=0, status='Ready')
         localsession.add(task)
-        task_id=task.id
 
         localsession.commit()
+        task_id=task.id
         localsession.close()
 
         if fileAttached:
             fileName = 'csvFiles/' + surveyName + '.csv'
-            df = pd.read_csv(fileName)
+            with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                GLOBALS.s3client.download_file(Bucket=bucketName, Key=fileName, Filename=temp_file.name)
+                df = pd.read_csv(temp_file.name)
 
             # Works on the assumption that multi-labels are handled with duplicate image rows - remove all of these
             df = df.drop_duplicates(subset=['filepath'], keep=False)
 
             # Remove all empty images including humans
-            empty_names = ['empty','nothing','unknown','none','fire','blank','human','null']
+            empty_names = ['unknown','none','fire','blank','human','null']
             df = df[~df['species'].str.contains('|'.join(empty_names), case=False)]
 
             # Remove all extra info
@@ -3304,44 +3446,46 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
             del df['filepath']
 
             # Start importing these
-            pipeline_csv(df,surveyName,trapgroupCode,dataSource,True,min_area,bucketName,exclusions,label_source)
+            # pipeline_csv(df,surveyName,trapgroupCode,dataSource,True,min_area,bucketName,exclusions,label_source)
+            pipeline_csv(df,survey_id,trapgroupCode,exclusions,dataSource,bucketName,min_area,True,label_source)
 
         else:
             #import from S3 folder
             import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,user_id,True,min_area,exclusions,4,label_source)
 
-        # Cluster survey
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
-        survey.status = 'Clustering'
-        db.session.commit()
-        survey_id = survey.id
-
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:
-            results = []
-            for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all():
-                results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera.id,'task_id':task_id},queue='parallel'))
 
-            # Wait for processing to finish
-            # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
-            # See https://github.com/celery/celery/issues/4480
-            db.session.remove()
-            GLOBALS.lock.acquire()
-            with allow_join_result():
-                for result in results:
-                    try:
-                        result.get()
-                    except Exception:
-                        app.logger.info(' ')
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(traceback.format_exc())
-                        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                        app.logger.info(' ')
-                    result.forget()
-            GLOBALS.lock.release()        
+            if not fileAttached:
+                # Cluster survey
+                survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
+                survey.status = 'Clustering'
+                db.session.commit()
+                results = []
+                camera_ids = [r[0] for r in db.session.query(Camera.id).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()]
+                db.session.remove()
+                for camera_id in camera_ids:
+                    results.append(pipeline_cluster_camera.apply_async(kwargs={'camera_id':camera_id,'task_id':task_id},queue='parallel'))
 
-            # Extract labels:
-            if fileAttached:
+                # Wait for processing to finish
+                # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
+                # See https://github.com/celery/celery/issues/4480
+                GLOBALS.lock.acquire()
+                with allow_join_result():
+                    for result in results:
+                        try:
+                            result.get()
+                        except Exception:
+                            app.logger.info(' ')
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(traceback.format_exc())
+                            app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                            app.logger.info(' ')
+                        result.forget()
+                GLOBALS.lock.release()        
+
+            else:
+                # Extract labels:
                 survey = db.session.query(Survey).get(survey_id)
                 survey.status = 'Extracting Labels'
                 db.session.commit()
@@ -3349,20 +3493,25 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
                 # Create labels
                 translations = {}
                 for species in df['species'].unique():
-                    label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
-                    db.session.add(label)
-                    db.session.commit()
+                    if species.lower() in ['nothing','empty','blank']:
+                        label = db.session.query(Label).get(GLOBALS.nothing_id)
+                    else:
+                        label = Label(description=species,hotkey=None,parent_id=None,task_id=task_id,complete=True)
+                        db.session.add(label)
+                        db.session.commit()
                     translations[species] = label.id
 
                 # Run the folders in parallel
                 results = []
                 for dirpath in df['dirpath'].unique():
-                    dirpathDF = df.loc[df['dirpath'] == dirpath]
-                    key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-                        dirpathDF.to_csv(temp_file.name,index=False)
-                        GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
-                    results.append(extract_dirpath_labels.apply_async(kwargs={'key':key,'translations':translations,'survey_id':survey_id,'destBucket':bucketName},queue='parallel'))
+                    # dirpathDF = df.loc[df['dirpath'] == dirpath]
+                    # key = 'pipelineCSVs/' + surveyName + '_' + dirpath.replace('/','_') + '.csv'
+                    # with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    #     dirpathDF.to_csv(temp_file.name,index=False)
+                    #     GLOBALS.s3client.put_object(Bucket=bucketName,Key=key,Body=temp_file)
+                    for species in df[df['dirpath'] == dirpath]['species'].unique():
+                        filenames = list(df[(df['dirpath'] == dirpath) & (df['species']==species)]['filename'].unique())
+                        results.append(extract_dirpath_labels.apply_async(kwargs={'label_id':translations[species],'dirpath':dirpath,'filenames':filenames,'task_id':task_id,'survey_id':survey_id},queue='parallel'))
 
                 # Wait for processing to finish
                 # Using locking here as a workaround. Looks like celery result fetching is not threadsafe.
@@ -3570,5 +3719,136 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
     except:
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
+
+    return True
+
+@celery.task(bind=True,max_retries=29)
+def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):   
+    try:
+        for image_id in images:
+            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+    
+    finally:
+        db.session.remove()
+
+    return True
+
+def convertBBox(api_box):
+    '''Function for converting MD format bboxes to our format'''
+    x_min, y_min, width_of_box, height_of_box = api_box
+    x_max = x_min + width_of_box
+    y_max = y_min + height_of_box
+    return [y_min, x_min, y_max, x_max]
+
+def commitAndCrop(images):
+    '''Helper function for pipelineLILA that commits the db and then kicks off image cropping'''
+    db.session.commit()
+    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info},queue='default')
+    return []
+
+@celery.task(bind=True,max_retries=29,ignore_result=True)
+def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min_area,destBucket):
+    '''Makes use of the MegaDetector results on LILA to pipeline trianing data.'''
+    try:
+        skip_labels = ['unknown','none','fire','human','null']
+        external = True
+        update_image_info=True
+        tgcode = re.compile(tgcode_str)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=dets_filename, Filename=temp_file.name)
+            with open(temp_file.name) as f:
+                json_data = json.load(f)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=images_filename, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        if 'filename' in df.columns:
+            df = df.rename(columns={'filename': 'filepath','common_name': 'species'})
+
+        survey = Survey(name=survey_name,user_id=1,trapgroup_code=tgcode_str)
+        db.session.add(survey)
+        task = Task(name='import', survey=survey, tagging_level='-1', test_size=0, status='Ready')
+        db.session.add(task)
+        db.session.commit()
+        task_id=task.id
+        survey_id=survey.id
+
+        label_translations = {}
+        for description in df['species'].unique():
+            if description.lower() not in skip_labels:
+                if description.lower() in ['nothing','empty','blank']:
+                    label = db.session.query(Label).get(GLOBALS.nothing_id)
+                elif description.lower() in ['human']:
+                    label = db.session.query(Label).get(GLOBALS.vhl_id)
+                else:
+                    label = Label(description=description,task=task)
+                    db.session.add(label)
+                label_translations[description] = label
+        db.session.commit()
+
+        count = 0
+        images = []
+        trapgroups = {}
+        dirpath_cam_translations = {}
+        for item in json_data['images']:
+            if len(df[df['filepath']==item['file']]) < 2:
+                tags = tgcode.findall(item['file'])
+                if tags:
+                    tag = tags[0]
+                    species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
+                    dirpath = '/'.join(item['file'].split('/')[:-1])
+                    filename = item['file'].split('/')[-1]
+                    if tag not in trapgroups.keys():
+                        trapgroup = Trapgroup(survey_id=survey_id,tag=tag)
+                        db.session.add(trapgroup)
+                        images = commitAndCrop(images)
+                        trapgroups[tag] = trapgroup.id
+                    trapgroup_id = trapgroups[tag]
+                    if dirpath not in dirpath_cam_translations.keys():
+                        camera = Camera(path=dirpath,trapgroup_id=trapgroup_id)
+                        db.session.add(camera)
+                        images = commitAndCrop(images)
+                        dirpath_cam_translations[dirpath] = camera.id
+                    camera_id = dirpath_cam_translations[dirpath]
+                    image = Image(camera_id=camera_id,filename=filename)
+                    cluster = Cluster(task_id=task_id)
+                    db.session.add(image)
+                    db.session.add(cluster)
+                    cluster.images = [image]
+                    for specie in species:
+                        cluster.labels.append(label_translations[specie])
+                    images.append(image)
+                    for det in item['detections']:
+                        top, left, bottom, right = convertBBox(det['bbox'])
+                        detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b')
+                        db.session.add(detection)
+                        labelgroup = Labelgroup(task_id=task_id,detection=detection)
+                        db.session.add(labelgroup)
+                        for specie in species:
+                            labelgroup.labels.append(label_translations[specie])
+                    count += 1
+                    if count%100==0: print(count)
+        images = commitAndCrop(images)
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True
