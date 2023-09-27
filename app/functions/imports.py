@@ -3749,7 +3749,7 @@ def convertBBox(api_box):
     y_max = y_min + height_of_box
     return [y_min, x_min, y_max, x_max]
 
-def commitAndCrop(images):
+def commitAndCrop(images,source,min_area,destBucket,external,update_image_info):
     '''Helper function for pipelineLILA that commits the db and then kicks off image cropping'''
     db.session.commit()
     batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info},queue='default')
@@ -3813,13 +3813,13 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
                         if tag not in trapgroups.keys():
                             trapgroup = Trapgroup(survey_id=survey_id,tag=tag)
                             db.session.add(trapgroup)
-                            images = commitAndCrop(images)
+                            images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info)
                             trapgroups[tag] = trapgroup.id
                         trapgroup_id = trapgroups[tag]
                         if dirpath not in dirpath_cam_translations.keys():
                             camera = Camera(path=dirpath,trapgroup_id=trapgroup_id)
                             db.session.add(camera)
-                            images = commitAndCrop(images)
+                            images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info)
                             dirpath_cam_translations[dirpath] = camera.id
                         camera_id = dirpath_cam_translations[dirpath]
                         image = Image(camera_id=camera_id,filename=filename)
@@ -3840,7 +3840,7 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
                                 labelgroup.labels.append(label_translations[specie])
                         count += 1
                         if count%100==0: print(count)
-        images = commitAndCrop(images)
+        images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Ready'
