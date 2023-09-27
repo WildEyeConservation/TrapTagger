@@ -41,6 +41,7 @@ from celery.result import allow_join_result
 import redis
 from datetime import datetime, timedelta
 import numpy as np
+from app.functions.imports import s3traverse
 
 def translate(labels, dictionary):
     '''
@@ -1721,13 +1722,13 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
                     if flat_structure:
                         filename = baseName
                         for videoLabel in videoLabels: filename += '_' + videoLabel.description.replace(' ','_').replace('/','_').replace('\\','_')
-                        filename += '_' + str(video.id) + '.avi'
+                        filename += '_' + str(video.id) + '.mp4'
                         videoPath += '/' + filename
                     else:
                         startPoint = 1
                         if splitPath[1]==task.survey.name: startPoint=2
                         for split in splitPath[startPoint:]: videoPath += '/' + split
-                        videoPath += '/' +video.filename
+                        videoPath += '/' +video.filename.split('.')[0] + '.mp4'
                     videoPaths.append(videoPath)
 
     return list(set(videoPaths)), [label.description for label in videoLabels], [tag.description for tag in videoTags]
@@ -2546,7 +2547,7 @@ def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
     return True
 
 @celery.task(bind=True,soft_time_limit=82800)
-def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit):
+def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate, endDate, user_id, trapUnit, timeToIndependence, timeToIndependenceUnit, normaliseBySite):
     ''' Calculates the results summary '''
     try:
         summary = {}
@@ -2572,6 +2573,9 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
             .join(Image, Cluster.images)\
             .join(Detection)\
             .join(Labelgroup)\
+            .join(Camera)\
+            .join(Trapgroup)\
+            .outerjoin(Sitegroup, Trapgroup.sitegroups)\
             .filter(Cluster.task_id.in_(task_ids))\
             .filter(Labelgroup.task_id.in_(task_ids))\
             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
@@ -2581,6 +2585,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
             if startDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp >= startDate)
 
             if endDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp <= endDate)
+
+            if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                summaryQuery = summaryQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+            elif sites != '0' and sites != '-1':
+                summaryQuery = summaryQuery.filter(Trapgroup.id.in_(sites))
+            elif groups != '0' and groups != '-1':
+                summaryQuery = summaryQuery.filter(Sitegroup.id.in_(groups))
 
             summaryTotals = summaryQuery.all()
             
@@ -2721,6 +2732,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
 
             if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
+            if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                baseQuery = baseQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+            elif sites != '0' and sites != '-1':
+                baseQuery = baseQuery.filter(Trapgroup.id.in_(sites))
+            elif groups != '0' and groups != '-1':
+                baseQuery = baseQuery.filter(Sitegroup.id.in_(groups))
+
             if baseUnit == '1' or baseUnit == '4':
                 baseQuery = baseQuery.group_by(Image.id, Label.id, Camera.id, Trapgroup.id, Sitegroup.id).all()
             elif baseUnit == '2':
@@ -2749,17 +2767,20 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 df = df[df['timedelta'] >= timeToIndependence]
                 df = df.drop(columns=['timedelta'])
 
+            if len(df) > 0:
+                # Species count
+                label_list.append(GLOBALS.unknown_id)
+                species_df = df[~df['label_id'].isin(label_list)].copy()
+                species_df = species_df[['id','label_id','species']]
+                species_df.drop_duplicates(subset=['id','species'], inplace=True)
+                species_df['count'] = 1
+                species_count = species_df.groupby('species').sum().reset_index().drop('id', axis=1)
 
-            # Species count
-            label_list.append(GLOBALS.unknown_id)
-            species_df = df[~df['label_id'].isin(label_list)].copy()
-            species_df = species_df[['id','label_id','species']]
-            species_df.drop_duplicates(subset=['id','species'], inplace=True)
-            species_df['count'] = 1
-            species_count = species_df.groupby('species').sum().reset_index().drop('id', axis=1)
-
-            # get total count
-            total_count = species_count['count'].sum()
+                # get total count
+                total_count = species_count['count'].sum()
+            else:
+                species_count = pd.DataFrame(columns=['species','count'])
+                total_count = 0
 
             # Diversity Indexes
             shannon_index = 0
@@ -2812,9 +2833,6 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
             }
 
             summary['summary_indexes'] = summary_indexes
-            
-            # Species abundance
-            summary['species_count'] = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
 
             # Camera Trap effort
             if trapUnit == '0':  # Sites
@@ -2828,12 +2846,20 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                     Trapgroup.altitude,
                 ).join(Camera, Image.camera_id == Camera.id)\
                 .join(Trapgroup)\
+                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .filter(Image.corrected_timestamp != None)
 
                 if startDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp >= startDate)
 
                 if endDate: baseTrapQuery = baseTrapQuery.filter(Image.corrected_timestamp <= endDate)
+
+                if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                    baseTrapQuery = baseTrapQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+                elif sites != '0' and sites != '-1':
+                    baseTrapQuery = baseTrapQuery.filter(Trapgroup.id.in_(sites))
+                elif groups != '0' and groups != '-1':
+                    baseTrapQuery = baseTrapQuery.filter(Sitegroup.id.in_(groups))
 
                 base_trap_df = pd.DataFrame(baseTrapQuery.all(), columns=['id','timestamp', 'site_id', 'name', 'latitude', 'longitude', 'altitude'])
                 base_trap_df = base_trap_df.drop_duplicates()
@@ -2914,6 +2940,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                     Trapgroup.tag
                 ).join(Camera, Image.camera_id == Camera.id)\
                 .join(Trapgroup)\
+                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .filter(Image.corrected_timestamp != None)\
                 .filter(~Camera.path.contains('_video_images_'))
@@ -2921,6 +2948,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 if startDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp >= startDate)
 
                 if endDate: baseCamQuery = baseCamQuery.filter(Image.corrected_timestamp <= endDate)
+
+                if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                    baseCamQuery = baseCamQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+                elif sites != '0' and sites != '-1':
+                    baseCamQuery = baseCamQuery.filter(Trapgroup.id.in_(sites))
+                elif groups != '0' and groups != '-1':
+                    baseCamQuery = baseCamQuery.filter(Sitegroup.id.in_(groups))
                 
                 base_cam_df = pd.DataFrame(baseCamQuery.distinct().all(), columns=['id','timestamp', 'camera_id', 'path', 'site_id', 'site_tag'])
                 base_cam_df = base_cam_df.drop_duplicates()
@@ -2985,6 +3019,7 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 # Calculate how many counts each camera has capture for either clusters, images or detections
                 # Dataframe with the number of counts for each camera
                 camera_counts_df = df[['id', 'camera_id', 'path', 'site_id', 'name', 'latitude', 'longitude', 'altitude']].copy()
+                camera_counts_df = camera_counts_df[~camera_counts_df['path'].str.contains('_video_images_')]
                 camera_counts_df.rename(columns={'name': 'site_tag'}, inplace=True)
                 camera_counts_df = camera_counts_df.drop_duplicates(subset=['id', 'camera_id'])
                 camera_counts_df['count'] = 1
@@ -3017,6 +3052,13 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 if startDate: baseGroupQuery = baseGroupQuery.filter(Image.corrected_timestamp >= startDate)
 
                 if endDate: baseGroupQuery = baseGroupQuery.filter(Image.corrected_timestamp <= endDate)
+
+                if sites != '0' and sites != '-1' and groups != '0' and groups != '-1':
+                    baseGroupQuery = baseGroupQuery.filter(or_(Trapgroup.id.in_(sites),Sitegroup.id.in_(groups)))
+                elif sites != '0' and sites != '-1':
+                    baseGroupQuery = baseGroupQuery.filter(Trapgroup.id.in_(sites))
+                elif groups != '0' and groups != '-1':
+                    baseGroupQuery = baseGroupQuery.filter(Sitegroup.id.in_(groups))
 
                 base_group_df = pd.DataFrame(baseGroupQuery.distinct().all(), columns=['id','timestamp','group_id', 'name'])
                 base_group_df = base_group_df.drop_duplicates()
@@ -3083,6 +3125,65 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
                 # Convert the DataFrame to a list of dictionaries
                 summary['unit_counts'] = group_counts_df.sort_values(by='count', ascending=False).to_dict(orient='records')
 
+
+            # Species abundance
+            if normaliseBySite: # Normalise by site effort (Relative Abundance)
+                trapgroups = db.session.query(
+                                        Trapgroup.tag, 
+                                        Trapgroup.latitude, 
+                                        Trapgroup.longitude,
+                                        func.count(distinct(func.date(Image.corrected_timestamp)))
+                                    )\
+                                    .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                    .join(Image)\
+                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                    .filter(Trapgroup.survey_id.in_(survey_ids))
+                                        
+
+                if sites and sites != '0' and sites != '-1' and groups and groups != '0' and groups != '-1':
+                    trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(sites), Sitegroup.id.in_(groups)))
+                elif sites and sites != '0' and sites != '-1':
+                    trapgroups = trapgroups.filter(Trapgroup.id.in_(sites))
+                elif groups and groups != '0' and groups != '-1':
+                    trapgroups = trapgroups.filter(Sitegroup.id.in_(groups))
+
+                trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
+
+                site_counts = pd.DataFrame(trapgroups, columns=['name', 'latitude', 'longitude', 'count'])
+                label_list.append(GLOBALS.unknown_id)
+                species_df = df[~df['label_id'].isin(label_list)].copy()
+                species_df = species_df[['id','label_id','species', 'name', 'latitude', 'longitude']]
+                species_df.drop_duplicates(subset=['id','species', 'name', 'latitude', 'longitude'], inplace=True)	
+
+                species_df['count'] = 1
+                species_df = species_df.groupby(['species', 'name', 'latitude', 'longitude'])['count'].sum().reset_index()
+
+                site_counts.rename(columns={'count': 'effort_days'}, inplace=True)
+
+                # create empty new dataframe where we will store the new values
+                new_df = pd.DataFrame(columns=['species', 'name', 'latitude', 'longitude', 'count', 'effort_days'])
+                for species in species_df['species'].unique():
+                    species_df_temp = species_df[species_df['species'] == species]
+                    species_df_temp = species_df_temp.merge(site_counts, on=['name', 'latitude', 'longitude'], how='outer')
+                    species_df_temp['count'] = species_df_temp['count'].fillna(0)
+                    species_df_temp['species'] = species
+                    new_df = new_df.append(species_df_temp)
+
+                species_df = new_df.reset_index(drop=True)
+
+                # calculate abundance
+                species_df['count'] = species_df['count'].astype(float)
+                species_df['effort_days'] = species_df['effort_days'].astype(float)
+                species_df['abundance'] = species_df['count']/species_df['effort_days'] * 100
+                
+                species_df = species_df.groupby('species')['abundance'].mean().reset_index()
+                species_df['abundance'] = species_df['abundance'].round(3)
+                species_df.rename(columns={'abundance': 'count'}, inplace=True)
+                summary['species_count'] = species_df.sort_values(by='count', ascending=False).to_dict(orient='records')
+
+            else: # Total counts (Absolute Abundance)
+                summary['species_count'] = species_count.sort_values(by='count', ascending=False).to_dict(orient='records')
+
         status = 'SUCCESS'
         error = None
 
@@ -3099,3 +3200,48 @@ def calculate_results_summary(self, task_ids, baseUnit, startDate, endDate, user
         db.session.remove()
 
     return { 'status': status, 'error': error, 'summary': summary }
+
+@celery.task(bind=True, ignore_result=True)
+def clean_up_R_results(self,R_type, user_folder):
+    ''' Deletes any R results files for the given user folder and R type '''
+    try: 
+        # Check if delete file task is already in queue
+        scheduled_files = []
+        inspector = celery.control.inspect()
+        inspector_scheduled = inspector.scheduled()
+
+        for worker in inspector_scheduled:
+            for task in inspector_scheduled[worker]:
+                if 'deleteFile' in task['request']['name']:
+                        scheduled_files.append(task['request']['kwargs']['fileName'])
+
+        if R_type == 'activity':
+            isFile = re.compile('^Activity_Pattern_', re.I)
+
+        elif R_type == 'occupancy':
+            isFile = re.compile('^Occupancy_', re.I)
+
+        elif R_type == 'scr':
+            isFile = re.compile('^SCR_', re.I)
+        else:
+            isFile = re.compile('^(Activity_Pattern_|Occupancy_|SCR_)', re.I)
+
+        sourceBucket = Config.BUCKET
+        s3Folder = user_folder + '/docs'
+
+        if Config.DEBUGGING: app.logger.info('Cleaning up R results (' + R_type + ') for ' + user_folder)
+
+        for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
+            files = list(filter(isFile.search, filenames))
+            for file in files:
+                fileName = s3Folder + '/' + file
+                if fileName not in scheduled_files:
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+
+    except:
+        pass
+
+    finally:
+        db.session.remove()
+
+    return True

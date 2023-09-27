@@ -1911,6 +1911,15 @@ def getPolarData():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('Polar data requested for tasks:{} species:{} base:{} reqID:{} trapgroup:{} group:{} sD:{} eD:{} TTI:{} TTIU:{}'.format(task_ids,species,baseUnit,reqID,trapgroup,group,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     reply = []
@@ -1988,6 +1997,28 @@ def getPolarData():
         if group != '0' and group != '-1':
             baseQuery = baseQuery.filter(Sitegroup.id==int(group))
 
+        
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))                            
+
+            if trapgroup and trapgroup != '0' and trapgroup != '-1' and group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(trapgroup), Sitegroup.id.in_(group)))
+            elif trapgroup and trapgroup != '0' and trapgroup != '-1':
+                trapgroups = trapgroups.filter(Trapgroup.id.in_(trapgroup))
+            elif group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(Sitegroup.id.in_(group))
+
+            trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
+
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
             label_list = []
@@ -2009,27 +2040,38 @@ def getPolarData():
         df = pd.DataFrame(baseQuery.distinct().all(),columns=['id','timestamp','species','tag','latitude','longitude'])
         df.drop_duplicates(subset=['id'],inplace=True)
         df = df.dropna(subset=['timestamp'])
-
-        if timeToIndependence:
-            if timeToIndependenceUnit == 's':
-                timeToIndependence = int(timeToIndependence)
-            elif timeToIndependenceUnit == 'm':
-                timeToIndependence = int(timeToIndependence) * 60
-            elif timeToIndependenceUnit == 'h':
-                timeToIndependence = int(timeToIndependence) * 3600
-            timeToIndependence = timedelta(seconds=timeToIndependence)
-            
-            df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
-            df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
-            df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
-            df = df[df['timedelta'] >= timeToIndependence]
-            df = df.drop(columns=['timedelta'])
-
         if len(df) > 0:
+            if timeToIndependence:
+                if timeToIndependenceUnit == 's':
+                    timeToIndependence = int(timeToIndependence)
+                elif timeToIndependenceUnit == 'm':
+                    timeToIndependence = int(timeToIndependence) * 60
+                elif timeToIndependenceUnit == 'h':
+                    timeToIndependence = int(timeToIndependence) * 3600
+                timeToIndependence = timedelta(seconds=timeToIndependence)
+                
+                df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
+                df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
+                df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
+                df = df[df['timedelta'] >= timeToIndependence]
+                df = df.drop(columns=['timedelta'])
+
             df['hour'] = df['timestamp'].dt.hour
-            df = df.groupby(['hour']).count()
-            df = df.reindex(range(24),fill_value=0)
-            reply = df['id'].tolist()
+
+            if normaliseBySite:
+                if trapgroups:
+                    for hour in range(24):
+                        hour_count = []
+                        for tag, lat, lng, effort in trapgroups:
+                            species_count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==lng) & (df['hour']==hour)]['id'].count()
+                            count = species_count / effort * 100
+                            hour_count.append(count)
+                        reply.append(round(sum(hour_count)/len(hour_count),3))
+            else:
+                
+                df = df.groupby(['hour']).count()
+                df = df.reindex(range(24),fill_value=0)
+                reply = df['id'].tolist()
 
     return json.dumps({'reqID':reqID, 'data':reply})
 
@@ -2118,6 +2160,15 @@ def getBarData():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('Bar data requested for tasks:{} species:{} base:{} axis:{} sites:{} groups:{} sD:{} eD:{} TTI:{} TTIU:{}'.format(task_ids,species,baseUnit,axis,sites_ids,groups,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
     data = []
@@ -2137,8 +2188,7 @@ def getBarData():
                                 Label.description, 
                                 Trapgroup.tag,
                                 Trapgroup.latitude,
-                                Trapgroup.longitude,
-                                Sitegroup.id
+                                Trapgroup.longitude
                             )\
                             .join(Detection)\
                             .join(Labelgroup)\
@@ -2155,8 +2205,7 @@ def getBarData():
                                 Label.description,
                                 Trapgroup.tag,
                                 Trapgroup.latitude,
-                                Trapgroup.longitude,
-                                Sitegroup.id
+                                Trapgroup.longitude
                             )\
                             .join(Image,Cluster.images)\
                             .join(Detection)\
@@ -2175,8 +2224,7 @@ def getBarData():
                                 Label.description,
                                 Trapgroup.tag,
                                 Trapgroup.latitude,
-                                Trapgroup.longitude,
-                                Sitegroup.id
+                                Trapgroup.longitude
                             )\
                             .join(Image)\
                             .join(Labelgroup)\
@@ -2189,19 +2237,35 @@ def getBarData():
 
         baseQuery = rDets(baseQuery)
 
-        if sites_ids and sites_ids != '0' and sites_ids != '-1':
-            trapgroups = db.session.query(Trapgroup.tag,Trapgroup.latitude,Trapgroup.longitude).filter(Trapgroup.id.in_(sites_ids)).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
-        elif sites_ids == '0':
-            trapgroups = db.session.query(Trapgroup.tag,Trapgroup.latitude,Trapgroup.longitude).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
         else:
-            trapgroups = None
+            trapgroups = db.session.query(
+                                    Trapgroup.tag,
+                                    Trapgroup.latitude,
+                                    Trapgroup.longitude
+                                )\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
+                                           
 
-        if groups and groups != '0' and groups != '-1':
-            sitegroups = db.session.query(Sitegroup.id,Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).filter(Trapgroup.survey_id.in_(survey_ids)).filter(Sitegroup.id.in_(groups)).distinct().all()
-        elif groups == '0':
-            sitegroups = db.session.query(Sitegroup.id,Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).filter(Trapgroup.survey_id.in_(survey_ids)).distinct().all()
-        else:
-            sitegroups = None
+        if sites_ids and sites_ids != '0' and sites_ids != '-1' and groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(sites_ids), Sitegroup.id.in_(groups)))
+        elif sites_ids and sites_ids != '0' and sites_ids != '-1':
+            trapgroups = trapgroups.filter(Trapgroup.id.in_(sites_ids))
+        elif groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(Sitegroup.id.in_(groups))
+
+        trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
 
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
@@ -2221,45 +2285,50 @@ def getBarData():
 
         if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
-        
-        df = pd.DataFrame(baseQuery.distinct().all(),columns=['id','timestamp','species','tag','latitude','longitude','group'])
-        df['timestamp'] = df['timestamp'].fillna('None')
-        df= df.groupby(['id', 'timestamp', 'species','tag','latitude','longitude'])['group'].apply(lambda x: ','.join(x.astype(str))).reset_index()
+    
+        df = pd.DataFrame(baseQuery.distinct().all(),columns=['id','timestamp','species','tag','latitude','longitude'])
         df.drop_duplicates(subset=['id'],inplace=True)
 
-        if timeToIndependence:
-            if timeToIndependenceUnit == 's':
-                timeToIndependence = int(timeToIndependence)
-            elif timeToIndependenceUnit == 'm':
-                timeToIndependence = int(timeToIndependence) * 60
-            elif timeToIndependenceUnit == 'h':
-                timeToIndependence = int(timeToIndependence) * 3600
-            timeToIndependence = timedelta(seconds=timeToIndependence)
+        if len(df) > 0:
+            if timeToIndependence:
+                if timeToIndependenceUnit == 's':
+                    timeToIndependence = int(timeToIndependence)
+                elif timeToIndependenceUnit == 'm':
+                    timeToIndependence = int(timeToIndependence) * 60
+                elif timeToIndependenceUnit == 'h':
+                    timeToIndependence = int(timeToIndependence) * 3600
+                timeToIndependence = timedelta(seconds=timeToIndependence)
 
-            df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
-            df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
-            df['timedelta'] = df['timedelta'].replace('None', timedelta(seconds=9999999))
-            df = df[df['timedelta'] >= timeToIndependence]
-            df = df.drop(columns=['timedelta'])
+                df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
+                df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
+                df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
+                df = df[df['timedelta'] >= timeToIndependence]
+                df = df.drop(columns=['timedelta'])
 
-        if axis == '1': #survey count
-            count = df['id'].nunique()
-            data = [count]
-            data_labels = ['Surveys Count']
+            if normaliseBySite:
+                if trapgroups:
+                    for tag, lat, long, effort in trapgroups:
+                        species_count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==long)].nunique()['id']
+                        count = species_count / effort * 100
+                        data.append(float(round(count,3)))
+                        data_labels.append(str(tag))
 
-        elif axis == '2': #Trapgroup count
-            if trapgroups:
-                for tag, lat, long in trapgroups:
-                    count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==long)]['id'].nunique()
-                    data.append(count)
-                    data_labels.append(str(tag))
+                    if axis == '1': #survey count
+                        data = [round(sum(data)/len(data),3)]
+                        data_labels = ['Mean RAI']
 
-            if sitegroups:
-                for id, name in sitegroups:
-                    df_site = df[df['group'].str.contains(str(id))]
-                    count = df_site['id'].nunique()
-                    data.append(count)
-                    data_labels.append(name)
+            else:
+                if axis == '1': #survey count
+                    count = df.nunique()['id']
+                    data = [int(count)]
+                    data_labels = ['Survey Count']
+
+                elif axis == '2': #Trapgroup count
+                    if trapgroups:
+                        for tag, lat, long in trapgroups:
+                            count = df[(df['tag']==tag) & (df['latitude']==lat) & (df['longitude']==long)].nunique()['id']
+                            data.append(int(count))
+                            data_labels.append(str(tag))
 
     return json.dumps({'data' :data, 'labels': data_labels})
 
@@ -3386,7 +3455,9 @@ def getJobs():
                                 Task.id, #temp replacement for Task.clusters_remaining
                                 Task.id, #availableJobsSQ.c.count,
                                 completeJobsSQ.c.count,
-                                Survey.name
+                                Survey.name,
+                                Task.init_complete,
+                                Task.is_bounding
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .join(User,Survey.user_id==User.id)\
                             .outerjoin(Worker, User.workers)\
@@ -3435,9 +3506,38 @@ def getJobs():
 
             jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[0]))
 
+            # Get the task type and species-level
+            if '-4' in item[1] or '-5' in item[1]:
+                task_type = 'Individual Identification'
+                species = re.split(',',item[1])[1]
+            elif '-3' in item[1]:
+                task_type = 'AI Species Check'
+                species = 'All'
+            elif '-2' in item[1]:
+                task_type = 'Informational Tagging'
+                if ',' in item[1]:
+                    species = db.session.query(Label).get(re.split(',',item[1])[1]).description
+                else:
+                    species = 'All'
+            elif '-1' in item[1]:
+                if item[7] == False:
+                    task_type = 'Species Labelling'
+                    species = 'Top-level'
+                else:
+                    task_type = 'Multi-Species Differentiation'
+                    species = 'All'
+            else:
+                if item[8] == False:
+                    task_type = 'Species Labelling'
+                else:
+                    task_type = 'Sighting Correction'
+                species = db.session.query(Label).get(item[1]).description
+
             taskInfo = {'id': item[0],
                         'name': item[6],
                         'tagging_level': item[1],
+                        'species': species,
+                        'type': task_type,
                         'total': item[2],
                         'remaining': clusters_remaining,
                         'jobsAvailable': jobsAvailable,
@@ -5725,6 +5825,15 @@ def getTrapgroupCounts():
         timeToIndependence = None
         timeToIndependenceUnit = None
 
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
+
     if Config.DEBUGGING: app.logger.info('The following parameters were passed to getTrapgroupCounts: task_ids: {}, species: {}, baseUnit: {}, sites: {}, groups: {}, startDate: {}, endDate: {}, timeToIndependence: {}, timeToIndependenceUnit: {}'.format(task_ids, species, baseUnit, sites, groups, startDate, endDate, timeToIndependence, timeToIndependenceUnit))
     data = []
     maxVal = 0
@@ -5825,69 +5934,70 @@ def getTrapgroupCounts():
 
         if endDate: baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
 
-        if sites and sites != '0' and sites != '-1' and groups and groups != '0' and groups != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .join(Task)\
-                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(or_(Trapgroup.id.in_(sites), Sitegroup.id.in_(groups)))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
-        elif sites and sites != '0' and sites != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .join(Task)\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(Trapgroup.id.in_(sites))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
-        elif groups and groups != '0' and groups != '-1':
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .join(Task)\
-                                    .outerjoin(Sitegroup, Trapgroup.sitegroups)\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .filter(Sitegroup.id.in_(groups))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
         else:
-            trapgroups = db.session.query(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude)\
-                                    .join(Survey)\
-                                    .join(Task)\
-                                    .filter(Task.id.in_(task_ids))\
-                                    .filter(Trapgroup.survey_id.in_(survey_ids))\
-                                    .order_by(Trapgroup.tag)\
-                                    .distinct().all()
+            trapgroups = db.session.query(
+                                    Trapgroup.tag,
+                                    Trapgroup.latitude,
+                                    Trapgroup.longitude
+                                )\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))                               
+
+        if sites and sites != '0' and sites != '-1' and groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(sites), Sitegroup.id.in_(groups)))
+        elif sites and sites != '0' and sites != '-1':
+            trapgroups = trapgroups.filter(Trapgroup.id.in_(sites))
+        elif groups and groups != '0' and groups != '-1':
+            trapgroups = trapgroups.filter(Sitegroup.id.in_(groups))
+
+        trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()
 
         baseQuery = baseQuery.distinct().all()
         
         df = pd.DataFrame(baseQuery,columns=['id','timestamp','species','tag','latitude','longitude'])
         df.drop_duplicates(subset=['id'],inplace=True)
 
-        if timeToIndependence:
-            if timeToIndependenceUnit == 's':
-                timeToIndependence = int(timeToIndependence)
-            elif timeToIndependenceUnit == 'm':
-                timeToIndependence = int(timeToIndependence) * 60
-            elif timeToIndependenceUnit == 'h':
-                timeToIndependence = int(timeToIndependence) * 3600
-            timeToIndependence = timedelta(seconds=timeToIndependence)
+        if len(df) > 0:
+            if timeToIndependence:
+                if timeToIndependenceUnit == 's':
+                    timeToIndependence = int(timeToIndependence)
+                elif timeToIndependenceUnit == 'm':
+                    timeToIndependence = int(timeToIndependence) * 60
+                elif timeToIndependenceUnit == 'h':
+                    timeToIndependence = int(timeToIndependence) * 3600
+                timeToIndependence = timedelta(seconds=timeToIndependence)
 
-            df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
-            df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
-            df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
-            df = df[df['timedelta'] >= timeToIndependence]
-            df = df.drop(columns=['timedelta'])
+                df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
+                df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
+                df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
+                df = df[df['timedelta'] >= timeToIndependence]
+                df = df.drop(columns=['timedelta'])
 
-        for tag, latitude, longitude in trapgroups:
-            count = df[(df['tag']==tag) & (df['latitude']==latitude) & (df['longitude']==longitude)].nunique()['id']
-            item = {'lat':latitude,'lng':longitude,'count': int(count),'tag':tag}
-            data.append(item)
-            maxVal = max(maxVal,count)
+            if normaliseBySite:
+                for tag, latitude, longitude, effort in trapgroups:
+                    site_count = df[(df['tag']==tag) & (df['latitude']==latitude) & (df['longitude']==longitude)].nunique()['id']
+                    count = site_count / effort * 100
+                    item = {'lat':latitude,'lng':longitude,'count': float(count),'tag':tag}
+                    data.append(item)
+                    maxVal = max(maxVal,count)
+
+            else:
+                for tag, latitude, longitude in trapgroups:
+                    count = df[(df['tag']==tag) & (df['latitude']==latitude) & (df['longitude']==longitude)].nunique()['id']
+                    item = {'lat':latitude,'lng':longitude,'count': int(count),'tag':tag}
+                    data.append(item)
+                    maxVal = max(maxVal,count)
 
     return json.dumps({'max':int(maxVal),'data':data})
 
@@ -8043,7 +8153,9 @@ def get_required_files():
                 videoPaths, videoLabels, videoTags = get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_structure,labels, include_empties)
                 videoLabels.extend(videoTags)
                 file_ids.append(video.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ video.camera.path.split('_video_images_')[0] + video.filename,'paths':videoPaths,'labels':videoLabels})
+                pathSplit  = video.camera.path.split('/',1)
+                path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path,'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
         else:
@@ -8499,28 +8611,29 @@ def getAllLabelsTagsSitesAndGroups():
         if task_ids[0] == '0':
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
             tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
-            sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id).all()
-            for site in sites:
-                site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
-                combination = (site_info['tag'], site_info['latitude'], site_info['longitude'])
-                
-                if combination in unique_sites.keys():
-                    unique_sites[combination]['ids'].append(site.id)
-                else:
-                    unique_sites[combination] = {'info': site_info, 'ids': [site.id]}
-            for item in unique_sites.values():
-                sites_data.append(item['info'])
-                sites_ids.append(item['ids'])
+            sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id).order_by(Trapgroup.id).all()
             groups = db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()
-            group_ids = [r[0] for r in groups]
-            group_names = [r[1] for r in groups]
         else:
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
-            sites_data = [r[0] for r in db.session.query(Trapgroup.tag).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
+            sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).order_by(Trapgroup.id).all()
             tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
             groups = db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()
-            group_ids = [r[0] for r in groups]
-            group_names = [r[1] for r in groups]
+
+        for site in sites:
+            site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
+            combination = (site_info['tag'], site_info['latitude'], site_info['longitude'])
+
+            if combination in unique_sites.keys():
+                unique_sites[combination]['ids'].append(site.id)
+            else:
+                unique_sites[combination] = {'info': site_info, 'ids': [site.id]}
+
+        for item in unique_sites.values():
+            sites_data.append(item['info'])
+            sites_ids.append(item['ids'])
+
+        group_ids = [r[0] for r in groups]
+        group_names = [r[1] for r in groups]
 
     return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids, 'tags': tags, 'group_ids': group_ids, 'group_names': group_names})
 
@@ -8559,6 +8672,15 @@ def getLineData():
     else:
         timeToIndependence = None
         timeToIndependenceUnit = None
+
+    if 'normaliseBySite' in request.form:
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+    else:
+        normaliseBySite = False
 
     if Config.DEBUGGING: app.logger.info('Line data requested for tasks:{} species:{} baseUnit:{} trapgroup:{} timeUnit:{} timeUnitNumber:{} group:{} startDate:{} endDate:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,species,baseUnit,trapgroup,timeUnit,timeUnitNumber,group,startDate,endDate,timeToIndependence,timeToIndependenceUnit))
 
@@ -8630,9 +8752,23 @@ def getLineData():
 
         if startDate: 
             baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+            first_date = startDate
+        else:
+            first_date = baseQuery.filter(Image.corrected_timestamp != None).order_by(Image.corrected_timestamp).first()
+            if first_date:
+                first_date = first_date[1]
+            else:
+                first_date = None
 
         if endDate: 
             baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+            last_date = endDate
+        else:
+            last_date = baseQuery.filter(Image.corrected_timestamp != None).order_by(desc(Image.corrected_timestamp)).first()
+            if last_date:
+                last_date = last_date[1]
+            else:
+                last_date = None
 
         if trapgroup != '0' and trapgroup != '-1':
             if type(trapgroup) == list:
@@ -8642,7 +8778,28 @@ def getLineData():
                 baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup)
 
         if group != '0' and group != '-1':
-            baseQuery = baseQuery.filter(Sitegroup.id==int(group))        
+            baseQuery = baseQuery.filter(Sitegroup.id==int(group))     
+
+        if normaliseBySite:
+            trapgroups = db.session.query(
+                                    Trapgroup.tag, 
+                                    Trapgroup.latitude, 
+                                    Trapgroup.longitude,
+                                    func.count(distinct(func.date(Image.corrected_timestamp)))
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image)\
+                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                .filter(Trapgroup.survey_id.in_(survey_ids))
+
+            if trapgroup and trapgroup != '0' and trapgroup != '-1' and group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(or_(Trapgroup.id.in_(trapgroup), Sitegroup.id.in_(group)))
+            elif trapgroup and trapgroup != '0' and trapgroup != '-1':
+                trapgroups = trapgroups.filter(Trapgroup.id.in_(trapgroup))
+            elif group and group != '0' and group != '-1':
+                trapgroups = trapgroups.filter(Sitegroup.id.in_(group))
+
+            trapgroups = trapgroups.group_by(Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).order_by(Trapgroup.tag).all()   
 
         if species != '0':
             labels = db.session.query(Label).filter(Label.description==species).filter(Label.task_id.in_(task_ids)).all()
@@ -8662,32 +8819,183 @@ def getLineData():
         df = pd.DataFrame(baseQuery,columns=['id','timestamp','species','tag','latitude','longitude'])
         df.drop_duplicates(subset=['id'],inplace=True)
 
-        if timeToIndependence:
-            if timeToIndependenceUnit == 's':
-                timeToIndependence = int(timeToIndependence)
-            elif timeToIndependenceUnit == 'm':
-                timeToIndependence = int(timeToIndependence) * 60
-            elif timeToIndependenceUnit == 'h':
-                timeToIndependence = int(timeToIndependence) * 3600
-            timeToIndependence = timedelta(seconds=timeToIndependence)
-
-            df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
-            df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
-            df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
-            df = df[df['timedelta'] >= timeToIndependence]
-            df = df.drop(columns=['timedelta'])
-
         if len(df) > 0:
-            if startDate:
-                first_date = startDate
-            else:
-                first_date = df['timestamp'].min()
+            if timeToIndependence:
+                if timeToIndependenceUnit == 's':
+                    timeToIndependence = int(timeToIndependence)
+                elif timeToIndependenceUnit == 'm':
+                    timeToIndependence = int(timeToIndependence) * 60
+                elif timeToIndependenceUnit == 'h':
+                    timeToIndependence = int(timeToIndependence) * 3600
+                timeToIndependence = timedelta(seconds=timeToIndependence)
 
-            if endDate:
-                last_date = endDate
-            else:
-                last_date = df['timestamp'].max()
+                df = df.sort_values(by=['species','tag', 'latitude', 'longitude','timestamp'])
+                df['timedelta'] = df.groupby(['species','tag','latitude','longitude'])['timestamp'].diff()
+                df['timedelta'] = df['timedelta'].fillna(timedelta(seconds=9999999))
+                df = df[df['timedelta'] >= timeToIndependence]
+                df = df.drop(columns=['timedelta'])
 
+
+            if first_date and last_date:
+                first_date = pd.to_datetime(first_date)
+                last_date = pd.to_datetime(last_date)
+                if first_date == last_date:
+                    dates = [first_date]
+                else:
+                    if timeUnit == '1': # Day
+                        first_date = first_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                        last_date = last_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                        dates = pd.date_range(start=first_date, end=last_date, freq=f'{timeUnitNumber}D')	
+                    elif timeUnit == '2': # Month
+                        first_date = first_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        last_day = calendar.monthrange(last_date.year, last_date.month)[1]
+                        last_date = last_date.replace(day=last_day, hour=23, minute=59, second=59)
+                        dates = pd.date_range(start=first_date, end=last_date, freq=f'{timeUnitNumber}MS')
+                    elif timeUnit == '3': # Year
+                        first_date = first_date.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                        last_date = last_date.replace(month=12, day=31, hour=23, minute=59, second=59)
+                        dates = pd.date_range(start=first_date, end=last_date, freq=f'{timeUnitNumber}AS')
+
+                    if len(dates) == 0:
+                        dates = [first_date]
+
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+                if normaliseBySite:
+                    for i, date in enumerate(dates):
+                        trap_data = []
+                        for tag,lat,lng,effort in trapgroups:
+                            if i < len(dates)-1:
+                                species_count = df[(df['timestamp'] >= date) & (df['timestamp'] < dates[i+1]) & (df['tag'] == tag) & (df['latitude'] == lat) & (df['longitude'] == lng)].id.nunique()        
+                            else:
+                                species_count = df[(df['timestamp'] >= date) & (df['tag'] == tag) & (df['latitude'] == lat) & (df['longitude'] == lng)].id.nunique()
+                            count = species_count/effort * 100
+                            trap_data.append(count)
+
+                        data.append(round(sum(trap_data)/len(trap_data), 3))
+                        if timeUnit == '1':
+                            data_labels.append(date.strftime('%d %b %Y'))
+                        elif timeUnit == '2':
+                            data_labels.append(date.strftime('%b %Y'))
+                        elif timeUnit == '3':
+                            data_labels.append(date.strftime('%Y'))
+
+                else:     
+                    for i, date in enumerate(dates):
+                        if i < len(dates)-1:
+                            data.append(df[(df['timestamp'] >= date) & (df['timestamp'] < dates[i+1])].id.nunique())
+                        else:
+                            data.append(df[(df['timestamp'] >= date)].id.nunique())
+                        if timeUnit == '1':
+                            data_labels.append(date.strftime('%d %b %Y'))
+                        elif timeUnit == '2':
+                            data_labels.append(date.strftime('%b %Y'))
+                        elif timeUnit == '3':
+                            data_labels.append(date.strftime('%Y'))
+
+    return json.dumps({'data': data, 'labels': data_labels, 'timeUnit': timeUnit})
+
+
+@app.route('/getLineDataIndividual', methods=['POST'])
+@login_required
+def getLineDataIndividual():
+    '''
+    Returns the time activity data for the requested individual.
+    
+        Parameters:
+            individual_id (int): The individual for which the data is required
+            trapgroup (str): The trapgroup for which data is required
+            baseUnit (str): The desired base unit (image, cluster, or labelgroup)
+            timeUnit (str): The desired time unit  day, week, month, or year)
+            startDate (str): The start date for the data
+            endDate (str): The end date for the data
+    '''
+
+    individual_id = ast.literal_eval(request.form['individual_id'])
+    baseUnit = ast.literal_eval(request.form['baseUnit'])
+    trapgroup = ast.literal_eval(request.form['trapgroup'])
+    timeUnit = ast.literal_eval(request.form['timeUnit'])
+    timeUnitNumber = int(ast.literal_eval(request.form['timeUnitNumber']))
+    startDate = ast.literal_eval(request.form['startDate'])
+    endDate = ast.literal_eval(request.form['endDate'])
+
+    if Config.DEBUGGING: app.logger.info('Line data requested for individual {} {} {} {} {} {}'.format(individual_id,baseUnit,timeUnit,trapgroup,startDate,endDate))
+
+    data = []
+    data_labels = []
+    individual = db.session.query(Individual).get(individual_id)
+    if individual and (individual.tasks[0].survey.user==current_user):
+        if baseUnit == '1':
+            baseQuery = db.session.query(
+                                Image.id,
+                                Image.corrected_timestamp,
+                                Label.description
+                            )\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .join(Label, Labelgroup.labels)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(Labelgroup.task_id.in_([r.id for r in individual.tasks]))
+        elif baseUnit == '2':
+            baseQuery = db.session.query(
+                                Cluster.id,
+                                Image.corrected_timestamp,
+                                Label.description
+                            )\
+                            .join(Image,Cluster.images)\
+                            .join(Detection)\
+                            .join(Labelgroup)\
+                            .join(Label, Labelgroup.labels)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(Labelgroup.task_id.in_([r.id for r in individual.tasks]))\
+                            .filter(Cluster.task_id.in_([r.id for r in individual.tasks]))
+        elif baseUnit == '3':
+            baseQuery = db.session.query(
+                                Detection.id,
+                                Image.corrected_timestamp,
+                                Label.description
+                            )\
+                            .join(Image)\
+                            .join(Labelgroup)\
+                            .join(Label, Labelgroup.labels)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Detection.individuals.contains(individual))\
+                            .filter(Labelgroup.task_id.in_([r.id for r in individual.tasks]))
+
+        baseQuery = rDets(baseQuery)
+
+        if trapgroup != '0':
+            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup)
+
+        if startDate: 
+            baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
+            first_date = startDate
+        else:
+            first_date = baseQuery.filter(Image.corrected_timestamp != None).order_by(Image.corrected_timestamp).first()
+            if first_date:
+                first_date = first_date[1]
+            else:
+                first_date = None
+
+        if endDate: 
+            baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
+            last_date = endDate
+        else:
+            last_date = baseQuery.filter(Image.corrected_timestamp != None).order_by(desc(Image.corrected_timestamp)).first()
+            if last_date:
+                last_date = last_date[1]
+            else:
+                last_date = None
+
+        df = pd.DataFrame(baseQuery,columns=['id','timestamp','species'])
+        df.drop_duplicates(subset=['id'],inplace=True)
+
+        if first_date and last_date:
             first_date = pd.to_datetime(first_date)
             last_date = pd.to_datetime(last_date)
             if first_date == last_date:
@@ -8724,127 +9032,6 @@ def getLineData():
                 elif timeUnit == '3':
                     data_labels.append(date.strftime('%Y'))
 
-    return json.dumps({'data': data, 'labels': data_labels, 'timeUnit': timeUnit})
-
-
-@app.route('/getLineDataIndividual', methods=['POST'])
-@login_required
-def getLineDataIndividual():
-    '''
-    Returns the time activity data for the requested individual.
-    
-        Parameters:
-            individual_id (int): The individual for which the data is required
-            trapgroup (str): The trapgroup for which data is required
-            baseUnit (str): The desired base unit (image, cluster, or labelgroup)
-            timeUnit (str): The desired time unit  day, week, month, or year)
-            startDate (str): The start date for the data
-            endDate (str): The end date for the data
-    '''
-
-    individual_id = ast.literal_eval(request.form['individual_id'])
-    baseUnit = ast.literal_eval(request.form['baseUnit'])
-    trapgroup = ast.literal_eval(request.form['trapgroup'])
-    timeUnit = ast.literal_eval(request.form['timeUnit'])
-    startDate = ast.literal_eval(request.form['startDate'])
-    endDate = ast.literal_eval(request.form['endDate'])
-
-    if Config.DEBUGGING: app.logger.info('Line data requested for individual {} {} {} {} {} {}'.format(individual_id,baseUnit,timeUnit,trapgroup,startDate,endDate))
-
-    data = []
-    data_labels = []
-    individual = db.session.query(Individual).get(individual_id)
-    if individual and (individual.tasks[0].survey.user==current_user):
-        if baseUnit == '1': # Image
-            baseQuery = db.session.query(Image).join(Detection)
-        elif baseUnit == '2': # Cluster
-            baseQuery = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id.in_([r.id for r in individual.tasks]))
-        elif baseUnit == '3':  # Detection
-            baseQuery = db.session.query(Detection).join(Image)
-        baseQuery = baseQuery.join(Camera)\
-                            .join(Trapgroup)\
-                            .filter(Detection.individuals.contains(individual))\
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))
-
-        if trapgroup != '0':
-            baseQuery = baseQuery.filter(Trapgroup.tag==trapgroup)
-
-        if startDate: 
-            baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
-            first_date = startDate
-        else:
-            first_date = baseQuery.filter(Image.corrected_timestamp!=None).order_by(Image.corrected_timestamp).first()
-            if first_date:
-                if baseUnit == '1':
-                    first_date = first_date.corrected_timestamp
-                elif baseUnit == '2':
-                    first_date = first_date.images[0].corrected_timestamp
-                elif baseUnit == '3':
-                    first_date = first_date.detection.image.corrected_timestamp
-
-        if endDate: 
-            baseQuery = baseQuery.filter(Image.corrected_timestamp <= endDate)
-            last_date = endDate
-        else:
-            last_date = baseQuery.filter(Image.corrected_timestamp!=None).order_by(desc(Image.corrected_timestamp)).first()
-            if last_date:
-                if baseUnit == '1':
-                    last_date = last_date.corrected_timestamp
-                elif baseUnit == '2':
-                    last_date = last_date.images[0].corrected_timestamp
-                elif baseUnit == '3':
-                    last_date = last_date.detection.image.corrected_timestamp
-                
-        if first_date and last_date:
-            first_date = str(first_date).split(' ')[0]
-            last_date = str(last_date).split(' ')[0]
-            if timeUnit == '1': # Day
-                date_range = pd.date_range(first_date, last_date, freq='D')
-                if date_range.size == 0:
-                    date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 60:
-                    for date in date_range:
-                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
-                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
-                                        .filter(extract('day',Image.corrected_timestamp)==date.day)\
-                                        .distinct().count()
-                        data.append(count)
-                        data_labels.append(date.strftime('%d %b %Y'))
-                else:
-                    timeUnit = '2'
-
-            if timeUnit == '2': # Month
-                first_date = first_date.split('-')[0] + '-' + first_date.split('-')[1]	
-                last_date = last_date.split('-')[0] + '-' + last_date.split('-')[1]
-                date_range = pd.date_range(first_date, last_date, freq='MS')
-                if date_range.size == 0:
-                    date_range = [pd.to_datetime(first_date)]
-                elif date_range.size <= 60:
-                    for date in date_range:
-                        count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
-                                        .filter(extract('month',Image.corrected_timestamp)==date.month)\
-                                        .distinct().count()
-                        data.append(count)
-                        data_labels.append(calendar.month_abbr[date.month] + ' ' + str(date.year))
-                else:
-                    timeUnit = '3'
-
-            if timeUnit == '3': # Year
-                first_date = first_date.split('-')[0]
-                last_date = last_date.split('-')[0]
-                date_range = pd.date_range(first_date, last_date, freq='AS')
-                if date_range.size == 0:
-                    date_range = [pd.to_datetime(first_date)]
-                elif date_range.size > 60:
-                    date_range = date_range[0:60]
-                for date in date_range:
-                    count = baseQuery.filter(extract('year',Image.corrected_timestamp)==date.year)\
-                                    .distinct().count()
-                    data.append(count)
-                    data_labels.append(str(date.year))
-
     return json.dumps({'data': data, 'labels': data_labels})
 
 @app.route('/searchSites', methods=['POST'])
@@ -8864,7 +9051,7 @@ def searchSites():
 
     if advanced == 'true':
         # Regular expression search 
-        sites = sites.distinct().all()
+        sites = sites.order_by(Trapgroup.id).distinct().all()
         matching_sites = []
         for site in sites:
             if re.search(search, site[1]):
@@ -8874,7 +9061,7 @@ def searchSites():
         searches = re.split('[ ,]',search)
         for search in searches:
             sites = sites.filter(Trapgroup.tag.contains(search))               
-            sites = sites.distinct().all()
+            sites = sites.order_by(Trapgroup.id).distinct().all()
 
     for site in sites:
         site_info = {'tag': site[1], 'latitude': site[2], 'longitude': site[3]}
@@ -8943,6 +9130,7 @@ def getGroups():
                         )\
                         .join(Trapgroup, Sitegroup.trapgroups)\
                         .filter(Trapgroup.survey_id.in_(survey_ids))\
+                        .order_by(Trapgroup.id)\
                         .distinct().all()
 
         groups_df = pd.DataFrame(groupsQuery,columns=['group_id','group_name','group_description','site_id','tag','latitude','longitude'])
@@ -9021,64 +9209,44 @@ def deleteGroup(group_id):
             message = 'An error occurred while deleting the group.'
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/getSurveysAndTasksForResults', methods=['POST'])
+@app.route('/getSurveysAndTasksForResults')
 @login_required
 def getSurveysAndTasksForResults():
     ''' Get a list of surveys and tasks for the results page '''
 
-    reply = []
-
-    sites_ids = ast.literal_eval(request.form['sites_ids'])
-    start_date = ast.literal_eval(request.form['start_date'])
-    end_date = ast.literal_eval(request.form['end_date'])
-    groups = ast.literal_eval(request.form['groups'])
-
-    if Config.DEBUGGING: app.logger.info('Surveys for results page - sites_ids: {} groups: {} start_date: {} end_date: {}'.format(sites_ids, groups, start_date, end_date))
-
-    surveys = db.session.query(
+    if current_user and current_user.is_authenticated:
+        surveys = db.session.query(
                                     Survey.id,
                                     Survey.name,
                                     Task.id,
                                     Task.name,
-                                ).outerjoin(Trapgroup,Trapgroup.survey_id==Survey.id)\
-                                .outerjoin(Task,Task.survey_id==Survey.id)\
-                                .outerjoin(Cluster,Cluster.task_id==Task.id)\
-                                .outerjoin(Image, Cluster.images)\
-                                .outerjoin(Sitegroup, Trapgroup.sitegroups)\
+                                )\
+                                .join(Task)\
                                 .filter(Survey.user_id==current_user.id)\
-                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))\
-                                .filter(Task.name != 'default')
+                                .filter(~Task.name.contains('_o_l_d_'))\
+                                .filter(~Task.name.contains('_copying'))\
+                                .filter(Task.name != 'default')\
+                                .order_by(Survey.id, Task.id).all()
+        
+        survey_data = {}
+        task_data = {}
+        for item in surveys:
+            if item[0] and (item[0] not in survey_data.keys()):
+                survey_data[item[0]] = {'id': item[0],
+                                        'name': item[1]}
 
+                task_data[item[0]] = [{'id': item[2],
+                                        'name': item[3]}]
+            else:
+                task_data[item[0]].append({'id': item[2],
+                                            'name': item[3]})
 
-    if sites_ids != '0' and sites_ids != '-1' and groups != '0' and groups != '-1':
-        surveys = surveys.filter(or_(Trapgroup.id.in_(sites_ids),Sitegroup.id.in_(groups)))
-    elif sites_ids != '0' and sites_ids != '-1':
-        surveys = surveys.filter(Trapgroup.id.in_(sites_ids))
-    elif groups != '0' and groups != '-1':
-        surveys = surveys.filter(Sitegroup.id.in_(groups))
+        survey_data = list(survey_data.values())
+    else:
+        survey_data = []
+        task_data = {}
 
-    if start_date:
-        surveys = surveys.filter(Image.corrected_timestamp >= start_date)
-
-    if end_date:
-        surveys = surveys.filter(Image.corrected_timestamp <= end_date)
-
-    surveys = surveys.distinct().all()
-
-    survey_data = {}
-    for item in surveys:
-        if item[0] and (item[0] not in survey_data.keys()):
-            survey_data[item[0]] = {'id': item[0],
-                                    'name': item[1], 
-                                    'tasks': []}
-        if item[2]:
-            taskInfo = {'id': item[2],
-                        'name': item[3]}
-            survey_data[item[0]]['tasks'].append(taskInfo)   
-
-    reply = list(survey_data.values())
-
-    return json.dumps(reply)
+    return json.dumps({'surveys': survey_data, 'tasks': task_data})
 
 @app.route('/getActivityPattern', methods=['POST'])
 @login_required
@@ -9119,20 +9287,22 @@ def getActivityPattern():
         task_ids = None
     
     status = 'FAILURE'
-    activity_url = None
+    activity_results = None
     message = None
     celery_result = None
+    R_type = 'activity'
     if current_user.is_authenticated and current_user.admin:
+        folder = current_user.folder
         if task_ids:
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
-
+            
             user_id = current_user.id
-            folder = current_user.folder
             bucket = Config.BUCKET
             result = calculate_activity_pattern.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
@@ -9145,24 +9315,28 @@ def getActivityPattern():
                 if status == 'SUCCESS':
                     celery_result = result.result
                     if celery_result['status'] == 'SUCCESS':
-                        activity_url = celery_result['activity_url']
+                        activity_results = celery_result['activity_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
                     else:
                         message = celery_result['error']
                         status = 'FAILURE'
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
             else:
-                activity_url = None
+                activity_results = None
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
 
-    return json.dumps({'status': status, 'activity_url': activity_url, 'message': message})
+    return json.dumps({'status': status, 'activity_results': activity_results, 'message': message})
 
 
 @app.route('/getRScript', methods=['POST'])
@@ -9175,6 +9349,7 @@ def getRScript():
     script = ''
     with open('WorkR/R/' + filename + '.R', 'r') as file:
         script = file.read()
+        script = script[script.find('library'):]
         
     return json.dumps({'status': 'success', 'script': script})
 
@@ -9185,6 +9360,8 @@ def getResultsSummary():
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         baseUnit = ast.literal_eval(request.form['baseUnit'])
+        sites = ast.literal_eval(request.form['sites'])
+        groups = ast.literal_eval(request.form['groups'])
         if 'startDate' in request.form:
             startDate = ast.literal_eval(request.form['startDate'])
         else:
@@ -9201,7 +9378,13 @@ def getResultsSummary():
             timeToIndependence = None
             timeToIndependenceUnit = None
         
-        if Config.DEBUGGING: app.logger.info('Results summary for {} {} {} {}'.format(task_ids,baseUnit,startDate,endDate))
+        normaliseBySite = ast.literal_eval(request.form['normaliseBySite'])
+        if normaliseBySite == '1':
+            normaliseBySite = True
+        else:
+            normaliseBySite = False
+
+        if Config.DEBUGGING: app.logger.info('Results summary for tasks:{} baseUnit:{} sites:{} groups:{} startDate:{} endDate:{} trapUnit:{} timeToIndependence:{} timeToIndependenceUnit:{}'.format(task_ids,baseUnit,sites,groups,startDate,endDate,trapUnit,timeToIndependence,timeToIndependenceUnit))
     else:
         task_ids = None
 
@@ -9215,17 +9398,19 @@ def getResultsSummary():
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
 
             user_id = current_user.id
-            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+            result = calculate_results_summary.apply_async(kwargs={'task_ids': task_ids, 'baseUnit': baseUnit, 'sites': sites, 'groups': groups,'startDate': startDate, 'endDate': endDate, 'user_id': user_id, 'trapUnit': trapUnit, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit, 'normaliseBySite': normaliseBySite})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
             status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
+                result_id = result_id.decode()
                 result = calculate_results_summary.AsyncResult(result_id)
                 status = result.state
                 if status == 'SUCCESS':
@@ -9295,17 +9480,19 @@ def getOccupancy():
     celery_result = None
     occupancy_results = None
     message = None
+    R_type = 'occupancy'
     if current_user.is_authenticated and current_user.admin:
+        folder = current_user.folder
         if task_ids:
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
 
             user_id = current_user.id
-            folder = current_user.folder
             bucket = Config.BUCKET
             result = calculate_occupancy_analysis.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
             GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
@@ -9321,21 +9508,25 @@ def getOccupancy():
                         occupancy_results = celery_result['occupancy_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
                     else:
                         status = celery_result['status']
                         message = celery_result['error']
                         occupancy_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     occupancy_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
             else:
                 occupancy_results = {}
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
 
     return json.dumps({'status': status, 'results': occupancy_results, 'message': message})
 
@@ -9410,6 +9601,21 @@ def getSpatialCaptureRecapture():
         else:
             csv = False
 
+        if 'shapefile' in request.files:
+            shapefile_file = request.files['shapefile']
+        else:
+            shapefile_file = None
+
+        if 'shxfile' in request.files:
+            shxfile_file = request.files['shxfile']
+        else:
+            shxfile_file = None
+
+        if 'polygonGeoJSON' in request.form:
+            polygonGeoJSON = ast.literal_eval(request.form['polygonGeoJSON'])
+        else:
+            polygonGeoJSON = None
+
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
     else:
         task_ids = None
@@ -9418,21 +9624,51 @@ def getSpatialCaptureRecapture():
     celery_result = None
     scr_results = None
     msg = None
+    R_type = 'scr'
     if current_user.is_authenticated and current_user.admin:
+        folder = current_user.folder
         if task_ids:
             if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
                 result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
                 try:
+                    result_id = result_id.decode()
                     celery.control.revoke(result_id, terminate=True)
                 except:
                     pass
 
-            user_id = current_user.id
-            folder = current_user.folder
-            bucket = Config.BUCKET
-            result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv})
-            GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-            status = 'PENDING'
+            # check if any indiviuals exist for the species 
+            count = db.session.query(Individual).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species==species).count()
+
+            if count == 0:
+                status = 'NO_INDIVIDUALS'
+                msg = 'No individuals found for the species.'	
+            else:
+                user_id = current_user.id
+                bucket = Config.BUCKET
+
+                # save shapefile to user folder
+                if shapefile_file:
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shp') as temp_file:
+                        shapefile_file.save(temp_file.name)
+                        fileName = current_user.folder +'/docs/SCR_' + shapefile_file.filename
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                        shapefile = fileName
+                else:
+                    shapefile = None
+
+                # save shxfile to user folder
+                if shxfile_file:
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shx') as temp_file:
+                        shxfile_file.save(temp_file.name)
+                        fileName = current_user.folder +'/docs/SCR_' + shxfile_file.filename
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                        shxfile = fileName
+                else:
+                    shxfile = None
+
+                result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -9444,21 +9680,25 @@ def getSpatialCaptureRecapture():
                         scr_results = celery_result['scr_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
                     else:
                         status = celery_result['status']
                         msg = celery_result['error']
                         scr_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
                 elif status == 'FAILURE':
                     msg = 'Task {} failed'.format(result_id)
                     scr_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
             else:
                 msg = 'No task id found'
                 scr_results = {}
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
 
     return json.dumps({'status': status, 'results': scr_results, 'message': msg})
 
@@ -9475,3 +9715,63 @@ def populateSiteSelector():
             response.append(site)
 
     return json.dumps(response)
+
+@app.route('/cancelResults', methods=['POST'])
+@login_required
+def cancelResults():
+    ''' Cancel a results analysis '''
+    status = ''
+    result_type = ast.literal_eval(request.form['result_type'])
+    if current_user.is_authenticated and current_user.admin:
+        result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+        if result_id:
+            try:
+                result_id = result_id.decode()
+                if result_type == 'summary':
+                    celery.control.revoke(result_id, terminate=True)
+                else:
+                    celery.control.revoke(result_id, terminate=True)
+                    clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'user_folder': current_user.folder})
+                if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
+                GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                status = 'SUCCESS'
+            except:
+                status = 'FAILURE'
+                pass
+
+    return json.dumps({'status': status})
+
+@app.route('/getGroupSites', methods=['POST'])
+@login_required
+def getGroupSites():
+    ''' Get the sites for a group '''
+    sites_data = []
+    group_ids = ast.literal_eval(request.form['group_ids'])
+    app.logger.info(group_ids)
+    if current_user and current_user.is_authenticated:
+        survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
+        survey_ids = [r[0] for r in survey_ids]
+
+        sites = db.session.query(
+                                Trapgroup.id,
+                                Trapgroup.tag,
+                                Trapgroup.latitude,
+                                Trapgroup.longitude
+                            )\
+                            .join(Sitegroup, Trapgroup.sitegroups)\
+                            .filter(Trapgroup.survey_id.in_(survey_ids))
+
+        if group_ids != '0':
+            sites = sites.filter(Sitegroup.id.in_(group_ids))
+
+        # Combine sites with the same tag, latitude and longitude and make their ids a comma separated list and rename to ids
+        sites_df = pd.DataFrame(sites.order_by(Trapgroup.id).distinct().all(),columns=['id','tag','latitude','longitude'])
+        sites_df['ids'] = sites_df.groupby(['tag','latitude','longitude'])['id'].transform(lambda x: ','.join(x.astype(str)))
+        sites_df.drop_duplicates(subset=['tag','latitude','longitude'],inplace=True)
+        sites_df.drop(columns=['id'],inplace=True)
+
+        sites_data = sites_df.to_dict('records')
+        sites_data = list(sites_data)
+
+    return json.dumps({'sites': sites_data})
+    

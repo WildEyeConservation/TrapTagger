@@ -46,6 +46,22 @@ function buildJob(job) {
     headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
     jobDiv.appendChild(headingElement)
 
+    var jobDescriptionDiv = document.createElement('div')
+    jobDescriptionDiv.setAttribute("id","jobDescription"+job.id)
+    jobDiv.appendChild(jobDescriptionDiv)
+
+    var jobType = document.createElement('div')
+    jobType.setAttribute("id","jobType"+job.id)
+    jobType.setAttribute("style","font-size: 70%; margin-left: 10px;")
+    jobType.innerHTML = 'Type: ' + job.type
+    jobDiv.appendChild(jobType)
+
+    var jobSpecies = document.createElement('div')
+    jobSpecies.setAttribute("id","jobSpecies"+job.id)
+    jobSpecies.setAttribute("style","font-size: 70%; margin-left: 10px;")
+    jobSpecies.innerHTML = 'Level: ' + job.species
+    jobDiv.appendChild(jobSpecies)
+
     jobsAvailableCol = document.createElement('div')
     jobsAvailableCol.classList.add('col-lg-1');
     entireRow.appendChild(jobsAvailableCol)

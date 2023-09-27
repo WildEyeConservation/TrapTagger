@@ -32,7 +32,7 @@ var chartColours = {
 }
 
 function buildPolarSelectorRow() {
-    /** Builds a new species selector row for the temporal analysis polar chart. */
+    /** Builds a new species selector row for the Naive Activity analysis polar chart. */
 
     IDNum = getIdNumforNext('trapgroupSelect')
     selectorColumn = document.getElementById('selectorColumn')
@@ -65,8 +65,7 @@ function buildPolarSelectorRow() {
             var analysisSelection = document.getElementById('analysisSelector').value
             if (analysisSelection == '1') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                colour = btnRemove.style.backgroundColor
-                removePolarData(colour)
+                removePolarData(wrapIDNum)
                 btnRemove.parentNode.parentNode.parentNode.remove();
                 if (polarData.hasOwnProperty(wrapIDNum.toString())) {
                     delete polarData[wrapIDNum.toString()]
@@ -74,8 +73,7 @@ function buildPolarSelectorRow() {
                 updatePolarErrors()
             } else if (analysisSelection == '4') {
                 btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-                colour = btnRemove.style.backgroundColor
-                removeLineData(colour)
+                removeLineData(wrapIDNum)
                 btnRemove.parentNode.parentNode.parentNode.remove();
                 if (lineData.hasOwnProperty(wrapIDNum.toString())) {
                     delete lineData[wrapIDNum.toString()]
@@ -161,8 +159,7 @@ function buildBarSelectorRow() {
     btnRemove.addEventListener('click', function(wrapIDNum) {
         return function() {
             btnRemove = document.getElementById('btnRemove-'+wrapIDNum)
-            colour = btnRemove.style.backgroundColor
-            removeBarData(colour)
+            removeBarData(wrapIDNum)
             btnRemove.parentNode.parentNode.parentNode.remove();
             if (barData.hasOwnProperty(wrapIDNum.toString())) {
                 delete barData[wrapIDNum.toString()]
@@ -174,7 +171,7 @@ function buildBarSelectorRow() {
     // species
     speciesSelect = document.createElement('select')
     speciesSelect.classList.add('form-control')
-    speciesSelect.setAttribute('id','speciesSelect-'+IDNum)
+    speciesSelect.setAttribute('id','speciesSelectNum-'+IDNum)
     colrow2.appendChild(speciesSelect)
     fillSelect(speciesSelect,speciesNames,speciesValues)
 
@@ -189,7 +186,7 @@ function buildBarSelectorRow() {
 }
 
 function createPolarChart() {
-    /** Initialises a temporal analysis polar chart. */
+    /** Initialises a Naive Activity analysis polar chart. */
 
     polarData = {}
 
@@ -580,7 +577,7 @@ function createBar() {
                             updateBarData(IDNum)
                     
                             if (document.getElementById('baseUnitSelector').options[document.getElementById('baseUnitSelector').selectedIndex].value=='3') {
-                                speciesSelector = document.getElementById('speciesSelect-'+IDNum)
+                                speciesSelector = document.getElementById('speciesSelectNum-'+IDNum)
                                 species = speciesSelector.options[speciesSelector.selectedIndex].text
 
                                 var formData = new FormData()
@@ -769,7 +766,7 @@ function createBar() {
                                     var datasetLabel = '';
                                     var label = data.labels[tooltipItem.index];
                                     if (xAxisSelection=='1') {
-                                        selector = document.querySelectorAll('[id^=speciesSelect-]')[tooltipItem.datasetIndex]
+                                        selector = document.querySelectorAll('[id^=speciesSelectNum-]')[tooltipItem.datasetIndex]
                                         speciesName = selector.options[selector.selectedIndex].text
                                         return speciesName+': '+data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
                                     } else {
@@ -1334,7 +1331,7 @@ function clearStatistics() {
 }
 
 function createLine(){
-    /** Creates the line chart for time analysis */
+    /** Creates the line chart for temporal analysis */
     lineData = {}
 
     var formData = new FormData();
@@ -1423,10 +1420,59 @@ function createLine(){
                     var row = document.createElement('div')
                     row.classList.add('row')
                     selectorDiv.appendChild(row)
+
+                    var col0 = document.createElement('div')
+                    col0.classList.add('col-lg-5')
+                    row.appendChild(col0)
                 
                     var col1 = document.createElement('div')
-                    col1.classList.add('col-lg-10')
+                    col1.classList.add('col-lg-7')
                     row.appendChild(col1)
+
+                    var input = document.createElement('input')
+                    input.setAttribute('type','number')
+                    input.setAttribute('id','timeUnitNumber')
+                    input.setAttribute('class','form-control')
+                    input.setAttribute('min','1')
+                    input.setAttribute('value','1')
+                    input.setAttribute('step','1')
+                    col0.appendChild(input)
+
+                    $("#timeUnitNumber").change( function() {
+
+                        var timeUnitNumber = this.value
+                        var valid = true
+                        var error = document.getElementById('timeUnitError')
+                        var message = ''
+                    
+                        if (timeUnitNumber == '') {
+                            valid = false
+                            message = 'Time unit cannot be empty. Please enter a number.'
+                        }
+                        else if (timeUnitNumber < 1) {
+                            valid = false
+                            message = 'Time unit must be greater than 0.'
+                        }
+                        else if (timeUnitNumber > 100) {
+                            valid = false
+                            message = 'Time unit must be less than 100. Change the time unit to a larger unit.'
+                        }
+                        else if (parseFloat(timeUnitNumber) != parseInt(timeUnitNumber) ){
+                            valid = false
+                            message = 'Time unit must be an integer.'
+                        }
+
+                        if (valid) {
+                            error.innerHTML = ''
+                            timeLabels = []
+                            for (let IDNum in lineData) {
+                                updateLineData(IDNum)
+                            }
+                        }
+                        else{
+                            error.innerHTML = message
+                        }
+                    });
                 
                     var select = document.createElement('select')
                     select.classList.add('form-control')
@@ -1441,6 +1487,12 @@ function createLine(){
                         }
                     });
                     select.value = '2'
+
+                    var timeUnitErrors = document.createElement('div')
+                    timeUnitErrors.setAttribute('id', 'timeUnitError')
+                    timeUnitErrors.setAttribute('style', 'color: #DF691A; font-size: 80%')
+                    timeUnitErrors.innerHTML = ''
+                    selectorDiv.appendChild(timeUnitErrors)
 
                     selectorDiv.appendChild(document.createElement('br'))
 

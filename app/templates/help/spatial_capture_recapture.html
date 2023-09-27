@@ -11,3 +11,90 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. -->
+
+
+<h4> Spatial Capture-Recapture</h4>
+
+<p>
+    <strong>Spatial Capture-Recapture</strong> provides comprehensive abundance estimates, detection probabilities, and sigma estimates for a species, leveraging spatial information to enhance accuracy.
+</p>
+
+<p>
+    The Spatial Capture-Recapture summary includes the following key components:
+</p>
+
+<ul>
+    <li>
+        <strong>SCR Data Summary</strong>
+        <p>
+            Provides a summary of data used in the SCR analysis, including the number of individuals, sampling occasions, and sites. It also includes mean maximum distance move (MMDM) and half the mean maximum distance move (HMMDM) per individual. A zero MMDM may indicate incomplete data or issues with site coordinates.
+        </p>
+    </li>
+    <li>
+        <strong>AICc</strong>
+        <p>
+            Presents AICc values for each model, allowing model comparisons. The model with the lowest AICc value is considered the best fit.
+        </p>
+    </li>
+    <li>
+        <strong>Density per 100km<sup>2</sup></strong>
+        <p>
+            Offers density estimates per 100km<sup>2</sup> for the best model, along with standard errors and 95% confidence intervals.
+        </p>
+    </li>
+    <li>
+        <strong>Abundance</strong>
+        <p>
+            Displays abundance estimates for the best model, including standard errors and 95% confidence intervals.
+        </p>
+    </li>
+    <li>
+        <strong>Detection Probability</strong>
+        <p>
+            Shows detection probability estimates for the best model, along with standard errors and 95% confidence intervals.
+        </p>
+    </li>
+    <li>
+        <strong>Space use (sigma)</strong>
+        <p>
+            Provides space use estimates for the best model, including standard errors and 95% confidence intervals.
+        </p>
+    </li>
+</ul>
+
+<p>
+    Customize your Spatial Capture-Recapture analysis by selecting observation window days, and selecting the species you want to evaluate. You can also incorporate site-level covariates and individual characteristics, such as sex, into your analysis.
+</p>
+
+<p>
+    The Spatial Capture-Recapture analysis was executed using an R script. You can view the script by clicking the <em>View R Script</em> button. Additionally, download the data used in the analysis as a CSV file by selecting the <em>Download CSV</em> button. The R script includes a function that allows you to load the CSV file into R for further analysis or modifications to suit your needs.
+</p>
+
+<p>
+    This analysis relies on the following R packages:
+</p>
+
+<ul>
+    <li>
+        <a href="https://sites.google.com/site/spatialcapturerecapture/oscr-package">oSCR</a>
+        <p>
+            oSCR is used to create spatial capture-recapture models and calculate species abundance estimates.
+        </p>
+    </li>
+    <li>
+        <a href="https://cran.r-project.org/web/packages/raster/index.html">raster</a>
+        <p>
+            The raster package is employed to create a raster object from site coordinates for plotting density maps.
+        </p>
+    </li>
+    <li>
+        <a href="https://cran.r-project.org/web/packages/sf/index.html">sf</a>
+        <p>
+            sf is used to create a spatial object from site coordinates for plotting density maps.
+        </p>
+    </li>
+</ul>
+
+<p>
+    Please note that Spatial Capture-Recapture operates on an individual level, so complete individual ID is essential for accurate results. Ensure site coordinates are provided for spatial analysis. To initiate the analysis, click the <em>Generate Results</em> button. Be patient, as Spatial Capture-Recapture results may take some time to generate. Avoid navigating away from or refreshing the page while results are processing.
+</p>

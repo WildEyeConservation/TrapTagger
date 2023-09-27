@@ -14,54 +14,35 @@ limitations under the License. -->
 
 <h4>Activity Pattern</h4>
 
-<p align="justify">
-    The activity pattern analysis is a statistical analysis that is used to determin the activity pattern of a species in a 24 hour period. 
-    The analysis is based on the number of detections per hour of the day. Multiple species can be selected to give an overview of when the activity pattern of the species overlap. 
-    On the graph the average sunrise and sunset time is shown as a vertical line to give an indication of the time of day. Activity patterns can be used to view predator-prey relationships,
-    foraging behaviour, and the effect of human disturbance on the activity of a species as well as many other things.
+<p>
+    The <strong>Activity Pattern Analysis</strong> is a statistical tool used to determine the activity pattern of a species within a 24-hour period. It's based on the number of detections per hour of the day and is particularly useful for understanding when species are active. Multiple species can be selected to visualize how their activity patterns overlap.
 </p>
 
-<p align="justify">
-    For the activity pattern analysis a date range can be selected to limit the analysis to a specific period. The analysis can be done for multiple species at the same time. Please note that if you select 
-    to do overlap estimation only two species can be selected. THe overlap estimation will show the overlap between the two species in the graph. The axis can be either centered
-    around midday or midnight. The results can either showcase the frequercy of detections of the species or the density of detections. The analysis can either be done using solar time or clock time. Solar time
-    is based on the average location of the sites where the species were detected. Clock time is based on the time of day. The activity pattern graph can be exported as a PNG file by clicking on the <i>Export</i> button.
+<p>
+    Key features of the Activity Pattern Analysis include:
 </p>
 
-<p align="justify">
-    The activity pattern analysis was calculated using an R script. The script can be viewed by clicking the <i>View R Script</i> button. The data used in the analysis can be downloaded
-    as a CSV file by clicking the <i>Download CSV</i> button. A function is created in the R script where the CSV file can be loaded into R and the analysis can be done using the function if further 
-    analysis is required or modifications to the analysis is needed for your own purposes.
-</p>
-<p align="justify">
-    The activity pattern analysis is based on the following packages:
 <ul>
-    <li><a href="https://cran.r-project.org/web/packages/activity/index.html">activity</a></li>
-    <p>
-        The activity package is used to calculate the activity pattern of the species. It estimates the activity level of the species per hour of the day. 
-    </p>
-    
-    <li><a href="https://cran.r-project.org/web/packages/overlap/index.html">overlap</a></li>
-    <p>
-        The overlap package is used to calculate the overlap between two species. It calculates an overlap coefficient based on the activity pattern of the two species.
-    </p>
-    <li><a href="https://cran.r-project.org/web/packages/lubridate/index.html">lubridate</a></li>
-    <p>
-        The lubridate package is used for date and time calculations. The package is used to convert the date and time of the detections to the correct format.
-    </p>
-
-    <li><a href="https://cran.r-project.org/web/packages/solartime/index.html">solartime</a></li>
-    <p>
-        The solartime package is used to calculate the sunrise and sunset time of the detections. The sunrise and sunset time is calculated based on the average location of the sites where the species were detected.
-    </p>
-    <li><a href="https://cran.r-project.org/web/packages/ggplot2/index.html">ggplot2</a></li>
-    <p>
-        The ggplot2 package is used to plot the activity pattern graph.
-    </p>
+    <li><strong>Multiple Species:</strong> You can analyze the activity patterns of multiple species simultaneously, with the option to estimate overlap between two species.</li>
+    <li><strong>Axis Centering:</strong> Choose to center the graph axis around midday or midnight, depending on your preference.</li>
+    <li><strong>Result Types:</strong> You can view results as either the frequency of species detections or the density of detections.</li>
+    <li><strong>Time Reference:</strong> The analysis can be conducted using either solar time (based on average location) or clock time (based on time of day).</li>
+    <li><strong>Export Graph:</strong> You can export the Activity Pattern graph as a PNG file by clicking the <em>Export</em> button.</li>
+    <li><strong>Script and Data:</strong> Access the underlying R script by clicking <em>View R Script</em>, and download the data used in the analysis as a CSV file by clicking <em>Download CSV</em>. This allows for further analysis or customization of the script.</li>
 </ul>
+
+<p>
+    The Activity Pattern Analysis relies on the following R packages:
 </p>
 
-<p align="justify">
-    Please click the <i>Generate Results</i> button to generate the activity pattern results. Please note the activity pattern results may take a while to generate. Do not 
-    navigate away from the page or refreshh the page while the results are being generated.
+<ul>
+    <li><a href="https://cran.r-project.org/web/packages/activity/index.html">activity</a>: Used to calculate the activity pattern of species by estimating their activity level per hour of the day.</li>
+    <li><a href="https://cran.r-project.org/web/packages/overlap/index.html">overlap</a>: Used to calculate overlap between two species, providing an overlap coefficient based on their activity patterns.</li>
+    <li><a href="https://cran.r-project.org/web/packages/lubridate/index.html">lubridate</a>: Employed for date and time calculations, ensuring that detection date and time are in the correct format.</li>
+    <li><a href="https://cran.r-project.org/web/packages/solartime/index.html">solartime</a>: Utilized to calculate sunrise and sunset times based on the average location of detection sites.</li>
+    <li><a href="https://cran.r-project.org/web/packages/ggplot2/index.html">ggplot2</a>: Used for creating the Activity Pattern graph.</li>
+</ul>
+
+<p>
+    To generate Activity Pattern results, click the <em>Generate Results</em> button. Please note that the analysis may take some time to complete. Do not navigate away from the page or refresh it while the results are being generated.
 </p>

@@ -2724,7 +2724,7 @@ def clean_up_redis():
                     if datetime.utcnow() - user.last_ping > timedelta(minutes=15):   # Not sure what to use for timedelta here
                         app.logger.info('Deleting analysis key {}'.format(key))
                         try:
-                            result_id = GLOBALS.redisClient.get(key)
+                            result_id = GLOBALS.redisClient.get(key).decode()
                             celery.control.revoke(result_id, terminate=True)
                         except:
                             pass
