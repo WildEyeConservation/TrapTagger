@@ -3806,38 +3806,39 @@ def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min
                 if tags:
                     tag = tags[0]
                     species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
-                    dirpath = '/'.join(item['file'].split('/')[:-1])
-                    filename = item['file'].split('/')[-1]
-                    if tag not in trapgroups.keys():
-                        trapgroup = Trapgroup(survey_id=survey_id,tag=tag)
-                        db.session.add(trapgroup)
-                        images = commitAndCrop(images)
-                        trapgroups[tag] = trapgroup.id
-                    trapgroup_id = trapgroups[tag]
-                    if dirpath not in dirpath_cam_translations.keys():
-                        camera = Camera(path=dirpath,trapgroup_id=trapgroup_id)
-                        db.session.add(camera)
-                        images = commitAndCrop(images)
-                        dirpath_cam_translations[dirpath] = camera.id
-                    camera_id = dirpath_cam_translations[dirpath]
-                    image = Image(camera_id=camera_id,filename=filename)
-                    cluster = Cluster(task_id=task_id)
-                    db.session.add(image)
-                    db.session.add(cluster)
-                    cluster.images = [image]
-                    for specie in species:
-                        cluster.labels.append(label_translations[specie])
-                    images.append(image)
-                    for det in item['detections']:
-                        top, left, bottom, right = convertBBox(det['bbox'])
-                        detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b')
-                        db.session.add(detection)
-                        labelgroup = Labelgroup(task_id=task_id,detection=detection)
-                        db.session.add(labelgroup)
+                    if species:
+                        dirpath = '/'.join(item['file'].split('/')[:-1])
+                        filename = item['file'].split('/')[-1]
+                        if tag not in trapgroups.keys():
+                            trapgroup = Trapgroup(survey_id=survey_id,tag=tag)
+                            db.session.add(trapgroup)
+                            images = commitAndCrop(images)
+                            trapgroups[tag] = trapgroup.id
+                        trapgroup_id = trapgroups[tag]
+                        if dirpath not in dirpath_cam_translations.keys():
+                            camera = Camera(path=dirpath,trapgroup_id=trapgroup_id)
+                            db.session.add(camera)
+                            images = commitAndCrop(images)
+                            dirpath_cam_translations[dirpath] = camera.id
+                        camera_id = dirpath_cam_translations[dirpath]
+                        image = Image(camera_id=camera_id,filename=filename)
+                        cluster = Cluster(task_id=task_id)
+                        db.session.add(image)
+                        db.session.add(cluster)
+                        cluster.images = [image]
                         for specie in species:
-                            labelgroup.labels.append(label_translations[specie])
-                    count += 1
-                    if count%100==0: print(count)
+                            cluster.labels.append(label_translations[specie])
+                        images.append(image)
+                        for det in item['detections']:
+                            top, left, bottom, right = convertBBox(det['bbox'])
+                            detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b')
+                            db.session.add(detection)
+                            labelgroup = Labelgroup(task_id=task_id,detection=detection)
+                            db.session.add(labelgroup)
+                            for specie in species:
+                                labelgroup.labels.append(label_translations[specie])
+                        count += 1
+                        if count%100==0: print(count)
         images = commitAndCrop(images)
 
         survey = db.session.query(Survey).get(survey_id)
