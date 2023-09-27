@@ -3755,7 +3755,7 @@ def commitAndCrop(images):
     return []
 
 @celery.task(bind=True,ignore_result=True)
-def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min_area,destBucket):
+def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,source,min_area,destBucket):
     '''Makes use of the MegaDetector results on LILA to pipeline trianing data.'''
     try:
         skip_labels = ['unknown','none','fire','human','null','nothinghere','ignore']
