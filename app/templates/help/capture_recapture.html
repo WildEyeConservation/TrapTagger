@@ -15,7 +15,7 @@ limitations under the License. -->
 <h4> Capture-Recapture Results</h4>
 
 <p>
-    <strong>Capture-recapture</strong> analysis provides abundance estimates for a species. The results table displays these estimates for multiple models. It's important to note that capture-recapture is performed at the individual level and doesn't rely on spatial information for calculation.
+    <strong>Capture-recapture</strong> analysis provides abundance estimates for a species using capture mark recapture principles. The results table displays these estimates for multiple models. It's important to note that capture-recapture is performed at the individual level and doesn't rely on spatial information for calculation.
 </p>
 
 <p>
@@ -26,19 +26,3 @@ limitations under the License. -->
     <li><strong>Observation Window:</strong> The observation window, specified in days, represents the duration of a sampling occasion.</li>
     <li><strong>Species:</strong> You can apply the analysis to the selected species or all species in the dataset.</li>
 </ul>
-
-<p>
-    The capture-recapture analysis is performed using an R script. You can access the script by clicking the <em>View R Script</em> button. Additionally, you have the option to download the data used in the analysis as a CSV file by clicking <em>Download CSV</em>. The R script includes a function that allows you to load the CSV file into R for further analysis or customization.
-</p>
-
-<p>
-    The capture-recapture analysis relies on the following R package:
-</p>
-
-<ul>
-    <li><a href="https://cran.r-project.org/web/packages/Rcapture/index.html">Rcapture</a>: This package is used to create capture-recapture models and calculate abundance estimates for species.</li>
-</ul>
-
-<p>
-    Please be aware that individual identification is crucial for accurate capture-recapture analysis. To initiate the analysis, click the <em>Generate Results</em> button. Keep in mind that generating capture-recapture results may take some time, so refrain from navigating away from the page or refreshing it during the process.
-</p>

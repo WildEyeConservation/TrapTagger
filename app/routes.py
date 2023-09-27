@@ -8613,11 +8613,13 @@ def getAllLabelsTagsSitesAndGroups():
             tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
             sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id).order_by(Trapgroup.id).all()
             groups = db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()
+            individual_species = [r[0] for r in db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
         else:
             labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
             sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).order_by(Trapgroup.id).all()
             tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
             groups = db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()
+            individual_species = [r[0] for r in db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
 
         for site in sites:
             site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
@@ -8635,7 +8637,7 @@ def getAllLabelsTagsSitesAndGroups():
         group_ids = [r[0] for r in groups]
         group_names = [r[1] for r in groups]
 
-    return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids, 'tags': tags, 'group_ids': group_ids, 'group_names': group_names})
+    return json.dumps({'labels': labels, 'sites': sites_data, 'sites_ids': sites_ids, 'tags': tags, 'group_ids': group_ids, 'group_names': group_names, 'individual_species': individual_species})
 
 @app.route('/getLineData', methods=['POST'])
 @login_required
