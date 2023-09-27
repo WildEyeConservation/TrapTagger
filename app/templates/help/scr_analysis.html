@@ -1,0 +1,109 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+
+<h4> Spatial Capture-Recapture</h4>
+
+<p>
+    <strong>Spatial Capture-Recapture</strong> analysis provides the following results based on individuals identified in your dataset:
+</p>
+
+<ul>
+    <li>
+        <strong>Capture-Recapture</strong>
+        <p>
+            Provides a summary of the abundance estimates for your species on capture-recapture models. 
+        </p>
+    </li>
+    <li>
+        <strong>Spatial Capture-Recapture Summary</strong>
+        <p>
+            Provides comprehensive abundance estimates, detection probabilities, and sigma estimates for a species, leveraging spatial information to enhance accuracy.
+        </p>
+    </li>
+    <li>
+        <strong>Spatial Captures</strong>
+        <p>
+            A graph of the average spatial locations of the individuals identified in your dataset.
+        </p>
+    </li>
+    <li>
+        <strong>State Space</strong>
+        <p>
+            The state space used in the analysis.
+        </p>
+    </li>
+    <li>
+        <strong>Density Map</strong>
+        <p>
+            Provides a estimated density heatmap for the selected species.
+        </p>
+    </li>
+    <li>
+        <strong>Individual Counts</strong>
+        <p>
+            Provides a heatmap of the number of individuals detected at each site.
+        </p>
+    </li>
+</ul>
+
+<p>
+    Customize your Spatial Capture-Recapture analysis by selecting observation window days, and selecting the species you want to evaluate. You can also incorporate site-level covariates and individual characteristics, such as sex, into your analysis. You can choose to use the state space that is calculated by default or select 
+    to mask your own state space. You can mask your own state space by uploading the corresponding shapefiles or by drawing a polygon on the map. Please note that all applicaple sites should be included in the state space otherwise an error will occur.
+</p>
+
+<p>
+    The Spatial Capture-Recapture analysis was executed using an R script. You can view the script by clicking the <em>View R Script</em> button. Additionally, download the data used in the analysis as a CSV file by selecting the <em>Download CSV</em> button. The R script includes a function that allows you to load the CSV file into R for further analysis or modifications to suit your needs.
+</p>
+
+<p>
+    This analysis relies on the following R packages:
+</p>
+
+<ul>
+    <li>
+        <a href="https://sites.google.com/site/spatialcapturerecapture/oscr-package">oSCR</a>
+        <p>
+            oSCR is used to create spatial capture-recapture models and calculate species abundance estimates.
+        </p>
+    </li>
+    <li>
+        <a href="https://cran.r-project.org/web/packages/Rcapture/index.html">Rcapture</a> 
+        <p>
+            This package is used to create capture-recapture models and calculate abundance estimates for species.
+        </p>
+    </li>
+    <li>
+        <a href="https://cran.r-project.org/web/packages/raster/index.html">raster</a>
+        <p>
+            The raster package is employed to create a raster object from site coordinates for plotting density maps.
+        </p>
+    </li>
+    <li>
+        <a href="https://cran.r-project.org/web/packages/sf/index.html">sf</a>
+        <p>
+            sf is used to create a spatial object from site coordinates for plotting density maps.
+        </p>
+    </li>
+</ul>
+
+<p>
+    Please note that Spatial Capture-Recapture operates on an individual level, so complete individual ID is essential for accurate results. Ensure site coordinates are provided for spatial analysis. To initiate the analysis, click the <em>Generate Results</em> button. Be patient, as Spatial Capture-Recapture results may take some time to generate. Avoid navigating away from or refreshing the page while results are processing.
+</p>
+
+
+
+
+
+

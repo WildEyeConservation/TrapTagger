@@ -158,6 +158,7 @@ var globalActivityResults = null
 var globalOccupancyResults = null
 var globalSCRResults = null
 var ssPolygon = null
+var globalIndividualSpecies = []
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -192,14 +193,23 @@ function getLabelsSitesTagsAndGroups(){
             }
             globalGroupNames = reply.group_names
             globalGroupIDs = reply.group_ids
+            globalIndividualSpecies = reply.individual_species
+
+            var analysisType = document.getElementById('analysisSelector').value
 
             speciesSelector = document.getElementById('speciesSelect')
             if (speciesSelector) {
                 clearSelect(speciesSelector)
                 var optionValues = ['-1', '0']
                 var optionTexts = ['None', 'All']
-                optionValues = optionValues.concat(globalLabels)
-                optionTexts = optionTexts.concat(globalLabels)
+                if (analysisType=='7') {
+                    optionValues = optionValues.concat(globalIndividualSpecies)
+                    optionTexts = optionTexts.concat(globalIndividualSpecies)
+                }
+                else{
+                    optionValues = optionValues.concat(globalLabels)
+                    optionTexts = optionTexts.concat(globalLabels)
+                }
                 fillSelect(speciesSelector, optionTexts, optionValues)
             }
 
@@ -256,6 +266,10 @@ function generateResults(){
     clearButtonColours()
 
     document.getElementById('statisticsErrors').innerHTML = ''
+    var analysisDescription = document.getElementById('analysisDescription')
+    analysisDescription.innerHTML = ''
+
+    var speciesSelector = document.getElementById('speciesSelect')
 
     if (analysisType=='0') {
         //Builds the selectors for the summary analysis
@@ -283,6 +297,9 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= false
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i>The summary analysis provides a summary or your dataset, diversity indices, species abundance and camera trap effort. </i>'
 
         if (globalSummaryResults) {
             buildSummary(globalSummaryResults)
@@ -313,6 +330,10 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= false
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i>The naive activity analysis provides a count of your species per hour of the day. </i>'
+
         generateNaiveActivity()
     }
     else if (analysisType=='2') {
@@ -339,6 +360,19 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= true
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i>The spatial analysis provides a heatmap of your species counts per site. </i>'
+
+        if (speciesSelector) {
+            clearSelect(speciesSelector)
+            var optionValues = ['-1', '0']
+            var optionTexts = ['None', 'All']
+            optionValues = optionValues.concat(globalLabels)
+            optionTexts = optionTexts.concat(globalLabels)
+            fillSelect(speciesSelector, optionTexts, optionValues)
+        }
+
         generateSpatial()
     }
     else if (analysisType=='3') {
@@ -366,6 +400,10 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= false
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i> The numerical analysis provides the total count of your species or the count of your species per site. </i>'
+
         generateNumerical()
     }
     else if (analysisType=='4') {
@@ -393,6 +431,10 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= false
         document.getElementById('relativeAbundanceDiv').hidden = false
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i> The temporal analysis provides unit counts for your species as a function of time. </i>'
+
         generateTemporal()
     }
     else if (analysisType=='5') {
@@ -421,6 +463,10 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= true
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i> The activity pattern analysis provides a time-of-day activity pattern for your selected species using kernel density functions.</i>'
+
         if (globalActivityResults) {
             generateActivity(globalActivityResults)
         }
@@ -451,6 +497,19 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= true
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i> The occupancy analysis provides occupancy and detection probabilities for your selected species for your areas of interest. </i>'
+
+        if (speciesSelector) {
+            clearSelect(speciesSelector)
+            var optionValues = ['-1', '0']
+            var optionTexts = ['None', 'All']
+            optionValues = optionValues.concat(globalLabels)
+            optionTexts = optionTexts.concat(globalLabels)
+            fillSelect(speciesSelector, optionTexts, optionValues)
+        }
+
         if (globalOccupancyResults) {
             buildOccupancyTabs(globalOccupancyResults)	
         }
@@ -481,6 +540,19 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= true
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = false
+        document.getElementById('descriptionDiv').hidden = false
+
+        analysisDescription.innerHTML = '<i> The spatial capture-recapture analysis provides population estimates for your species using capture mark recapture principles. </i>'
+
+        if (speciesSelector) {
+            clearSelect(speciesSelector)
+            var optionValues = ['-1', '0']
+            var optionTexts = ['None', 'All']
+            optionValues = optionValues.concat(globalIndividualSpecies)
+            optionTexts = optionTexts.concat(globalIndividualSpecies)
+            fillSelect(speciesSelector, optionTexts, optionValues)
+        }
+
         if (globalSCRResults) {
             buildSCRtabs(globalSCRResults)
         }
@@ -508,6 +580,18 @@ function generateResults(){
         document.getElementById('openChartTab').disabled= false
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = true
+
+        analysisDescription.innerHTML = ''
+
+        if (speciesSelector) {
+            clearSelect(speciesSelector)
+            var optionValues = ['-1', '0']
+            var optionTexts = ['None', 'All']
+            optionValues = optionValues.concat(globalLabels)
+            optionTexts = optionTexts.concat(globalLabels)
+            fillSelect(speciesSelector, optionTexts, optionValues)
+        }
     }
 
 }
@@ -889,27 +973,10 @@ function generateNaiveActivity(){
     // Polar map
     mainDiv = document.getElementById('resultsDiv')
 
-    var row = document.createElement('div')
-    row.classList.add('row')
-    row.setAttribute('style','margin:0px')
-    mainDiv.appendChild(row)
-
     var h5 = document.createElement('h5');
     h5.innerHTML = 'Naive Activity Analysis'
     h5.setAttribute('style','margin-bottom: 2px')
-    row.appendChild(h5);
-
-    var help = document.createElement('button');
-    help.setAttribute('type', 'button');
-    help.setAttribute('class', 'btn btn-link btn-sm');
-    help.setAttribute('align', 'left');
-    help.setAttribute('value', 'help');
-    help.setAttribute('data-toggle', 'tooltip');
-    help.setAttribute('title', 'Help');
-    help.setAttribute('onclick', 'helpOpen(\'naive_activity_analysis\')');
-    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
-    help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
-    row.appendChild(help);
+    mainDiv.appendChild(h5);
 
     h5 = document.createElement('h5')
     h5.innerHTML = '<div><i> The following chart shows the unit counts for each hour of the day. </i></div>'
@@ -1028,27 +1095,10 @@ function generateSpatial(){
 
                 mainDiv = document.getElementById('resultsDiv')
 
-                var row = document.createElement('div')
-                row.classList.add('row')
-                row.setAttribute('style','margin:0px')
-                mainDiv.appendChild(row)
-
                 var h5 = document.createElement('h5');
                 h5.innerHTML = 'Spatial Analysis'
                 h5.setAttribute('style','margin-bottom: 2px')
-                row.appendChild(h5);
-            
-                var help = document.createElement('button');
-                help.setAttribute('type', 'button');
-                help.setAttribute('class', 'btn btn-link btn-sm');
-                help.setAttribute('align', 'left');
-                help.setAttribute('value', 'help');
-                help.setAttribute('data-toggle', 'tooltip');
-                help.setAttribute('title', 'Help');
-                help.setAttribute('onclick', 'helpOpen(\'spatial_analysis\')');
-                help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
-                help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
-                row.appendChild(help);
+                mainDiv.appendChild(h5);
             
                 h5 = document.createElement('h5')
                 h5.innerHTML = '<div><i> The following map showcase the a heatmap of the unit counts for each site.</i></div>'
@@ -1196,27 +1246,10 @@ function generateNumerical(){
     // Bar chart
     mainDiv = document.getElementById('resultsDiv')
 
-    var row = document.createElement('div')
-    row.classList.add('row')
-    row.setAttribute('style','margin:0px')
-    mainDiv.appendChild(row)
-
     var h5 = document.createElement('h5');
     h5.innerHTML = 'Numerical Analysis'
     h5.setAttribute('style','margin-bottom: 2px')
-    row.appendChild(h5);
-
-    var help = document.createElement('button');
-    help.setAttribute('type', 'button');
-    help.setAttribute('class', 'btn btn-link btn-sm');
-    help.setAttribute('align', 'left');
-    help.setAttribute('value', 'help');
-    help.setAttribute('data-toggle', 'tooltip');
-    help.setAttribute('title', 'Help');
-    help.setAttribute('onclick', 'helpOpen(\'numerical_analysis\')');
-    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
-    help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
-    row.appendChild(help);
+    mainDiv.appendChild(h5);
 
     h5 = document.createElement('h5')
     h5.innerHTML = '<div><i> The following chart shows the unit counts for a species at a specified site or the total unit counts for a species across all sites. </i></div>'
@@ -1335,27 +1368,10 @@ function generateTemporal(){
     // Line chart
     var mainDiv = document.getElementById('resultsDiv')
 
-    var row = document.createElement('div')
-    row.classList.add('row')
-    row.setAttribute('style','margin:0px')
-    mainDiv.appendChild(row)
-
     var h5 = document.createElement('h5');
     h5.innerHTML = 'Temporal Analysis'
     h5.setAttribute('style','margin-bottom: 2px')
-    row.appendChild(h5);
-
-    var help = document.createElement('button');
-    help.setAttribute('type', 'button');
-    help.setAttribute('class', 'btn btn-link btn-sm');
-    help.setAttribute('align', 'left');
-    help.setAttribute('value', 'help');
-    help.setAttribute('data-toggle', 'tooltip');
-    help.setAttribute('title', 'Help');
-    help.setAttribute('onclick', 'helpOpen(\'temporal_analysis\')');
-    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
-    help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
-    row.appendChild(help);
+    mainDiv.appendChild(h5);
 
     h5 = document.createElement('h5')
     h5.innerHTML = '<div><i> The following chart shows the unit counts for a species as a function of time. </i></div>'
@@ -1472,27 +1488,10 @@ function generateActivity(activity_results){
 
     var mainDiv = document.getElementById('resultsDiv')
 
-    var row = document.createElement('div')
-    row.classList.add('row')
-    row.setAttribute('style','margin:0px')
-    mainDiv.appendChild(row)
-
     var h5 = document.createElement('h5');
     h5.innerHTML = 'Activity Pattern'
     h5.setAttribute('style','margin-bottom: 2px')
-    row.appendChild(h5);
-
-    var help = document.createElement('button');
-    help.setAttribute('type', 'button');
-    help.setAttribute('class', 'btn btn-link btn-sm');
-    help.setAttribute('align', 'left');
-    help.setAttribute('value', 'help');
-    help.setAttribute('data-toggle', 'tooltip');
-    help.setAttribute('title', 'Help');
-    help.setAttribute('onclick', 'helpOpen(\'activity_pattern\')');
-    help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
-    help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
-    row.appendChild(help);
+    mainDiv.appendChild(h5);
 
     h5 = document.createElement('h5')
     h5.innerHTML = '<div><i> The following chart shows the activity pattern of the selected species at the selected site(s). The activity pattern is the proportion of the total number of detections of the species at each hour of the day. </i></div>'
@@ -4045,6 +4044,8 @@ function clearResults(){
         document.getElementById('openChartTab').disabled= false
         document.getElementById('relativeAbundanceDiv').hidden = true
         document.getElementById('shapefileDiv').hidden = true
+        document.getElementById('descriptionDiv').hidden = true
+        document.getElementById('analysisDescription').innerHTML = ''
 
         getLabelsSitesTagsAndGroups()
         enablePanel()
@@ -6372,7 +6373,7 @@ function buildOccupancyResults(results, tab){
             help.setAttribute('value', 'help');
             help.setAttribute('data-toggle', 'tooltip');
             help.setAttribute('title', 'Help');
-            help.setAttribute('onclick', 'helpOpen(\'occupancy\')');
+            help.setAttribute('onclick', 'helpOpen(\'occupancy_summary\')');
             help.setAttribute('style', 'font-size: 1.10em; padding: 0px; margin-left: 5px; margin-bottom: 0px;');
             help.innerHTML = '<i class="fa fa-question" aria-hidden="true"></i>'
             row.appendChild(help);
@@ -10479,6 +10480,40 @@ function savePolygon(){
     }
 
     modalSitesMap.modal('hide');
+
+}
+
+function openAnalysisHelp(){
+    var analysisSelector = document.getElementById('analysisSelector')
+    var analysisSelection = analysisSelector.options[analysisSelector.selectedIndex].value
+    var help_page = ''
+
+    if (analysisSelection == '0'){
+        help_page = 'summary_results'
+    }
+    else if (analysisSelection == '1'){
+        help_page = 'naive_activity_analysis'
+    }
+    else if (analysisSelection == '2'){
+        help_page = 'spatial_analysis'
+    }
+    else if (analysisSelection == '3'){
+        help_page = 'numerical_analysis'
+    }
+    else if (analysisSelection == '4'){
+        help_page = 'temporal_analysis'
+    }
+    else if (analysisSelection == '5'){
+        help_page = 'activity_pattern'
+    }
+    else if (analysisSelection == '6'){
+        help_page = 'occupancy'
+    }
+    else if (analysisSelection == '7'){
+        help_page = 'scr_analysis'
+    }
+
+    helpOpen(help_page)
 
 }
 
