@@ -3754,11 +3754,11 @@ def commitAndCrop(images):
     batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info},queue='default')
     return []
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,ignore_result=True)
 def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min_area,destBucket):
     '''Makes use of the MegaDetector results on LILA to pipeline trianing data.'''
     try:
-        skip_labels = ['unknown','none','fire','human','null']
+        skip_labels = ['unknown','none','fire','human','null','nothinghere','ignore']
         external = True
         update_image_info=True
         tgcode = re.compile(tgcode_str)
@@ -3801,7 +3801,7 @@ def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min
         trapgroups = {}
         dirpath_cam_translations = {}
         for item in json_data['images']:
-            if len(df[df['filepath']==item['file']]) < 2:
+            if len(df[df['filepath']==item['file']]) == 1:
                 tags = tgcode.findall(item['file'])
                 if tags:
                     tag = tags[0]
@@ -3851,7 +3851,6 @@ def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
         db.session.remove()
