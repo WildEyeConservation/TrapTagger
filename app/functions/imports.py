@@ -3775,7 +3775,7 @@ def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min
         if 'filename' in df.columns:
             df = df.rename(columns={'filename': 'filepath','common_name': 'species'})
 
-        survey = Survey(name=survey_name,user_id=1,trapgroup_code=tgcode_str)
+        survey = Survey(name=survey_name,user_id=1,trapgroup_code=tgcode_str,status='Importing')
         db.session.add(survey)
         task = Task(name='import', survey=survey, tagging_level='-1', test_size=0, status='Ready')
         db.session.add(task)
@@ -3839,6 +3839,10 @@ def pipelineLILA(dets_filename,images_filename,survey_name,tgcode_str,source,min
                     count += 1
                     if count%100==0: print(count)
         images = commitAndCrop(images)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status='Ready'
+        db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')
