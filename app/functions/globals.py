@@ -2133,7 +2133,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
 #     return True
 
-def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):
+def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):
     '''
     Crops all the detections out of the supplied image and saves them to S3 for training purposes.
 
@@ -2149,10 +2149,21 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
     '''
 
     image = db.session.query(Image).get(image_id)
+
     try:
         if Config.DEBUGGING: print('Asserting image')
         assert image
         if Config.DEBUGGING: print('Success')
+
+        if check:
+            detection = rDets(db.session.query(Detection).filter(Detection.image_id==image_id)).first()
+            key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
+            try:
+                check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                # it already exists: bail out
+                return False
+            except:
+                pass
 
         # Download file
         print('Downloading file...')

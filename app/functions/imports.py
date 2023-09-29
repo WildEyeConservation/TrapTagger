@@ -3724,10 +3724,10 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
     return True
 
 @celery.task(bind=True,max_retries=29)
-def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):   
+def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):   
     try:
         for image_id in images:
-            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id)
+            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id,check)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3749,10 +3749,10 @@ def convertBBox(api_box):
     y_max = y_min + height_of_box
     return [y_min, x_min, y_max, x_max]
 
-def commitAndCrop(images,source,min_area,destBucket,external,update_image_info):
+def commitAndCrop(images,source,min_area,destBucket,external,update_image_info,check=False):
     '''Helper function for pipelineLILA that commits the db and then kicks off image cropping'''
     db.session.commit()
-    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info},queue='default')
+    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info,'label_source':None,'task_id':None,'check':check},queue='default')
     return []
 
 @celery.task(bind=True,ignore_result=True)
