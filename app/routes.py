@@ -2700,7 +2700,7 @@ def createAccount(token):
             db.session.commit()
 
             #Create all the necessary AWS stuff
-            s3UserName, s3Password = create_new_aws_user(folder)
+            # s3UserName, s3Password = create_new_aws_user(folder)
 
             url1 = 'https://'+Config.DNS+'/login'
             url2 = 'https://'+Config.DNS+'/requestPasswordChange'
@@ -2709,9 +2709,9 @@ def createAccount(token):
                 sender=app.config['ADMINS'][0],
                 recipients=[info['email']],
                 text_body=render_template('email/enquirySuccess.txt',
-                    organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=folder, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS),
+                    organisation=info['organisation'], password=newPassword, bucket_name=folder, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS),
                 html_body=render_template('email/enquirySuccess.html',
-                    organisation=info['organisation'], password=newPassword, s3UserName=s3UserName, bucket_name=folder, s3Password=s3Password, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS))
+                    organisation=info['organisation'], password=newPassword, bucket_name=folder, url1=url1, url2=url2, email_address=Config.MONITORED_EMAIL_ADDRESS))
 
             return render_template("html/block.html",text="Account successfully created.", helpFile='block', version=Config.VERSION)
         else:

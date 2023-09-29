@@ -1364,19 +1364,25 @@ function buildAddIms() {
     addImagesAddImsDiv.appendChild(document.createElement('br'))
 
     // Upload Type
+    UTdiv = document.createElement('div')
+    if (cloudAccess=='False') {
+        UTdiv.setAttribute('hidden','true')
+    }
+    addImagesAddImsDiv.appendChild(UTdiv)
+
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Upload Type'
-    addImagesAddImsDiv.appendChild(h5)
+    UTdiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>The file-upload method you would like to use.</i>'
-    addImagesAddImsDiv.appendChild(div)
+    UTdiv.appendChild(div)
 
     div = document.createElement('div')
     div.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesAddImsDiv.appendChild(div)
+    UTdiv.appendChild(div)
 
     input = document.createElement('input')
     input.setAttribute('type','radio')
@@ -1384,6 +1390,7 @@ function buildAddIms() {
     input.setAttribute('id','BrowserAdd')
     input.setAttribute('name','addImagesSelection')
     input.setAttribute('value','customEx')
+    input.setAttribute('checked','true')
     div.appendChild(input)
 
     label = document.createElement('label')
@@ -1394,7 +1401,7 @@ function buildAddIms() {
 
     div = document.createElement('div')
     div.setAttribute('class','custom-control custom-radio custom-control-inline')
-    addImagesAddImsDiv.appendChild(div)
+    UTdiv.appendChild(div)
 
     input = document.createElement('input')
     input.setAttribute('type','radio')
@@ -1410,12 +1417,14 @@ function buildAddIms() {
     label.innerHTML = 'Bucket Upload'
     div.appendChild(label)
 
-    addImagesAddImsDiv.appendChild(document.createElement('br'))
-    addImagesAddImsDiv.appendChild(document.createElement('br'))
+    UTdiv.appendChild(document.createElement('br'))
+    UTdiv.appendChild(document.createElement('br'))
 
     div = document.createElement('div')
     div.setAttribute('id','addImagesFormDiv')
     addImagesAddImsDiv.appendChild(div)
+
+    buildBrowserUpload('addImagesFormDiv')
 
     $("#S3BucketAdd").change( function() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
@@ -2663,8 +2672,12 @@ modalNewSurvey.on('shown.bs.modal', function(){
     /** Populates the new survey modal when opened. */
 
     if (!helpReturn){
+        if (cloudAccess!='False') {
+            document.getElementById('uploadTypeSelect').hidden = false
+        }
         speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
         buildClassifierSelectTable(speciesClassifierDiv)
+        buildBrowserUpload('newSurveyFormDiv')
     }
     else {
         helpReturn = false

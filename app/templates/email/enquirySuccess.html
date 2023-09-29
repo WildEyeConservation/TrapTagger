@@ -19,28 +19,6 @@ limitations under the License. -->
 <div align='justify'><i>You can find the login page <a href="{{ url1 }}">here</a>.</i></div>
 <div align='justify'><i>If you would like to change your password, please click <a href="{{ url2 }}">here</a>.</i></div>
 <br>
-<div align='justify'>
-    Additionally, you have separate credentials to access our cloud storage directly. These are as follows:
-</div>
-<div align='justify'>Folder (path): traptagger/{{ bucket_name }}</div>
-<div align='justify'>Access key ID: {{ s3UserName }}</div>
-<div align='justify'>Secret access key: {{ s3Password }}</div>
-<br>
-<div align='justify'>The recommended method for uploading images is to do so directly to our cloud storage using third-party software. We recommend using 
-    <a href="https://cyberduck.io/">CyberDuck</a> as it has both Windows and Mac versions. The setup and upload procedure is as follows:</div>
-<ul>
-    <li align='justify'>Click Bookmark -> New Bookmark</li>
-    <li align='justify'>Select Amazon S3 in the drop down menu at the top of the form</li>
-    <li align='justify'>Choose a bookmark nickname if you like</li>
-    <li align='justify'>Fill in your Access Key ID</li>
-    <li align='justify'>Fill in your Secret Access Key</li>
-    <li align='justify'>Click on the 'More Options' arrow</li>
-    <li align='justify'>Set the path to traptagger/{{ bucket_name }}</li>
-    <li align='justify'>Close the form</li>
-    <li align='justify'>Open the bookmark by double clicking on it</li>
-    <li align='justify'>Upload a folder by dragging it into the application</li>
-</ul>
-<br>
 <div align='justify'>If you have any further questions, please send an email to {{ email_address }}.</div>
 <br>
 <div align='justify'>Sincerely,</div>

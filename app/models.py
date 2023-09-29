@@ -248,6 +248,7 @@ class User(db.Model, UserMixin):
     parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     last_ping = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     clusters_allocated = db.Column(db.Integer, default=0, index=False)
+    cloud_access = db.Column(db.Boolean, default=False, index=False)
     clusters = db.relationship('Cluster', backref='user', lazy=True)
     trapgroup = db.relationship('Trapgroup', backref='user', lazy=True)
     surveys = db.relationship('Survey', backref='user', lazy=True)
