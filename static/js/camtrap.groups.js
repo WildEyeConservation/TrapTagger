@@ -666,7 +666,7 @@ function getGroups() {
             if (groups.length == 0) {
                 var noGroups = document.createElement('h5')
                 noGroups.align = 'center'
-                noGroups.innerHTML = 'You have no site groups. You can create a group by clicking the "Create Group" button.'
+                noGroups.innerHTML = 'You have no site groups. You can create a group by clicking the "Save Sites as Group" button.'
                 groupsDiv.appendChild(noGroups)
             }
             else{
