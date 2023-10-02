@@ -103,6 +103,60 @@ siteGroupings = db.Table('siteGroupings',
     db.UniqueConstraint('sitegroup_id', 'trapgroup_id')
 )
 
+organisationAdminsWrite = db.Table('organisationAdminsWrite',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('admin_id', db.Integer, db.ForeignKey('user.id')),
+    db.UniqueConstraint('admin_id', 'organisation_id')
+)
+
+organisationAdminsRead = db.Table('organisationAdminsRead',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('admin_id', db.Integer, db.ForeignKey('user.id')),
+    db.UniqueConstraint('admin_id', 'organisation_id')
+)
+
+organisationAdminsNone = db.Table('organisationAdminsNone',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('admin_id', db.Integer, db.ForeignKey('user.id')),
+    db.UniqueConstraint('admin_id', 'organisation_id')
+)
+
+organisationWorkers = db.Table('organisationWorkers',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('worker_id', db.Integer, db.ForeignKey('user.id')),
+    db.UniqueConstraint('worker_id', 'organisation_id')
+)
+
+userWriteAccess = db.Table('userWriteAccess',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
+    db.UniqueConstraint('survey_id', 'user_id')
+)
+
+userReadAccess = db.Table('userReadAccess',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
+    db.UniqueConstraint('survey_id', 'user_id')
+)
+
+userWorkerAccess = db.Table('userWorkerAccess',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
+    db.UniqueConstraint('survey_id', 'user_id')
+)
+
+organisationWriteAccess = db.Table('organisationWriteAccess',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
+    db.UniqueConstraint('survey_id', 'organisation_id')
+)
+
+organisationReadAccess = db.Table('organisationReadAccess',
+    db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
+    db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
+    db.UniqueConstraint('survey_id', 'organisation_id')
+)
+
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -156,6 +210,7 @@ class Survey(db.Model):
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy=True)
     tasks = db.relationship('Task', backref='survey', lazy=True)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)
+    root_organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -257,6 +312,10 @@ class User(db.Model, UserMixin):
     image_count = db.Column(db.Integer, index=False)
     previous_image_count = db.Column(db.Integer, index=False)
     earth_ranger_integrations = db.relationship('EarthRanger', backref='user', lazy=True)
+    root_organisation = db.relationship('Organisation', backref='root', uselist=False, lazy=True)
+    write_access = db.relationship('Survey', secondary=userWriteAccess, lazy=True, backref=db.backref('user_write_access', lazy=True))
+    read_access = db.relationship('Survey', secondary=userReadAccess, lazy=True, backref=db.backref('user_read_access', lazy=True))
+    worker_access = db.relationship('Survey', secondary=userWorkerAccess, lazy=True, backref=db.backref('user_worker_access', lazy=True))
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -508,9 +567,30 @@ class EarthRanger(db.Model):
     label = db.Column(db.String(64), index=False)
     api_key = db.Column(db.String(64), index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
 
     def __repr__(self):
         return '<Earth Ranger integration for {} for>'.format(self.label,self.user_id)
+
+class Organisation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=False)
+    root_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    affiliation = db.Column(db.String(64), index=False)
+    regions = db.Column(db.String(128), index=False)
+    folder = db.Column(db.String(64), index=True, unique=True)
+    cloud_access = db.Column(db.Boolean, default=False, index=False)
+    earth_ranger_integrations = db.relationship('EarthRanger', backref='organisation', lazy=True)
+    root_surveys = db.relationship('Survey', backref='root_organisation', lazy=True)
+    admins_write = db.relationship('User', secondary=organisationAdminsWrite, lazy=True, backref=db.backref('organisations_admin_write', lazy=True))
+    admins_read = db.relationship('User', secondary=organisationAdminsRead, lazy=True, backref=db.backref('organisations_admin_read', lazy=True))
+    admins_none = db.relationship('User', secondary=organisationAdminsNone, lazy=True, backref=db.backref('organisations_admin_none', lazy=True))
+    workers = db.relationship('User', secondary=organisationWorkers, lazy=True, backref=db.backref('organisations_worker', lazy=True))
+    write_access = db.relationship('Survey', secondary=organisationWriteAccess, lazy=True, backref=db.backref('organisation_write_access', lazy=True))
+    read_access = db.relationship('Survey', secondary=organisationReadAccess, lazy=True, backref=db.backref('organisation_read_access', lazy=True))
+
+    def __repr__(self):
+        return '<Organisation {}>'.format(self.name)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
