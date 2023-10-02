@@ -1535,7 +1535,7 @@ def deleteTurkcodes(number_of_jobs, task_id):
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def updateAllStatuses(self,task_id):
+def updateAllStatuses(self,task_id,celeryTask=True):
     '''Updates the completion status of all parent labels of a specified task.'''
 
     try:
@@ -1549,10 +1549,10 @@ def updateAllStatuses(self,task_id):
         app.logger.info(traceback.format_exc())
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+        if celeryTask: self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.remove()
+        if celeryTask: db.session.remove()
 
     return True
 

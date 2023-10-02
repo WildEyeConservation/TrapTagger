@@ -256,6 +256,7 @@ class User(db.Model, UserMixin):
     turkcode = db.relationship('Turkcode', backref='user', lazy=True)
     image_count = db.Column(db.Integer, index=False)
     previous_image_count = db.Column(db.Integer, index=False)
+    earth_ranger_integrations = db.relationship('EarthRanger', backref='user', lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -501,6 +502,15 @@ class Sitegroup(db.Model):
 
     def __repr__(self):
         return '<Sitegroup {}>'.format(self.name)
+
+class EarthRanger(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    label = db.Column(db.String(64), index=False)
+    api_key = db.Column(db.String(64), index=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+
+    def __repr__(self):
+        return '<Earth Ranger integration for {} for>'.format(self.label,self.user_id)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
