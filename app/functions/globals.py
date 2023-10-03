@@ -2971,6 +2971,10 @@ def updateEarthRanger(task_id):
                         .filter(Labelgroup.labels.any(Label.id.in_(label_list))))
 
             df = pd.DataFrame(clusters.distinct().all())
+
+            if len(df) == 0:
+                return True
+
             df['tag'] = df['tag'].fillna('None')
             df = df.sort_values(by=['cluster_id','species','count'], ascending=False)
             df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon','trapgroup_alt']).agg({
