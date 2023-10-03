@@ -1,0 +1,68 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<br>
+<div class='row'>
+    <div class='col-lg-2'></div>
+    <div class='col-lg-8'>
+        <div class="card" style='min-height:400px' id="mainCard">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89);">
+                <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+                    <div class='col-lg-4'>
+                        <h3>Settings</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body" style="padding: 0px;">
+                <div id="integrationsHeadingDiv" style="padding: 20px;">
+                    <div class="row">
+                        <div class="col-lg-10">
+                            <h5 style="margin-bottom: 2px">Integrations</h5>
+                            <div style="font-size: 80%; margin-bottom: 2px"><i>Integrations allow you to connect TrapTagger to other services. Add an integration and setup the required parameters to enable the integration.</i></div>
+                        </div>
+                        <div class="col-lg-2">
+                            <button class="btn btn-primary btn-block" type="button" id="btnAddIntegration" onclick="buildIntegrationSelect()">Add Integration</button>
+                        </div>
+                    </div>
+                    <div id="settingsErrors" style=" font:80%; color: #DF691A"></div>
+                </div>
+                <div id="integrationsDiv"></div>
+            </div>
+
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+                <div class="row">
+                    <div class="col-lg-5"></div>
+                    <div class="col-lg-2">
+                        <button type="button" class="btn btn-primary btn-block" id="saveSettingsButton" onclick="saveSettings()">Save</button>
+                    </div>
+                    <div class="col-lg-5"></div>
+                </div>
+            </div>  
+        </div>
+    </div>
+    <div class='col-lg-2'></div>
+</div>
+<br>
+
+
+
+{% endblock %}
+
+{% block page_scripts %}
+<script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
+<script src="js/camtrap.settings.v{{ version }}.js"></script>
+{% endblock %}

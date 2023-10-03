@@ -510,7 +510,7 @@ class EarthRanger(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
 
     def __repr__(self):
-        return '<Earth Ranger integration for {} for>'.format(self.label,self.user_id)
+        return '<Earth Ranger integration for {}>'.format(self.label,self.user_id)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)

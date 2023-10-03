@@ -298,9 +298,7 @@ def stop_task(self,task_id):
                 GLOBALS.redisClient.delete('active_individuals_'+str(task_id))
                 GLOBALS.redisClient.delete('active_indsims_'+str(task_id))
 
-            updateTaskCompletionStatus(int(task_id))
-            updateLabelCompletionStatus(int(task_id))
-            updateIndividualIdStatus(int(task_id))
+            updateAllStatuses(task_id=int(task_id), celeryTask=False)
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
@@ -752,10 +750,8 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
         newTask.status = 'Auto-Classifying'
         db.session.commit()
         classifyTask(newTask_id)
-
-        updateTaskCompletionStatus(newTask_id)
-        updateLabelCompletionStatus(newTask_id)
-        updateIndividualIdStatus(newTask_id)
+        
+        updateAllStatuses(task_id=newTask_id, celeryTask=False)
 
         newTask.status = 'Ready'
         newTask.survey.status = 'Ready'
@@ -978,7 +974,7 @@ def wrapUpAfterTimestampChange(self,survey_id,trapgroup_ids):
             classifyTask(task_id,None,None,trapgroup_ids)
 
         for task_id in task_ids:
-            updateAllStatuses(task_id=task_id)
+            updateAllStatuses(task_id=task_id, celeryTask=False)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'

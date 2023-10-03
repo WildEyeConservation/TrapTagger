@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 # from app.functions.admin import delete_task, reclusterAfterTimestampChange
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash
+                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc
@@ -3231,9 +3231,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         for task in survey.tasks:
             if task.name != 'default':
                 classifyTask(task.id)
-                updateTaskCompletionStatus(task.id)
-                updateLabelCompletionStatus(task.id)
-                updateIndividualIdStatus(task.id)
+                updateAllStatuses(task_id=task.id, celeryTask=False)
 
         survey.status = 'Ready'
         survey.images_processing = 0
