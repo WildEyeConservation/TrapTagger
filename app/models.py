@@ -103,60 +103,6 @@ siteGroupings = db.Table('siteGroupings',
     db.UniqueConstraint('sitegroup_id', 'trapgroup_id')
 )
 
-# organisationAdminsWrite = db.Table('organisationAdminsWrite',
-#     db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
-#     db.Column('admin_id', db.Integer, db.ForeignKey('user.id')),
-#     db.UniqueConstraint('admin_id', 'organisation_id')
-# )
-
-# organisationAdminsRead = db.Table('organisationAdminsRead',
-#     db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
-#     db.Column('admin_id', db.Integer, db.ForeignKey('user.id')),
-#     db.UniqueConstraint('admin_id', 'organisation_id')
-# )
-
-# organisationAdminsNone = db.Table('organisationAdminsNone',
-#     db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
-#     db.Column('admin_id', db.Integer, db.ForeignKey('user.id')),
-#     db.UniqueConstraint('admin_id', 'organisation_id')
-# )
-
-# organisationWorkers = db.Table('organisationWorkers',
-#     db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
-#     db.Column('worker_id', db.Integer, db.ForeignKey('user.id')),
-#     db.UniqueConstraint('worker_id', 'organisation_id')
-# )
-
-# userWriteAccess = db.Table('userWriteAccess',
-#     db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
-#     db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
-#     db.UniqueConstraint('survey_id', 'user_id')
-# )
-
-# userReadAccess = db.Table('userReadAccess',
-#     db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
-#     db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
-#     db.UniqueConstraint('survey_id', 'user_id')
-# )
-
-# userWorkerAccess = db.Table('userWorkerAccess',
-#     db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
-#     db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
-#     db.UniqueConstraint('survey_id', 'user_id')
-# )
-
-# organisationWriteAccess = db.Table('organisationWriteAccess',
-#     db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
-#     db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
-#     db.UniqueConstraint('survey_id', 'organisation_id')
-# )
-
-# organisationReadAccess = db.Table('organisationReadAccess',
-#     db.Column('organisation_id', db.Integer, db.ForeignKey('organisation.id')),
-#     db.Column('survey_id', db.Integer, db.ForeignKey('survey.id')),
-#     db.UniqueConstraint('survey_id', 'organisation_id')
-# )
-
 class Image(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(64), index=False, unique=False)
@@ -317,9 +263,6 @@ class User(db.Model, UserMixin):
     permissions = db.relationship('UserPermissions', backref='user', lazy=True)
     exceptions = db.relationship('SurveyPermissionException', backref='user', lazy=True)
     root_organisation = db.relationship('Organisation', backref='root', uselist=False, lazy=True)
-    # write_access = db.relationship('Survey', secondary=userWriteAccess, lazy=True, backref=db.backref('user_write_access', lazy=True))
-    # read_access = db.relationship('Survey', secondary=userReadAccess, lazy=True, backref=db.backref('user_read_access', lazy=True))
-    # worker_access = db.relationship('Survey', secondary=userWorkerAccess, lazy=True, backref=db.backref('user_worker_access', lazy=True))
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -584,16 +527,12 @@ class Organisation(db.Model):
     regions = db.Column(db.String(128), index=False)
     folder = db.Column(db.String(64), index=True, unique=True)
     cloud_access = db.Column(db.Boolean, default=False, index=False)
+    image_count = db.Column(db.Integer, index=False)
+    previous_image_count = db.Column(db.Integer, index=False)
     earth_ranger_integrations = db.relationship('EarthRanger', backref='organisation', lazy=True)
     permissions = db.relationship('UserPermissions', backref='organisation', lazy=True)
     shares = db.relationship('SurveyShare', backref='organisation', lazy=True)
-    root_surveys = db.relationship('Survey', backref='root_organisation', lazy=True)
-    # admins_write = db.relationship('User', secondary=organisationAdminsWrite, lazy=True, backref=db.backref('organisations_admin_write', lazy=True))
-    # admins_read = db.relationship('User', secondary=organisationAdminsRead, lazy=True, backref=db.backref('organisations_admin_read', lazy=True))
-    # admins_none = db.relationship('User', secondary=organisationAdminsNone, lazy=True, backref=db.backref('organisations_admin_none', lazy=True))
-    # workers = db.relationship('User', secondary=organisationWorkers, lazy=True, backref=db.backref('organisations_worker', lazy=True))
-    # write_access = db.relationship('Survey', secondary=organisationWriteAccess, lazy=True, backref=db.backref('organisation_write_access', lazy=True))
-    # read_access = db.relationship('Survey', secondary=organisationReadAccess, lazy=True, backref=db.backref('organisation_read_access', lazy=True))
+    surveys = db.relationship('Survey', backref='root_organisation', lazy=True)
 
     def __repr__(self):
         return '<Organisation {}>'.format(self.name)
