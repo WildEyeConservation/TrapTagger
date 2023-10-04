@@ -1,7 +1,6 @@
 from app.models import *
 from app.routes import *
-# users = db.session.query(User).filter(User.admin == True).all()
-users = [db.session.query(User).get(10925)]
+users = db.session.query(User).filter(User.admin == True).all()
 for user in users:
     organisation = Organisation(name=user.username, root_user_id=user.id, affiliation=user.affiliation, regions=user.regions, folder=user.folder, cloud_access=user.cloud_access, image_count=user.image_count, previous_image_count=user.previous_image_count)
     db.session.add(organisation)
