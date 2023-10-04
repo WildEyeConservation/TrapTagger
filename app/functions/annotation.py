@@ -18,7 +18,7 @@ from app import app, db, celery
 from app.models import *
 from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abandoned_jobs, createTurkcodes, deleteTurkcodes, \
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
-                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images
+                                    getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
 from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
@@ -161,9 +161,7 @@ def launch_task(self,task_id):
 
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
-                updateTaskCompletionStatus(task_id)
-                updateLabelCompletionStatus(task_id)
-                updateIndividualIdStatus(task_id)
+                updateAllStatuses(task_id=task_id, celeryTask=False)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
                 for tsk in task.sub_tasks:
@@ -193,9 +191,7 @@ def launch_task(self,task_id):
 
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
-                updateTaskCompletionStatus(task_id)
-                updateLabelCompletionStatus(task_id)
-                updateIndividualIdStatus(task_id)
+                updateAllStatuses(task_id=task_id, celeryTask=False)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
                 for tsk in task.sub_tasks:
@@ -360,9 +356,7 @@ def wrapUpTask(self,task_id):
         for cluster in clusters:
             cluster.skipped = False
 
-        updateTaskCompletionStatus(task_id)
-        updateLabelCompletionStatus(task_id)
-        updateIndividualIdStatus(task_id)
+        updateAllStatuses(task_id=task_id, celeryTask=False)
 
         task.current_name = None
 

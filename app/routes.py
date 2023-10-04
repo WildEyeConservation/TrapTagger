@@ -9749,7 +9749,7 @@ def getGroupSites():
     ''' Get the sites for a group '''
     sites_data = []
     group_ids = ast.literal_eval(request.form['group_ids'])
-    app.logger.info(group_ids)
+
     if current_user and current_user.is_authenticated:
         survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
         survey_ids = [r[0] for r in survey_ids]
@@ -9776,4 +9776,99 @@ def getGroupSites():
         sites_data = list(sites_data)
 
     return json.dumps({'sites': sites_data})
-    
+
+@app.route('/settings')
+def settings():
+    '''Renders the settings page.'''
+
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    elif current_user.parent_id != None:
+        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+            return redirect(url_for('sightings'))
+        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('clusterID'))
+        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('individualID'))
+        else:
+            return redirect(url_for('index'))
+    else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)
+
+@app.route('/getAllLabels')
+@login_required
+def getAllLabels():
+    ''' Get all the labels for a user '''    
+    labels = []
+    if current_user and current_user.is_authenticated:
+        labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+
+    return json.dumps({'labels': labels})
+
+@app.route('/saveIntegrations', methods=['POST'])
+@login_required
+def saveIntegrations():
+    ''' Save the integration details '''
+    integrations = ast.literal_eval(request.form['integrations'])
+
+    status = 'FAILURE'
+    message = 'Unable to save integrations.'
+    if current_user and current_user.is_authenticated:
+        # EarthRanger
+        earth_ranger_integrations = integrations['earthranger']
+
+        if Config.DEBUGGING: app.logger.info('Earth ranger integrations {}'.format(earth_ranger_integrations))
+
+        er_deleted = earth_ranger_integrations['deleted']
+        er_edited = earth_ranger_integrations['edited']
+        er_new = earth_ranger_integrations['new']
+
+        for er in er_deleted:
+            db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
+
+        for er in er_edited:
+            er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
+            er_integration.label = er['species']
+            er_integration.api_key = er['api_key']
+
+        for er in er_new:
+            er_integration = EarthRanger(user_id=current_user.id, api_key=er['api_key'], label=er['species'])
+            db.session.add(er_integration)
+
+        db.session.commit()
+
+        status = 'SUCCESS'
+        message = 'Integrations saved successfully.'
+        
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getIntegrations')
+@login_required
+def getIntegrations():
+    ''' Get the Earth Ranger integration details '''
+
+    integrations = []
+    if current_user and current_user.is_authenticated:
+        earth_ranger_integrations = db.session.query(EarthRanger).filter(EarthRanger.user_id==current_user.id).all()
+
+        er = {}
+        for earth_ranger_integration in earth_ranger_integrations:
+            api_key = earth_ranger_integration.api_key
+            label = earth_ranger_integration.label
+            id = earth_ranger_integration.id
+            if api_key in er:
+                er[api_key]['species'].append(label)
+                er[api_key]['ids'].append(id)
+            else:
+                er[api_key] = {'species': [label], 'ids': [id]}
+
+        for key, value in er.items():
+            integrations.append({
+                'integration': 'earthranger',
+                'api_key': key,
+                'species': value['species'],
+                'ids': value['ids']
+            })
+
+    return json.dumps({'integrations': integrations})

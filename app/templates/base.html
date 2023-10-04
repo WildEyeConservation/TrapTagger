@@ -65,6 +65,7 @@ limitations under the License. -->
                     {% elif current_user.username != 'Dashboard' %}
                         <button type="button" class="btn btn-link btn-sm" align="right" value="help" onclick="helpOpen('{{ helpFile }}')"> Help </button>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+                        <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
                     {% else %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
                     {% endif %}
@@ -158,5 +159,6 @@ limitations under the License. -->
 <script src="../js/popper.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
 <script src="js/camtrap.global.v{{ version }}.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 {% block page_scripts %}{% endblock %}
 {% endblock %}

@@ -50,6 +50,7 @@ from multiprocessing.pool import ThreadPool as Pool
 from iptcinfo3 import IPTCInfo
 import piexif
 import io
+import pandas as pd
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -1542,6 +1543,7 @@ def updateAllStatuses(self,task_id,celeryTask=True):
         updateTaskCompletionStatus(task_id)
         updateLabelCompletionStatus(task_id)
         updateIndividualIdStatus(task_id)
+        updateEarthRanger(task_id)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2903,3 +2905,164 @@ def prep_required_images(task_id,trapgroup_id=None):
         # db.session.commit()
     
     return len(clusters)
+
+def updateEarthRanger(task_id):
+    ''' Function for syncing to Earth Ranger Report a task is complete'''
+    task = db.session.query(Task).get(task_id)
+    if task:
+        user_id = task.survey.user_id
+        er_integrations = db.session.query(EarthRanger).filter(EarthRanger.user_id==user_id).all()
+        if len(er_integrations) > 0:
+
+            # Get all species of interest and their api keys
+            er_species_api = {}
+            er_species = []
+            for er_integration in er_integrations:
+                if er_integration.label not in er_species_api.keys():
+                    er_species_api[er_integration.label] = []
+                    er_species.append(er_integration.label)
+                er_species_api[er_integration.label].append(er_integration.api_key)
+
+            # Get applicable data to send to EarthRanger
+            labels = db.session.query(Label).filter(Label.description.in_(er_species)).filter(Label.task_id==task_id).all()
+            label_list = []
+            for label in labels:
+                label_list.append(label.id)
+                child_labels = []
+                child_labels = addKids(child_labels,label,task_id)
+                for child_label in child_labels:
+                    label_list.append(child_label.id)
+                    er_species_api[child_label.description] = er_species_api[label.description]
+
+            sq1 = rDets(db.session.query(Labelgroup.id.label('labelgroup_id'), Label.description.label('species'), Image.id.label('image_id'))\
+                                        .join(Label,Labelgroup.labels)\
+                                        .join(Detection)\
+                                        .join(Image)\
+                                        .filter(Labelgroup.task_id == task_id)\
+                                        .filter(Labelgroup.labels.any(Label.id.in_(label_list)))).subquery()
+
+            sq2 = db.session.query(sq1.c.image_id.label('image_id'), sq1.c.species.label('species'), func.count(distinct(sq1.c.labelgroup_id)).label('count'))\
+                                        .group_by(sq1.c.image_id, sq1.c.species)\
+                                        .subquery()
+
+            clusters = rDets(db.session.query(
+                            Cluster.id.label('cluster_id'),
+                            Image.corrected_timestamp.label('timestamp'),
+                            Trapgroup.tag.label('trapgroup_tag'),
+                            Trapgroup.latitude.label('trapgroup_lat'),
+                            Trapgroup.longitude.label('trapgroup_lon'),
+                            Trapgroup.altitude.label('trapgroup_alt'),
+                            Tag.description.label('tag'),
+                            sq2.c.species.label('species'),
+                            sq2.c.count.label('count'),
+                            Image.filename.label('filename'),
+                            Camera.path.label('path')
+                        )\
+                        .join(Image, Cluster.images)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .join(Detection)\
+                        .join(Labelgroup)\
+                        .join(Label, Labelgroup.labels)\
+                        .outerjoin(Tag, Labelgroup.tags)\
+                        .join(sq2,sq2.c.image_id==Image.id)\
+                        .filter(Cluster.task_id == task_id)\
+                        .filter(Labelgroup.task_id == task_id)\
+                        .filter(Labelgroup.labels.any(Label.id.in_(label_list))))
+
+            df = pd.DataFrame(clusters.distinct().all())
+
+            if len(df) == 0:
+                return True
+
+            df['tag'] = df['tag'].fillna('None')
+            df = df.sort_values(by=['cluster_id','species','count'], ascending=False)
+            df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon','trapgroup_alt']).agg({
+                'timestamp':'min',
+                'tag': lambda x: x.unique().tolist(),
+                'count':'max',
+                'filename': 'first',
+                'path': 'first'
+            }).reset_index()
+            df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
+            
+            # Send data to EarthRanger
+            # TODO: Fix this & TEST (current url not working)
+            er_url = 'https://cdip-dev-api.pamdas.org/api/v2/events/'
+
+            for index, row in df.iterrows():
+                payload = {
+                    "source": str(row['cluster_id']) + '_' + str(row['species']),
+                    "title": "TrapTagger Event",
+                    "recorded_at": row['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "location": {
+                        "lat": row['trapgroup_lat'],
+                        "lon": row['trapgroup_lon'],
+                        "alt": row['trapgroup_alt']
+                    },
+                    "event_details": { 
+                        "location": row['trapgroup_tag'],
+                        "species": row['species'],
+                        "tags": row['tag'],
+                        "numberAnimals": row['count']
+                    }
+                }
+
+                er_api_keys = er_species_api[row['species']]
+                for er_api_key in er_api_keys:
+                    # Set headers
+                    er_header_json = {
+                        'Content-Type': 'application/json',
+                        'apikey': er_api_key
+                    }
+                    er_header_img = {
+                        'apikey': er_api_key
+                    }
+
+                    # Post payload to EarthRanger
+                    retry = True
+                    attempts = 0
+                    max_attempts = 10
+                    while retry and (attempts < max_attempts):
+                        attempts += 1
+                        try:
+                            response = requests.post(er_url, headers=er_header_json, json=payload)
+                            assert response.status_code == 200 and response.json()['object_id']
+                            if Config.DEBUGGING: print('Event {} posted to EarthRanger'.format(object_id))
+                            retry = False
+                        except:
+                            retry = True
+
+                    # Dowload image from S3 and send blob to EarthRanger
+                    if response.status_code == 200 and response.json()['object_id']:
+                        object_id = response.json()['object_id']
+                        image_key = row['path']+'/'+row['filename']
+                        er_url_img = er_url + object_id + '/attachments/'
+    
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+
+                            with open(temp_file.name, 'rb') as f:
+                                image_blob = f.read()
+
+                            files = {'file1': image_blob}
+
+                            retry_img = True
+                            attempts_img = 0
+                            max_attempts_img = 10
+                            while retry_img and (attempts_img < max_attempts_img):
+                                attempts_img += 1
+                                try:
+                                    response = requests.post(er_url_img, headers=er_header_img, files=files)
+                                    assert response.status_code == 200 and response.json()['object_id']
+                                    if Config.DEBUGGING: print('Image {} posted to EarthRanger'.format(row['filename']))
+                                    retry_img = False
+                                except:
+                                    retry_img = True
+
+                            if response.status_code != 200:
+                                if Config.DEBUGGING: print('Error posting image to EarthRanger: {}'.format(response.status_code))
+                    else:
+                        if Config.DEBUGGING: print('Error posting event to EarthRanger: {}'.format(response.status_code))
+
+    return True
