@@ -156,7 +156,7 @@ class Survey(db.Model):
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy=True)
     tasks = db.relationship('Task', backref='survey', lazy=True)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)
-    root_organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
     exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
     shares = db.relationship('SurveyShare', backref='survey', lazy=True)
 
@@ -532,7 +532,7 @@ class Organisation(db.Model):
     earth_ranger_integrations = db.relationship('EarthRanger', backref='organisation', lazy=True)
     permissions = db.relationship('UserPermissions', backref='organisation', lazy=True)
     shares = db.relationship('SurveyShare', backref='organisation', lazy=True)
-    surveys = db.relationship('Survey', backref='root_organisation', lazy=True)
+    surveys = db.relationship('Survey', backref='organisation', lazy=True)
 
     def __repr__(self):
         return '<Organisation {}>'.format(self.name)

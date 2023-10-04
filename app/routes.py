@@ -3237,11 +3237,22 @@ def getHomeSurveys():
                                     Task.cluster_count,
                                     Task.id, #temp replacement for Task.clusters_remaining
                                     Task.id, #availableJobsSQ.c.count,
-                                    completeJobsSQ.c.count
+                                    completeJobsSQ.c.count,
+                                    Organisation.name,
+                                    UserPermissions.default,
+                                    SurveyPermissionException.permission
                                 ).outerjoin(Task,Task.survey_id==Survey.id)\
                                 .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
-                                .filter(Survey.user_id==current_user.id)\
+                                .outerjoin(SurveyPermissionException)\
+                                .join(Organisation)\
+                                .join(UserPermissions)\
+                                .filter(UserPermissions.user_id==current_user.id)\
+                                .filter(or_(SurveyPermissionException.user_id==current_user.id,SurveyPermissionException.id==None))\
+                                .filter(or_(
+                                    and_(UserPermissions.default.in_(['write','read']),SurveyPermissionException.id==None),
+                                    SurveyPermissionException.permission.in_(['write','read'])
+                                ))\
                                 .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))
 
         # uploading/downloading surveys always need to be on the page
