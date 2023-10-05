@@ -554,7 +554,7 @@ class SurveyPermissionException(db.Model):
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True, unique=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
     permission = db.Column(db.String(8), index=False) # write/read/hidden
-    annotate = db.Column(db.Boolean, default=False, index=False)
+    annotation = db.Column(db.Boolean, default=False, index=False)
 
     def __repr__(self):
         return '<User permission exception for user {} for survey {}>'.format(self.user_id,self.survey_id)
@@ -563,7 +563,8 @@ class SurveyShare(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True, unique=False)
     organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
-    write = db.Column(db.Boolean, default=False, index=False)
+    permission = db.Column(db.String(8), index=False) # write/read
+    # write = db.Column(db.Boolean, default=False, index=False)
 
     def __repr__(self):
         return '<A survey share for survey {} to organisation {}>'.format(self.survey_id,self.organisation_id)

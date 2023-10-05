@@ -24,6 +24,7 @@ from app.functions.results import *
 from app.functions.individualID import *
 from app.functions.annotation import *
 from app.functions.imports import *
+from app.functions.permissions import *
 import GLOBALS
 import json
 from flask import render_template, redirect, url_for, flash, request, send_from_directory, send_file
@@ -3220,7 +3221,7 @@ def getHomeSurveys():
                                             .filter(Turkcode.tagging_time!=None)\
                                             .group_by(Task.id).subquery()
 
-        survey_base_query = db.session.query(
+        survey_base_query = surveyPermissionsSQ(db.session.query(
                                     Survey.id,
                                     Survey.name,
                                     Survey.description,
@@ -3240,20 +3241,12 @@ def getHomeSurveys():
                                     completeJobsSQ.c.count,
                                     Organisation.name,
                                     UserPermissions.default,
-                                    SurveyPermissionException.permission
+                                    SurveyPermissionException.permission,
+                                    UserPermissions.delete
                                 ).outerjoin(Task,Task.survey_id==Survey.id)\
                                 .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
-                                .outerjoin(SurveyPermissionException)\
-                                .join(Organisation)\
-                                .join(UserPermissions)\
-                                .filter(UserPermissions.user_id==current_user.id)\
-                                .filter(or_(SurveyPermissionException.user_id==current_user.id,SurveyPermissionException.id==None))\
-                                .filter(or_(
-                                    and_(UserPermissions.default.in_(['write','read']),SurveyPermissionException.id==None),
-                                    SurveyPermissionException.permission.in_(['write','read'])
-                                ))\
-                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_')))
+                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,['read'])
 
         # uploading/downloading surveys always need to be on the page
         if current_downloads != '':
@@ -3273,6 +3266,11 @@ def getHomeSurveys():
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
                     surveyStatus = 'processing'
+                if item[19]:
+                    # permission exception
+                    access = item[19]
+                else:
+                    access = item[18]
                 survey_data[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 
@@ -3281,6 +3279,9 @@ def getHomeSurveys():
                                         'numFrames': item[5], 
                                         'status': surveyStatus, 
                                         'numTrapgroups': item[7], 
+                                        'organisation': item[17],
+                                        'access': access,
+                                        'delete': item[20],
                                         'tasks': []}
 
             if item[8] and (item[9]!='default'):
