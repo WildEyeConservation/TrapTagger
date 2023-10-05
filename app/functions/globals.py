@@ -2951,7 +2951,6 @@ def updateEarthRanger(task_id):
                             Trapgroup.tag.label('trapgroup_tag'),
                             Trapgroup.latitude.label('trapgroup_lat'),
                             Trapgroup.longitude.label('trapgroup_lon'),
-                            Trapgroup.altitude.label('trapgroup_alt'),
                             Tag.description.label('tag'),
                             sq2.c.species.label('species'),
                             sq2.c.count.label('count'),
@@ -2977,7 +2976,7 @@ def updateEarthRanger(task_id):
 
             df['tag'] = df['tag'].fillna('None')
             df = df.sort_values(by=['cluster_id','species','count'], ascending=False)
-            df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon','trapgroup_alt']).agg({
+            df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon']).agg({
                 'timestamp':'min',
                 'tag': lambda x: x.unique().tolist(),
                 'count':'max',
@@ -2987,24 +2986,25 @@ def updateEarthRanger(task_id):
             df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
             
             # Send data to EarthRanger
-            # TODO: Fix this & TEST (current url not working)
-            er_url = 'https://cdip-dev-api.pamdas.org/api/v2/events/'
+            er_url = 'https://sensors.api.gundiservice.org/v2/events/'
 
             for index, row in df.iterrows():
+                if pd.isnull(row['timestamp']):
+                    row['timestamp'] = datetime(1970, 1, 1)
+
                 payload = {
                     "source": str(row['cluster_id']) + '_' + str(row['species']),
                     "title": "TrapTagger Event",
                     "recorded_at": row['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "location": {
                         "lat": row['trapgroup_lat'],
-                        "lon": row['trapgroup_lon'],
-                        "alt": row['trapgroup_alt']
+                        "lon": row['trapgroup_lon']
                     },
                     "event_details": { 
                         "location": row['trapgroup_tag'],
                         "species": row['species'],
                         "tags": row['tag'],
-                        "numberAnimals": row['count']
+                        "group_size": row['count']
                     }
                 }
 
@@ -3028,13 +3028,14 @@ def updateEarthRanger(task_id):
                         try:
                             response = requests.post(er_url, headers=er_header_json, json=payload)
                             assert response.status_code == 200 and response.json()['object_id']
-                            if Config.DEBUGGING: print('Event {} posted to EarthRanger'.format(object_id))
                             retry = False
                         except:
                             retry = True
 
                     # Dowload image from S3 and send blob to EarthRanger
                     if response.status_code == 200 and response.json()['object_id']:
+                        if Config.DEBUGGING: app.logger.info('Event posted to EarthRanger: {}'.format(payload['source']))
+
                         object_id = response.json()['object_id']
                         image_key = row['path']+'/'+row['filename']
                         er_url_img = er_url + object_id + '/attachments/'
@@ -3053,16 +3054,17 @@ def updateEarthRanger(task_id):
                             while retry_img and (attempts_img < max_attempts_img):
                                 attempts_img += 1
                                 try:
-                                    response = requests.post(er_url_img, headers=er_header_img, files=files)
-                                    assert response.status_code == 200 and response.json()['object_id']
-                                    if Config.DEBUGGING: print('Image {} posted to EarthRanger'.format(row['filename']))
+                                    response_img = requests.post(er_url_img, headers=er_header_img, files=files)
+                                    assert response_img.status_code == 200 and response_img.json()['object_id']
                                     retry_img = False
                                 except:
                                     retry_img = True
 
-                            if response.status_code != 200:
-                                if Config.DEBUGGING: print('Error posting image to EarthRanger: {}'.format(response.status_code))
+                            if response_img.status_code == 200 and response_img.json()['object_id']:
+                                if Config.DEBUGGING: app.logger.info('Image posted to EarthRanger: {}'.format(row['filename']))
+                            else:
+                                if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: {}'.format(response.status_code))
                     else:
-                        if Config.DEBUGGING: print('Error posting event to EarthRanger: {}'.format(response.status_code))
+                        if Config.DEBUGGING: app.logger.info('Error posting event to EarthRanger: {}'.format(response.status_code))
 
     return True
