@@ -3043,10 +3043,7 @@ def updateEarthRanger(task_id):
                         with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
                             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
 
-                            with open(temp_file.name, 'rb') as f:
-                                image_blob = f.read()
-
-                            files = {'file1': image_blob}
+                            files = {'file1': open(temp_file.name, 'rb')}
 
                             retry_img = True
                             attempts_img = 0
