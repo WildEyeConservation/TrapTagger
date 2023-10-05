@@ -156,6 +156,9 @@ class Survey(db.Model):
     trapgroups = db.relationship('Trapgroup', backref='survey', lazy=True)
     tasks = db.relationship('Task', backref='survey', lazy=True)
     classifier_id = db.Column(db.Integer, db.ForeignKey('classifier.id'), index=False)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
+    exceptions = db.relationship('SurveyPermissionException', backref='survey', lazy=True)
+    shares = db.relationship('SurveyShare', backref='survey', lazy=True)
 
     def __repr__(self):
         return '<Survey {}>'.format(self.name)
@@ -257,6 +260,9 @@ class User(db.Model, UserMixin):
     image_count = db.Column(db.Integer, index=False)
     previous_image_count = db.Column(db.Integer, index=False)
     earth_ranger_integrations = db.relationship('EarthRanger', backref='user', lazy=True)
+    permissions = db.relationship('UserPermissions', backref='user', lazy=True)
+    exceptions = db.relationship('SurveyPermissionException', backref='user', lazy=True)
+    root_organisation = db.relationship('Organisation', backref='root', uselist=False, lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -508,9 +514,60 @@ class EarthRanger(db.Model):
     label = db.Column(db.String(64), index=False)
     api_key = db.Column(db.String(64), index=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
 
     def __repr__(self):
-        return '<Earth Ranger integration for {}>'.format(self.label,self.user_id)
+        return '<Earth Ranger integration for {} for>'.format(self.label,self.user_id)
+
+class Organisation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), index=False)
+    root_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    affiliation = db.Column(db.String(64), index=False)
+    regions = db.Column(db.String(128), index=False)
+    folder = db.Column(db.String(64), index=True, unique=True)
+    cloud_access = db.Column(db.Boolean, default=False, index=False)
+    image_count = db.Column(db.Integer, index=False)
+    previous_image_count = db.Column(db.Integer, index=False)
+    earth_ranger_integrations = db.relationship('EarthRanger', backref='organisation', lazy=True)
+    permissions = db.relationship('UserPermissions', backref='organisation', lazy=True)
+    shares = db.relationship('SurveyShare', backref='organisation', lazy=True)
+    surveys = db.relationship('Survey', backref='organisation', lazy=True)
+
+    def __repr__(self):
+        return '<Organisation {}>'.format(self.name)
+
+class UserPermissions(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    delete = db.Column(db.Boolean, default=False, index=False)
+    create = db.Column(db.Boolean, default=False, index=False)
+    annotation = db.Column(db.Boolean, default=False, index=False)
+    default = db.Column(db.String(8), index=False) # write/read/hidden/worker
+
+    def __repr__(self):
+        return '<User permissions for user {} for organisation {}>'.format(self.user_id,self.organisation_id)
+
+class SurveyPermissionException(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True, unique=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, unique=False)
+    permission = db.Column(db.String(8), index=False) # write/read/hidden
+    annotation = db.Column(db.Boolean, default=False, index=False)
+
+    def __repr__(self):
+        return '<User permission exception for user {} for survey {}>'.format(self.user_id,self.survey_id)
+
+class SurveyShare(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    survey_id = db.Column(db.Integer, db.ForeignKey('survey.id'), index=True, unique=False)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
+    permission = db.Column(db.String(8), index=False) # write/read
+    # write = db.Column(db.Boolean, default=False, index=False)
+
+    def __repr__(self):
+        return '<A survey share for survey {} to organisation {}>'.format(self.survey_id,self.organisation_id)
     
 db.Index('ix_det_srce_scre_stc_stat_class_classcre', Detection.source, Detection.score, Detection.static, Detection.status, Detection.classification, Detection.class_score)
 db.Index('ix_cluster_examined_task', Cluster.examined, Cluster.task_id)
