@@ -1,3 +1,12 @@
+from app import app, db, celery
+from app.models import *
+from app.functions.globals import *
+import GLOBALS
+from sqlalchemy.sql import func, or_, and_, alias
+from sqlalchemy import desc
+from config import Config
+import traceback
+
 def surveyPermissionsSQ(sq,user_id,requiredPermission):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
     allPermissions = ['read','write']
@@ -20,6 +29,7 @@ def surveyPermissionsSQ(sq,user_id,requiredPermission):
                 ))
 
 def checkAnnotationPermission(user_id,task_id):
+    '''Checks if a user has annotation permission for a given task.'''
     ShareOrganisation = alias(Organisation)
     ShareUserPermissions = alias(UserPermissions)
     check = db.session.query(Task)\
@@ -39,7 +49,4 @@ def checkAnnotationPermission(user_id,task_id):
                 # There is an exception for the survey (organisation member or share organisation)
                 and_(SurveyPermissionException.user_id==user_id,SurveyPermissionException.annotation==True)
             )).first()
-    if check:
-        return True
-    else:
-        return False
+    return bool(check)
