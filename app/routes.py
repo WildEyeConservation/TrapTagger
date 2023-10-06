@@ -3934,7 +3934,7 @@ def createTask(survey_id,parentLabel):
 
         check = db.session.query(Task).filter(Task.survey_id==int(survey_id)).filter(Task.name==info[0]).first()
 
-        if (check == None) and (db.session.query(Survey).get(int(survey_id)).user_id==current_user.id) and ('_o_l_d_' not in info[0].lower()) and ('_copying' not in info[0].lower()) and (info[0].lower() != 'default'):
+        if (check == None) and checkSurveyPermission(current_user.id,survey_id,'write') and ('_o_l_d_' not in info[0].lower()) and ('_copying' not in info[0].lower()) and (info[0].lower() != 'default'):
             newTask = Task(name=info[0], survey_id=int(survey_id), status='Prepping', tagging_time=0, test_size=0, size=200, parent_classification=parentLabel)
             db.session.add(newTask)
             dbSurvey = db.session.query(Survey).get(int(survey_id))
@@ -4185,12 +4185,12 @@ def get_username():
     else:
         return json.dumps('error')
 
-@app.route('/get_available_task/<user_id>')
-def get_available_task(user_id):
+@app.route('/get_available_task/<organisation_id>')
+def get_available_task(organisation_id):
     '''Returns a random task ID from the currently active tasks for load-testing purposes. Only active when Config.LOAD_TESTING is true.'''
 
     if Config.LOAD_TESTING:
-        task = db.session.query(Task).join(Survey).filter(Survey.user_id==int(user_id)).filter(Task.status=='PROGRESS').order_by(func.rand()).first()
+        task = db.session.query(Task).join(Survey).filter(Survey.organisation_id==int(organisation_id)).filter(Task.status=='PROGRESS').order_by(func.rand()).first()
         if task:
             return json.dumps(task.id)
         else:
@@ -6488,7 +6488,9 @@ def initKeys():
 @login_required
 def getSurvey():
     '''Returns a list of survey names and IDs owned by the current user.'''
-    return json.dumps(db.session.query(Survey.id, Survey.name).filter(Survey.user_id == current_user.id).all())
+    requiredPermission = request.args.get('requiredPermission',None)
+    if requiredPermission==None: requiredPermission = 'read'
+    return json.dumps(surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).all())
 
 @app.route('/getWorkerSurveys')
 @login_required
@@ -6497,13 +6499,12 @@ def getWorkerSurveys():
     
     worker_id = request.args.get('worker_id',None)
     if worker_id:
-        surveys = db.session.query(Survey.id, Survey.name)\
+        surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name)\
                             .join(Task)\
                             .join(Turkcode)\
                             .join(User)\
                             .filter(User.parent_id==worker_id)\
-                            .filter(Survey.user_id == current_user.id)\
-                            .distinct().all()
+                            ),current_user.id,'read').distinct().all()
     
     return json.dumps(surveys)
 
