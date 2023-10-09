@@ -2715,11 +2715,12 @@ def createAccount(token):
             newPassword = randomString()
             newUser.set_password(newPassword)
             notifications = db.session.query(Notification)\
+                                    .filter(Notification.user_id==None)\
                                     .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
                                     .distinct().all()
             db.session.add(newUser)
             db.session.add(newTurkcode)
-            newUser.notifications = notifications
+            newUser.seen_notifications = notifications
             db.session.commit()
 
             #Create all the necessary AWS stuff
@@ -7643,12 +7644,13 @@ def checkNotifications():
     
     if current_user.admin:
         notification = db.session.query(Notification)\
-                            .filter(~Notification.users.contains(current_user))\
+                            .filter(~Notification.users_seen.contains(current_user))\
+                            .filter(Notification.user_id==None)\
                             .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
                             .order_by(Notification.id)\
                             .first()
         if notification:
-            notification.users.append(current_user)
+            notification.users_seen.append(current_user)
             db.session.commit()
             return json.dumps({'status':'success','content':notification.contents})
     
