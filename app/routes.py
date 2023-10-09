@@ -6504,7 +6504,7 @@ def getWorkerSurveys():
                             .join(Turkcode)\
                             .join(User)\
                             .filter(User.parent_id==worker_id)\
-                            ),current_user.id,'read').distinct().all()
+                            ,current_user.id,'read').distinct().all()
     
     return json.dumps(surveys)
 
@@ -9096,7 +9096,7 @@ def getLineDataIndividual():
 @login_required
 def searchSites():
     ''' Search for sites based on a search string and return a list of matching sites '''
-
+    #start here
     sites_data = []
     sites_ids = []
     unique_sites = {}
