@@ -6514,23 +6514,21 @@ def getTasks(survey_id):
     '''Returns the task names and IDs for the specified survey.'''
 
     worker_id = request.args.get('worker_id',None)
-
     if worker_id:
-        tasks = db.session.query(Task.id, Task.name)\
+        tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name)\
                             .join(Survey)\
                             .join(Turkcode)\
-                            .join(User)\
+                            .join(User,Turkcode.user_id==User.id)\
                             .filter(User.parent_id==worker_id)\
-                            .filter(Survey.user_id == current_user.id)\
                             .filter(Survey.id == int(survey_id))\
                             .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
-                            .distinct().all()
+                            ,current_user.id,'write').distinct().all()
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
             return json.dumps([(-1, 'Southern African')])
         else:
-            return json.dumps(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Survey.user==current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).all())
+            return json.dumps(surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').all())
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required
@@ -6661,7 +6659,7 @@ def submitComparison(groundTruth,task_id1,task_id2):
         translations = request.form['translations']
         task1 = db.session.query(Task).get(int(task_id1))
         task2 = db.session.query(Task).get(int(task_id2))
-        if task1 and task2 and (task1.survey.user_id==current_user.id) and (task2.survey.user_id==current_user.id):
+        if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read'):
             GLOBALS.redisClient.delete('confusions_'+str(current_user.id))
             prepareComparison.delay(translations=translations,groundTruth=groundTruth,task_id1=task_id1,task_id2=task_id2,user_id=str(current_user.id))
             return json.dumps('success')
@@ -6872,7 +6870,7 @@ def editTask(task_id):
     '''Edits the labels of a specified task. Returns a success/error state.'''
     try:
         task = db.session.query(Task).get(task_id)
-        if task and (current_user == task.survey.user) and (task.status.lower() in Config.TASK_READY_STATUSES):
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'write') and (task.status.lower() in Config.TASK_READY_STATUSES):
             task.status='Processing'
             db.session.commit()
             editDict = request.form['editDict']
@@ -6890,7 +6888,8 @@ def submitTags(task_id):
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
 
-    if task and (task.survey.user_id==current_user.id):
+    # if task and (task.survey.user_id==current_user.id):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
         try:
             deletedTags = ast.literal_eval(request.form['deletedTags'])
             editedTags = ast.literal_eval(request.form['editedTags'])
@@ -7664,17 +7663,16 @@ def dashboard():
         return redirect(url_for('login_page'))
     else:
         if current_user.username=='Dashboard':
-            users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
+            organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
             image_count=0
-            for user in users:
-                for survey in user.surveys:
-                    image_count+=survey.image_count
+            for organisation in organisations:
+                image_count+=organisation.image_count
             
-            sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-            active_users = db.session.query(User)\
+            sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
+            active_users = db.session.query(Organisation)\
                                     .join(Survey)\
                                     .join(Task)\
-                                    .join(sq,sq.c.user_id==User.id)\
+                                    .join(sq,sq.c.organisation_id==Organisation.id)\
                                     .filter(Task.init_complete==True)\
                                     .filter(sq.c.count>10000)\
                                     .filter(~User.username.in_(Config.ADMIN_USERS))\
@@ -7693,9 +7691,9 @@ def dashboard():
             costs = get_AWS_costs(startDate,endDate)
 
             unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).count()
-            unique_admin_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.admin==True).count()
+            unique_admin_logins_24h = db.session.query(Organisation).join(UserPermissions).join(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(UserPermissions.default.in_(['write','read','hidden'])).count()
             unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
-            unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).count()
+            unique_admin_logins_this_month = db.session.query(Organisation).join(UserPermissions).join(User).filter(User.last_ping>startDate).filter(UserPermissions.default.in_(['write','read','hidden'])).count()
 
             # Need to add an hour to the start date so as to not grab the first statistic of the month which covers the last day of the previous month
             average_logins = 0
@@ -7762,7 +7760,7 @@ def dashboard():
 def getDashboardTrends():
     '''Returns the requested dashboard trends.'''
     
-    if current_user.username=='Dashboard':
+    if current_user.is_authenticated and (current_user.username=='Dashboard'):
         trend = request.form['trend']
         period = request.form['period']
 
@@ -7800,23 +7798,23 @@ def getDashboardTrends():
 def getActiveUserData():
     '''Returns the requested dashboard trends.'''
     
-    if current_user.username=='Dashboard':
+    if current_user.is_authenticated and (current_user.username=='Dashboard'):
         page = request.args.get('page', 1, type=int)
         order = request.args.get('order', 'total', type=str)
         users = request.args.get('users', 'active_users', type=str)
 
         sq = db.session.query(
-                                User.id.label('user_id'),
+                                Organisation.id.label('organisation_id'),
                                 func.sum(Survey.image_count).label('count'),
-                                (func.sum(Survey.image_count)-User.image_count).label('this_month'),
-                                (User.image_count-User.previous_image_count).label('last_month')
+                                (func.sum(Survey.image_count)-Organisation.image_count).label('this_month'),
+                                (Organisation.image_count-Organisation.previous_image_count).label('last_month')
                             )\
                             .join(Survey)\
-                            .group_by(User.id).subquery()
+                            .group_by(Organisation.id).subquery()
 
-        active_users = db.session.query(User,sq.c.count,sq.c.this_month,sq.c.last_month)\
-                                .join(sq,sq.c.user_id==User.id)\
-                                .filter(~User.username.in_(Config.ADMIN_USERS))
+        active_users = db.session.query(Organisation,sq.c.count,sq.c.this_month,sq.c.last_month)\
+                                .join(sq,sq.c.organisation_id==Organisation.id)\
+                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))
 
         if users=='active_users':
             active_users = active_users.join(Survey)\
@@ -7835,20 +7833,20 @@ def getActiveUserData():
 
         reply = []
         for item in active_users.items:
-            user = item[0]
+            organisation = item[0]
             image_count = int(item[1])
             images_this_month = int(item[2])
             images_last_month = int(item[3])
             # image_count=int(db.session.query(sq.c.count).filter(sq.c.user_id==user.id).first()[0])
 
             reply.append({
-                'account':              user.username,
-                'affiliation':          user.affiliation,
-                'surveys':              len(user.surveys[:]),
+                'account':              organisation.name,
+                'affiliation':          organisation.affiliation,
+                'surveys':              len(organisation.surveys[:]),
                 'images':               format_count(image_count),
                 'images_this_month':    format_count(images_this_month),
                 'images_last_month':    format_count(images_last_month),
-                'regions':              user.regions
+                'regions':              organisation.regions
             })
 
         next_url = url_for('getActiveUserData', page=active_users.next_num, order=order, users=users) if active_users.has_next else None
@@ -7863,7 +7861,7 @@ def getActiveUserData():
 def getAllSites():
     '''Returns the coordinates of all teh sites for the dashboard.'''
     
-    if current_user.username=='Dashboard':
+    if current_user.is_authenticated and (current_user.username=='Dashboard'):
         sites = db.session.query(Trapgroup)\
                     .filter(Trapgroup.latitude!=None)\
                     .filter(Trapgroup.longitude!=None)\
@@ -8667,17 +8665,17 @@ def getAllLabelsTagsSitesAndGroups():
     unique_sites = {}
     if task_ids:
         if task_ids[0] == '0':
-            labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
-            tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
-            sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id).order_by(Trapgroup.id).all()
-            groups = db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()
-            individual_species = [r[0] for r in db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+            labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
+            tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
+            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read').order_by(Trapgroup.id).all()
+            groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'read').distinct().all()
+            individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').distinct().all()]
         else:
-            labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
-            sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).order_by(Trapgroup.id).all()
-            tags = [r[0] for r in db.session.query(Tag.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
-            groups = db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()
-            individual_species = [r[0] for r in db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey).filter(Survey.user_id==current_user.id).filter(Task.id.in_(task_ids)).distinct().all()]
+            labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
+            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task),current_user.id,'read').filter(Task.id.in_(task_ids)).order_by(Trapgroup.id).all()
+            tags = [r[0] for r in surveyPermissionsSQ(db.session.query(Tag.description).join(Task).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
+            groups = surveyPermissionsSQ(db.session.query(Sitegroup.id, Sitegroup.name).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Task),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()
+            individual_species = [r[0] for r in surveyPermissionsSQ(db.session.query(Individual.species).join(Task,Individual.tasks).join(Survey),current_user.id,'read').filter(Task.id.in_(task_ids)).distinct().all()]
 
         for site in sites:
             site_info = {'tag': site.tag, 'latitude': site.latitude, 'longitude': site.longitude}
