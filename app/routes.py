@@ -9105,7 +9105,7 @@ def getLineDataIndividual():
 @login_required
 def searchSites():
     ''' Search for sites based on a search string and return a list of matching sites '''
-
+    #start here
     sites_data = []
     sites_ids = []
     unique_sites = {}

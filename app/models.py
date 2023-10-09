@@ -263,6 +263,7 @@ class User(db.Model, UserMixin):
     permissions = db.relationship('UserPermissions', backref='user', lazy=True)
     exceptions = db.relationship('SurveyPermissionException', backref='user', lazy=True)
     root_organisation = db.relationship('Organisation', backref='root', uselist=False, lazy=True)
+    notifications = db.relationship('Notification', backref='user', lazy=True)
     qualifications = db.relationship('User',secondary=workersTable,
                                     primaryjoin=id==workersTable.c.worker_id,
                                     secondaryjoin=id==workersTable.c.user_id,
@@ -448,7 +449,9 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     contents = db.Column(db.String(2048), index=False)
     expires = db.Column(db.DateTime, default=None, index=True)
-    users = db.relationship('User', secondary=userNotifications, lazy=True, backref=db.backref('notifications', lazy=True))
+    seen = db.Column(db.Boolean, default=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    users_seen = db.relationship('User', secondary=userNotifications, lazy=True, backref=db.backref('seen_notifications', lazy=True))
 
     def __repr__(self):
         return '<Notification: {}>'.format(self.contents)
