@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const userSelector = document.getElementById('userSelector')
+const organisationSelector = document.getElementById('organisationSelector')
 
 function clearSurveys() {
     /** Clears the surveys div */
@@ -84,7 +84,7 @@ function buildSurveyRow(survey) {
 
 function buildSurveys() {
     /** Requests the surveys and associated tasks for the selected user, and builds the required selection rows. */
-    selection = userSelector.options[userSelector.selectedIndex].value
+    selection = organisationSelector.options[organisationSelector.selectedIndex].value
 
     var xhttp = new XMLHttpRequest();
     xhttp.open("GET", '/getSurveysAndTasksByUser/'+selection);
@@ -100,9 +100,9 @@ function buildSurveys() {
     xhttp.send();
 }
 
-userSelector.addEventListener('click', ()=>{
+organisationSelector.addEventListener('click', ()=>{
     /** Event listener on the user selector that updates the survey selectors accordingly. */
-    selection = userSelector.options[userSelector.selectedIndex].value
+    selection = organisationSelector.options[organisationSelector.selectedIndex].value
     clearSurveys()
     if (selection != '-1') {
         buildSurveys()

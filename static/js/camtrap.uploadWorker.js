@@ -19,6 +19,7 @@ const limitTT=pLimit(6)
 
 batchSize = 200
 surveyName = null
+uploadID = null
 filesUploaded = 0
 filesActuallyUploaded = 0
 filesQueued = 0
@@ -33,9 +34,11 @@ onmessage = function (evt) {
     /** Take instructions from main js */
     if (evt.data.func=='selectFiles') {
         surveyName = evt.data.args[2]
+        uploadID = evt.data.args[3]
         selectFiles(evt.data.args[0],evt.data.args[1])
     } else if (evt.data.func=='uploadFiles') {
-        surveyName = evt.data.args
+        surveyName = evt.data.args[0]
+        uploadID = evt.data.args[1]
         uploadFiles()
     } else if (evt.data.func=='checkFinishedUpload') {
         checkFinishedUpload()
@@ -204,7 +207,7 @@ async function checkFinishedUpload() {
         }
 
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/updateSurveyStatus/'+surveyName+'/'+newStatus);
+        xhttp.open("GET", '/updateSurveyStatus/'+uploadID+'/'+newStatus);
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {

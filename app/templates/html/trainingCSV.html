@@ -43,14 +43,14 @@ limitations under the License. -->
         </div>
         <br>
 
-        <h5 style="margin-bottom: 2px">Select User</h5>
-        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which user's data you would like to extract a csv for.</i></div>
+        <h5 style="margin-bottom: 2px">Select Organisation/h5>
+        <div style="font-size: 80%; margin-bottom: 2px"><i>Select which organisations's data you would like to extract a csv for.</i></div>
         <div class="row">
             <div class='col-lg-6'>
-                <select id="userSelector" class='form-control'>
+                <select id="organisationSelector" class='form-control'>
                     <option value="-1">None</option>
-                    {% for user in user_data %}
-                        <option value={{ user.id }}>{{ user.username }}</option>
+                    {% for organisation in organisation_data %}
+                        <option value={{ organisation.id }}>{{ organisation.name}}</option>
                     {% endfor %}
                 </select>
             </div>

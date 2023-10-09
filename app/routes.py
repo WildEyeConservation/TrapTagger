@@ -2961,11 +2961,11 @@ def trainingCSV():
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
-            user_data = []
-            users = db.session.query(User).filter(User.admin==True).order_by(User.username).distinct().all()
-            for user in users:
-                user_data.append({'id': str(user.id), 'username': user.username})
-            return render_template('html/trainingCSV.html', title='Training CSV', user_data=user_data, helpFile='training_csv', version=Config.VERSION)
+            organisation_data = []
+            organisations = db.session.query(Organisation).order_by(Organisation.name).distinct().all()
+            for organisation in organisations:
+                organisation_data.append({'id':organisation.id, 'name':organisation.name})
+            return render_template('html/trainingCSV.html', title='Training CSV', organisation_data=organisation_data, helpFile='training_csv', version=Config.VERSION)
         else:
             return redirect(url_for('index'))
 
@@ -3121,7 +3121,7 @@ def workers():
 
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
 
-        return render_template('html/workers.html', title='Workers', helpFile='workers', version=Config.VERSION)
+        return render_template('html/workers.html', title='Annotation Statistics', helpFile='workers', version=Config.VERSION)
 
 @app.route('/getTaskCompletionStatus/<task_id>')
 @login_required
@@ -3246,7 +3246,7 @@ def getHomeSurveys():
                                 ).outerjoin(Task,Task.survey_id==Survey.id)\
                                 .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                                 .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
-                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,['read'])
+                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read')
 
         # uploading/downloading surveys always need to be on the page
         if current_downloads != '':
@@ -3344,6 +3344,12 @@ def getHomeSurveys():
                     if surveyStatus in ['indprocessing','Preparing Download']:
                         surveyStatus = 'processing'
 
+                    if item[19]:
+                        # permission exception
+                        access = item[19]
+                    else:
+                        access = item[18]
+
                     survey_data2[item[0]] = {'id': item[0],
                                             'name': item[1], 
                                             'description': item[2], 
@@ -3352,6 +3358,9 @@ def getHomeSurveys():
                                             'numFrames': item[5], 
                                             'status': surveyStatus, 
                                             'numTrapgroups': item[7], 
+                                            'organisation': item[17],
+                                            'access': access,
+                                            'delete': item[20],
                                             'tasks': []}
 
                 if item[8] and (item[9]!='default'):
@@ -6447,9 +6456,9 @@ def initKeys():
 
 @app.route('/getSurveys')
 @login_required
-def getSurvey():
+def getSurveys():
     '''Returns a list of survey names and IDs owned by the current user.'''
-    return json.dumps(db.session.query(Survey.id, Survey.name).filter(Survey.user_id == current_user.id).all())
+    return json.dumps(db.session.query(Survey.id, Survey.name).filter(Survey.organisation_id==current_user.root_organisation.id).all())
 
 @app.route('/getWorkerSurveys')
 @login_required
@@ -9814,7 +9823,7 @@ def getAllLabels():
     ''' Get all the labels for a user '''    
     labels = []
     if current_user and current_user.is_authenticated:
-        labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+        labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.organisation_id==current_user.root_organisation.id).distinct().all()]
 
     return json.dumps({'labels': labels})
 
@@ -9884,3 +9893,449 @@ def getIntegrations():
             })
 
     return json.dumps({'integrations': integrations})
+
+@app.route('/permissions')
+def permissions():
+    '''Renders the settings page.'''
+
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    elif current_user.parent_id != None:
+        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+            return redirect(url_for('sightings'))
+        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('clusterID'))
+        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+            return redirect(url_for('individualID'))
+        else:
+            return redirect(url_for('index'))
+    else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        return render_template('html/permissions.html', title='Permissions', helpFile='permissions', bucket=Config.BUCKET, version=Config.VERSION)
+
+@app.route('/getUsers')
+@login_required
+def getUsers():
+    ''' Get all the user permissions for an organisation '''
+    users = []
+    if current_user and current_user.is_authenticated:
+        organisation = current_user.root_organisation
+        if organisation:
+            user_permissions = db.session.query(
+                                                User.id,
+                                                User.username,
+                                                User.email,
+                                                UserPermissions.delete,
+                                                UserPermissions.create,
+                                                UserPermissions.annotation,
+                                                UserPermissions.default
+                                            )\
+                                            .join(UserPermissions)\
+                                            .join(Organisation)\
+                                            .filter(Organisation.id==organisation.id)\
+                                            .distinct().all()
+
+            for user_permission in user_permissions:
+                if user_permission[0] == current_user.id:
+                    root_user = True
+                else:
+                    root_user = False
+
+                users.append({
+                    'id': user_permission[0],
+                    'username': user_permission[1],
+                    'email': user_permission[2],
+                    'delete': user_permission[3],
+                    'create': user_permission[4],
+                    'annotation': user_permission[5],
+                    'default': user_permission[6],
+                    'root_user': root_user
+                })
+
+    return json.dumps({'users':users})
+
+
+@app.route('/savePermissions', methods=['POST'])
+@login_required
+def savePermissions():
+
+    permission_type = ast.literal_eval(request.form['permission_type'])
+    permission_value = ast.literal_eval(request.form['permission_value'])
+    user_id = ast.literal_eval(request.form['user_id'])
+
+    if Config.DEBUGGING: app.logger.info('Permission type: {} Permission value: {} User id: {}'.format(permission_type, permission_value, user_id))
+
+    status = 'FAILURE'
+    message = 'Unable to save permissions.'
+
+    if current_user and current_user.is_authenticated:
+        organisation = current_user.root_organisation
+        if organisation:
+            user_permission = db.session.query(UserPermissions).filter(UserPermissions.user_id==user_id).first()
+            if user_permission:
+                if permission_type == 'default':
+                    user_permission.default = permission_value
+                elif permission_type == 'delete':
+                    if permission_value == '1':
+                        user_permission.delete = True
+                    else:
+                        user_permission.delete = False
+                elif permission_type == 'create':
+                    if permission_value == '1':
+                        user_permission.create = True
+                    else:
+                        user_permission.create = False
+                elif permission_type == 'annotation':
+                    if permission_value == '1':
+                        user_permission.annotation = True
+                    else:
+                        user_permission.annotation = False
+
+                db.session.commit()
+
+                status = 'SUCCESS'
+                message = 'Permissions saved successfully.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getDetailedAccess/<id>')
+@login_required
+def getDetailedAccess(id):
+    ''' Get the detailed access level for the specified user (id) '''
+
+    detailed_access = []
+    if current_user and current_user.is_authenticated:
+        organisation = current_user.root_organisation
+        if organisation: 
+            survey_permissions = db.session.query(SurveyPermissionException)\
+                                            .join(Survey)\
+                                            .filter(SurveyPermissionException.user_id==id)\
+                                            .filter(Survey.organisation_id==organisation.id)\
+                                            .all()
+
+            for survey_permission in survey_permissions:
+                detailed_access.append({
+                    'id': survey_permission.id,
+                    'survey_id': survey_permission.survey_id,
+                    'permission': survey_permission.permission,
+                    'annotation': survey_permission.annotation
+                })
+
+    return json.dumps({'detailed_access':detailed_access})
+
+@app.route('/saveDetailedAccess', methods=['POST'])
+@login_required
+def saveDetailedAccess():
+
+    user_id = ast.literal_eval(request.form['user_id'])
+    detailed_access = ast.literal_eval(request.form['detailed_access'])
+
+    app.logger.info('User {} Detailed Access {}.'.format(user_id, detailed_access))
+
+    status = 'FAILURE'
+    message = 'Unable to save detailed access.'
+
+    if current_user and current_user.is_authenticated and current_user.root_organisation:
+        new_access = detailed_access['new']
+        edited_access = detailed_access['edit']
+        deleted_access = detailed_access['delete']
+
+        for access in deleted_access:
+            db.session.query(SurveyPermissionException).filter(SurveyPermissionException.id==access['id']).filter(SurveyPermissionException.user_id==user_id).delete()
+
+        for access in edited_access:
+            if access['annotation'] == '1':
+                access['annotation'] = True
+            else:
+                access['annotation'] = False
+
+            survey_permission = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.id==access['id']).filter(SurveyPermissionException.user_id==user_id).first()
+            survey_permission.survey_id = access['survey_id']
+            survey_permission.permission = access['permission']
+            survey_permission.annotation = access['annotation']
+
+        for access in new_access:
+            if access['annotation'] == '1':
+                access['annotation'] = True
+            else:
+                access['annotation'] = False
+
+            survey_permission = SurveyPermissionException(user_id=user_id, survey_id=access['survey_id'], permission=access['permission'], annotation=access['annotation'])
+            db.session.add(survey_permission)
+
+        db.session.commit()
+
+        status = 'SUCCESS'
+        message = ''
+
+    return json.dumps({'status':status, 'message': message})
+
+
+@app.route('/getSharedData')
+@login_required
+def getSharedData():
+    ''' Get all the surveys that have been shared with other organizations '''
+
+    shared_data = []
+    if current_user and current_user.is_authenticated:
+        organisation = current_user.root_organisation
+        if organisation:
+            survey_shares = db.session.query(
+                                            SurveyShare.id,
+                                            Organisation.id,    
+                                            Organisation.name,
+                                            User.email,
+                                            Survey.id,
+                                            Survey.name,
+                                            SurveyShare.permission
+                                        )\
+                                        .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                        .join(Organisation, Organisation.id==SurveyShare.organisation_id)\
+                                        .join(User, User.id==Organisation.root_user_id)\
+                                        .filter(Survey.organisation_id==organisation.id)\
+                                        .distinct().all()
+
+            shared = {}
+            for survey_share in survey_shares:
+                if survey_share[1] in shared.keys():
+                    shared[survey_share[1]]['surveys'].append({
+                        'id': survey_share[4],
+                        'ss_id': survey_share[0],
+                        'name': survey_share[5],
+                        'permission': survey_share[6]
+                    })
+                else:
+                    shared[survey_share[1]] = {
+                        'org_id': survey_share[1],
+                        'organisation': survey_share[2],
+                        'email': survey_share[3],
+                        'surveys': [{
+                            'id': survey_share[4],
+                            'ss_id': survey_share[0],
+                            'name': survey_share[5],
+                            'permission': survey_share[6]
+                        }]
+                    }
+
+            shared_data = list(shared.values())
+
+    return json.dumps({'shared_data':shared_data})
+
+@app.route('/getReceivedData')
+@login_required
+def getReceivedData():
+    ''' Get all the surveys that have been shared with the current organisation '''
+
+    received_surveys = []
+    if current_user and current_user.is_authenticated:
+        organisation = current_user.root_organisation
+        if organisation:
+            survey_shares = db.session.query(
+                                            SurveyShare.id,
+                                            Organisation.id,    
+                                            Organisation.name,
+                                            User.email,
+                                            Survey.id,
+                                            Survey.name,
+                                            SurveyShare.permission
+                                        )\
+                                        .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                        .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                        .join(User, User.id==Organisation.root_user_id)\
+                                        .filter(SurveyShare.organisation_id==organisation.id)\
+                                        .distinct().all()
+
+            received = {}
+            for survey_share in survey_shares:
+                if survey_share[1] in received:
+                    received[survey_share[1]]['surveys'].append({
+                        'id': survey_share[4],
+                        'ss_id': survey_share[0],
+                        'name': survey_share[5],
+                        'permission': survey_share[6]
+                    })
+                else:
+                    received[survey_share[1]] = {
+                        'org_id': survey_share[1],
+                        'organisation': survey_share[2],
+                        'email': survey_share[3],
+                        'surveys': [{
+                            'id': survey_share[4],
+                            'ss_id': survey_share[0],
+                            'name': survey_share[5],
+                            'permission': survey_share[6]
+                        }]
+                    }
+
+            received_surveys = list(received.values())
+
+    return json.dumps({'received_surveys':received_surveys})
+
+
+@app.route('/saveSharedSurveyPermissions', methods=['POST'])
+@login_required
+def saveSharedSurveyPermissions():
+    ''' Save the permissions for a shared survey '''
+
+    permission_value = ast.literal_eval(request.form['permission_value'])
+    survey_share_id = ast.literal_eval(request.form['survey_share_id'])
+
+    status = 'FAILURE'	
+    message = 'Unable to save permissions.'
+
+    if current_user and current_user.is_authenticated and current_user.root_organisation:
+        survey_share = db.session.query(SurveyShare).filter(SurveyShare.id==survey_share_id).first()
+        if survey_share:
+            survey_share.permission = permission_value
+            db.session.commit()
+
+            status = 'SUCCESS'
+            message = ''
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getLinkedOrganisations')
+@login_required
+def getLinkedOrganisations():
+    ''' Get all the linked organisations '''
+
+    organisations = []
+    if current_user and current_user.is_authenticated:
+        organisation = current_user.root_organisation
+        if organisation:
+            linked_organisations = db.session.query(
+                                                SurveyShare.organisation_id,
+                                                Organisation.name
+                                            )\
+                                            .join(Organisation, Organisation.id==SurveyShare.organisation_id)\
+                                            .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                            .filter(Survey.organisation_id==organisation.id)\
+                                            .distinct().all()
+
+            for linked_organisation in linked_organisations:
+                organisations.append({
+                    'id': linked_organisation[0],
+                    'name': linked_organisation[1]
+                })
+
+    return json.dumps({'organisations': organisations})
+
+
+@app.route('/shareSurveys', methods=['POST'])
+@login_required
+def shareSurveys():
+    ''' Shares surveys with organsisations '''
+
+    shared_data = ast.literal_eval(request.form['shared_data'])
+    status = 'FAILURE'
+    message =  'Unable to share surveys.'
+
+    if current_user and current_user.is_authenticated and current_user.root_organisation:
+        for data in shared_data:
+            organisation_id = data['organisation_id']
+            survey_id = data['survey_id']
+            permission = data['permission']
+
+            check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation_id).filter(SurveyShare.survey_id==survey_id).first()
+
+            if check:
+                return json.dumps({'status': 'FAILURE', 'message': 'Survey already shared with organisation.'})
+
+            survey_share = SurveyShare(organisation_id=organisation_id, survey_id=survey_id, permission=permission)
+            db.session.add(survey_share)
+        
+        db.session.commit()
+        status = 'SUCCESS'
+        message = ''
+
+    return json.dumps({'status':status, 'message': message})
+
+
+@app.route('/getOrganisations')
+@login_required
+def getOrganisations():
+    ''' Gets all the organisations for the current user ''' 
+
+    organisations = []
+    if current_user and current_user.is_authenticated:
+        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).distinct().all()
+        for org in orgs:
+            organisations.append({
+                'id': org[0],
+                'name': org[1]
+            })
+
+    return json.dumps({'organisations': organisations})
+    
+@app.route('/removeUserFromOrganisation', methods=['POST'])	
+@login_required
+def removeUserFromOrganisation():
+    ''' Removes a user from an organisation '''
+
+    user_id = ast.literal_eval(request.form['user_id'])
+
+    status = 'FAILURE'
+    message = 'Unable to remove user from organisation.'
+
+    if current_user and current_user.is_authenticated: 
+        organisation = current_user.root_organisation
+        if organisation:
+            user_permission = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==user_id).first()
+            db.session.delete(user_permission)
+            db.session.commit()
+
+            status = 'SUCCESS'
+            message = 'User removed from organisation successfully.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/removeSharedSurvey', methods=['POST'])	
+@login_required
+def removeSharedSurvey():
+    ''' Removes a user from an organisation '''
+
+    survey_share_id = ast.literal_eval(request.form['survey_share_id'])
+
+    status = 'FAILURE'
+    message = 'Unable to remove shared survey.'
+
+    if current_user and current_user.is_authenticated and current_user.root_organisation:
+        survey_share = db.session.query(SurveyShare).filter(SurveyShare.id==survey_share_id).first()
+        db.session.delete(survey_share)
+        db.session.commit()
+
+        status = 'SUCCESS'
+        message = 'User removed from organisation successfully.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/inviteOrganisation', methods=['POST'])
+@login_required
+def inviteOrganisation():
+    ''' Sends an invite email to link organisation '''
+    organisation_email = ast.literal_eval(request.form['organisation_email'])
+    message = ''
+
+    return json.dumps({'message':message})
+
+
+@app.route('/acceptOrganisationInvitation/<token>')
+@login_required
+def acceptOrganisationInvitation(token):
+    '''Accepts a organisations's invitation to share a survey based on the supplied token.'''
+
+    try:
+        info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        # user_id = info['user_id']
+        # worker_id = info['worker_id']
+
+        # user = db.session.query(User).get(user_id)
+        # worker = db.session.query(User).get(worker_id)
+
+        # user.workers.append(worker)
+        # db.session.commit()
+
+    except:
+        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
+
+    return render_template("html/block.html",text="Invitation accepted.", helpFile='block', version=Config.VERSION)
