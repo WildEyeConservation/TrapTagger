@@ -9098,7 +9098,7 @@ def getLineDataIndividual():
 @login_required
 def searchSites():
     ''' Search for sites based on a search string and return a list of matching sites '''
-    #start here
+
     sites_data = []
     sites_ids = []
     unique_sites = {}
@@ -9107,7 +9107,7 @@ def searchSites():
 
     if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {}'.format(search, advanced))
 
-    sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id)
+    sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
 
     if advanced == 'true':
         # Regular expression search 
@@ -9149,11 +9149,11 @@ def saveGroup():
 
     status = 'success'
     message = ''
-    if current_user and current_user.is_authenticated:
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
+    if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
-            survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-            survey_ids = [r[0] for r in survey_ids]
-            check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).filter(Sitegroup.name==name).filter(Trapgroup.survey_id.in_(survey_ids)).first()
+            check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==name).first()
             if check:
                 status = 'error'
                 message = 'A group with that name already exists.'
@@ -9177,9 +9177,8 @@ def getGroups():
     ''' Get a list of groups '''
     groups = []
     if current_user and current_user.is_authenticated:
-        survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-        survey_ids = [r[0] for r in survey_ids]
-        groupsQuery = db.session.query(
+        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all.
+        groupsQuery = surveyPermissionsSQ(db.session.query(
                             Sitegroup.id,
                             Sitegroup.name,
                             Sitegroup.description,
@@ -9189,7 +9188,7 @@ def getGroups():
                             Trapgroup.longitude
                         )\
                         .join(Trapgroup, Sitegroup.trapgroups)\
-                        .filter(Trapgroup.survey_id.in_(survey_ids))\
+                        .join(Survey),current_user.id,'read')\
                         .order_by(Trapgroup.id)\
                         .distinct().all()
 
@@ -9223,13 +9222,13 @@ def editGroup():
 
     if Config.DEBUGGING: app.logger.info('Editing group {} {} {} {}'.format(group_id, group_name, group_description, sites_ids))
 
-    if current_user and current_user.is_authenticated:
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
+    if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
             group = db.session.query(Sitegroup).get(group_id)
             if group:
-                survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-                survey_ids = [r[0] for r in survey_ids]
-                name_check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).filter(Sitegroup.name==group_name).filter(Trapgroup.survey_id.in_(survey_ids)).filter(Sitegroup.id!=group_id).first()
+                check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==name).filter(Sitegroup.id!=group_id).first()
                 if name_check:
                     status = 'error'
                     message = 'A group with that name already exists.'
@@ -9275,17 +9274,16 @@ def getSurveysAndTasksForResults():
     ''' Get a list of surveys and tasks for the results page '''
 
     if current_user and current_user.is_authenticated:
-        surveys = db.session.query(
+        surveys = surveyPermissionsSQ(db.session.query(
                                     Survey.id,
                                     Survey.name,
                                     Task.id,
                                     Task.name,
                                 )\
                                 .join(Task)\
-                                .filter(Survey.user_id==current_user.id)\
                                 .filter(~Task.name.contains('_o_l_d_'))\
                                 .filter(~Task.name.contains('_copying'))\
-                                .filter(Task.name != 'default')\
+                                .filter(Task.name != 'default'),current_user.id,'read')\
                                 .order_by(Survey.id, Task.id).all()
         
         survey_data = {}
@@ -9808,10 +9806,15 @@ def getGroupSites():
     sites_data = []
     group_ids = ast.literal_eval(request.form['group_ids'])
 
-    if current_user and current_user.is_authenticated:
-        survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-        survey_ids = [r[0] for r in survey_ids]
+    if group_ids == '0':
+        survey_ids = []
+        permission = []
+        group_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Sitegroup.id).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'read').distinct().all()]
+    else:
+        survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).join(Sitegroup,Trapgroup.sitegroups).filter(Sitegroup.id.in_(group_ids)).distinct().all()]
+        permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'read').distinct().all()
 
+    if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         sites = db.session.query(
                                 Trapgroup.id,
                                 Trapgroup.tag,
@@ -9819,10 +9822,7 @@ def getGroupSites():
                                 Trapgroup.longitude
                             )\
                             .join(Sitegroup, Trapgroup.sitegroups)\
-                            .filter(Trapgroup.survey_id.in_(survey_ids))
-
-        if group_ids != '0':
-            sites = sites.filter(Sitegroup.id.in_(group_ids))
+                            .filter(Sitegroup.id.in_(group_ids))
 
         # Combine sites with the same tag, latitude and longitude and make their ids a comma separated list and rename to ids
         sites_df = pd.DataFrame(sites.order_by(Trapgroup.id).distinct().all(),columns=['id','tag','latitude','longitude'])
@@ -9860,7 +9860,7 @@ def getAllLabels():
     ''' Get all the labels for a user '''    
     labels = []
     if current_user and current_user.is_authenticated:
-        labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.user_id==current_user.id).distinct().all()]
+        labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
 
     return json.dumps({'labels': labels})
 
