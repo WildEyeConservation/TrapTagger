@@ -2001,7 +2001,7 @@ def remove_duplicate_images(survey_id):
     
     return True
 
-def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pipeline,min_area,exclusions,processes=4,label_source=None):
+def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisation_id,pipeline,min_area,exclusions,processes=4,label_source=None):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
 
@@ -2011,7 +2011,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
             name (str): Survey name
             sourceBucket (str): Bucket from which import takes place
             destinationBucket (str): Bucket where compressed images are stored
-            user_id (int): User doing the import
+            organisation_id (int): organisation doing the import
             pipeline (bool): Whether import is to pipeline training data (only crops will be saved)
             min_area (float): The minimum area detection to crop if pipelining
             exclusions (list): A list of folders to exclude
@@ -2023,7 +2023,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,user_id,pi
     isjpeg = re.compile('(\.jpe?g$)|(_jpe?g$)', re.I)
     
     localsession=db.session()
-    survey = Survey.get_or_create(localsession,name=name,user_id=user_id,trapgroup_code=tag)
+    survey = Survey.get_or_create(localsession,name=name,organisation_id=organisation_id,trapgroup_code=tag)
     survey.status = 'Importing'
     survey.images_processing = 0
     survey.processing_initialised = True
@@ -3154,7 +3154,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classifier,processes=4):
+def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,processes=4):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3162,7 +3162,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
             s3Folder (str): The folder on the user's AWS S3 bucket where the images much be imported from
             surveyName (str): The name of the survey
             tag (str): The trapgroup regular expression code used to identify trapgroups in the folder structure
-            user_id (int): The user to which the survey will belong
+            organisation_id (int): The organisation to which the survey will belong
             correctTimestamps (bool): Whether or not the system should attempt to correct the relative timestamps of the cameras in each trapgroup
             classifier (str): The name of the classifier model to use
             processes (int): Optional number of threads to use. Default is 4
@@ -3171,15 +3171,15 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
     try:
         app.logger.info("Importing survey {}".format(surveyName))
 
-        if (db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()):
+        if (db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()):
             addingImages = True
         else:
             addingImages = False
 
-        user = db.session.query(User).get(user_id)
-        import_folder(user.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,user_id,False,None,[],processes)
+        organisation = db.session.query(Organisation).get(organisation_id)
+        import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],processes)
         
-        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
+        survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
         survey_id = survey.id
         survey.correct_timestamps = correctTimestamps
         survey.image_count = db.session.query(Image).join(Camera).join(Trapgroup).outerjoin(Video).filter(Trapgroup.survey==survey).filter(Video.id==None).distinct().count()
@@ -3403,11 +3403,11 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
     
     try:
         app.logger.info("Pipelining survey {}".format(surveyName))
-        admin = db.session.query(User).filter(User.username=='Admin').first()
-        user_id = admin.id
+        admin = db.session.query(Organisation).filter(Organisation.name=='Admin').first()
+        organisation_id = admin.id
 
         localsession=db.session()
-        survey = Survey.get_or_create(localsession,name=surveyName,user_id=user_id,trapgroup_code=trapgroupCode)
+        survey = Survey.get_or_create(localsession,name=surveyName,organisation_id=organisation_id,trapgroup_code=trapgroupCode)
         survey.status = 'Importing'
         localsession.commit()
         survey_id = survey.id
@@ -3450,14 +3450,14 @@ def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroup
 
         else:
             #import from S3 folder
-            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,user_id,True,min_area,exclusions,4,label_source)
+            import_folder(dataSource,trapgroupCode,surveyName,sourceBucket,bucketName,organisation_id,True,min_area,exclusions,4,label_source)
 
         # if labels extracted from metadata, there are already labelled clusters
         if not label_source:
 
             if not fileAttached:
                 # Cluster survey
-                survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.user_id==user_id).first()
+                survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
                 survey.status = 'Clustering'
                 db.session.commit()
                 results = []
@@ -3774,7 +3774,7 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
         if 'filename' in df.columns:
             df = df.rename(columns={'filename': 'filepath','common_name': 'species'})
 
-        survey = Survey(name=survey_name,user_id=1,trapgroup_code=tgcode_str,status='Importing')
+        survey = Survey(name=survey_name,organisation_id=1,trapgroup_code=tgcode_str,status='Importing')
         db.session.add(survey)
         task = Task(name='import', survey=survey, tagging_level='-1', test_size=0, status='Ready')
         db.session.add(task)

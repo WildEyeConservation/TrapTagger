@@ -350,38 +350,38 @@ def launchTask():
 
     return json.dumps({'message': message, 'status': 'Error'})
 
-@app.route('/MturkStatus' , methods=['POST'])
-@login_required
-def MturkStatus():
-    '''Returns a dictionary status of a requested task: state, hitsCompleted, hitsActive and id.'''
-    if current_user.admin:
-        response = []
-        task_ids = ast.literal_eval(request.form['task_ids'])
+# @app.route('/MturkStatus' , methods=['POST'])
+# @login_required
+# def MturkStatus():
+#     '''Returns a dictionary status of a requested task: state, hitsCompleted, hitsActive and id.'''
+#     if current_user.admin:
+#         response = []
+#         task_ids = ast.literal_eval(request.form['task_ids'])
 
-        for task_id in task_ids:
-            task = db.session.query(Task).get(int(task_id))
+#         for task_id in task_ids:
+#             task = db.session.query(Task).get(int(task_id))
 
-            jobs_finished = db.session.query(Turkcode)\
-                                    .join(User)\
-                                    .filter(User.parent_id!=None)\
-                                    .filter(Turkcode.task_id==int(task_id))\
-                                    .filter(Turkcode.tagging_time!=None)\
-                                    .distinct().count()
+#             jobs_finished = db.session.query(Turkcode)\
+#                                     .join(User)\
+#                                     .filter(User.parent_id!=None)\
+#                                     .filter(Turkcode.task_id==int(task_id))\
+#                                     .filter(Turkcode.tagging_time!=None)\
+#                                     .distinct().count()
 
-            jobs_finished = jobs_finished - task.jobs_finished
-            jobs_active = db.session.query(Turkcode).filter(Turkcode.task_id==int(task_id)).filter(Turkcode.active==True).count()
+#             jobs_finished = jobs_finished - task.jobs_finished
+#             jobs_active = db.session.query(Turkcode).filter(Turkcode.task_id==int(task_id)).filter(Turkcode.active==True).count()
 
-            response.append({
-                'state': task.status,
-                'hitsCompleted': jobs_finished,
-                'hitsActive': jobs_active,
-                'id': task_id
-            })
+#             response.append({
+#                 'state': task.status,
+#                 'hitsCompleted': jobs_finished,
+#                 'hitsActive': jobs_active,
+#                 'id': task_id
+#             })
 
-        return json.dumps(response)
+#         return json.dumps(response)
 
-    else:
-        return redirect(url_for('jobs'))
+#     else:
+#         return redirect(url_for('jobs'))
 
 @app.route('/takeJob/<task_id>')
 @login_required
@@ -1129,7 +1129,7 @@ def updateSurveyStatus(survey_id, status):
             survey.status = status
             db.session.commit()
             if status == 'Complete':
-                import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
     
     return json.dumps('')
 
@@ -1327,8 +1327,11 @@ def createNewSurvey():
     notAllowed = ['/', ',', '.', '"', "'"]
     status = 'success'
     message = ''
+    organisation_id = request.form['organisation_id']
 
-    if current_user.admin:
+    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
+
+    if userPermissions and userPermissions.create:
         surveyName = request.form['surveyName']
         newSurveyDescription = request.form['newSurveyDescription']
         newSurveyTGCode = request.form['newSurveyTGCode']
@@ -1336,7 +1339,6 @@ def createNewSurvey():
         checkbox = request.form['checkbox']
         correctTimestamps = request.form['correctTimestamps']
         classifier = request.form['classifier']
-        organisation_id = request.form['organisation_id']
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1399,13 +1401,15 @@ def createNewSurvey():
             if newSurveyS3Folder=='none':
                 # Browser upload
                 classifier = db.session.query(Classifier).filter(Classifier.name==classifier).first()
-                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, user_id=current_user.id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
+                newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
                 db.session.commit()
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=correctTimestamps,classifier=classifier)
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier)
 
         return json.dumps({'status': status, 'message': message})
+    else:
+        return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
 
 @app.route('/pipelineData', methods=['POST'])
 @login_required
@@ -1577,8 +1581,13 @@ def requestLabelSpec():
 def checkTrapgroupCode():
     '''Checks the user's specified trapgroup code and returns the detected trapgroups in the specified folder.'''
 
+    #TODO added organisation_id and survey_id. The former is needed for survey creation, and the latter is for edit survey modal.
+
     status = 'FAILURE'
     reply = None
+    userPermissions = None
+    survey_id = None
+    organisation_id = None
 
     if 'task_id' in request.form:
         task_id = request.form['task_id']
@@ -1590,7 +1599,17 @@ def checkTrapgroupCode():
     else:
         surveyName = None
 
-    if current_user.is_authenticated and current_user.admin:
+    if 'organisation_id' in request.form:
+        organisation_id = request.form['organisation_id']
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
+
+    if 'survey_id' in request.form:
+        survey_id = request.form['survey_id']
+        survey = db.session.query(Survey).get(survey_id)
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==survey.organisation_id).first()
+        organisation_id = survey.organisation
+
+    if userPermissions and userPermissions.create:
         if 'revoke_id' in request.form:
             try:
                 celery.control.revoke(request.form['revoke_id'], terminate=True)
@@ -1601,7 +1620,7 @@ def checkTrapgroupCode():
             if task_id == 'none':
                 tgCode = request.form['tgCode']
                 folder = request.form['folder']
-                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'user_id':current_user.id,'surveyName':surveyName})
+                task = findTrapgroupTags.apply_async(kwargs={'tgCode':tgCode,'folder':folder,'organisation_id':organisation_id,'surveyName':surveyName})
                 task_id = task.id
                 status = 'PENDING'
             else:
@@ -1619,9 +1638,11 @@ def getFolders():
     '''Fetches the list of folders in the user's S3 folder.'''
     
     folders = []
-    if current_user.is_authenticated and current_user.admin:
-        folders = list_all(Config.BUCKET,current_user.folder+'/')[0]
-        if 'Downloads' in folders: folders.remove('Downloads')
+    if current_user.is_authenticated:
+        organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
+        for organisation in organisations:
+            folders.extend(list_all(Config.BUCKET,current_user.folder+'/')[0])
+            if 'Downloads' in folders: folders.remove('Downloads')
 
     return json.dumps(folders)
 
@@ -1782,22 +1803,28 @@ def editSurvey():
                 importKML(survey.id)
         
         else:
-            newSurveyTGCode = request.form['newSurveyTGCode']
-            newSurveyS3Folder = request.form['newSurveyS3Folder']
-            checkbox = request.form['checkbox']
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).all()
+            if userPermissions and userPermissions.create:
+                newSurveyTGCode = request.form['newSurveyTGCode']
+                newSurveyS3Folder = request.form['newSurveyS3Folder']
+                checkbox = request.form['checkbox']
 
-            if newSurveyTGCode!=' ':
-                if checkbox=='false':
-                    newSurveyTGCode = newSurveyTGCode+'[0-9]+'
+                if newSurveyTGCode!=' ':
+                    if checkbox=='false':
+                        newSurveyTGCode = newSurveyTGCode+'[0-9]+'
 
-                survey.trapgroup_code=newSurveyTGCode
-                db.session.commit()
-                
-                if newSurveyS3Folder!='none':
-                    import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,user_id=current_user.id,correctTimestamps=survey.correct_timestamps,classifier=None)
-                else:
-                    survey.status = 'Uploading'
+                    survey.trapgroup_code=newSurveyTGCode
                     db.session.commit()
+                    
+                    if newSurveyS3Folder!='none':
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None)
+                    else:
+                        survey.status = 'Uploading'
+                        db.session.commit()
+            
+            else:
+                status = 'error'
+                message = 'You do not have permission to add images to this survey.'
 
     return json.dumps({'status': status, 'message': message})
 
@@ -2429,9 +2456,9 @@ def getBarDataIndividual():
 def setAdminTask(task):
     '''Sets the current user's active task to the specified one.'''
 
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+    if (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
-    if current_user.admin == True:
+    if current_user.parent_id == None:
         turkcode = current_user.turkcode[0]
         turkcode.task_id = task
         db.session.commit()
@@ -2885,7 +2912,7 @@ def index():
     elif '-5' in current_user.turkcode[0].task.tagging_level:
         return redirect(url_for('individualID'))
     else:
-        if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        if (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
             return redirect(url_for('done'))
         return render_template('html/index.html', title='TrapTagger', helpFile='annotation', bucket=Config.BUCKET, version=Config.VERSION)
 
@@ -3227,73 +3254,151 @@ def getWorkerStats():
 @login_required
 def getHomeSurveys():
     '''Returns a paginated list of all surveys and their associated tasks for the current user.'''
-    
-    if current_user.admin:
-        page = request.args.get('page', 1, type=int)
-        order = request.args.get('order', 5, type=int)
-        search = request.args.get('search', '', type=str)
-        current_downloads = request.args.get('downloads', '', type=str)
 
-        siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
-        # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
-        completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
-                                            .join(Turkcode)\
-                                            .join(User)\
-                                            .filter(User.parent_id!=None)\
-                                            .filter(Turkcode.tagging_time!=None)\
-                                            .group_by(Task.id).subquery()
+    page = request.args.get('page', 1, type=int)
+    order = request.args.get('order', 5, type=int)
+    search = request.args.get('search', '', type=str)
+    current_downloads = request.args.get('downloads', '', type=str)
 
-        survey_base_query = surveyPermissionsSQ(db.session.query(
-                                    Survey.id,
-                                    Survey.name,
-                                    Survey.description,
-                                    Survey.image_count,
-                                    Survey.video_count,
-                                    Survey.frame_count,
-                                    Survey.status,
-                                    siteSQ.c.count,
-                                    Task.id,
-                                    Task.name,
-                                    Task.status,
-                                    Task.complete,
-                                    Task.tagging_level,
-                                    Task.cluster_count,
-                                    Task.id, #temp replacement for Task.clusters_remaining
-                                    Task.id, #availableJobsSQ.c.count,
-                                    completeJobsSQ.c.count,
-                                    Organisation.name,
-                                    UserPermissions.default,
-                                    SurveyPermissionException.permission,
-                                    UserPermissions.delete
-                                ).outerjoin(Task,Task.survey_id==Survey.id)\
-                                .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
-                                .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
-                                .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read')
+    siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
+    # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
+    completeJobsSQ = db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
+                                        .join(Turkcode)\
+                                        .join(User)\
+                                        .filter(User.parent_id!=None)\
+                                        .filter(Turkcode.tagging_time!=None)\
+                                        .group_by(Task.id).subquery()
 
-        # uploading/downloading surveys always need to be on the page
-        if current_downloads != '':
-            compulsory_surveys = survey_base_query.filter(or_(
-                Survey.status=='Uploading',
-                Survey.name.in_(re.split('[,]',current_downloads))
-            ))
-        else:
-            compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading')
-        compulsory_surveys = compulsory_surveys.all()
+    survey_base_query = surveyPermissionsSQ(db.session.query(
+                                Survey.id,
+                                Survey.name,
+                                Survey.description,
+                                Survey.image_count,
+                                Survey.video_count,
+                                Survey.frame_count,
+                                Survey.status,
+                                siteSQ.c.count,
+                                Task.id,
+                                Task.name,
+                                Task.status,
+                                Task.complete,
+                                Task.tagging_level,
+                                Task.cluster_count,
+                                Task.id, #temp replacement for Task.clusters_remaining
+                                Task.id, #availableJobsSQ.c.count,
+                                completeJobsSQ.c.count,
+                                Organisation.name,
+                                UserPermissions.default,
+                                SurveyPermissionException.permission,
+                                UserPermissions.delete
+                            ).outerjoin(Task,Task.survey_id==Survey.id)\
+                            .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
+                            .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
+                            .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read')
 
-        # digest survey data
-        survey_data = {}
-        for item in compulsory_surveys:
+    # uploading/downloading surveys always need to be on the page
+    if current_downloads != '':
+        compulsory_surveys = survey_base_query.filter(or_(
+            Survey.status=='Uploading',
+            Survey.name.in_(re.split('[,]',current_downloads))
+        ))
+    else:
+        compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading')
+    compulsory_surveys = compulsory_surveys.all()
 
-            if item[0] and (item[0] not in survey_data.keys()):
+    # digest survey data
+    survey_data = {}
+    for item in compulsory_surveys:
+
+        if item[0] and (item[0] not in survey_data.keys()):
+            surveyStatus = item[6]
+            if surveyStatus in ['indprocessing','Preparing Download']:
+                surveyStatus = 'processing'
+            if item[19]:
+                # permission exception
+                access = item[19]
+            else:
+                access = item[18]
+            survey_data[item[0]] = {'id': item[0],
+                                    'name': item[1], 
+                                    'description': item[2], 
+                                    'numImages': item[3], 
+                                    'numVideos': item[4], 
+                                    'numFrames': item[5], 
+                                    'status': surveyStatus, 
+                                    'numTrapgroups': item[7], 
+                                    'organisation': item[17],
+                                    'access': access,
+                                    'delete': item[20],
+                                    'tasks': []}
+
+        if item[8] and (item[9]!='default'):
+            clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
+            if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
+
+            jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
+
+            taskInfo = {'id': item[8],
+                        'name': item[9],
+                        'status': item[10],
+                        'complete': item[11],
+                        'tagging_level': item[12],
+                        'total': item[13],
+                        'remaining': clusters_remaining,
+                        'jobsAvailable': jobsAvailable,
+                        'jobsCompleted': item[16]}
+
+            if taskInfo['total'] and taskInfo['remaining']:
+                taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
+            else:
+                taskInfo['completed'] = 0
+
+            survey_data[item[0]]['tasks'].append(taskInfo)            
+
+    # add all the searches to the base query
+    searches = re.split('[ ,]',search)
+    for search in searches:
+        survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+
+    # add the order to the base query
+    # if order == 1:
+    #     #Survey date
+    #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+    #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
+    if order == 2:
+        #Survey add date
+        survey_base_query = survey_base_query.order_by(Survey.id)
+    elif order == 3:
+        #Alphabetical
+        survey_base_query = survey_base_query.order_by(Survey.name)
+    # elif order == 4:
+    #     #Survey date descending
+    #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
+    #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
+    elif order == 5:
+        #Add date descending
+        survey_base_query = survey_base_query.order_by(desc(Survey.id))
+
+    count = 5-len(survey_data)
+    if count > 0:
+        surveys = survey_base_query.all()
+
+        # digest the rest of the data
+        survey_data2 = {}
+        for item in surveys:
+
+            if item[0] and (item[0] not in survey_data2.keys()):
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
                     surveyStatus = 'processing'
+
                 if item[19]:
                     # permission exception
                     access = item[19]
                 else:
                     access = item[18]
-                survey_data[item[0]] = {'id': item[0],
+
+                survey_data2[item[0]] = {'id': item[0],
                                         'name': item[1], 
                                         'description': item[2], 
                                         'numImages': item[3], 
@@ -3327,149 +3432,67 @@ def getHomeSurveys():
                 else:
                     taskInfo['completed'] = 0
 
-                survey_data[item[0]]['tasks'].append(taskInfo)            
 
-        # add all the searches to the base query
-        searches = re.split('[ ,]',search)
-        for search in searches:
-            survey_base_query = survey_base_query.filter(or_(Survey.name.contains(search),Task.name.contains(search)))
+                survey_data2[item[0]]['tasks'].append(taskInfo)
 
-        # add the order to the base query
-        # if order == 1:
-        #     #Survey date
-        #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
-        #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(timestampSQ.c.timestamp)
-        if order == 2:
-            #Survey add date
-            survey_base_query = survey_base_query.order_by(Survey.id)
-        elif order == 3:
-            #Alphabetical
-            survey_base_query = survey_base_query.order_by(Survey.name)
-        # elif order == 4:
-        #     #Survey date descending
-        #     timestampSQ = db.session.query(Survey.id,func.min(Image.corrected_timestamp).label('timestamp')).join(Trapgroup).join(Camera).join(Image).subquery()
-        #     survey_base_query = survey_base_query.join(timestampSQ,timestampSQ.c.id==Survey.id).order_by(desc(timestampSQ.c.timestamp))
-        elif order == 5:
-            #Add date descending
-            survey_base_query = survey_base_query.order_by(desc(Survey.id))
+        survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
 
-        count = 5-len(survey_data)
-        if count > 0:
-            surveys = survey_base_query.all()
-
-            # digest the rest of the data
-            survey_data2 = {}
-            for item in surveys:
-
-                if item[0] and (item[0] not in survey_data2.keys()):
-                    surveyStatus = item[6]
-                    if surveyStatus in ['indprocessing','Preparing Download']:
-                        surveyStatus = 'processing'
-
-                    if item[19]:
-                        # permission exception
-                        access = item[19]
-                    else:
-                        access = item[18]
-
-                    survey_data2[item[0]] = {'id': item[0],
-                                            'name': item[1], 
-                                            'description': item[2], 
-                                            'numImages': item[3], 
-                                            'numVideos': item[4], 
-                                            'numFrames': item[5], 
-                                            'status': surveyStatus, 
-                                            'numTrapgroups': item[7], 
-                                            'organisation': item[17],
-                                            'access': access,
-                                            'delete': item[20],
-                                            'tasks': []}
-
-                if item[8] and (item[9]!='default'):
-                    clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
-                    if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
-
-                    jobsAvailable = GLOBALS.redisClient.scard('job_pool_'+str(item[8]))
-
-                    taskInfo = {'id': item[8],
-                                'name': item[9],
-                                'status': item[10],
-                                'complete': item[11],
-                                'tagging_level': item[12],
-                                'total': item[13],
-                                'remaining': clusters_remaining,
-                                'jobsAvailable': jobsAvailable,
-                                'jobsCompleted': item[16]}
-
-                    if taskInfo['total'] and taskInfo['remaining']:
-                        taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
-                    else:
-                        taskInfo['completed'] = 0
-
-
-                    survey_data2[item[0]]['tasks'].append(taskInfo)
-
-            survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
-
-            if (page*count) >= len(survey_ids):
-                has_next = False
-            else:
-                has_next = True
-
-            if (page-1)*count > 0:
-                has_prev = True
-            else:
-                has_prev = False
-
-            survey_ids = survey_ids[(page-1)*count:page*count]
-
-            for survey_id in survey_ids:
-                survey_data[survey_id] = survey_data2[survey_id]
-
-            next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads) if has_next else None
-            prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads) if has_prev else None
-
+        if (page*count) >= len(survey_ids):
+            has_next = False
         else:
-            next_url = None
-            prev_url = None
+            has_next = True
 
-        # Handle disabled launches & translate to legacy client format
-        survey_list = []
-        for survey_id in survey_data:
-            survey = survey_data[survey_id]
+        if (page-1)*count > 0:
+            has_prev = True
+        else:
+            has_prev = False
 
-            disabledLaunch='false'
-            for task in survey['tasks']:
-                if task['status'] and (task['status'].lower() not in Config.TASK_READY_STATUSES):
-                    disabledLaunch='true'
+        survey_ids = survey_ids[(page-1)*count:page*count]
 
-                if task['tagging_level'] and ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
-                    dbTask = db.session.query(Task).get(task['id'])
-                    if dbTask.sub_tasks:
-                        task['status'] = 'Processing'
+        for survey_id in survey_ids:
+            survey_data[survey_id] = survey_data2[survey_id]
 
-                    if task['remaining'] != None:
-                        task['remaining'] = str(task['remaining']) + ' individuals remaining'
-                    else:
-                        task['remaining'] = '0 individuals remaining'
-                elif task['tagging_level']:
-                    if task['remaining'] != None:
-                        task['remaining'] = str(task['remaining']) + ' clusters remaining'
-                    else:
-                        task['remaining'] = '0 clusters remaining'
+        next_url = url_for('getHomeSurveys', page=(page+1), order=order, downloads=current_downloads) if has_next else None
+        prev_url = url_for('getHomeSurveys', page=(page-1), order=order, downloads=current_downloads) if has_prev else None
 
-            for task in survey['tasks']:
-                task['disabledLaunch'] = disabledLaunch
-
-            survey_list.append(survey)
-
-        current_user.last_ping = datetime.utcnow()
-        db.session.commit()
-
-        return json.dumps({'surveys': survey_list, 'next_url':next_url, 'prev_url':prev_url})
-    
     else:
-        return redirect(url_for('jobs'))
+        next_url = None
+        prev_url = None
+
+    # Handle disabled launches & translate to legacy client format
+    survey_list = []
+    for survey_id in survey_data:
+        survey = survey_data[survey_id]
+
+        disabledLaunch='false'
+        for task in survey['tasks']:
+            if task['status'] and (task['status'].lower() not in Config.TASK_READY_STATUSES):
+                disabledLaunch='true'
+
+            if task['tagging_level'] and ('-5' in task['tagging_level']) and (task['status']=='PROGRESS'):
+                dbTask = db.session.query(Task).get(task['id'])
+                if dbTask.sub_tasks:
+                    task['status'] = 'Processing'
+
+                if task['remaining'] != None:
+                    task['remaining'] = str(task['remaining']) + ' individuals remaining'
+                else:
+                    task['remaining'] = '0 individuals remaining'
+            elif task['tagging_level']:
+                if task['remaining'] != None:
+                    task['remaining'] = str(task['remaining']) + ' clusters remaining'
+                else:
+                    task['remaining'] = '0 clusters remaining'
+
+        for task in survey['tasks']:
+            task['disabledLaunch'] = disabledLaunch
+
+        survey_list.append(survey)
+
+    current_user.last_ping = datetime.utcnow()
+    db.session.commit()
+
+    return json.dumps({'surveys': survey_list, 'next_url':next_url, 'prev_url':prev_url})
 
 @app.route('/getJobs')
 @login_required
@@ -3738,7 +3761,7 @@ def inviteWorker():
 
     try:
         inviteEmail = ast.literal_eval(request.form['inviteEmail'])
-        if inviteEmail and current_user.admin:
+        if inviteEmail:
             organisation = current_user.root_organisation
             if organisation:
                 worker = db.session.query(User).filter(User.email==inviteEmail).first()
@@ -3779,6 +3802,7 @@ def acceptInvitation(token,action):
 
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        organisation_id = info['organisation_id']
         organisation_id = info['organisation_id']
         worker_id = info['worker_id']
 
@@ -9172,7 +9196,7 @@ def getLineDataIndividual():
 @login_required
 def searchSites():
     ''' Search for sites based on a search string and return a list of matching sites '''
-    #start here
+
     sites_data = []
     sites_ids = []
     unique_sites = {}
@@ -9181,7 +9205,7 @@ def searchSites():
 
     if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {}'.format(search, advanced))
 
-    sites = db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).filter(Survey.user_id==current_user.id)
+    sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
 
     if advanced == 'true':
         # Regular expression search 
@@ -9223,11 +9247,11 @@ def saveGroup():
 
     status = 'success'
     message = ''
-    if current_user and current_user.is_authenticated:
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
+    if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
-            survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-            survey_ids = [r[0] for r in survey_ids]
-            check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).filter(Sitegroup.name==name).filter(Trapgroup.survey_id.in_(survey_ids)).first()
+            check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==name).first()
             if check:
                 status = 'error'
                 message = 'A group with that name already exists.'
@@ -9251,9 +9275,8 @@ def getGroups():
     ''' Get a list of groups '''
     groups = []
     if current_user and current_user.is_authenticated:
-        survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-        survey_ids = [r[0] for r in survey_ids]
-        groupsQuery = db.session.query(
+        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all.
+        groupsQuery = surveyPermissionsSQ(db.session.query(
                             Sitegroup.id,
                             Sitegroup.name,
                             Sitegroup.description,
@@ -9263,7 +9286,7 @@ def getGroups():
                             Trapgroup.longitude
                         )\
                         .join(Trapgroup, Sitegroup.trapgroups)\
-                        .filter(Trapgroup.survey_id.in_(survey_ids))\
+                        .join(Survey),current_user.id,'read')\
                         .order_by(Trapgroup.id)\
                         .distinct().all()
 
@@ -9297,13 +9320,13 @@ def editGroup():
 
     if Config.DEBUGGING: app.logger.info('Editing group {} {} {} {}'.format(group_id, group_name, group_description, sites_ids))
 
-    if current_user and current_user.is_authenticated:
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
+    if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
             group = db.session.query(Sitegroup).get(group_id)
             if group:
-                survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-                survey_ids = [r[0] for r in survey_ids]
-                name_check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).filter(Sitegroup.name==group_name).filter(Trapgroup.survey_id.in_(survey_ids)).filter(Sitegroup.id!=group_id).first()
+                check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==name).filter(Sitegroup.id!=group_id).first()
                 if name_check:
                     status = 'error'
                     message = 'A group with that name already exists.'
@@ -9349,17 +9372,16 @@ def getSurveysAndTasksForResults():
     ''' Get a list of surveys and tasks for the results page '''
 
     if current_user and current_user.is_authenticated:
-        surveys = db.session.query(
+        surveys = surveyPermissionsSQ(db.session.query(
                                     Survey.id,
                                     Survey.name,
                                     Task.id,
                                     Task.name,
                                 )\
                                 .join(Task)\
-                                .filter(Survey.user_id==current_user.id)\
                                 .filter(~Task.name.contains('_o_l_d_'))\
                                 .filter(~Task.name.contains('_copying'))\
-                                .filter(Task.name != 'default')\
+                                .filter(Task.name != 'default'),current_user.id,'read')\
                                 .order_by(Survey.id, Task.id).all()
         
         survey_data = {}
@@ -9386,6 +9408,7 @@ def getSurveysAndTasksForResults():
 @login_required
 def getActivityPattern():
     ''' Get the activity pattern for a species '''
+    # TODO: need to look at all the permissions for these stats endpoints
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         species = ast.literal_eval(request.form['species'])
@@ -9882,10 +9905,15 @@ def getGroupSites():
     sites_data = []
     group_ids = ast.literal_eval(request.form['group_ids'])
 
-    if current_user and current_user.is_authenticated:
-        survey_ids = db.session.query(Survey.id).filter(Survey.user_id==current_user.id).all()
-        survey_ids = [r[0] for r in survey_ids]
+    if group_ids == '0':
+        survey_ids = []
+        permission = []
+        group_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Sitegroup.id).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'read').distinct().all()]
+    else:
+        survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).join(Sitegroup,Trapgroup.sitegroups).filter(Sitegroup.id.in_(group_ids)).distinct().all()]
+        permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'read').distinct().all()
 
+    if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         sites = db.session.query(
                                 Trapgroup.id,
                                 Trapgroup.tag,
@@ -9893,10 +9921,7 @@ def getGroupSites():
                                 Trapgroup.longitude
                             )\
                             .join(Sitegroup, Trapgroup.sitegroups)\
-                            .filter(Trapgroup.survey_id.in_(survey_ids))
-
-        if group_ids != '0':
-            sites = sites.filter(Sitegroup.id.in_(group_ids))
+                            .filter(Sitegroup.id.in_(group_ids))
 
         # Combine sites with the same tag, latitude and longitude and make their ids a comma separated list and rename to ids
         sites_df = pd.DataFrame(sites.order_by(Trapgroup.id).distinct().all(),columns=['id','tag','latitude','longitude'])
@@ -9934,7 +9959,7 @@ def getAllLabels():
     ''' Get all the labels for a user '''    
     labels = []
     if current_user and current_user.is_authenticated:
-        labels = [r[0] for r in db.session.query(Label.description).join(Task).join(Survey).filter(Survey.organisation_id==current_user.root_organisation.id).distinct().all()]
+        labels = [r[0] for r in surveyPermissionsSQ(db.session.query(Label.description).join(Task).join(Survey),current_user.id,'read').distinct().all()]
 
     return json.dumps({'labels': labels})
 
