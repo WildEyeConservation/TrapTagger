@@ -195,7 +195,7 @@ limitations under the License. -->
 
 <!-- Share Data Modal -->
 <div id="modalShareData" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 50%;">
+    <div class="modal-dialog" style="max-width: 40%;">
   
         <!-- Modal content-->
         <div class="modal-content">
@@ -211,26 +211,22 @@ limitations under the License. -->
               </div>
             </div>
             <div class="modal-body">
-                <h5 style="margin-bottom: 2px">Invite Organisations</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the email address of the organisation you would like to share data with if they are not already linked to your organisation. An email will be sent to the organisation inviting them to link with your organisation.</i></div>
+                <h5 style="margin-bottom: 2px">Organisation</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the name of the organisation you would like to share the surveys with.</i></div>
                 <div class="row">
                     <div class='col-lg-5'>
-                        <input type="text" class="form-control" id="organisationEmail">
-                    </div>
-                    <div class='col-lg-2'>
-                        <button id="btnsendInviteOrganisation" type='button' class='btn btn-primary btn-block' onclick="sendOrganisationInvite()">Send</button>
+                        <input type="text" class="form-control" id="organisationName">
                     </div>
                 </div>
-                <div id="inviteOrganisationStatus" style=" font:80%; color: #DF691A"></div>
+                <div id="shareOrganisationStatus" style=" font:80%; color: #DF691A"></div>
                 <br>
                 <br>
 
                 <h5 style="margin-bottom: 2px">Share Surveys</h5>
-                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the surveys you would like to share with the selected organisation. You can also select the level of access you would like to give the organisation for each survey. </i></div>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the surveys you would like to share with the above organisation. You can also select the level of access you would like to give the organisation for each survey. </i></div>
                 <div class="row">
-                    <div class='col-lg-3'>Organisation: </div>
-                    <div class='col-lg-3'>Survey: </div>
-                    <div class='col-lg-3'>Access Level: </div>
+                    <div class='col-lg-5'>Survey: </div>
+                    <div class='col-lg-5'>Access Level: </div>
                 </div>
                 <div id="shareDataDiv"></div>
                 <button id="btnAddShareData" type='button' class='btn btn-info' onclick="buildShareDataRow()">+</button>

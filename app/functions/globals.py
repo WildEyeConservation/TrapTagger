@@ -2912,8 +2912,8 @@ def updateEarthRanger(task_id):
     ''' Function for syncing to Earth Ranger Report a task is complete'''
     task = db.session.query(Task).get(task_id)
     if task:
-        user_id = task.survey.user_id
-        er_integrations = db.session.query(EarthRanger).filter(EarthRanger.user_id==user_id).all()
+        organisation_id = task.survey.organisation_id
+        er_integrations = db.session.query(EarthRanger).filter(EarthRanger.organisation_id==organisation_id).all()
         if len(er_integrations) > 0:
 
             # Get all species of interest and their api keys

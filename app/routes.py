@@ -2714,12 +2714,12 @@ def createAccount(token):
             newTurkcode.user = newUser
             newPassword = randomString()
             newUser.set_password(newPassword)
-            notifications = db.session.query(Notification)\
-                                    .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
-                                    .distinct().all()
+            # notifications = db.session.query(Notification)\
+            #                         .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
+            #                         .distinct().all()
             db.session.add(newUser)
             db.session.add(newTurkcode)
-            newUser.notifications = notifications
+            # newUser.notifications = notifications
             db.session.commit()
 
             #Create all the necessary AWS stuff
@@ -3737,52 +3737,90 @@ def inviteWorker():
     message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worker account.'
 
     try:
-        inviteEmail = request.form['inviteEmail']
+        inviteEmail = ast.literal_eval(request.form['inviteEmail'])
         if inviteEmail and current_user.admin:
-            worker = db.session.query(User).filter(User.email==inviteEmail).first()
-            if worker:
-                if worker in current_user.workers:
-                    message = 'That worker already works for you.'
-                else:
-                    token = jwt.encode(
-                            {'user_id': current_user.id, 'worker_id': worker.id},
-                            app.config['SECRET_KEY'], algorithm='HS256')
+            organisation = current_user.root_organisation
+            if organisation:
+                worker = db.session.query(User).filter(User.email==inviteEmail).first()
+                if worker:
+                    check = db.session.query(UserPermissions).filter(UserPermissions.user_id==worker.id).filter(UserPermissions.organisation_id==organisation.id).first()
+                    if check:
+                        message = 'That worker already works for you.'
+                    else:
+                        token = jwt.encode(
+                        {'organisation_id': organisation.id, 'worker_id': worker.id},
+                        app.config['SECRET_KEY'], algorithm='HS256')
 
-                    url = 'https://'+Config.DNS+'/acceptInvitation/'+token
+                        url = 'https://'+Config.DNS+'/acceptInvitation/'+token + '/'
 
-                    send_email('[TrapTagger] Invitation',
-                            sender=app.config['ADMINS'][0],
-                            recipients=[worker.email],
-                            text_body=render_template('email/workerInvitation.txt',workername=worker.username, username=current_user.username, url=url),
-                            html_body=render_template('email/workerInvitation.html',workername=worker.username, username=current_user.username, url=url))
-                    
-                    status = 'Success'
-                    message = 'Invitation sent.'
+                        prev_notification = db.session.query(Notification).filter(Notification.user_id==worker.id).filter(Notification.contents.contains('Organisation '+organisation.name+' has invited you to join their organisation.')).all()
+                        if prev_notification:
+                            for notification in prev_notification:
+                                db.session.delete(notification)
+
+                        notification_message = '<p> Organisation '+organisation.name+' has invited you to join their organisation. Do you <a href="'+url+'accept">Accept</a> or <a href="'+url+'decline">Decline</a>?</p>'
+
+                        notification = Notification(user_id=worker.id, contents=notification_message, seen=False)
+                        db.session.add(notification)
+                        
+                        db.session.commit()
+                        
+                        status = 'Success'
+                        message = 'Invitation sent.'
     except:
         pass
 
     return json.dumps({'status': status, 'message':message})
 
-@app.route('/acceptInvitation/<token>')
+@app.route('/acceptInvitation/<token>/<action>')
 @login_required
-def acceptInvitation(token):
+def acceptInvitation(token,action):
     '''Accepts a worker's invitation to annotate for a user based on the supplied token.'''
 
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        user_id = info['user_id']
+        organisation_id = info['organisation_id']
         worker_id = info['worker_id']
 
-        user = db.session.query(User).get(user_id)
+        organisation = db.session.query(Organisation).get(organisation_id)
         worker = db.session.query(User).get(worker_id)
 
-        user.workers.append(worker)
-        db.session.commit()
+        notification = db.session.query(Notification).filter(Notification.user_id==current_user.id).filter(Notification.contents.contains('Organisation '+organisation.name+' has invited you to join their organisation.')).first()
+        if notification:
+            db.session.delete(notification)
+            db.session.commit()
 
+        if action=='accept':
+            user_permission = UserPermissions(user_id=worker_id, organisation_id=organisation_id, default='worker', annotation=False, delete=False)
+            db.session.add(user_permission)
+            db.session.commit()
+
+            notif_msg_org = '<p>'+worker.username+' has accepted your invitation to '+organisation.name+'. Please modify their permissions as required.</p>'
+            notif_org = Notification(user_id=organisation.root_user_id, contents=notif_msg_org, seen=False)
+            db.session.add(notif_org)
+
+            notif_msg_worker = '<p>You have accepted an invitation to join '+organisation.name+'.</p>'
+            notif_worker = Notification(user_id=worker_id, contents=notif_msg_worker, seen=False)
+            db.session.add(notif_worker)
+
+            db.session.commit()
+
+        else:
+
+            notif_msg_org = '<p>'+worker.username+' has declined your invitation to join '+organisation.name+'.</p>'
+            notif_org = Notification(user_id=organisation.root_user_id, contents=notif_msg_org, seen=False)
+            db.session.add(notif_org)
+
+            notif_msg_worker = '<p>You have declined an invitation to join '+organisation.name+'.</p>'
+            notif_worker = Notification(user_id=worker_id, contents=notif_msg_worker, seen=False)
+            db.session.add(notif_worker)
+
+            db.session.commit()
+        
     except:
-        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
+        return redirect(url_for('index'))
 
-    return render_template("html/block.html",text="Invitation accepted.", helpFile='block', version=Config.VERSION)
+    return redirect(url_for('index'))
 
 # @app.route('/reClassify/<survey>')
 # @login_required
@@ -4052,7 +4090,7 @@ def explore():
             task_id = request.args.get('task', None)
             if task_id:
                 task = db.session.query(Task).get(task_id)
-                if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
+                if task and (task.survey.organisation==current_user.root_organisation) and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
                     task.tagging_level = '-1'
                     db.session.commit()
                     return render_template('html/explore.html', title='Explore', helpFile='explore', bucket=Config.BUCKET, version=Config.VERSION)
@@ -7648,20 +7686,49 @@ def getHelp():
 @app.route('/checkNotifications', methods=['POST'])
 @login_required
 def checkNotifications():
-    '''Checks if there are any new notifications for the user.'''
+    '''Checks if there are any new global notifications for the user.'''
     
-    if current_user.admin:
-        notification = db.session.query(Notification)\
-                            .filter(~Notification.users.contains(current_user))\
-                            .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
-                            .order_by(Notification.id)\
-                            .first()
-        if notification:
-            notification.users.append(current_user)
+    total_unseen = 0
+    global_notification = None
+    notifcation_contents = {}
+    status = 'error'
+    if current_user and current_user.is_authenticated:
+        notifications = db.session.query(Notification)\
+                    .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
+                    .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
+                    .order_by(desc(Notification.id))\
+                    .all()
+
+
+        for notification in notifications:
+            seen_notif = False
+            if notification.user_id == None:
+                if current_user in notification.users_seen:
+                    seen_notif = True
+                else:
+                    seen_notif = False
+                    global_notification = notification
+            else:
+                if notification.seen == None:
+                    seen_notif = False
+                else:
+                    seen_notif = notification.seen
+
+            if seen_notif == False:
+                total_unseen += 1
+
+        if global_notification:
+            global_notification.users_seen.append(current_user)
             db.session.commit()
-            return json.dumps({'status':'success','content':notification.contents})
+
+            notifcation_contents = {
+                'id': global_notification.id,
+                'contents': global_notification.contents,
+            }
+
+        status = 'success'
     
-    return json.dumps({'status':'error'})
+    return json.dumps({'status':status,'total_unseen':total_unseen,'global_notification':notifcation_contents})
 
 @app.route('/dashboard')
 @login_required
@@ -10215,7 +10282,6 @@ def getReceivedData():
 
     return json.dumps({'received_surveys':received_surveys})
 
-
 @app.route('/saveSharedSurveyPermissions', methods=['POST'])
 @login_required
 def saveSharedSurveyPermissions():
@@ -10238,62 +10304,109 @@ def saveSharedSurveyPermissions():
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/getLinkedOrganisations')
-@login_required
-def getLinkedOrganisations():
-    ''' Get all the linked organisations '''
-
-    organisations = []
-    if current_user and current_user.is_authenticated:
-        organisation = current_user.root_organisation
-        if organisation:
-            linked_organisations = db.session.query(
-                                                SurveyShare.organisation_id,
-                                                Organisation.name
-                                            )\
-                                            .join(Organisation, Organisation.id==SurveyShare.organisation_id)\
-                                            .join(Survey, Survey.id==SurveyShare.survey_id)\
-                                            .filter(Survey.organisation_id==organisation.id)\
-                                            .distinct().all()
-
-            for linked_organisation in linked_organisations:
-                organisations.append({
-                    'id': linked_organisation[0],
-                    'name': linked_organisation[1]
-                })
-
-    return json.dumps({'organisations': organisations})
-
-
 @app.route('/shareSurveys', methods=['POST'])
 @login_required
 def shareSurveys():
     ''' Shares surveys with organsisations '''
 
     shared_data = ast.literal_eval(request.form['shared_data'])
+    organisation_name = ast.literal_eval(request.form['organisation_name'])
     status = 'FAILURE'
     message =  'Unable to share surveys.'
 
-    if current_user and current_user.is_authenticated and current_user.root_organisation:
-        for data in shared_data:
-            organisation_id = data['organisation_id']
-            survey_id = data['survey_id']
-            permission = data['permission']
+    try:
+        if current_user and current_user.is_authenticated and current_user.root_organisation:
+            organisation = db.session.query(Organisation).filter(Organisation.name==organisation_name).first()
+            share_organisation = current_user.root_organisation
+            if not organisation:
+                return json.dumps({'status': 'FAILURE', 'message': 'Organisation does not exist.'})
+            else:
+                for data in shared_data:
+                    survey_id = data['survey_id']
+                    permission = data['permission']
 
-            check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation_id).filter(SurveyShare.survey_id==survey_id).first()
+                    check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation.id).filter(SurveyShare.survey_id==survey_id).first()
 
-            if check:
-                return json.dumps({'status': 'FAILURE', 'message': 'Survey already shared with organisation.'})
+                    if check:
+                        return json.dumps({'status': 'FAILURE', 'message': 'Survey already shared with organisation.'})
 
-            survey_share = SurveyShare(organisation_id=organisation_id, survey_id=survey_id, permission=permission)
-            db.session.add(survey_share)
-        
-        db.session.commit()
-        status = 'SUCCESS'
-        message = ''
+                token = jwt.encode({'organisation_id': organisation.id, 'shared_data': shared_data}, app.config['SECRET_KEY'], algorithm='HS256')
+                url = 'https://'+Config.DNS+'/acceptSurveyShare/'+token + '/'
+
+                prev_notification = db.session.query(Notification).filter(Notification.user_id==organisation.root_user_id).filter(Notification.contents.contains('Organisation '+share_organisation.name+' wants to share surveys with you.')).all()
+                if prev_notification:
+                    for notification in prev_notification:
+                        db.session.delete(notification)
+
+
+                notification_message = '<p> Organisation '+share_organisation.name+' wants to share surveys with you. Do you <a href="'+url+'accept">Accept</a> or <a href="'+url+'decline">Decline</a>?</p><p>Surveys:</p><ul>'
+                for data in shared_data:
+                    survey_name = db.session.query(Survey.name).filter(Survey.id==data['survey_id']).first()[0]
+                    notification_message += '<li>'+survey_name+'</li>'
+                notification_message += '</ul>'
+                notification = Notification(user_id=organisation.root_user_id, contents=notification_message, seen=False)
+                db.session.add(notification)
+
+                db.session.commit()
+
+                status = 'SUCCESS'
+                message = 'Notification sent to organisation. You will be notified when the organisation has accepted the survey share.'
+    except:
+        pass
 
     return json.dumps({'status':status, 'message': message})
 
+@app.route('/acceptSurveyShare/<token>/<action>')
+def acceptSurveyShare(token, action):
+    ''' Accepts or declines a survey share '''
+
+    try:
+        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        organisation_id = data['organisation_id']
+        shared_data = data['shared_data']
+        organisation = db.session.query(Organisation).get(organisation_id)
+        share_org_id = db.session.query(Survey.organisation_id).filter(Survey.id==shared_data[0]['survey_id']).first()[0]
+        share_organisation = db.session.query(Organisation).filter(Organisation.id==share_org_id).first()
+
+        prev_notification = db.session.query(Notification).filter(Notification.user_id==organisation.root_user_id).filter(Notification.contents.contains('Organisation '+share_organisation.name+' wants to share surveys with you.')).first()
+        if prev_notification:
+            db.session.delete(prev_notification)
+
+        if action == 'accept':
+            for data in shared_data:
+                survey_id = data['survey_id']
+                permission = data['permission']
+
+                check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation.id).filter(SurveyShare.survey_id==survey_id).first()
+
+                if not check:
+                    survey_share = SurveyShare(organisation_id=organisation.id, survey_id=survey_id, permission=permission)
+                    db.session.add(survey_share)
+
+
+            notif_share_org_msg = '<p>'+organisation.name+' has accepted your survey share request.</p>'
+            notif_share_org = Notification(user_id=share_organisation.root_user_id, contents=notif_share_org_msg, seen=False)
+            db.session.add(notif_share_org)
+
+            notif_share_worker_msg = '<p>You have accepted a survey share request from '+ share_organisation.name + '.</p>'
+            notif_share_worker = Notification(user_id=organisation.root_user_id, contents=notif_share_worker_msg, seen=False)
+            db.session.add(notif_share_worker)
+        
+        else:
+            notif_share_org_msg = '<p>'+organisation.name+' has declined your survey share request.</p>'
+            notif_share_org = Notification(user_id=share_organisation.root_user_id, contents=notif_share_org_msg, seen=False)
+            db.session.add(notif_share_org)
+
+            notif_share_worker_msg = '<p>You have declined a survey share request from '+ share_organisation.name + '.</p>'
+            notif_share_worker = Notification(user_id=organisation.root_user_id, contents=notif_share_worker_msg, seen=False)
+            db.session.add(notif_share_worker)
+
+        db.session.commit()
+
+    except:
+        pass
+
+    return redirect(url_for('index'))
 
 @app.route('/getOrganisations')
 @login_required
@@ -10353,33 +10466,72 @@ def removeSharedSurvey():
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/inviteOrganisation', methods=['POST'])
+@app.route('/getNotifications')
 @login_required
-def inviteOrganisation():
-    ''' Sends an invite email to link organisation '''
-    organisation_email = ast.literal_eval(request.form['organisation_email'])
-    message = ''
+def getNotifications():
+    ''' Gets all the notifications for the current user '''
 
-    return json.dumps({'message':message})
+    notifications_data = []
+    if current_user and current_user.is_authenticated:
+        notifications = db.session.query(Notification)\
+                    .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
+                    .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
+                    .order_by(desc(Notification.id))\
+                    .all()
 
+        total_unseen = 0
+        for notification in notifications:
+            seen_notif = False
+            if notification.user_id == None:
+                if current_user in notification.users_seen:
+                    seen_notif = True
+                else:
+                    seen_notif = False
+            else:
+                if notification.seen == None:
+                    seen_notif = False
+                else:
+                    seen_notif = notification.seen
 
-@app.route('/acceptOrganisationInvitation/<token>')
+            if seen_notif == False:
+                total_unseen += 1
+
+            notifications_data.append({
+                'id': notification.id,
+                'contents': notification.contents,
+                'seen': seen_notif,
+                'user_id': notification.user_id
+            })
+
+    return json.dumps({'notifications': notifications_data, 'total_unseen': total_unseen})
+
+@app.route('/markNotificationSeen/<id>')
 @login_required
-def acceptOrganisationInvitation(token):
-    '''Accepts a organisations's invitation to share a survey based on the supplied token.'''
+def markNotificationSeen(id):
+    ''' Marks a notification as seen '''
 
-    try:
-        info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        # user_id = info['user_id']
-        # worker_id = info['worker_id']
+    status = 'FAILURE'
+    message = 'Unable to mark notification as seen.'
 
-        # user = db.session.query(User).get(user_id)
-        # worker = db.session.query(User).get(worker_id)
+    if current_user and current_user.is_authenticated:
+        notification = db.session.query(Notification).get(id)
+        if notification:
+            if notification.user_id == current_user.id:
+                notification.seen = True
+            elif notification.user_id == None:
+                notification.users_seen.append(current_user)
+            
+            db.session.commit()
 
-        # user.workers.append(worker)
-        # db.session.commit()
+            status = 'SUCCESS'
+            message = ''
 
-    except:
-        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
+    return json.dumps({'status': status, 'message': message})
 
-    return render_template("html/block.html",text="Invitation accepted.", helpFile='block', version=Config.VERSION)
+@app.route('/getOrganisationSurveys')
+@login_required
+def getOrganisationSurveys():
+    ''' Gets all the surveys for the current users root organisation '''
+
+    return json.dumps(db.session.query(Survey.id, Survey.name).filter(Survey.organisation_id==current_user.root_organisation.id).all())
+

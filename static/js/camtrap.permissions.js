@@ -903,7 +903,7 @@ function buildReceivedDataTable(receivedData) {
     }
 }
 
-function getSurveys(){
+function getOrganisationSurveys(){
     /** Gets the surveys for the current user */
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -914,7 +914,7 @@ function getSurveys(){
             globalSurveys = surveys
         }
     }
-    xhttp.open("GET", '/getSurveys');
+    xhttp.open("GET", '/getOrganisationSurveys');
     xhttp.send();
 }
 
@@ -997,7 +997,7 @@ function sendInvite() {
     inviteEmail = document.getElementById('inviteEmail').value
 
     var formData = new FormData()
-    formData.append("inviteEmail", inviteEmail)
+    formData.append("inviteEmail", JSON.stringify(inviteEmail))
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -1014,30 +1014,19 @@ function sendInvite() {
 function openShareData() {
     /**Opens the share data modal. */
 
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);
-            console.log(reply)
-            globalOrganisations = reply.organisations
+    document.getElementById('shareDataErrors').innerHTML = ''
+    document.getElementById('shareOrganisationStatus').innerHTML = ''
+    document.getElementById('organisationName').value = ''
 
-            document.getElementById('shareDataErrors').innerHTML = ''
-            document.getElementById('inviteOrganisationStatus').innerHTML = ''
-            document.getElementById('organisationEmail').value = ''
-
-            var shareDataDiv = document.getElementById('shareDataDiv')
-            while (shareDataDiv.firstChild) {
-                shareDataDiv.removeChild(shareDataDiv.firstChild);
-            }
-
-            buildShareDataRow()
-
-            modalShareData.modal({keyboard: true});
-        }
+    var shareDataDiv = document.getElementById('shareDataDiv')
+    while (shareDataDiv.firstChild) {
+        shareDataDiv.removeChild(shareDataDiv.firstChild);
     }
-    xhttp.open("GET", "/getLinkedOrganisations");
-    xhttp.send();
+
+    buildShareDataRow()
+
+    modalShareData.modal({keyboard: true});
+
 }
 
 function buildShareDataRow() {
@@ -1050,7 +1039,7 @@ function buildShareDataRow() {
     shareDataDiv.appendChild(row)
 
     var col1 = document.createElement('div')
-    col1.classList.add('col-lg-3')
+    col1.classList.add('col-lg-5')
     col1.style.display = 'flex'
     col1.style.alignItems = 'center'
     col1.style.justifyContent = 'center'
@@ -1058,38 +1047,16 @@ function buildShareDataRow() {
 
     var col2 = document.createElement('div')
     col2.classList.add('col-lg-3')
-    col2.style.display = 'flex'
-    col2.style.alignItems = 'center'
-    col2.style.justifyContent = 'center'
     row.appendChild(col2)
 
     var col3 = document.createElement('div')
-    col3.classList.add('col-lg-3')
+    col3.classList.add('col-lg-2')
     row.appendChild(col3)
-
-    var col4 = document.createElement('div')
-    col4.classList.add('col-lg-3')
-    row.appendChild(col4)
-
-    var organisation = document.createElement('select');
-    organisation.classList.add('form-control')
-    organisation.id = 'organisationSelect-' + IDNum;
-    col1.appendChild(organisation);
-
-    var optionTexts = ['None']
-    var optionValues = ["-1"]
-
-    for (let i=0;i<globalOrganisations.length;i++) {
-        optionTexts.push(globalOrganisations[i].name)
-        optionValues.push(globalOrganisations[i].id)
-    }
-
-    fillSelect(organisation, optionTexts, optionValues)
 
     var survey = document.createElement('select');
     survey.classList.add('form-control')
     survey.id = 'shareSurveySelect-' + IDNum;
-    col2.appendChild(survey);
+    col1.appendChild(survey);
 
     var optionTexts = ['None']
     var optionValues = ["-1"]
@@ -1104,119 +1071,77 @@ function buildShareDataRow() {
     var defaultDiv = document.createElement('div');
     defaultDiv.setAttribute('class','text-center')
     defaultDiv.setAttribute('style','vertical-align: middle;')
-    col3.appendChild(defaultDiv);    
+    col2.appendChild(defaultDiv);    
     
     var row = document.createElement('div')
     row.classList.add('row');
     defaultDiv.appendChild(row)
     
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-12');
-    row.appendChild(col1)
+    var col_1 = document.createElement('div')
+    col_1.classList.add('col-lg-12');
+    row.appendChild(col_1)
 
     var slider = document.createElement('input');
     slider.setAttribute("type", "range");
     slider.setAttribute("class", "custom-range");
     slider.setAttribute('style','width: 90%;')
-    slider.setAttribute("min", "1");
+    slider.setAttribute("min", "2");
     slider.setAttribute("max", "3");
     slider.setAttribute("step", "1");
     slider.setAttribute("id", "shareAccessSlider-" + IDNum);
-    col1.appendChild(slider);
+    col_1.appendChild(slider);
 
     var row = document.createElement('div')
     row.classList.add('row');
     defaultDiv.appendChild(row)
 
-    var col0 = document.createElement('div')
-    col0.classList.add('col-lg-4');
-    col0.setAttribute('style','vertical-align: middle; text-align: left;')
-    col0.innerText = 'Hidden';
-    row.appendChild(col0)
+    var col11 = document.createElement('div')
+    col11.classList.add('col-lg-6');
+    col11.setAttribute('style','vertical-align: middle; text-align: left;')
+    col11.innerText = 'Read';
+    row.appendChild(col11)
 
-    var col1 = document.createElement('div')
-    col1.classList.add('col-lg-4');
-    col1.setAttribute('style','vertical-align: middle; text-align: center;')
-    col1.innerText = 'Read';
-    row.appendChild(col1)
-
-    var col2 = document.createElement('div')
-    col2.classList.add('col-lg-4');
-    col2.setAttribute('style','vertical-align: middle; text-align: right;')
-    col2.innerText = 'Write';
-    row.appendChild(col2)
+    var col12 = document.createElement('div')
+    col12.classList.add('col-lg-6');
+    col12.setAttribute('style','vertical-align: middle; text-align: right;')
+    col12.innerText = 'Write';
+    row.appendChild(col12)
 
     var button = document.createElement('button');
     button.setAttribute("class",'btn btn-info')
     button.innerHTML = '&times;';
     button.id = 'btnRemoveShareData-' + IDNum;
-    col4.appendChild(button);
+    col3.appendChild(button);
 
     button.addEventListener('click', function () {
         this.parentNode.parentNode.remove()
     });
 }
 
-function sendOrganisationInvite() {
-    /** Sends an organisation invite to the server. */
-
-    var organisationEmail = document.getElementById('organisationEmail').value
-     
-    if (organisationEmail == '') {
-        document.getElementById('inviteOrganisationStatus').innerHTML = 'Please enter an email address.'
-    }
-    else{
-        // Validate email address
-        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(organisationEmail) == false) {
-            document.getElementById('inviteOrganisationStatus').innerHTML = 'Please enter a valid email address.'
-        }
-        else{
-            document.getElementById('inviteOrganisationStatus').innerHTML  = ''
-
-            var formData = new FormData()
-            formData.append("organisation_email", JSON.stringify(organisationEmail))
-    
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 200) {
-                    reply = JSON.parse(this.responseText);
-                    document.getElementById('inviteOrganisationStatus').innerHTML = reply.message
-                }
-            }
-            xhttp.open("POST", "/inviteOrganisation");
-            xhttp.send(formData);
-        }
-    }
-}
-
 function shareSurveys(){
     /** Shares the selected surveys with the selected organisation. */
 
-    var organisationSelects = document.querySelectorAll('[id^="organisationSelect-"]')
+    var organisationName = document.getElementById('organisationName').value
     var surveySelects = document.querySelectorAll('[id^="shareSurveySelect-"]')
     var accessSliders = document.querySelectorAll('[id^="shareAccessSlider-"]')
 
     var sharedData = []
 
-    for (let i=0;i<organisationSelects.length;i++) {
-        if (organisationSelects[i].value != -1 && surveySelects[i].value != -1) {
+    for (let i=0;i<surveySelects.length;i++) {
+        if (surveySelects[i].value != -1 && surveySelects[i].value != -1) {
             sharedData.push({
-                'organisation_id': organisationSelects[i].value,
                 'survey_id': surveySelects[i].value,
                 'permission': default_access[accessSliders[i].value].toLowerCase()
             })
         }
     }
 
-    var valid = validateShareData(sharedData)
+    var valid = validateShareData(sharedData, organisationName)
 
     if (valid){
-
         var formData = new FormData();
         formData.append('shared_data', JSON.stringify(sharedData));
-
-        console.log(sharedData)
+        formData.append('organisation_name', JSON.stringify(organisationName));
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -1224,15 +1149,7 @@ function shareSurveys(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 console.log(reply)
-
-                if (reply.status == 'SUCCESS') {
-                    document.getElementById('shareDataErrors').innerHTML = ''
-                    modalShareData.modal('hide');
-                    getSharedData()
-                }
-                else{
-                    document.getElementById('shareDataErrors').innerHTML = reply.message
-                }
+                document.getElementById('shareDataErrors').innerHTML = reply.message
             }
         }
         xhttp.open("POST", '/shareSurveys');
@@ -1240,7 +1157,7 @@ function shareSurveys(){
     }
 }
 
-function validateShareData(sharedData){
+function validateShareData(sharedData, organisationName){
     /** Validates the shared data. */
 
     var valid = true
@@ -1254,7 +1171,7 @@ function validateShareData(sharedData){
     }
     else{
         for (let i = 0; i < sharedData.length; i++) {
-            value = sharedData[i].organisation_id.toString() + '-' + sharedData[i].survey_id.toString()
+            value = sharedData[i].survey_id.toString()
             if (duplicates.indexOf(value) == -1) {
                 duplicates.push(value)
             }
@@ -1264,8 +1181,12 @@ function validateShareData(sharedData){
         }
     }
 
-    if (emptyData) {
-        document.getElementById('shareDataErrors').innerHTML = 'Please select an organisation and a survey.'
+    if (organisationName == '') {
+        document.getElementById('shareDataErrors').innerHTML = 'Please enter a name for the organisation.'
+        valid = false
+    }
+    else if (emptyData) {
+        document.getElementById('shareDataErrors').innerHTML = 'Please select a survey.'
         valid = false
     }
     else if (duplicateData) {
@@ -1440,11 +1361,31 @@ function removeSharedSurvey(){
     xhttp.send(formData);
 }
 
+modalShareData.on('hidden.bs.modal', function () {
+    /** Function for when the share data modal is closed. */
+    document.getElementById('shareDataErrors').innerHTML = ''
+    document.getElementById('organisationName').value = ''
+
+    var shareDataDiv = document.getElementById('shareDataDiv')
+    while (shareDataDiv.firstChild) {
+        shareDataDiv.removeChild(shareDataDiv.firstChild);
+    }
+
+    getSharedData()
+    getReceivedData()
+});
+
+modalInvite.on('hidden.bs.modal', function () {
+    /** Function for when the invite modal is closed. */
+    document.getElementById('inviteStatus').innerHTML = ''
+    document.getElementById('inviteEmail').value = ''
+    getUsers()
+});
 
 function onload(){
     /**Function for initialising the page on load.*/
     document.getElementById('openUserTab').click();
-    getSurveys()   
+    getOrganisationSurveys()   
 }
 
 window.addEventListener('load', onload, false);

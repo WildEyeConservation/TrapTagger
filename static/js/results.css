@@ -149,3 +149,11 @@ tbody:hover td[rowspan],
 tr:hover td {
   background: rgba(255, 255, 255, 0.2);
 }
+
+
+.badge {
+  background-color: #DF691A;
+  color: rgba(255,255,255,0.75);
+  border-radius: 50%;
+  padding: 2px 4px;
+}
