@@ -9,7 +9,7 @@ import traceback
 
 def surveyPermissionsSQ(sq,user_id,requiredPermission):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
-    allPermissions = ['read','write']
+    allPermissions = ['hidden','read','write']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
     ShareUserPermissions = alias(UserPermissions)
@@ -30,7 +30,7 @@ def surveyPermissionsSQ(sq,user_id,requiredPermission):
 
 def checkSurveyPermission(user_id,survey_id,requiredPermission):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
-    allPermissions = ['read','write']
+    allPermissions = ['hidden','read','write']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
     ShareUserPermissions = alias(UserPermissions)
