@@ -547,7 +547,7 @@ class UserPermissions(db.Model):
     delete = db.Column(db.Boolean, default=False, index=False)
     create = db.Column(db.Boolean, default=False, index=False)
     annotation = db.Column(db.Boolean, default=False, index=False)
-    default = db.Column(db.String(8), index=False) # write/read/hidden/worker
+    default = db.Column(db.String(8), index=False) # admin/write/read/hidden/worker
 
     def __repr__(self):
         return '<User permissions for user {} for organisation {}>'.format(self.user_id,self.organisation_id)
