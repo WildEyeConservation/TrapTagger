@@ -3370,12 +3370,12 @@ def getHomeSurveys():
             sup_default=item[24]
             share_permission=item[25]
             if item[0] not in survey_permissions.keys():
-                survey_permissions[survey_id] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
-            if exception_permission and (exception_uid==current_user.id): survey_permissions[survey_id]['exception']=exception
-            if up_default and (up_uid==current_user.id): survey_permissions[survey_id]['default']=up_default
-            if sup_default and (sup_uid==current_user.id): survey_permissions[survey_id]['share_default']=sup_default
-            if share_permission: survey_permissions[survey_id]['share_level']=share_permission
-            if up_delete and (up_uid==current_user.id): survey_permissions[survey_id]['delete']=up_delete
+                survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+            if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception
+            if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
+            if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
+            if share_permission: survey_permissions[item[0]]['share_level']=share_permission
+            if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
     permission_order = [None,'read','write','admin']
     for survey_id in survey_permissions:
@@ -3388,7 +3388,10 @@ def getHomeSurveys():
                 survey_data[survey_id]['access'] = survey_permissions[survey_id]['default']
             else:
                 survey_data[survey_id]['access'] = survey_permissions[survey_id]['share_default']
-        if survey_permissions[survey_id]['delete']: survey_data[survey_id]['delete'] = True
+        if survey_permissions[survey_id]['delete']:
+            survey_data[survey_id]['delete'] = True
+        else:
+            survey_data[survey_id]['delete'] = False
 
     # add all the searches to the base query
     searches = re.split('[ ,]',search)
@@ -3423,7 +3426,7 @@ def getHomeSurveys():
         survey_permissions = {}
         handled_tasks = []
         for item in surveys:
-
+            
             if item[0] and (item[0] not in survey_data2.keys()):
                 surveyStatus = item[6]
                 if surveyStatus in ['indprocessing','Preparing Download']:
@@ -3481,12 +3484,12 @@ def getHomeSurveys():
                 sup_default=item[24]
                 share_permission=item[25]
                 if item[0] not in survey_permissions.keys():
-                    survey_permissions[survey_id] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
-                if exception_permission and (exception_uid==current_user.id): survey_permissions[survey_id]['exception']=exception
-                if up_default and (up_uid==current_user.id): survey_permissions[survey_id]['default']=up_default
-                if sup_default and (sup_uid==current_user.id): survey_permissions[survey_id]['share_default']=sup_default
-                if share_permission: survey_permissions[survey_id]['share_level']=share_permission
-                if up_delete and (up_uid==current_user.id): survey_permissions[survey_id]['delete']=up_delete
+                    survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+                if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception
+                if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
+                if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
+                if share_permission: survey_permissions[item[0]]['share_level']=share_permission
+                if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
         permission_order = [None,'read','write','admin']
         for survey_id in survey_permissions:
@@ -3499,7 +3502,10 @@ def getHomeSurveys():
                     survey_data2[survey_id]['access'] = survey_permissions[survey_id]['default']
                 else:
                     survey_data2[survey_id]['access'] = survey_permissions[survey_id]['share_default']
-            if survey_permissions[survey_id]['delete']: survey_data2[survey_id]['delete'] = True
+            if survey_permissions[survey_id]['delete']:
+                survey_data2[survey_id]['delete'] = True
+            else:
+                survey_data2[survey_id]['delete'] = False
 
         survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
 
