@@ -9,12 +9,12 @@ import traceback
 
 def surveyPermissionsSQ(sq,user_id,requiredPermission):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
-    allPermissions = ['read','write']
+    allPermissions = ['hidden','read','write','admin']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
     ShareUserPermissions = alias(UserPermissions)
     return sq.join(Organisation,Survey.organisation_id==Organisation.id)\
-                .join(UserPermissions,UserPermissions.organisation_id==Organisation.id)\
+                .outerjoin(UserPermissions,UserPermissions.organisation_id==Organisation.id)\
                 .outerjoin(SurveyShare,SurveyShare.survey_id==Survey.id)\
                 .outerjoin(ShareOrganisation,ShareOrganisation.c.id==SurveyShare.organisation_id)\
                 .outerjoin(ShareUserPermissions,ShareUserPermissions.c.organisation_id==ShareOrganisation.c.id)\
@@ -30,13 +30,13 @@ def surveyPermissionsSQ(sq,user_id,requiredPermission):
 
 def checkSurveyPermission(user_id,survey_id,requiredPermission):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
-    allPermissions = ['read','write']
+    allPermissions = ['hidden','read','write','admin']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
     ShareUserPermissions = alias(UserPermissions)
     check = db.session.query(Survey)\
                 .join(Organisation,Survey.organisation_id==Organisation.id)\
-                .join(UserPermissions,UserPermissions.organisation_id==Organisation.id)\
+                .outerjoin(UserPermissions,UserPermissions.organisation_id==Organisation.id)\
                 .outerjoin(SurveyShare,SurveyShare.survey_id==Survey.id)\
                 .outerjoin(ShareOrganisation,ShareOrganisation.c.id==SurveyShare.organisation_id)\
                 .outerjoin(ShareUserPermissions,ShareUserPermissions.c.organisation_id==ShareOrganisation.c.id)\

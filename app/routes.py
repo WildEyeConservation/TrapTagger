@@ -3269,6 +3269,8 @@ def getHomeSurveys():
                                         .filter(Turkcode.tagging_time!=None)\
                                         .group_by(Task.id).subquery()
 
+    ShareUserPermissions = alias(UserPermissions)
+
     survey_base_query = surveyPermissionsSQ(db.session.query(
                                 Survey.id,
                                 Survey.name,
@@ -3288,9 +3290,14 @@ def getHomeSurveys():
                                 Task.id, #availableJobsSQ.c.count,
                                 completeJobsSQ.c.count,
                                 Organisation.name,
+                                UserPermissions.user_id,
                                 UserPermissions.default,
+                                UserPermissions.delete, #20
+                                SurveyPermissionException.user_id,
                                 SurveyPermissionException.permission,
-                                UserPermissions.delete
+                                ShareUserPermissions.c.user_id,
+                                ShareUserPermissions.c.default,
+                                SurveyShare.permission
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
@@ -3308,17 +3315,15 @@ def getHomeSurveys():
 
     # digest survey data
     survey_data = {}
+    survey_permissions = {}
+    handled_tasks = []
     for item in compulsory_surveys:
 
         if item[0] and (item[0] not in survey_data.keys()):
             surveyStatus = item[6]
             if surveyStatus in ['indprocessing','Preparing Download']:
                 surveyStatus = 'processing'
-            if item[19]:
-                # permission exception
-                access = item[19]
-            else:
-                access = item[18]
+
             survey_data[item[0]] = {'id': item[0],
                                     'name': item[1], 
                                     'description': item[2], 
@@ -3328,11 +3333,10 @@ def getHomeSurveys():
                                     'status': surveyStatus, 
                                     'numTrapgroups': item[7], 
                                     'organisation': item[17],
-                                    'access': access,
-                                    'delete': item[20],
                                     'tasks': []}
 
-        if item[8] and (item[9]!='default'):
+        if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
+            handled_tasks.append(item[8])
             clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
             if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
 
@@ -3353,7 +3357,38 @@ def getHomeSurveys():
             else:
                 taskInfo['completed'] = 0
 
-            survey_data[item[0]]['tasks'].append(taskInfo)            
+            survey_data[item[0]]['tasks'].append(taskInfo)
+
+        # user permissions
+        if item[0]:
+            up_uid=item[18]
+            up_default=item[19]
+            up_delete=item[20]
+            exception_uid=item[21]
+            exception_permission=item[22]
+            sup_uid=item[23]
+            sup_default=item[24]
+            share_permission=item[25]
+            if item[0] not in survey_permissions.keys():
+                survey_permissions[survey_id] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+            if exception_permission and (exception_uid==current_user.id): survey_permissions[survey_id]['exception']=exception
+            if up_default and (up_uid==current_user.id): survey_permissions[survey_id]['default']=up_default
+            if sup_default and (sup_uid==current_user.id): survey_permissions[survey_id]['share_default']=sup_default
+            if share_permission: survey_permissions[survey_id]['share_level']=share_permission
+            if up_delete and (up_uid==current_user.id): survey_permissions[survey_id]['delete']=up_delete
+
+    permission_order = [None,'read','write','admin']
+    for survey_id in survey_permissions:
+        if survey_permissions[survey_id]['exception']:
+            survey_data[survey_id]['access'] = survey_permissions[survey_id]['exception']
+        else:
+            if permission_order.index(survey_permissions[survey_id]['share_level']) < permission_order.index(survey_permissions[survey_id]['share_default']):
+                survey_permissions[survey_id]['share_default'] = survey_permissions[survey_id]['share_level']
+            if permission_order.index(survey_permissions[survey_id]['default']) > permission_order.index(survey_permissions[survey_id]['share_default']):
+                survey_data[survey_id]['access'] = survey_permissions[survey_id]['default']
+            else:
+                survey_data[survey_id]['access'] = survey_permissions[survey_id]['share_default']
+        if survey_permissions[survey_id]['delete']: survey_data[survey_id]['delete'] = True
 
     # add all the searches to the base query
     searches = re.split('[ ,]',search)
@@ -3385,6 +3420,8 @@ def getHomeSurveys():
 
         # digest the rest of the data
         survey_data2 = {}
+        survey_permissions = {}
+        handled_tasks = []
         for item in surveys:
 
             if item[0] and (item[0] not in survey_data2.keys()):
@@ -3405,13 +3442,12 @@ def getHomeSurveys():
                                         'numVideos': item[4], 
                                         'numFrames': item[5], 
                                         'status': surveyStatus, 
-                                        'numTrapgroups': item[7], 
+                                        'numTrapgroups': item[7],
                                         'organisation': item[17],
-                                        'access': access,
-                                        'delete': item[20],
                                         'tasks': []}
 
-            if item[8] and (item[9]!='default'):
+            if item[8] and (item[9]!='default') and (item[8] not in handled_tasks):
+                handled_tasks.append(item[8])
                 clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[8]))
                 if clusters_remaining: clusters_remaining = int(clusters_remaining.decode())
 
@@ -3432,8 +3468,38 @@ def getHomeSurveys():
                 else:
                     taskInfo['completed'] = 0
 
-
                 survey_data2[item[0]]['tasks'].append(taskInfo)
+
+            # user permissions
+            if item[0]:
+                up_uid=item[18]
+                up_default=item[19]
+                up_delete=item[20]
+                exception_uid=item[21]
+                exception_permission=item[22]
+                sup_uid=item[23]
+                sup_default=item[24]
+                share_permission=item[25]
+                if item[0] not in survey_permissions.keys():
+                    survey_permissions[survey_id] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+                if exception_permission and (exception_uid==current_user.id): survey_permissions[survey_id]['exception']=exception
+                if up_default and (up_uid==current_user.id): survey_permissions[survey_id]['default']=up_default
+                if sup_default and (sup_uid==current_user.id): survey_permissions[survey_id]['share_default']=sup_default
+                if share_permission: survey_permissions[survey_id]['share_level']=share_permission
+                if up_delete and (up_uid==current_user.id): survey_permissions[survey_id]['delete']=up_delete
+
+        permission_order = [None,'read','write','admin']
+        for survey_id in survey_permissions:
+            if survey_permissions[survey_id]['exception']:
+                survey_data2[survey_id]['access'] = survey_permissions[survey_id]['exception']
+            else:
+                if permission_order.index(survey_permissions[survey_id]['share_level']) < permission_order.index(survey_permissions[survey_id]['share_default']):
+                    survey_permissions[survey_id]['share_default'] = survey_permissions[survey_id]['share_level']
+                if permission_order.index(survey_permissions[survey_id]['default']) > permission_order.index(survey_permissions[survey_id]['share_default']):
+                    survey_data2[survey_id]['access'] = survey_permissions[survey_id]['default']
+                else:
+                    survey_data2[survey_id]['access'] = survey_permissions[survey_id]['share_default']
+            if survey_permissions[survey_id]['delete']: survey_data2[survey_id]['delete'] = True
 
         survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
 
