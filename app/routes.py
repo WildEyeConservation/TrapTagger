@@ -5149,7 +5149,7 @@ def get_clusters():
         label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,None,id)
 
     else:
 
@@ -5195,7 +5195,7 @@ def get_clusters():
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
                 if (len(clusterInfo) <= limit) and not max_request:
@@ -6315,7 +6315,7 @@ def assignLabel(clusterID):
                                 newClusters = []
                             else:
                                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if (len(clusterInfo) <= limit) and not max_request:
