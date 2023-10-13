@@ -7881,7 +7881,8 @@ def get_presigned_url():
                                                                 Params={'Bucket': Config.BUCKET,
                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
                                                                         'ContentType': request.json['contentType'],
-                                                                        'Body' : ''})
+                                                                        'Body' : ''},
+                                                                ExpiresIn=604800) # 7 days (the maximum)
     else:
         return 'error'
 
