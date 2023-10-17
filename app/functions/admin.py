@@ -302,6 +302,8 @@ def stop_task(self,task_id):
 
             # if task_id in GLOBALS.mutex.keys(): GLOBALS.mutex.pop(task_id, None)
 
+            task = db.session.query(Task).get(int(task_id))
+            survey = task.survey
             task.current_name = None
             task.status = 'Stopped'
 
@@ -753,6 +755,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
         
         updateAllStatuses(task_id=newTask_id, celeryTask=False)
 
+        newTask = db.session.query(Task).get(newTask_id)
         newTask.status = 'Ready'
         newTask.survey.status = 'Ready'
         db.session.commit()

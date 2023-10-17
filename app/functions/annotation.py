@@ -162,6 +162,7 @@ def launch_task(self,task_id):
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
                 updateAllStatuses(task_id=task_id, celeryTask=False)
+                task = db.session.query(Task).get(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
                 for tsk in task.sub_tasks:
@@ -192,6 +193,7 @@ def launch_task(self,task_id):
             if cluster_count == 0:
                 # Release task if the are no clusters to annotate
                 updateAllStatuses(task_id=task_id, celeryTask=False)
+                task = db.session.query(Task).get(task_id)
                 task.status = 'SUCCESS'
                 task.survey.status = 'Ready'
                 for tsk in task.sub_tasks:
@@ -358,6 +360,7 @@ def wrapUpTask(self,task_id):
 
         updateAllStatuses(task_id=task_id, celeryTask=False)
 
+        task = db.session.query(Task).get(task_id)
         task.current_name = None
 
         if task.tagging_level == '-1':
