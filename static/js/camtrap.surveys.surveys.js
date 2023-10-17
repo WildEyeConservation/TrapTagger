@@ -2837,6 +2837,9 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     newSurveyDescription = document.getElementById('newSurveyDescription').value
     newSurveyTGCode = document.getElementById('newSurveyTGCode').value
     newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
+    newSurveyPermission = document.getElementById('newSurveyPermission').value
+    newSurveyAnnotation = document.getElementById('newSurveyAnnotation').value
+    detailedAccessSurvey = document.getElementById('detailedAccessSurveyCb').checked
 
     classifier = document.querySelector('input[name="classifierSelection"]:checked')
     if (classifier==null) {
@@ -2873,6 +2876,48 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         legalDescription = false
         document.getElementById('newSurveyErrors').innerHTML = 'The survey description cannot contain slashes.'
     }
+
+    legalPermission = true
+    if (newSurveyPermission == ''){
+        legalPermission = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select a access level.'
+    }
+
+    if (newSurveyAnnotation == ''){
+        legalPermission = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select a job access level.'
+    }
+
+    var detailed_access = []
+    if (detailedAccessSurvey) {
+        // Get all selectors 
+        var surveyUserPermissions =  document.querySelectorAll('[id^=surveyUserPermission-]')
+        if (surveyUserPermissions.length==0) {
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to give detailed access to.'
+            legalPermission = false
+        } else {
+            var dup_users = []
+            for (let i=0;i<surveyUserPermissions.length;i++) {
+                user_id = surveyUserPermissions[i].value
+                if (dup_users.indexOf(user_id)==-1) {
+                    dup_users.push(user_id)
+                    var id_num = surveyUserPermissions[i].id.split('-')[1]
+                    var user_permission = default_access[document.getElementById('detailedAccessSurvey-'+id_num).value].toLowerCase()
+                    var annotation = document.getElementById('detailedJobAccessSurvey-'+id_num).checked
+                    detailed_access.push({
+                        'user_id': user_id,
+                        'permission': user_permission,
+                        'annotation': annotation ? '1' : '0'
+                    })
+                }
+                else{
+                    document.getElementById('newSurveyErrors').innerHTML = 'You cannot select the same user twice.'
+                    legalPermission = false
+                }
+            }
+        }
+    }
+
 
     legalTGCode = true
     if (newSurveyTGCode == '') {
@@ -2918,7 +2963,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
     }
 
-    if (legalName&&legalOrganisation&&legalDescription&&legalTGCode&&legalInput&&TGCheckReady&&classifier) {
+    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&TGCheckReady&&classifier) {
         document.getElementById('btnSaveSurvey').disabled = true
         if (false) {
             var reader = new FileReader()
@@ -2948,7 +2993,12 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             formData.append("checkbox", newSurveyCheckbox.checked.toString())
             formData.append("correctTimestamps", 'false')
             formData.append("classifier", classifier)
-            formData.append("organisation", surveyOrganisation)
+            formData.append("organisation_id", surveyOrganisation)
+            formData.append("permission", newSurveyPermission)
+            formData.append("annotation", newSurveyAnnotation)
+            if (detailedAccessSurvey) {
+                formData.append("detailed_access", JSON.stringify(detailed_access))
+            }
 
             submitNewSurvey(formData)
         }
@@ -3465,11 +3515,18 @@ function buildSurveyPermissionRow(){
     row.appendChild(col2)
 
     var col3 = document.createElement('div')
-    col3.classList.add('col-lg-1')
+    col3.classList.add('col-lg-2')
     col3.style.display = 'flex'
     col3.style.alignItems = 'center'
     col3.style.justifyContent = 'center'
     row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-1')
+    col4.style.display = 'flex'
+    col4.style.alignItems = 'center'
+    col4.style.justifyContent = 'center'
+    row.appendChild(col4)
 
     // User
     var user = document.createElement('select');
@@ -3537,12 +3594,32 @@ function buildSurveyPermissionRow(){
     col_3.innerText = default_access[3];
     row.appendChild(col_3)
 
+    // Job Access
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col3.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'detailedJobAccessSurvey-' + IDNum;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
     // Remove
     var button = document.createElement('button');
     button.setAttribute("class",'btn btn-info')
     button.innerHTML = '&times;';
     button.id = 'btnRemoveSurveyAccess-' + IDNum;
-    col3.appendChild(button);
+    col4.appendChild(button);
 
     button.addEventListener('click', function () {
         this.parentNode.parentNode.remove()

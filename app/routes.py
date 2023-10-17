@@ -1069,7 +1069,7 @@ def deleteSurvey(survey_id):
 
     survey = db.session.query(Survey).get(survey_id)
     if survey:
-        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).all()
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.delete:
             tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
@@ -1339,6 +1339,12 @@ def createNewSurvey():
         checkbox = request.form['checkbox']
         correctTimestamps = request.form['correctTimestamps']
         classifier = request.form['classifier']
+        permission = request.form['permission']
+        annotation = request.form['annotation']
+        if 'detailed_access' in request.form:
+            detailed_access = ast.literal_eval(request.form['detailed_access'])
+        else:
+            detailed_access = None
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1407,6 +1413,40 @@ def createNewSurvey():
             else:
                 import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier)
 
+            # Add permissions
+            survey_id = db.session.query(Survey.id).filter(Survey.name==surveyName).first()[0]
+            exclude_user_ids = [current_user.id]
+            if detailed_access:
+                for access in detailed_access:
+                    exclude_user_ids.append(access['user_id'])
+                    annotation_access = True if access['annotation']=='1' else False
+                    newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
+                    db.session.add(newDetailedException)
+
+            if permission != 'default' and annotation != 'default':
+                user_ids = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()]
+                annotation_access = True if annotation== '1' else False
+                for user_id in user_ids:
+                    newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
+                    db.session.add(newException)
+            elif permission != 'default':
+                user_query = db.session.query(User.id, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_ids = [r[0] for r in user_query]
+                user_annotations = [r[1] for r in user_query]
+                for i in range(len(user_ids)):
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
+                    db.session.add(newException)
+            elif annotation != 'default':
+                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_ids = [r[0] for r in user_query]
+                user_permissions = [r[1] for r in user_query]
+                annotation_access = True if annotation== '1' else False
+                for i in range(len(user_ids)):
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=user_permissions[i], annotation=annotation_access)
+                    db.session.add(newException)
+                    
+            db.session.commit()
+    
         return json.dumps({'status': status, 'message': message})
     else:
         return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
