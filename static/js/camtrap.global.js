@@ -16,6 +16,9 @@ var prevModal = null
 var helpReturn = false
 var modalActive = false
 var notificationTimer = null
+var notifications_next = null
+var notifications_prev = null
+var notifications_current_page = 1
 const modalHelp = $('#modalHelp');
 const modalNotification = $('#modalNotification');
 
@@ -94,16 +97,14 @@ function takeJob(jobID) {
 
 function openNotifications() {
     /** Builds a notification dropdown menu and opens it. */
+    checkNotifications()
 
     // Get the notifications
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply);
 
-            var notificationBadge = document.getElementById('notificationBadge');
-            notificationBadge.innerHTML = reply.total_unseen;
 
             var notifications = reply.notifications;
             var notificationMenu = document.getElementById('notificationMenu');
@@ -141,6 +142,7 @@ function openNotifications() {
                                 var xhttp = new XMLHttpRequest();
                                 xhttp.onreadystatechange = function () {
                                     if (this.readyState == 4 && this.status == 200) {
+                                        reply = JSON.parse(this.responseText);
                                         if (reply.status == 'SUCCESS') {
                                             document.getElementById('notificationBadge').innerHTML = parseInt(document.getElementById('notificationBadge').innerHTML) - 1;
                                             document.getElementById('notification-' + notification.id).style.backgroundColor = '';
@@ -169,11 +171,49 @@ function openNotifications() {
                     }
                 }(notifications[i].seen));
             }
+
+            if (notifications.length == 0) {
+                var notificationsCard = document.getElementById('notificationsCard')
+                notificationsCard.getElementsByClassName('card-footer')[0].setAttribute('style', 'border-top: 1px solid rgb(60,74,89);');
+            }
+            else {
+                var notificationsCard = document.getElementById('notificationsCard')
+                notificationsCard.getElementsByClassName('card-footer')[0].setAttribute('style', 'border-top: none;');
+            }
+
+            notifications_next = reply.next;
+            if( notifications_next == null){
+                document.getElementById('btnNextNotifications').disabled = true;
+            }
+            else{
+                document.getElementById('btnNextNotifications').disabled = false;
+            }
+
+            notifications_prev = reply.prev;
+            if( notifications_prev == null){
+                document.getElementById('btnPrevNotifications').disabled = true;
+            }
+            else{
+                document.getElementById('btnPrevNotifications').disabled = false;
+            }
+
         }
     };
-    xhttp.open('GET', '/getNotifications');
+    xhttp.open('GET', '/getNotifications?page=' + notifications_current_page);
     xhttp.send();
 }
+
+$('#btnNextNotifications').click(function(event){
+    notifications_current_page = notifications_next
+    event.stopPropagation()
+    openNotifications()
+});
+
+$('#btnPrevNotifications').click(function(event){
+    notifications_current_page = notifications_prev
+    event.stopPropagation()
+    openNotifications()
+});
 
 modalNotification.on('hidden.bs.modal', function () {
     document.getElementById('modalNotificationBody').innerHTML = '';
@@ -202,7 +242,7 @@ function checkNotifications() {
                 clearTimeout(notificationTimer)
             }
 
-            notificationTimer = setTimeout(checkNotifications, 60000)
+            notificationTimer = setTimeout(checkNotifications, 30000)
         }
     }
     xhttp.send();

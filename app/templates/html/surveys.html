@@ -156,6 +156,36 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Permissions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the user permissions for this survey.</i></div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <select id="newSurveyPermissions" class='form-control'>
+                                <option value="-1" selected>Default</option>
+                                <option value="0">Worker</option>
+                                <option value="1">Hidden</option>
+                                <option value="2">Read</option>
+                                <option value="3">Write</option>
+                            </select>
+                        </div>	
+                        <div class="col-lg-8">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="detailedAccessSurveyCb" name="detailedAccessSurveyCb">
+                                <label class="custom-control-label" for="detailedAccessSurveyCb">Add Detailed Permissions</label>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+
+                    <div id="detailedAccessSurveyDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Detailed Permissions</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the users and their permissions for this survey.</i></div>
+                        <div id="surveyPermissionsDiv"></div>
+                        <button class="btn btn-info" type="button" id="btnAddSurveyPermissionRow" onclick=buildSurveyPermissionRow()>+</button>
+                        <br>
+                        <br>
+                    </div>
+
                     <h5 style="margin-bottom: 2px">Species Classifier</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species-identifying AI you would like to use.</i></div>
                     <div id="speciesClassifierDiv"></div>

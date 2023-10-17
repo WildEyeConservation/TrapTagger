@@ -92,6 +92,12 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
     stopTaskCol.appendChild(stopTaskBtn)
     newTaskDiv.appendChild(stopTaskCol)
 
+    if (survey.access=='write' || survey.access=='admin') {
+        stopTaskBtn.disabled = false
+    } else {
+        stopTaskBtn.disabled = true
+    }
+
     if (progressType=='launched') {
         stopTaskBtn.addEventListener('click', function(wrapTaskId) {
             return function() {
@@ -281,7 +287,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
                 taskStatusBtn.disabled = false
                 deleteBtn.disabled = true
             }
-            else if (survey.access=='write') {
+            else if (survey.access=='write' || survey.access=='admin') {
                 launchTaskBtn.disabled = false
                 editTaskBtn.disabled = false
                 resultsBtn.disabled = false

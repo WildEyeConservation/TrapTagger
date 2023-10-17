@@ -17,8 +17,9 @@ const modalAlert = $('#modalAlert');
 const confirmationModal = $('#confirmationModal');
 const modalInvite = $('#modalInvite');
 const modalShareData = $('#modalShareData');
-const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write'}
-const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3}
+const modalAdminConfirm = $('#modalAdminConfirm');
+const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
+const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
 
 var selectedUser = null
 var selectedOrganisation = null
@@ -29,7 +30,17 @@ var globalSurveys = []
 var globalOrganisations = []
 var sharingType = null
 var globalDetailedAccess = []
-
+var currentUserPage = 1
+var nextUserPage = null
+var prevUserPage = null
+var currentDataSharedPage = 1
+var nextDataSharedPage = null
+var prevDataSharedPage = null
+var currentDataReceivedPage = 1
+var nextDataReceivedPage = null
+var prevDataReceivedPage = null
+var shareOrganisation = null
+var receiveOrganisation = null
 
 function openPermissionsTab(evt, tabName) {
     /** Opens the permissions tab */
@@ -54,8 +65,11 @@ function openPermissionsTab(evt, tabName) {
         getUsers();
     }
     else if (tabName == 'baseDataSharingTab') {
-        document.getElementById('btnPermissions').innerHTML = 'Share Surveys';
+        document.getElementById('btnPermissions').innerHTML = 'Share Survey';
         getSharedData();
+    }
+    else if (tabName == 'baseDataReceivedTab') {
+        document.getElementById('btnPermissions').innerHTML = 'Share Survey';
         getReceivedData();
     }
 
@@ -86,13 +100,19 @@ function buildUserTable(users) {
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Username';
-    userTableHeadRowHeader.setAttribute('width','15%')
+    userTableHeadRowHeader.setAttribute('width','10%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Email';
     userTableHeadRowHeader.setAttribute('width','15%')
+    userTableHeadRow.appendChild(userTableHeadRowHeader);
+
+    var userTableHeadRowHeader = document.createElement('th');
+    userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    userTableHeadRowHeader.innerText = 'Organisation';
+    userTableHeadRowHeader.setAttribute('width','10%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
     var userTableHeadRowHeader = document.createElement('th');
@@ -104,264 +124,314 @@ function buildUserTable(users) {
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Job Access';
-    userTableHeadRowHeader.setAttribute('width','10%')
+    userTableHeadRowHeader.setAttribute('width','8%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Survey Creation';
-    userTableHeadRowHeader.setAttribute('width','9%')
+    userTableHeadRowHeader.setAttribute('width','8%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Survey Deletion';
-    userTableHeadRowHeader.setAttribute('width','9%')
+    userTableHeadRowHeader.setAttribute('width','8%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Detailed Access';
-    userTableHeadRowHeader.setAttribute('width','9%')
+    userTableHeadRowHeader.setAttribute('width','8%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
     var userTableHeadRowHeader = document.createElement('th');
     userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     userTableHeadRowHeader.innerText = 'Remove';
-    userTableHeadRowHeader.setAttribute('width','9%')
+    userTableHeadRowHeader.setAttribute('width','8%')
     userTableHeadRow.appendChild(userTableHeadRowHeader);
 
-
-    var userTableBody = document.createElement('tbody');
-    userTable.appendChild(userTableBody);
-
     for (let i = 0; i < users.length; i++) {
-        var userTableBodyRow = document.createElement('tr');
-        userTableBody.appendChild(userTableBodyRow);
+        var userTableBody = document.createElement('tbody');
+        userTable.appendChild(userTableBody);
 
-        // Username
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRowData.innerText = users[i].username;
-        userTableBodyRow.appendChild(userTableBodyRowData);
+        user_permissions = users[i].user_permissions
+        for (let j = 0; j < user_permissions.length; j++){
 
-        // Email
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRowData.innerText = users[i].email;
-        userTableBodyRow.appendChild(userTableBodyRowData);
+            var userTableBodyRow = document.createElement('tr');
+            userTableBody.appendChild(userTableBodyRow);
 
-        // Default Access
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('class','text-center')
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRow.appendChild(userTableBodyRowData);
-        
-        var row = document.createElement('div')
-        row.classList.add('row');
-        userTableBodyRowData.appendChild(row)
-        
-        var col1 = document.createElement('div')
-        col1.classList.add('col-lg-12');access_slider_values
-        row.appendChild(col1)
+            if (j == 0) {
+                // Username
+                var userTableBodyRowData = document.createElement('td');
+                userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+                userTableBodyRowData.innerText = users[i].username;
+                userTableBodyRowData.rowSpan = user_permissions.length;
+                userTableBodyRow.appendChild(userTableBodyRowData);
 
-        var slider = document.createElement('input');
-        slider.setAttribute("type", "range");
-        slider.setAttribute("class", "custom-range");
-        slider.setAttribute('style','width: 85%;')
-        slider.setAttribute("min", "0");
-        slider.setAttribute("max", "3");
-        slider.setAttribute("step", "1");
-        slider.setAttribute("id", "defaultAccessSlider-" + users[i].id);
-        slider.setAttribute("list", "accessLevels");
-        slider.value = access_slider_values[users[i].default]
-        col1.appendChild(slider);
-
-        var row = document.createElement('div')
-        row.classList.add('row');
-        userTableBodyRowData.appendChild(row)
-
-        var col0 = document.createElement('div')
-        col0.classList.add('col-lg-3');
-        col0.setAttribute('style','vertical-align: middle; text-align: center;')
-        col0.innerText = default_access[0];
-        row.appendChild(col0)
-
-        var col1 = document.createElement('div')
-        col1.classList.add('col-lg-3');
-        col1.setAttribute('style','vertical-align: middle; text-align: center;')
-        col1.innerText = default_access[1];
-        row.appendChild(col1)
-
-        var col2 = document.createElement('div')
-        col2.classList.add('col-lg-3');
-        col2.setAttribute('style','vertical-align: middle; text-align: center;')
-        col2.innerText = default_access[2];
-        row.appendChild(col2)
-
-        var col3 = document.createElement('div')
-        col3.classList.add('col-lg-3');
-        col3.setAttribute('style','vertical-align: middle; text-align: center;')
-        col3.innerText = default_access[3];
-        row.appendChild(col3)
-
-        slider.addEventListener('change', function (userID){
-            return function() {
-                selectedUser = userID
-                var permission_type = 'default'
-                var slider_value = this.value
-                var permission_value = default_access[slider_value].toLowerCase()   
-
-                savePermissions(permission_type, permission_value)
-            };
-        }(users[i].id));
-
-        // Worker Access
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('class','text-center')
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRow.appendChild(userTableBodyRowData);
-
-        var toggle = document.createElement('label');
-        toggle.classList.add('switch');
-        userTableBodyRowData.appendChild(toggle);
-
-        var checkbox = document.createElement('input');
-        checkbox.setAttribute("type", "checkbox");
-        checkbox.id = 'userWorkerAccess-' + users[i].id;
-        checkbox.checked = users[i].annotation
-        toggle.appendChild(checkbox);
-
-        var slider = document.createElement('span');
-        slider.classList.add('slider');
-        slider.classList.add('round');
-        toggle.appendChild(slider);
-
-        checkbox.addEventListener('change', function (userID){
-            return function() {
-                selectedUser = userID
-                var permission_type = 'annotation'
-                var permission_value = this.checked ? '1' : '0'
-                savePermissions(permission_type, permission_value)
-            };
-        }(users[i].id));
-
-        // Survey Creation
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('class','text-center')
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRow.appendChild(userTableBodyRowData);
-
-        var toggle = document.createElement('label');
-        toggle.classList.add('switch');
-        userTableBodyRowData.appendChild(toggle);
-
-        var checkbox = document.createElement('input');
-        checkbox.setAttribute("type", "checkbox");
-        checkbox.id = 'userSurveyCreation-' + users[i].id;
-        checkbox.checked = users[i].create
-        toggle.appendChild(checkbox);
-
-        var slider = document.createElement('span');
-        slider.classList.add('slider');
-        slider.classList.add('round');
-        toggle.appendChild(slider);
-
-        checkbox.addEventListener('change', function (userID){
-            return function() {
-                selectedUser = userID
-                var permission_type = 'create'
-                var permission_value = this.checked ? '1' : '0'
-                savePermissions(permission_type, permission_value)
-            };
-        }(users[i].id));
-
-        // Survey Deletion
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('class','text-center')
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRow.appendChild(userTableBodyRowData);
-
-        var toggle = document.createElement('label');
-        toggle.classList.add('switch');
-        userTableBodyRowData.appendChild(toggle);
-
-        var checkbox = document.createElement('input');
-        checkbox.setAttribute("type", "checkbox");
-        checkbox.id = 'userSurveyDeletion-' + users[i].id;
-        checkbox.checked = users[i].delete
-        toggle.appendChild(checkbox);
-
-        var slider = document.createElement('span');
-        slider.classList.add('slider');
-        slider.classList.add('round');
-        toggle.appendChild(slider);
-
-        checkbox.addEventListener('change', function (userID){
-            return function() {
-                selectedUser = userID
-                var permission_type = 'delete'
-                var permission_value = this.checked ? '1' : '0'
-                savePermissions(permission_type, permission_value)
-            };
-        }(users[i].id));
-
-        // Detailed Access
-        userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('class','text-center')
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRow.appendChild(userTableBodyRowData);
-
-        var button = document.createElement('button');
-        button.setAttribute("class",'btn btn-primary btn-sm btn-block')
-        button.innerHTML = 'Edit';
-        button.id = 'btnEditUser-' + users[i].id;
-        userTableBodyRowData.appendChild(button);
-
-        button.addEventListener('click', function (userId, userName){
-            return function() {
-                selectedUser = userId
-                openDetailedAccessModal(userId, userName);
-            };
-        }(users[i].id, users[i].username));
-
-        // Remove
-        var userTableBodyRowData = document.createElement('td');
-        userTableBodyRowData.setAttribute('class','text-center')
-        userTableBodyRowData.setAttribute('style','vertical-align: middle;')
-        userTableBodyRow.appendChild(userTableBodyRowData);
-
-        var button = document.createElement('button');
-        button.setAttribute("class",'btn btn-danger btn-sm btn-block')
-        button.innerHTML = 'Remove';
-        button.id = 'btnRemoveUser-' + users[i].id;
-        userTableBodyRowData.appendChild(button);
-
-        button.addEventListener('click', function (userId, userName){
-            return function() {
-                selectedUser = userId
-                document.getElementById('confirmationText').innerText = 'User ' + userName + ' will be removed from your organisation. Do you wish to continue?'
-                confirmationModal.modal('show');
+                // Email
+                var userTableBodyRowData = document.createElement('td');
+                userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+                userTableBodyRowData.innerText = users[i].email;
+                userTableBodyRowData.rowSpan = user_permissions.length;
+                userTableBodyRow.appendChild(userTableBodyRowData);
             }
-        }(users[i].id, users[i].username));
 
-        if (users[i].root_user == true) {
-            document.getElementById('btnRemoveUser-' + users[i].id).disabled = true
+            // Organisation
+            var userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRowData.innerText = user_permissions[j].organisation;
+            userTableBodyRow.appendChild(userTableBodyRowData);
+
+            // Default Access
+            var userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('class','text-center')
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRow.appendChild(userTableBodyRowData);
+            
+            var row = document.createElement('div')
+            row.classList.add('row');
+            userTableBodyRowData.appendChild(row)
+            
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-12');access_slider_values
+            row.appendChild(col1)
+
+            var slider = document.createElement('input');
+            slider.setAttribute("type", "range");
+            slider.setAttribute("class", "custom-range");
+            slider.setAttribute('style','width: 85%;')
+            slider.setAttribute("min", "0");
+            slider.setAttribute("max", "4");
+            slider.setAttribute("step", "1");
+            slider.setAttribute("id", "defaultAccessSlider-" + users[i].id + '-' + user_permissions[j].organisation_id);
+            slider.setAttribute("list", "accessLevels");
+            slider.value = access_slider_values[user_permissions[j].default]
+            col1.appendChild(slider);
+
+            var row = document.createElement('div')
+            row.classList.add('row');
+            userTableBodyRowData.appendChild(row)
+
+            colsspace = document.createElement('div')
+            colsspace.classList.add('col-lg-1');
+            colsspace.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            row.appendChild(colsspace)
+
+            var col0 = document.createElement('div')
+            col0.classList.add('col-lg-2');
+            col0.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col0.innerText = default_access[0];
+            row.appendChild(col0)
+
+            var col1 = document.createElement('div')
+            col1.classList.add('col-lg-2');
+            col1.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col1.innerText = default_access[1];
+            row.appendChild(col1)
+
+            var col2 = document.createElement('div')
+            col2.classList.add('col-lg-2');
+            col2.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col2.innerText = default_access[2];
+            row.appendChild(col2)
+
+            var col3 = document.createElement('div')
+            col3.classList.add('col-lg-2');
+            col3.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col3.innerText = default_access[3];
+            row.appendChild(col3)
+
+            var col4 = document.createElement('div')
+            col4.classList.add('col-lg-2');
+            col4.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col4.innerText = default_access[4];
+            row.appendChild(col4)
+
+            colsspace = document.createElement('div')
+            colsspace.classList.add('col-lg-1');
+            colsspace.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            row.appendChild(colsspace)
+
+            slider.addEventListener('change', function (userID, orgID){
+                return function() {
+                    selectedUser = userID
+                    selectedOrganisation = orgID
+                    var permission_type = 'default'
+                    var slider_value = this.value
+                    var permission_value = default_access[slider_value].toLowerCase()   
+
+                    if (permission_value == 'admin') {
+                        document.getElementById('btnEditUser-' + userID + '-' + orgID).disabled = true
+                        modalAdminConfirm.modal('show');
+                    }
+                    else{
+                        document.getElementById('btnEditUser-' + userID + '-' + orgID).disabled = false
+                        savePermissions(permission_type, permission_value)
+                    }
+
+                    
+                };
+            }(users[i].id, user_permissions[j].organisation_id));
+
+            // Worker Access
+            var userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('class','text-center')
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRow.appendChild(userTableBodyRowData);
+
+            var toggle = document.createElement('label');
+            toggle.classList.add('switch');
+            userTableBodyRowData.appendChild(toggle);
+
+            var checkbox = document.createElement('input');
+            checkbox.setAttribute("type", "checkbox");
+            checkbox.id = 'userWorkerAccess-' + users[i].id + '-' + user_permissions[j].organisation_id;
+            checkbox.checked = user_permissions[j].annotation
+            toggle.appendChild(checkbox);
+
+            var slider = document.createElement('span');
+            slider.classList.add('slider');
+            slider.classList.add('round');
+            toggle.appendChild(slider);
+
+            checkbox.addEventListener('change', function (userID, orgID){
+                return function() {
+                    selectedUser = userID
+                    selectedOrganisation = orgID
+                    var permission_type = 'annotation'
+                    var permission_value = this.checked ? '1' : '0'
+                    savePermissions(permission_type, permission_value)
+                };
+            }(users[i].id, user_permissions[j].organisation_id));
+
+            // Survey Creation
+            var userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('class','text-center')
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRow.appendChild(userTableBodyRowData);
+
+            var toggle = document.createElement('label');
+            toggle.classList.add('switch');
+            userTableBodyRowData.appendChild(toggle);
+
+            var checkbox = document.createElement('input');
+            checkbox.setAttribute("type", "checkbox");
+            checkbox.id = 'userSurveyCreation-' + users[i].id + '-' + user_permissions[j].organisation_id;
+            checkbox.checked = user_permissions[j].create
+            toggle.appendChild(checkbox);
+
+            var slider = document.createElement('span');
+            slider.classList.add('slider');
+            slider.classList.add('round');
+            toggle.appendChild(slider);
+
+            checkbox.addEventListener('change', function (userID, orgID){
+                return function() {
+                    selectedUser = userID
+                    selectedOrganisation = orgID
+                    var permission_type = 'create'
+                    var permission_value = this.checked ? '1' : '0'
+                    savePermissions(permission_type, permission_value)
+                };
+            }(users[i].id, user_permissions[j].organisation_id));
+
+            // Survey Deletion
+            var userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('class','text-center')
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRow.appendChild(userTableBodyRowData);
+
+            var toggle = document.createElement('label');
+            toggle.classList.add('switch');
+            userTableBodyRowData.appendChild(toggle);
+
+            var checkbox = document.createElement('input');
+            checkbox.setAttribute("type", "checkbox");
+            checkbox.id = 'userSurveyDeletion-' + users[i].id + '-' + user_permissions[j].organisation_id;
+            checkbox.checked = user_permissions[j].delete
+            toggle.appendChild(checkbox);
+
+            var slider = document.createElement('span');
+            slider.classList.add('slider');
+            slider.classList.add('round');
+            toggle.appendChild(slider);
+
+            checkbox.addEventListener('change', function (userID, orgID){
+                return function() {
+                    selectedUser = userID
+                    selectedOrganisation = orgID
+                    var permission_type = 'delete'
+                    var permission_value = this.checked ? '1' : '0'
+                    savePermissions(permission_type, permission_value)
+                };
+            }(users[i].id, user_permissions[j].organisation_id));
+
+            // Detailed Access
+            userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('class','text-center')
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRow.appendChild(userTableBodyRowData);
+
+            var button = document.createElement('button');
+            button.setAttribute("class",'btn btn-primary btn-sm btn-block')
+            button.innerHTML = 'Edit';
+            button.id = 'btnEditUser-' + users[i].id + '-' + user_permissions[j].organisation_id;
+            userTableBodyRowData.appendChild(button);
+
+            button.addEventListener('click', function (userId, userName, orgId, orgName){
+                return function() {
+                    selectedUser = userId
+                    selectedOrganisation = orgId
+                    openDetailedAccessModal(userId, userName, orgId, orgName)
+                };
+            }(users[i].id, users[i].username, user_permissions[j].organisation_id, user_permissions[j].organisation));
+
+            if (user_permissions[j].default == 'admin') {
+                document.getElementById('btnEditUser-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = true
+            }
+            else{
+                document.getElementById('btnEditUser-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = false
+            }
+
+            // Remove
+            var userTableBodyRowData = document.createElement('td');
+            userTableBodyRowData.setAttribute('class','text-center')
+            userTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            userTableBodyRow.appendChild(userTableBodyRowData);
+
+            var button = document.createElement('button');
+            button.setAttribute("class",'btn btn-danger btn-sm btn-block')
+            button.innerHTML = 'Remove';
+            button.id = 'btnRemoveUser-' + users[i].id + '-' + user_permissions[j].organisation_id;
+            userTableBodyRowData.appendChild(button);
+
+            button.addEventListener('click', function (userId, userName, orgID, orgName){
+                return function() {
+                    selectedUser = userId
+                    selectedOrganisation = orgID
+                    document.getElementById('confirmationText').innerText = 'User ' + userName + ' will be removed from organisation '+ orgName + '. Do you wish to continue?'
+                    confirmationModal.modal('show');
+                }
+            }(users[i].id, users[i].username, user_permissions[j].organisation_id, user_permissions[j].organisation));
+
+            if (user_permissions[j].root_user == true) {
+                document.getElementById('btnRemoveUser-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = true
+            }
         }
-
     }
 }
 
-function openDetailedAccessModal(id, username){
+function openDetailedAccessModal(id, username, org_id, org_name) {
     /**Opens the detailed access modal.*/
-    document.getElementById('modalDetailedAccessTitle').innerText = 'Detailed Access: ' + username;
+    document.getElementById('modalDetailedAccessTitle').innerText = 'Detailed Access: ' + username + ' for ' + org_name
 
     var colTitleDiv = document.getElementById('colTitleDiv')
     while (colTitleDiv.firstChild) {
         colTitleDiv.removeChild(colTitleDiv.firstChild);
     }
 
-    if (document.getElementById('defaultAccessSlider-' + id).value == access_slider_values['worker']) {
+    if (document.getElementById('defaultAccessSlider-' + id + '-' + org_id).value == access_slider_values['worker']) {
         var colTitle = document.createElement('div')
         colTitle.classList.add('col-lg-4')
         colTitle.innerText = 'Survey:'
@@ -393,37 +463,112 @@ function openDetailedAccessModal(id, username){
         worker = false
     }
 
-    getDetailedAccess(worker)
-    modalDetailedAccess.modal('show');
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            surveys = JSON.parse(this.responseText);  
+            console.log(surveys)
+            globalSurveys = surveys
+
+            getDetailedAccess(worker)
+            modalDetailedAccess.modal('show');
+        }
+    }
+    xhttp.open("GET", '/getOrganisationSurveys/' + org_id);
+    xhttp.send();
+
 }
 
 function getUsers() {
     /**Gets the user users from the server.*/
+
+    order = document.getElementById('permissionOrder').value
+    search = document.getElementById('permissionSearch').value
+
+    if (currentUserPage == null) {
+        currentUserPage = 1
+    }
+
+    user_url = '/getUsers?page=' + currentUserPage.toString() + '&order=' + order
+    if (search != '') {
+        user_url += '&search=' + search
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             console.log(reply)
+
+            nextUserPage = reply.next
+            prevUserPage = reply.prev
+
+            if (nextUserPage == null) {
+                document.getElementById('btnNextPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnNextPermissions').hidden = false
+            }
+
+            if (prevUserPage == null) {
+                document.getElementById('btnPrevPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnPrevPermissions').hidden = false
+            }
+
             buildUserTable(reply.users);
         }
     };
-    xhttp.open("GET", "/getUsers");
+    xhttp.open("GET", user_url);
     xhttp.send();
 }
 
 
 function getSharedData(){
     /**Gets the shared data from the server.*/
+
+    order = document.getElementById('permissionOrder').value
+    search = document.getElementById('permissionSearch').value
+
+    if (currentDataSharedPage == null) {
+        currentDataSharedPage = 1
+    }
+
+    data_url = '/getSharedData?page=' + currentDataSharedPage.toString() + '&order=' + order
+    if (search != '') {
+        data_url += '&search=' + search
+    }
+    
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             console.log(reply)
+
+            nextDataSharedPage = reply.next
+            prevDataSharedPage = reply.prev
+
+            if (nextDataSharedPage == null) {
+                document.getElementById('btnNextPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnNextPermissions').hidden = false
+            }
+
+            if (prevDataSharedPage == null) {
+                document.getElementById('btnPrevPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnPrevPermissions').hidden = false
+            }
+
             buildSharedDataTable(reply.shared_data);          
         }
     }
-    xhttp.open("GET", '/getSharedData');
+    xhttp.open("GET", data_url);
     xhttp.send();
 }
 
@@ -453,19 +598,25 @@ function buildSharedDataTable(sharedData) {
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Organisation';
-    dataSharingTableHeadRowHeader.setAttribute('width','20%')
+    dataSharingTableHeadRowHeader.setAttribute('width','16%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Email';
-    dataSharingTableHeadRowHeader.setAttribute('width','20%')
+    dataSharingTableHeadRowHeader.setAttribute('width','16%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Surveys';
-    dataSharingTableHeadRowHeader.setAttribute('width','20%')
+    dataSharingTableHeadRowHeader.setAttribute('width','16%')
+    dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
+
+    var dataSharingTableHeadRowHeader = document.createElement('th');
+    dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    dataSharingTableHeadRowHeader.innerText = 'From Organisation';
+    dataSharingTableHeadRowHeader.setAttribute('width','16%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
@@ -477,7 +628,7 @@ function buildSharedDataTable(sharedData) {
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Remove';
-    dataSharingTableHeadRowHeader.setAttribute('width','20%')
+    dataSharingTableHeadRowHeader.setAttribute('width','16%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
 
@@ -511,6 +662,12 @@ function buildSharedDataTable(sharedData) {
             var dataSharingTableBodyRowData = document.createElement('td');
             dataSharingTableBodyRowData.setAttribute('style','vertical-align: middle;')
             dataSharingTableBodyRowData.innerText = surveys[j].name;
+            dataSharingTableBodyRow.appendChild(dataSharingTableBodyRowData);
+
+            // From
+            var dataSharingTableBodyRowData = document.createElement('td');
+            dataSharingTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            dataSharingTableBodyRowData.innerText = surveys[j].share_org_name
             dataSharingTableBodyRow.appendChild(dataSharingTableBodyRowData);
 
             // Default Access
@@ -561,14 +718,15 @@ function buildSharedDataTable(sharedData) {
             col2.innerText = default_access[3];
             row.appendChild(col2)
 
-            slider.addEventListener('change', function (ssID){
+            slider.addEventListener('change', function (ssID, shareOrgID){
                 return function() {
                     selectedSurveyShare = ssID
+                    shareOrganisation = shareOrgID
                     var slider_value = this.value
                     var permission_value = default_access[slider_value].toLowerCase()
                     saveSharedSurveyPermissions(permission_value)
                 };
-            }(surveys[j].ss_id));
+            }(surveys[j].ss_id, surveys[j].share_org_id));
 
             // Remove
             var dataSharingTableBodyRowData = document.createElement('td');
@@ -582,14 +740,15 @@ function buildSharedDataTable(sharedData) {
             button.id = 'btnRemoveSharedSurveys-' + surveys[j].ss_id;
             dataSharingTableBodyRowData.appendChild(button);
 
-            button.addEventListener('click', function (ssID, orgName, surveyName){
+            button.addEventListener('click', function (ssID, orgName, surveyName, shareOrgID){
                 return function() {
                     selectedSurveyShare = ssID
                     sharingType = 'shared'
+                    shareOrganisation = shareOrgID
                     document.getElementById('confirmationText').innerText = 'Survey ' + surveyName + ' will no longer be shared with ' + orgName + '. Do you wish to continue?'
                     confirmationModal.modal('show');
                 };
-            }(surveys[j].ss_id, sharedData[i].organisation, surveys[j].name));
+            }(surveys[j].ss_id, sharedData[i].organisation, surveys[j].name, surveys[j].share_org_id));
 
         }
     }
@@ -624,7 +783,7 @@ function getDetailedAccess(worker=false){
             }
         }
     }
-    xhttp.open("GET", '/getDetailedAccess/'+selectedUser.toString());
+    xhttp.open("GET", '/getDetailedAccess/'+selectedUser.toString()+'/'+selectedOrganisation.toString());
     xhttp.send();
 }
 
@@ -634,7 +793,7 @@ function buildDetailedAccessRow(){
     var IDNum = getIdNumforNext('detailedSurveySelect-')
 
     var worker = false
-    if (document.getElementById('defaultAccessSlider-' + selectedUser).value == access_slider_values['worker']) {
+    if (document.getElementById('defaultAccessSlider-' + selectedUser + '-' + selectedOrganisation).value == access_slider_values['worker']) {
         worker = true
     }
 
@@ -738,6 +897,12 @@ function buildDetailedAccessRow(){
         col_3.setAttribute('style','vertical-align: middle; text-align: center;')
         col_3.innerText = default_access[3];
         row.appendChild(col_3)
+
+        // var col_4 = document.createElement('div')
+        // col_4.classList.add('col-lg-2');
+        // col_4.setAttribute('style','vertical-align: middle; text-align: center;')
+        // col_4.innerText = default_access[4];
+        // row.appendChild(col_4)
     }
     
     // Job Access
@@ -775,6 +940,19 @@ function buildDetailedAccessRow(){
 
 function getReceivedData(){
     /**Gets the received surveys from the server.*/
+
+    order = document.getElementById('permissionOrder').value
+    search = document.getElementById('permissionSearch').value
+
+    if (currentDataReceivedPage == null) {
+        currentDataReceivedPage = 1
+    }
+
+    data_url = '/getReceivedData?page=' + currentDataReceivedPage.toString() + '&order=' + order
+    if (search != '') {
+        data_url += '&search=' + search
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
@@ -782,10 +960,27 @@ function getReceivedData(){
             reply = JSON.parse(this.responseText);
             console.log(reply)
 
+            nextDataReceivedPage = reply.next
+            prevDataReceivedPage = reply.prev
+
+            if (nextDataReceivedPage == null) {
+                document.getElementById('btnNextPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnNextPermissions').hidden = false
+            }
+
+            if (prevDataReceivedPage == null) {
+                document.getElementById('btnPrevPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnPrevPermissions').hidden = false
+            }
+
             buildReceivedDataTable(reply.received_surveys)
         }
     }
-    xhttp.open("GET", '/getReceivedData');
+    xhttp.open("GET", data_url);
     xhttp.send();
 }
 
@@ -813,31 +1008,37 @@ function buildReceivedDataTable(receivedData) {
     var receivedDataTableHeadRowHeader = document.createElement('th');
     receivedDataTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     receivedDataTableHeadRowHeader.innerText = 'Organisation';
-    receivedDataTableHeadRowHeader.setAttribute('width','20%')
+    receivedDataTableHeadRowHeader.setAttribute('width','17%')
     receivedDataTableHeadRow.appendChild(receivedDataTableHeadRowHeader);
 
     var receivedDataTableHeadRowHeader = document.createElement('th');
     receivedDataTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     receivedDataTableHeadRowHeader.innerText = 'Email';
-    receivedDataTableHeadRowHeader.setAttribute('width','20%')
+    receivedDataTableHeadRowHeader.setAttribute('width','17%')
     receivedDataTableHeadRow.appendChild(receivedDataTableHeadRowHeader);
 
     var receivedDataTableHeadRowHeader = document.createElement('th');
     receivedDataTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     receivedDataTableHeadRowHeader.innerText = 'Surveys';
-    receivedDataTableHeadRowHeader.setAttribute('width','20%')
+    receivedDataTableHeadRowHeader.setAttribute('width','17%')
+    receivedDataTableHeadRow.appendChild(receivedDataTableHeadRowHeader);
+
+    var receivedDataTableHeadRowHeader = document.createElement('th');
+    receivedDataTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    receivedDataTableHeadRowHeader.innerText = 'To Organisation';
+    receivedDataTableHeadRowHeader.setAttribute('width','17%')
     receivedDataTableHeadRow.appendChild(receivedDataTableHeadRowHeader);
 
     var receivedDataTableHeadRowHeader = document.createElement('th');
     receivedDataTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     receivedDataTableHeadRowHeader.innerText = 'Default Access';
-    receivedDataTableHeadRowHeader.setAttribute('width','20%')
+    receivedDataTableHeadRowHeader.setAttribute('width','17%')
     receivedDataTableHeadRow.appendChild(receivedDataTableHeadRowHeader);
 
     var receivedDataTableHeadRowHeader = document.createElement('th');
     receivedDataTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     receivedDataTableHeadRowHeader.innerText = 'Remove';
-    receivedDataTableHeadRowHeader.setAttribute('width','20%')
+    receivedDataTableHeadRowHeader.setAttribute('width','15%')
     receivedDataTableHeadRow.appendChild(receivedDataTableHeadRowHeader);
 
     for (let i = 0; i < receivedData.length; i++) {
@@ -873,6 +1074,12 @@ function buildReceivedDataTable(receivedData) {
             receivedDataTableBodyRowData.innerText = surveys[j].name;
             receivedDataTableBodyRow.appendChild(receivedDataTableBodyRowData);
 
+            // To
+            var receivedDataTableBodyRowData = document.createElement('td');
+            receivedDataTableBodyRowData.setAttribute('style','vertical-align: middle;')
+            receivedDataTableBodyRowData.innerText = surveys[j].received_org_name
+            receivedDataTableBodyRow.appendChild(receivedDataTableBodyRowData);
+
             // Default Access
             var receivedDataTableBodyRowData = document.createElement('td');
             receivedDataTableBodyRowData.setAttribute('class','vertical-align: middle;')
@@ -890,33 +1097,34 @@ function buildReceivedDataTable(receivedData) {
             button.id = 'btnRemoveReceivedSurvey-' + surveys[j].ss_id;
             receivedDataTableBodyRowData.appendChild(button);
 
-            button.addEventListener('click', function (ssID, orgName, surveyName){
+            button.addEventListener('click', function (ssID, orgName, surveyName, receivedOrgID){
                 return function() {
                     selectedSurveyShare = ssID
                     sharingType = 'received'
+                    receiveOrganisation = receivedOrgID
                     document.getElementById('confirmationText').innerText = 'Survey ' + surveyName + ' from ' + orgName + ' will no longer be shared with you. Do you wish to continue?'
                     confirmationModal.modal('show');
                 };
-            }(surveys[j].ss_id, receivedData[i].organisation, surveys[j].name));
+            }(surveys[j].ss_id, receivedData[i].organisation, surveys[j].name, surveys[j].received_org_id));
 
         }
     }
 }
 
-function getOrganisationSurveys(){
-    /** Gets the surveys for the current user */
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            surveys = JSON.parse(this.responseText);  
-            console.log(surveys)
-            globalSurveys = surveys
-        }
-    }
-    xhttp.open("GET", '/getOrganisationSurveys');
-    xhttp.send();
-}
+// function getOrganisationSurveys(){
+//     /** Gets the surveys for the current user */
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             surveys = JSON.parse(this.responseText);  
+//             console.log(surveys)
+//             globalSurveys = surveys
+//         }
+//     }
+//     xhttp.open("GET", '/getOrganisationSurveys');
+//     xhttp.send();
+// }
 
 function removeFromTable(){
     /** Removes the selected surveys from the selected organisation. */
@@ -938,13 +1146,20 @@ function savePermissions(permission_type, permission_value){
     formData.append('permission_type', JSON.stringify(permission_type));
     formData.append('permission_value', JSON.stringify(permission_value));
     formData.append('user_id', JSON.stringify(selectedUser));
+    formData.append('organisation_id', JSON.stringify(selectedOrganisation));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
-            console.log(reply)
+            if (reply.status == 'SUCCESS') {
+                if(modalAdminConfirm.hasClass('show')){
+                    modalAdminConfirm.modal('hide')
+                }
+
+                getUsers()
+            }
         }
     }
     xhttp.open("POST", '/savePermissions')
@@ -957,6 +1172,7 @@ function saveSharedSurveyPermissions(permission_value){
     var formData = new FormData();
     formData.append('survey_share_id', JSON.stringify(selectedSurveyShare));
     formData.append('permission_value', JSON.stringify(permission_value));
+    formData.append('org_id', JSON.stringify(shareOrganisation));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -989,15 +1205,39 @@ $('#btnPermissions').click(function(){
 });
 
 function openInvite() {
-    document.getElementById('inviteStatus').innerHTML = ''
-    modalInvite.modal({keyboard: true});
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            organisations = reply.organisations
+            var optionTexts = []
+            var optionValues = []
+            for (let i=0;i<organisations.length;i++) {
+                optionTexts.push(organisations[i].name)
+                optionValues.push(organisations[i].id)
+            }
+            var select = document.getElementById('organisationSelect')
+            clearSelect(select)
+            fillSelect(select, optionTexts, optionValues)
+
+            document.getElementById('inviteStatus').innerHTML = ''
+            document.getElementById('inviteEmail').value = ''
+            modalInvite.modal({keyboard: true});
+        }
+    }
+    xhttp.open("GET", "/getOrganisations");
+    xhttp.send();
+
 }
 
 function sendInvite() {
     inviteEmail = document.getElementById('inviteEmail').value
+    orgID = document.getElementById('organisationSelect').value
 
     var formData = new FormData()
     formData.append("inviteEmail", JSON.stringify(inviteEmail))
+    formData.append("orgID", JSON.stringify(orgID))
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -1023,16 +1263,28 @@ function openShareData() {
         shareDataDiv.removeChild(shareDataDiv.firstChild);
     }
 
-    buildShareDataRow()
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            surveys = JSON.parse(this.responseText);  
+            console.log(surveys)
+            globalSurveys = surveys
 
-    modalShareData.modal({keyboard: true});
+            buildShareDataRow()
+            modalShareData.modal({keyboard: true});
+        }
+    }
+    xhttp.open("GET", '/getOrganisationSurveys/0');
+    xhttp.send();
+
 
 }
 
 function buildShareDataRow() {
     /**  Builds a row for the share data modal. */  
     var shareDataDiv = document.getElementById('shareDataDiv')
-    var IDNum = getIdNumforNext('shareSurveySelect-')
+    // var IDNum = getIdNumforNext('shareSurveySelect-')
 
     var row = document.createElement('div')
     row.classList.add('row')
@@ -1055,7 +1307,7 @@ function buildShareDataRow() {
 
     var survey = document.createElement('select');
     survey.classList.add('form-control')
-    survey.id = 'shareSurveySelect-' + IDNum;
+    survey.id = 'shareSurveySelect';
     col1.appendChild(survey);
 
     var optionTexts = ['None']
@@ -1088,7 +1340,7 @@ function buildShareDataRow() {
     slider.setAttribute("min", "2");
     slider.setAttribute("max", "3");
     slider.setAttribute("step", "1");
-    slider.setAttribute("id", "shareAccessSlider-" + IDNum);
+    slider.setAttribute("id", "shareAccessSlider");
     col_1.appendChild(slider);
 
     var row = document.createElement('div')
@@ -1107,34 +1359,39 @@ function buildShareDataRow() {
     col12.innerText = 'Write';
     row.appendChild(col12)
 
-    var button = document.createElement('button');
-    button.setAttribute("class",'btn btn-info')
-    button.innerHTML = '&times;';
-    button.id = 'btnRemoveShareData-' + IDNum;
-    col3.appendChild(button);
+    // var button = document.createElement('button');
+    // button.setAttribute("class",'btn btn-info')
+    // button.innerHTML = '&times;';
+    // button.id = 'btnRemoveShareData-' + IDNum;
+    // col3.appendChild(button);
 
-    button.addEventListener('click', function () {
-        this.parentNode.parentNode.remove()
-    });
+    // button.addEventListener('click', function () {
+    //     this.parentNode.parentNode.remove()
+    // });
 }
 
 function shareSurveys(){
     /** Shares the selected surveys with the selected organisation. */
 
     var organisationName = document.getElementById('organisationName').value
-    var surveySelects = document.querySelectorAll('[id^="shareSurveySelect-"]')
-    var accessSliders = document.querySelectorAll('[id^="shareAccessSlider-"]')
+    // var surveySelects = document.querySelectorAll('[id^="shareSurveySelect-"]')
+    // var accessSliders = document.querySelectorAll('[id^="shareAccessSlider-"]')
+    var surveySelect = document.getElementById('shareSurveySelect')
+    var accessSlider = document.getElementById('shareAccessSlider')
 
-    var sharedData = []
-
-    for (let i=0;i<surveySelects.length;i++) {
-        if (surveySelects[i].value != -1 && surveySelects[i].value != -1) {
-            sharedData.push({
-                'survey_id': surveySelects[i].value,
-                'permission': default_access[accessSliders[i].value].toLowerCase()
-            })
-        }
+    var sharedData = {
+        'survey_id': surveySelect.value,
+        'permission': default_access[accessSlider.value].toLowerCase()
     }
+
+    // for (let i=0;i<surveySelects.length;i++) {
+    //     if (surveySelects[i].value != -1 && surveySelects[i].value != -1) {
+    //         sharedData.push({
+    //             'survey_id': surveySelects[i].value,
+    //             'permission': default_access[accessSliders[i].value].toLowerCase()
+    //         })
+    //     }
+    // }
 
     var valid = validateShareData(sharedData, organisationName)
 
@@ -1161,36 +1418,13 @@ function validateShareData(sharedData, organisationName){
     /** Validates the shared data. */
 
     var valid = true
-    var emptyData = false
-    var duplicateData = false
-
-    var duplicates = []
-
-    if (sharedData.length == 0) {
-        emptyData = true
-    }
-    else{
-        for (let i = 0; i < sharedData.length; i++) {
-            value = sharedData[i].survey_id.toString()
-            if (duplicates.indexOf(value) == -1) {
-                duplicates.push(value)
-            }
-            else{
-                duplicateData = true
-            }
-        }
-    }
 
     if (organisationName == '') {
         document.getElementById('shareDataErrors').innerHTML = 'Please enter a name for the organisation.'
         valid = false
     }
-    else if (emptyData) {
+    else if (sharedData.survey_id == -1) {
         document.getElementById('shareDataErrors').innerHTML = 'Please select a survey.'
-        valid = false
-    }
-    else if (duplicateData) {
-        document.getElementById('shareDataErrors').innerHTML = 'Please do not share the same survey with the same organisation more than once.'
         valid = false
     }
     else{
@@ -1213,6 +1447,7 @@ function saveDetailedAccess(){
         var formData = new FormData();
         formData.append('detailed_access', JSON.stringify(detailed_access));
         formData.append('user_id', JSON.stringify(selectedUser));
+        formData.append('organisation_id', JSON.stringify(selectedOrganisation));
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
@@ -1242,7 +1477,7 @@ function getDetailedAccessForSave(){
     var dupSurveys = []
 
     var worker = false
-    if (document.getElementById('defaultAccessSlider-' + selectedUser).value == access_slider_values['worker']) {
+    if (document.getElementById('defaultAccessSlider-' + selectedUser + '-' + selectedOrganisation).value == access_slider_values['worker']) {
         worker = true
     }
 
@@ -1311,6 +1546,7 @@ function removeUserFromOrganisation(){
 
     var formData = new FormData();
     formData.append('user_id', JSON.stringify(selectedUser));
+    formData.append('org_id', JSON.stringify(selectedOrganisation));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -1361,6 +1597,11 @@ function removeSharedSurvey(){
     xhttp.send(formData);
 }
 
+function setToAdmin(){
+    /** Sets the user to admin. */
+    savePermissions('default', 'admin')
+}
+
 modalShareData.on('hidden.bs.modal', function () {
     /** Function for when the share data modal is closed. */
     document.getElementById('shareDataErrors').innerHTML = ''
@@ -1382,10 +1623,74 @@ modalInvite.on('hidden.bs.modal', function () {
     getUsers()
 });
 
+$('#btnNextPermissions').click(function(){
+    /**Function for the next permissions button. */
+    if (tabActive == 'baseUserTab') {
+        currentUserPage = nextUserPage
+        getUsers()
+    }
+    else if (tabActive == 'baseDataSharingTab') {
+        currentDataSharedPage = nextDataSharedPage
+        getSharedData()
+    }
+    else if (tabActive == 'baseDataReceivedTab') {
+        currentDataReceivedPage = nextDataReceivedPage
+        getReceivedData()
+    }
+});
+
+$('#btnPrevPermissions').click(function(){
+    /**Function for the previous permissions button. */
+    if (tabActive == 'baseUserTab') {
+        currentUserPage = prevUserPage
+        getUsers()
+    }
+    else if (tabActive == 'baseDataSharingTab') {
+        currentDataSharedPage = prevDataSharedPage
+        getSharedData()
+    }
+    else if (tabActive == 'baseDataReceivedTab') {
+        currentDataReceivedPage = prevDataReceivedPage
+        getReceivedData()
+    }
+});
+
+$('#permissionOrder').change(function(){
+    /**Function for the order by select. */
+    if (tabActive == 'baseUserTab') {
+        currentUserPage = 1
+        getUsers()
+    }
+    else if (tabActive == 'baseDataSharingTab') {
+        currentDataSharedPage = 1
+        getSharedData()
+    }
+    else if (tabActive == 'baseDataReceivedTab') {
+        currentDataReceivedPage = 1
+        getReceivedData()
+    }
+});
+
+$('#permissionSearch').change(function(){
+    /**Function for the search select. */
+    if (tabActive == 'baseUserTab') {
+        currentUserPage = 1
+        getUsers()
+    }
+    else if (tabActive == 'baseDataSharingTab') {
+        currentDataSharedPage = 1
+        getSharedData()
+    }
+    else if (tabActive == 'baseDataReceivedTab') {
+        currentDataReceivedPage = 1
+        getReceivedData()
+    }
+});
+
 function onload(){
     /**Function for initialising the page on load.*/
     document.getElementById('openUserTab').click();
-    getOrganisationSurveys()   
+    // getOrganisationSurveys()   
 }
 
 window.addEventListener('load', onload, false);

@@ -228,6 +228,10 @@ var timerTaskStatus = null
 
 var pathDisplay = null
 
+const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
+const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
+var globalOrganisationUsers = null
+
 function buildSurveys(survey,disableSurvey) {
     /**
      * Builds the survey row
@@ -494,7 +498,7 @@ function buildSurveys(survey,disableSurvey) {
                 deleteSurveyBtn.disabled = true
             }
         }
-        else if (survey.access == 'write'){
+        else if (survey.access == 'write' || survey.access == 'admin'){
             if (addTaskBtn) {
                 addImagesBtn.disabled = false
                 addTaskBtn.disabled = false
@@ -541,7 +545,7 @@ function updatePage(url){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            
+            // console.log(reply)
             if (reply.surveys[0].status.toLowerCase()=='uploading') {
                 document.getElementById('btnNewSurvey').disabled = true
             } else {
@@ -3381,4 +3385,167 @@ function getOrganisations(){
     xhttp.open("GET", '/getOrganisations');
     xhttp.send();
     
+}
+
+$('#detailedAccessSurveyCb').change( function() {
+    /** Event listener for the detailed access checkbox on the create new survey modal. */
+    if (this.checked) {
+        org_id = document.getElementById('newSurveyOrg').value
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                globalOrganisationUsers = reply
+
+                var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+                while(surveyPermissionsDiv.firstChild){
+                    surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+                }
+
+                document.getElementById('detailedAccessSurveyDiv').hidden = false
+                buildSurveyPermissionRow()
+            }
+        }
+        xhttp.open("GET", '/getOrganisationUsers/'+org_id);
+        xhttp.send();
+
+    }
+    else{
+        document.getElementById('detailedAccessSurveyDiv').hidden = true
+        var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+        while(surveyPermissionsDiv.firstChild){
+            surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+        }
+    }
+});
+
+$('#newSurveyOrg').change( function() {
+    /** Event listener for the organisation select on the create new survey modal. */
+    if (document.getElementById('detailedAccessSurveyCb').checked) {
+        org_id = document.getElementById('newSurveyOrg').value
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                globalOrganisationUsers = reply
+
+                var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+                while(surveyPermissionsDiv.firstChild){
+                    surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+                }
+                
+                buildSurveyPermissionRow()
+            }
+        }
+        xhttp.open("GET", '/getOrganisationUsers/'+org_id);
+        xhttp.send();
+    }
+});
+
+function buildSurveyPermissionRow(){
+    /** Builds a row for the detailed survey permission section on the create new survey modal. */
+    var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+    var IDNum = getIdNumforNext('surveyUserPermission-')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    surveyPermissionsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-4')
+    col1.style.display = 'flex'
+    col1.style.alignItems = 'center'
+    col1.style.justifyContent = 'center'
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-5')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
+    col3.style.display = 'flex'
+    col3.style.alignItems = 'center'
+    col3.style.justifyContent = 'center'
+    row.appendChild(col3)
+
+    // User
+    var user = document.createElement('select');
+    user.classList.add('form-control')
+    user.id = 'surveyUserPermission-' + IDNum;
+    col1.appendChild(user);
+
+    var optionTexts = []
+    var optionValues = []
+    for (var i=0;i<globalOrganisationUsers.length;i++) {
+        optionTexts.push(globalOrganisationUsers[i][1])
+        optionValues.push(globalOrganisationUsers[i][0])
+    }
+    fillSelect(user,optionTexts,optionValues)
+
+    // Access
+    var defaultDiv = document.createElement('div');
+    defaultDiv.setAttribute('class','text-center')
+    defaultDiv.setAttribute('style','vertical-align: middle;')
+    col2.appendChild(defaultDiv);    
+    
+    var row = document.createElement('div')
+    row.classList.add('row');
+    defaultDiv.appendChild(row)
+    
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-12');
+    row.appendChild(col1)
+
+    var slider = document.createElement('input');
+    slider.setAttribute("type", "range");
+    slider.setAttribute("class", "custom-range");
+    slider.setAttribute('style','width: 85%;')
+    slider.setAttribute("min", "0");
+    slider.setAttribute("max", "3");
+    slider.setAttribute("step", "1");
+    slider.setAttribute("id", "detailedAccessSurvey-" + IDNum);
+    col1.appendChild(slider);
+
+    var row = document.createElement('div')
+    row.classList.add('row');
+    defaultDiv.appendChild(row)
+
+    var col_0 = document.createElement('div')
+    col_0.classList.add('col-lg-3');
+    col_0.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_0.innerText = default_access[0];
+    row.appendChild(col_0)
+
+    var col_1 = document.createElement('div')
+    col_1.classList.add('col-lg-3');
+    col_1.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_1.innerText = default_access[1];
+    row.appendChild(col_1)
+
+    var col_2 = document.createElement('div')
+    col_2.classList.add('col-lg-3');
+    col_2.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_2.innerText = default_access[2];
+    row.appendChild(col_2)
+
+    var col_3 = document.createElement('div')
+    col_3.classList.add('col-lg-3');
+    col_3.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_3.innerText = default_access[3];
+    row.appendChild(col_3)
+
+    // Remove
+    var button = document.createElement('button');
+    button.setAttribute("class",'btn btn-info')
+    button.innerHTML = '&times;';
+    button.id = 'btnRemoveSurveyAccess-' + IDNum;
+    col3.appendChild(button);
+
+    button.addEventListener('click', function () {
+        this.parentNode.parentNode.remove()
+    });
+
 }
