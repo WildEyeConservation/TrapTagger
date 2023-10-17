@@ -1128,7 +1128,7 @@ def updateSurveyStatus(survey_id, status):
         if userPermissions and userPermissions.create:
             survey.status = status
             db.session.commit()
-            if status == 'Complete':
+            if status == 'Import Queued':
                 import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
     
     return json.dumps('')
