@@ -3227,12 +3227,12 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
         db.session.commit()
         updateSurveyDetectionRatings(survey_id=survey_id)
         
-        survey = db.session.query(Survey).get(survey_id)
-        for task in survey.tasks:
-            if task.name != 'default':
-                classifyTask(task.id)
-                updateAllStatuses(task_id=task.id, celeryTask=False)
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').all()]
+        for task_id in task_ids:
+            classifyTask(task_id)
+            updateAllStatuses(task_id=task_id, celeryTask=False)
 
+        survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
         survey.images_processing = 0
         db.session.commit()
