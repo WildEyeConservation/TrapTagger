@@ -3722,10 +3722,10 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
     return True
 
 @celery.task(bind=True,max_retries=29)
-def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):   
+def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):   
     try:
         for image_id in images:
-            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id)
+            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id,check)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3747,10 +3747,10 @@ def convertBBox(api_box):
     y_max = y_min + height_of_box
     return [y_min, x_min, y_max, x_max]
 
-def commitAndCrop(images,source,min_area,destBucket,external,update_image_info):
+def commitAndCrop(images,source,min_area,destBucket,external,update_image_info,check=False):
     '''Helper function for pipelineLILA that commits the db and then kicks off image cropping'''
     db.session.commit()
-    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info},queue='default')
+    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info,'label_source':None,'task_id':None,'check':check},queue='default')
     return []
 
 @celery.task(bind=True,ignore_result=True)
@@ -3839,6 +3839,122 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
                         count += 1
                         if count%100==0: print(count)
         images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status='Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,ignore_result=True)
+def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,source,min_area,destBucket):
+    '''Makes use of the MegaDetector results on LILA to pipeline trianing data.'''
+    try:
+        skip_labels = ['unknown','none','fire','human','null','nothinghere','ignore']
+        external = True
+        update_image_info=True
+        tgcode = re.compile(tgcode_str)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=dets_filename, Filename=temp_file.name)
+            with open(temp_file.name) as f:
+                json_data = json.load(f)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=images_filename, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        if 'filename' in df.columns:
+            df = df.rename(columns={'filename': 'filepath','common_name': 'species'})
+
+        # survey = Survey(name=survey_name,user_id=1,trapgroup_code=tgcode_str,status='Importing')
+        # db.session.add(survey)
+        # task = Task(name='import', survey=survey, tagging_level='-1', test_size=0, status='Ready')
+        # db.session.add(task)
+        # db.session.commit()
+        survey = db.session.query(Survey).filter(Survey.user_id==1).filter(Survey.name==survey_name).first()
+        task = survey.tasks[0]
+        task_id=task.id
+        survey_id=survey.id
+
+        label_translations = {}
+        for description in df['species'].unique():
+            if description.lower() not in skip_labels:
+                if description.lower() in ['nothing','empty','blank']:
+                    label = db.session.query(Label).get(GLOBALS.nothing_id)
+                elif description.lower() in ['human']:
+                    label = db.session.query(Label).get(GLOBALS.vhl_id)
+                else:
+                    # label = Label(description=description,task=task)
+                    # db.session.add(label)
+                    label = db.session.query(Label).filter(Label.task==task).filter(Label.description==description).first()
+                label_translations[description] = label
+        # db.session.commit()
+
+        trapgroups = {}
+        for trapgroup in survey.trapgroups:
+            trapgroups[trapgroup.tag] = trapgroup.id
+
+        dirpath_cam_translations = {}
+        for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().all():
+            dirpath_cam_translations[camera.path] = camera.id
+
+        count = 0
+        images = []
+        # trapgroups = {}
+        # dirpath_cam_translations = {}
+        for item in json_data['images']:
+            if len(df[df['filepath']==item['file']]) == 1:
+                tags = tgcode.findall(item['file'])
+                if tags:
+                    tag = tags[0]
+                    species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
+                    if species:
+                        dirpath = '/'.join(item['file'].split('/')[:-1])
+                        filename = item['file'].split('/')[-1]
+                        if tag not in trapgroups.keys():
+                            trapgroup = Trapgroup(survey_id=survey_id,tag=tag)
+                            db.session.add(trapgroup)
+                            images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info,True)
+                            trapgroups[tag] = trapgroup.id
+                        trapgroup_id = trapgroups[tag]
+                        if dirpath not in dirpath_cam_translations.keys():
+                            camera = Camera(path=dirpath,trapgroup_id=trapgroup_id)
+                            db.session.add(camera)
+                            images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info,True)
+                            dirpath_cam_translations[dirpath] = camera.id
+                        camera_id = dirpath_cam_translations[dirpath]
+                        image = db.session.query(Image).filter(Image.camera_id==camera_id).filter(Image.filename==filename).first()
+                        if image==None:
+                            image = Image(camera_id=camera_id,filename=filename)
+                            cluster = Cluster(task_id=task_id)
+                            db.session.add(image)
+                            db.session.add(cluster)
+                            cluster.images = [image]
+                            for specie in species:
+                                cluster.labels.append(label_translations[specie])
+                            for det in item['detections']:
+                                top, left, bottom, right = convertBBox(det['bbox'])
+                                detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b')
+                                db.session.add(detection)
+                                labelgroup = Labelgroup(task_id=task_id,detection=detection)
+                                db.session.add(labelgroup)
+                                for specie in species:
+                                    labelgroup.labels.append(label_translations[specie])
+                        images.append(image)
+                        count += 1
+                        if count%100==0: print(count)
+        images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info,True)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Ready'

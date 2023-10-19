@@ -573,7 +573,7 @@ def getIndividuals(task_id,species):
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': image.camera.path + '/' + image.filename
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
                         })
 
         next = individuals.next_num if individuals.has_next else None
@@ -703,11 +703,11 @@ def getIndividual(individual_id):
 
             video_url = None
             if image.camera.videos:
-                video_url = image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename
+                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B')
 
             reply.append({
                             'id': image.id,
-                            'url': image.camera.path + '/' + image.filename,
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                             'video_url': video_url,
                             'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
@@ -4757,7 +4757,7 @@ def getSuggestion(individual_id):
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
             images = [{'id': image.id,
-                    'url': image.camera.path + '/' + image.filename,
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                     'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
@@ -5149,7 +5149,7 @@ def get_clusters():
         label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,None,id)
 
     else:
 
@@ -5195,7 +5195,7 @@ def get_clusters():
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
                 if (len(clusterInfo) <= limit) and not max_request:
@@ -6315,7 +6315,7 @@ def assignLabel(clusterID):
                                 newClusters = []
                             else:
                                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if (len(clusterInfo) <= limit) and not max_request:
@@ -7881,7 +7881,8 @@ def get_presigned_url():
                                                                 Params={'Bucket': Config.BUCKET,
                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
                                                                         'ContentType': request.json['contentType'],
-                                                                        'Body' : ''})
+                                                                        'Body' : ''},
+                                                                ExpiresIn=604800) # 7 days (the maximum)
     else:
         return 'error'
 
@@ -8570,7 +8571,7 @@ def getIndividualAssociations(individual_id, order):
                     'name': association[1],
                     'cluster_count': association[2],
                     'image_count': association[3],	
-                    'url': image.camera.path + '/' + image.filename
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
                 }
             )
 
