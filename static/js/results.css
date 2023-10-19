@@ -157,3 +157,41 @@ tr:hover td {
   border-radius: 50%;
   padding: 2px 4px;
 }
+
+.pagination li {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  border: 1px solid #EBEBEB;
+  width: 22px;
+  height: 22px;
+  margin: 0px 1px;
+  color: #EBEBEB;
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 22px; 
+}
+
+.pagination li.active {
+  background-color: #DF691A;
+  border: 1px solid #DF691A;
+  color : white;
+}
+
+.pagination li.disabled {
+  border: 1px solid #EBEBEB;
+  cursor: default;
+}
+
+.pagination li.disabled:hover {
+  background-color: transparent;
+  border: 1px solid #EBEBEB;
+  color: #EBEBEB;
+}
+
+.pagination li:hover {
+  background-color: #DF691A;
+  border: 1px solid #DF691A;
+  color: white ;
+}

@@ -682,49 +682,100 @@ function updateCanvas(mapID = 'map1') {
                 }
                 image=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]]
 
-                //update cluster position circles
+                //update cluster position circles (pagination) - bounding & tutorial pagination needs to be disabled
                 if (clusterPositionCircles != null) {
-                    circles = ''
-                    if (isViewing) {
-                        cirNum = clusters[mapID][clusterIndex[mapID]].images.length
-                        if (cirNum > 10) {
-                            circles = ' '
-                        } else {
-                            for (let i=0;i<cirNum;i++) {
-                                if (i == imageIndex[mapID]) {
-                                    circles += '&#9679;'
-                                } else {
-                                    circles += '&#9675;'
-                                }
-                            }
-                        }
-                    } else if (isBounding) {
+
+                    if (isBounding) {
                         cirNum = clusters[mapID][clusterIndex[mapID]].clusterLength
-                        if (cirNum > 72) {
-                            cirNum = 72
-                        }
-                        for (let i=0;i<cirNum;i++) {
-                            if (i == clusters[mapID][clusterIndex[mapID]].imageIndex) {
-                                circles += '&#9679;'
-                            } else {
-                                circles += '&#9675;'
-                            }
-                        }
-                    } else {
+                        circlesIndex = clusters[mapID][clusterIndex[mapID]].imageIndex
+                    }
+                    else{
                         cirNum = clusters[mapID][clusterIndex[mapID]].images.length
-                        if (cirNum > 72) {
-                            cirNum = 72
+                        circlesIndex = imageIndex[mapID]
+                    }
+
+                    var beginIndex = 0
+                    var endIndex = cirNum
+                    var multiple = false
+                    if (cirNum > 10) {
+                        multiple =  true
+                        beginIndex = Math.max(0,circlesIndex-2)
+                        if (beginIndex < 2) {
+                            beginIndex = 0
+                            endIndex = 5
                         }
-                        for (let i=0;i<cirNum;i++) {
-                            if (i == imageIndex[mapID]) {
-                                circles += '&#9679;'
-                            } else {
-                                circles += '&#9675;'
+                        else {
+                            endIndex = Math.min(cirNum,circlesIndex+3)
+                            if (endIndex > cirNum-2) {
+                                endIndex = cirNum
+                                beginIndex = cirNum - 5
                             }
                         }
                     }
-                    clusterPositionCircles.innerHTML = circles
+
+                    paginationCircles = document.getElementById('paginationCircles')
+                    while (paginationCircles.firstChild) {
+                        paginationCircles.removeChild(paginationCircles.firstChild);
+                    }
+
+
+                    if (multiple && beginIndex != 0 && circlesIndex > 2) {
+                        first = document.createElement('li')
+                        if (isBounding || isTutorial) {
+                            first.setAttribute('class','disabled')
+                        }
+                        else {
+                            first.setAttribute('onclick','updateImageIndex(0)')
+                        }
+                        first.innerHTML = '1'
+                        paginationCircles.append(first)
+                    
+                        more = document.createElement('li')
+                        more.setAttribute('class','disabled')
+                        more.innerHTML = '...'
+                        paginationCircles.append(more)
+                    }
+
+
+                    for (let i=beginIndex;i<endIndex;i++) {
+                        li = document.createElement('li')
+                        li.innerHTML = (i+1).toString()
+                        if (!isBounding && !isTutorial) {
+                            li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
+                        }
+                        paginationCircles.append(li)
+
+                        if (i == circlesIndex) {
+                            li.setAttribute('class','active')
+                        } else {
+                            if (isBounding || isTutorial) {
+                                li.setAttribute('class','disabled')
+                            }
+                            else {
+                                li.setAttribute('class','')
+                            }
+                        }
+                    }
+
+                    if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+                        more = document.createElement('li')
+                        more.setAttribute('class','disabled')
+                        more.innerHTML = '...'
+                        paginationCircles.append(more)
+
+                        last_index = cirNum - 1
+                        last = document.createElement('li')
+                        if (isBounding || isTutorial) {
+                            last.setAttribute('class','disabled')
+                        }
+                        else {
+                            last.setAttribute('onclick','updateImageIndex('+(last_index).toString()+')')
+                        }
+                        last.innerHTML = (last_index+1).toString()
+                        paginationCircles.append(last)
+                    }
                 }
+
 
                 if ((clusterIndex[mapID]==0)&&(imageIndex[mapID]==0)) {
                     updateSlider(mapID)
@@ -994,7 +1045,7 @@ function goToPrevCluster(mapID = 'map1') {
     clusterIndex[mapID] = clusterIndex[mapID] - 1
     updateClusterLabels(mapID)
 
-    if (wrongStatus) {
+    if (wrongStatus && !isReviewing) {
         initKeys(globalKeys[taggingLevel])
     }
 
@@ -1093,7 +1144,12 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             
         } else {
             if (!isClassCheck) {
-                document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
+                if (isReviewing){
+                    document.getElementById('debugImage').innerHTML = 'Path: ' +  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
+                }
+                else{
+                    document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
+                }
             } else {
                 classifierLabels = document.getElementById('classifierLabels')
                 while(classifierLabels.firstChild){
@@ -1154,20 +1210,32 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             {
                 noteTextBox.value = clusters[mapID][clusterIndex[mapID]].notes
                 document.getElementById('notif').innerHTML = ""
+            }
 
-                if(clusters[mapID][clusterIndex[mapID]].notes != noteTextBox.value && clusters[mapID][clusterIndex[mapID]].notes != null){
-                    document.getElementById('btnNoteSubmitExp').disabled = false
-                }
-                else{
-                    document.getElementById('btnNoteSubmitExp').disabled = true
-                }
-            
-                if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
-                    document.getElementById('btnNoteDeleteExp').disabled = false
-                }
-                else{
-                    document.getElementById('btnNoteDeleteExp').disabled = true
-                }
+            if (isReviewing && document.getElementById('annotatorLabel')){
+                document.getElementById('annotatorLabel').innerHTML = "Annotator: " + clusters[mapID][clusterIndex[mapID]].annotator
+            }
+
+            if (isReviewing && document.getElementById('siteLabel')){
+                document.getElementById('siteLabel').innerHTML = "Site: " + clusters[mapID][clusterIndex[mapID]].site_tag
+            }
+
+            if (isReviewing && document.getElementById('debugCoords')){
+                document.getElementById('debugCoords').innerHTML = "Coordinates: " + clusters[mapID][clusterIndex[mapID]].latitude + ", " + clusters[mapID][clusterIndex[mapID]].longitude
+            }
+
+            if (isReviewing && document.getElementById('imageTimestamp')){
+                timestamp = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].timestamp
+                var date = new Date(timestamp * 1000);
+                var year = date.getUTCFullYear();
+                var month = (date.getUTCMonth() + 1).toString().padStart(2, '0'); // Month is zero-based
+                var day = date.getUTCDate().toString().padStart(2, '0');
+                var hours = date.getUTCHours().toString().padStart(2, '0');
+                var minutes = date.getUTCMinutes().toString().padStart(2, '0');
+                var seconds = date.getUTCSeconds().toString().padStart(2, '0');
+                var formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+                document.getElementById('imageTimestamp').innerHTML = "Timestamp: " + formattedDate
             }
         } 
     }
@@ -1418,9 +1486,11 @@ function switchToTask(task){
                     //nothing
                 } else if (isReviewing) {
                     populateLevels()
-                    populateSpeciesSelector(0)
+                    populateSpeciesSelector()
                     populateTagSelector()
                     populateSiteSelector()
+                    populateAnnotatorSelector()
+                    selectSpecies(0)
                 } else if (isKnockdown) {
                     clusters['map1'] = []
                     clusterIndex['map1'] = 0
@@ -2662,112 +2732,39 @@ function exploreNotes(mapID='map1'){
     noteTextBox.blur()
     noteSearchTextBox.blur()
     isNoteActive = false
-
-    noteTextBox.addEventListener('input', function(){
-        document.getElementById('notif').innerHTML = ""
-        if(clusters[mapID][clusterIndex[mapID]].notes != noteTextBox.value){
-            document.getElementById('btnNoteSubmitExp').disabled = false
-        }
-        else{
-            document.getElementById('btnNoteSubmitExp').disabled = true
-        }
-    
-        if(clusters[mapID][clusterIndex[mapID]].notes != "" && clusters[mapID][clusterIndex[mapID]].notes != null){
-            document.getElementById('btnNoteDeleteExp').disabled = false
-        }
-        else{
-            document.getElementById('btnNoteDeleteExp').disabled = true
-            
-        }
-    })
-    
-    noteTextBox.addEventListener('focus', function(){
-        isNoteActive = true
-    })
-    
-    noteTextBox.addEventListener('blur', function(){
-        isNoteActive = false
-    })
-    
-    noteSearchTextBox.addEventListener('focus', function(){
-        isNoteActive = true
-        isSearchNoteActive = true
-    })
-    
-    noteSearchTextBox.addEventListener('blur', function(){
-        isNoteActive = false
-        isSearchNoteActive = false
-    })
-
 }
 
 function sendNoteExplore(mapID = 'map1') {
     /** Sends the note to the server submitted from the explore page. */
-    note = document.getElementById("noteboxExp").value
-    
-    if (note.length > 512) {
-        document.getElementById('notif').innerHTML = "A note cannot be more than 512 characters."
-    } else {
-        document.getElementById('notif').innerHTML = ""
-        if (note != "") {
-            clusterID=clusters[mapID][clusterIndex[mapID]].id
-            var formData = new FormData()
-            formData.append('cluster_id', JSON.stringify(clusterID))
-            formData.append('note', JSON.stringify((note)))
-            formData.append('type', JSON.stringify('cluster'))
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange =
-            function(){
-                if (this.readyState == 4 && this.status == 278) {
-                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+    var note = document.getElementById("noteboxExp").value
+    var noteIndex = clusterIndex[mapID]
+
+    if (note != clusters[mapID][clusterIndex[mapID]].notes) {
+        clusterID=clusters[mapID][clusterIndex[mapID]].id
+        var formData = new FormData()
+        formData.append('cluster_id', JSON.stringify(clusterID))
+        formData.append('note', JSON.stringify((note)))
+        formData.append('type', JSON.stringify('cluster'))
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            }
+            else if (this.readyState == 4 && this.status == 200)
+            {   
+                reply = JSON.parse(this.responseText);
+                if (reply!='error') {
+                    clusters[mapID][noteIndex].notes = note
                 }
-                else if (this.readyState == 4 && this.status == 200)
-                {
-                    document.getElementById('notif').innerHTML = "Note saved"
-                    clusters[mapID][clusterIndex[mapID]].notes = note
-                    document.getElementById('btnNoteDeleteExp').disabled = false
-                    document.getElementById('btnNoteSubmitExp').disabled = true
+                else{
+                    document.getElementById("noteboxExp").value = clusters[mapID][noteIndex].notes
                 }
             }
-            xhttp.open("POST", '/assignNote', true);
-            xhttp.send(formData);
         }
-        else{
-            document.getElementById('notif').innerHTML = "Note is empty"
-        }
+        xhttp.open("POST", '/assignNote', true);
+        xhttp.send(formData);
     }
-    noteTextBox.blur()
-    isNoteActive = false
-}
-
-
-function delNoteExplore(mapID = 'map1') {
-    /** Sends the deleted note to the server*/  
-    document.getElementById('notif').innerHTML = ""
-    note = ""
-    clusterID=clusters[mapID][clusterIndex[mapID]].id
-    var formData = new FormData()
-    formData.append('cluster_id', JSON.stringify(clusterID))
-    formData.append('note', JSON.stringify((note)))
-    formData.append('type', JSON.stringify('cluster'))
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 278) {
-            window.location.replace(JSON.parse(this.responseText)['redirect'])
-        }
-        else if (this.readyState == 4 && this.status == 200)
-        {
-            document.getElementById('notif').innerHTML = "Note deleted"
-            clusters[mapID][clusterIndex[mapID]].notes = note
-            document.getElementById("noteboxExp").value = note
-            document.getElementById('btnNoteDeleteExp').disabled = true
-            document.getElementById('btnNoteSubmitExp').disabled = true
-        }
-    }
-    xhttp.open("POST", '/assignNote', true);
-    xhttp.send(formData);
-    
     noteTextBox.blur()
     isNoteActive = false
 }
@@ -3224,6 +3221,25 @@ function checkWaitModal(mapID = 'map1') {
                         modalWait2.modal('hide');
                     }
                 }
+            }
+        }
+    }
+}
+
+function updateImageIndex(newIndex, mapID = 'map1') {
+    /** Updates the image index and loads the new image. */
+    if (finishedDisplaying[mapID] == true) {
+        // Make an exception for finish looking at cluster modal
+        allowBypass=false
+        if (modalAlert.is(':visible')) {
+            modalAlert.modal('hide');
+            allowBypass=true
+        }
+
+        if (((modalActive == false) && (modalActive2 == false))||(allowBypass)) {
+            if (imageIndex[mapID]<clusters[mapID][clusterIndex[mapID]].images.length){
+                imageIndex[mapID] = newIndex
+                update(mapID)
             }
         }
     }

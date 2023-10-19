@@ -5528,6 +5528,10 @@ def get_clusters():
     if ((id is None) and (clusters_allocated >= task_size)) or (reply['info'] == []):
         reply['info'].append(Config.FINISHED_CLUSTER)
 
+    if id:
+        access = checkSurveyPermission(current_user.id,task.survey_id,'write')
+        reply['access'] = access
+
     if Config.DEBUGGING: app.logger.info("Entire get cluster completed in {}".format(time.time() - OverallStartTime))
     return json.dumps(reply)
 
@@ -5853,9 +5857,9 @@ def individualNote():
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<trapgroup_id>', methods=['POST'])
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<trapgroup_id>/<annotator_id>', methods=['POST'])
 @login_required
-def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
+def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
     Returns all clusters if species is 0.'''
 
@@ -5867,6 +5871,18 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
             notes = ast.literal_eval(request.form['notes'])
         else:
             notes = None
+
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+
+        if 'endDate' in request.form:
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+
+        if Config.DEBUGGING: app.logger.info('Get Cluster By species for: task_id:{} species:{} tag_id:{} trapgroup_id:{} annotator_id:{} notes:{} startDate:{} endDate:{}'.format(task_id,species,tag_id,trapgroup_id,annotator_id,notes,startDate,endDate))
 
         clusters = db.session.query(Cluster.id) \
                             .filter(Cluster.task_id == int(task_id))\
@@ -5899,6 +5915,15 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
 
         if trapgroup_id != '0':
             clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
+
+        if annotator_id != '0':
+            clusters = clusters.join(User).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
+
+        if startDate:
+            clusters = clusters.filter(Image.corrected_timestamp>=startDate)
+
+        if endDate:
+            clusters = clusters.filter(Image.corrected_timestamp<=endDate)
 
         if notes:
             if (notes==True) or (notes.lower() == 'true'):
@@ -6401,7 +6426,7 @@ def assignNote():
     try:
         note = ast.literal_eval(request.form['note'])
         typeID = ast.literal_eval(request.form['type'])
-        
+        status = 'error'
         if(typeID == "cluster"):
             clusterID = ast.literal_eval(request.form['cluster_id'])
             cluster = db.session.query(Cluster).get(clusterID)
@@ -6411,6 +6436,7 @@ def assignNote():
                     note = note[:512]
                 cluster.notes = note
                 db.session.commit()
+                status = 'success'
         else:
             individualID = ast.literal_eval(request.form['individual_id'])
             individual = db.session.query(Individual).get(individualID)
@@ -6420,6 +6446,7 @@ def assignNote():
                     note = note[:512]
                 individual.notes = note
                 db.session.commit()
+                status = 'success'
 
     except:
         pass
@@ -6427,7 +6454,7 @@ def assignNote():
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         return {'redirect': url_for('done')}, 278
     else:
-        return json.dumps('')
+        return json.dumps(status)
 
 @app.route('/assignLabel/<clusterID>', methods=['POST'])
 @login_required
@@ -7412,8 +7439,7 @@ def populateTagSelector():
 
     response = []
     task = current_user.turkcode[0].task
-
-    if task and (current_user==task.survey.user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         tags = db.session.query(Tag).filter(Tag.task_id == task.id).all()
         response.append((0, 'All'))
         for tag in tags:
@@ -7876,7 +7902,7 @@ def checkNotifications():
     global_notification = None
     notifcation_contents = {}
     status = 'error'
-    if current_user and current_user.is_authenticated:
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
         notifications = db.session.query(Notification)\
                     .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
                     .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
@@ -9480,14 +9506,14 @@ def editGroup():
 
     if Config.DEBUGGING: app.logger.info('Editing group {} {} {} {}'.format(group_id, group_name, group_description, sites_ids))
 
-    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgroup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
     permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
     if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
             group = db.session.query(Sitegroup).get(group_id)
             if group:
-                check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==name).filter(Sitegroup.id!=group_id).first()
-                if name_check:
+                check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==group_name).filter(Sitegroup.id!=group_id).first()
+                if check:
                     status = 'error'
                     message = 'A group with that name already exists.'
                 else:
@@ -10025,7 +10051,7 @@ def populateSiteSelector():
     '''Returns site list for populating the site selector.'''
     response = []
     survey = current_user.turkcode[0].task.survey
-    if survey and (current_user==survey.user):
+    if survey and checkSurveyPermission(current_user.id, survey.id, 'read'):
         sites = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey.id).all()
         response.append((0, 'All'))
         for site in sites:
@@ -10900,7 +10926,7 @@ def getNotifications():
 
     page = request.args.get('page', 1, type=int)
 
-    if current_user and current_user.is_authenticated:
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
         notifications = db.session.query(Notification)\
                     .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
                     .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
@@ -10976,3 +11002,40 @@ def getOrganisationUsers(org_id):
     if current_user and current_user.is_authenticated:
         users = db.session.query(User.id, User.username).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').distinct().all()
     return json.dumps(users)
+
+@app.route('/populateAnnotatorSelector')
+@login_required
+def populateAnnotatorSelector():
+    '''Returns annotator list for populating the annotator selector.'''
+
+    response = []
+    task = current_user.turkcode[0].task
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        users = db.session.query(User).join(Cluster, Cluster.user_id==User.id).filter(Cluster.task_id==task.id).distinct().all()
+        for user in users:
+            if user.username == 'Admin':
+                response.append((user.id, 'AI'))
+            elif user.parent_id != None:
+                parent = user.parent
+                response.append((parent.id, parent.username))
+            else:
+                response.append((user.id, user.username))
+
+        response = list(set(response))
+
+        response.insert(0, (0, 'All'))
+
+    return json.dumps(response)
+
+@app.route('/populateSpeciesSelector')
+@login_required
+def populateSpeciesSelector():
+    '''Returns species list for populating the species selector.'''
+    response = []
+    task = current_user.turkcode[0].task
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        labels = db.session.query(Label.id, Label.description).filter(Label.task_id==task.id).distinct().all()
+        labels.insert(0, (0, 'All'))
+        response = labels
+
+    return json.dumps(response)
