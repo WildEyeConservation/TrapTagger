@@ -201,9 +201,9 @@ async function checkFinishedUpload() {
         if (filesActuallyUploaded==0) {
             // don't bother importing
             // newStatus = 'Ready'
-            newStatus = 'Complete'
+            newStatus = 'Import Queued'
         } else {
-            newStatus = 'Complete'
+            newStatus = 'Import Queued'
         }
 
         var xhttp = new XMLHttpRequest();
