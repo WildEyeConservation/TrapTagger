@@ -21,7 +21,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.0.1
+        image: traptagger:1.1.0
         container_name: parallel_worker
         volumes:
             - ./:/code/
@@ -65,7 +65,7 @@ services:
         build:
             context: ./
             dockerfile: Dockerfile.flask
-        image: traptagger:1.0.1
+        image: traptagger:1.1.0
         container_name: parallel_worker2
         volumes:
             - ./:/code/
