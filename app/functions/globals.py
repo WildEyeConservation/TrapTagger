@@ -3016,7 +3016,7 @@ def updateEarthRanger(task_id):
                     row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
 
                 payload = {
-                    "source": str(row['cluster_id']) + '_' + str(row['species']).lower(),
+                    "source": str(row['cluster_id']),
                     "title": "TrapTagger Event",
                     "recorded_at": row['timestamp'].isoformat(),
                     "location": {
