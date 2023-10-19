@@ -51,6 +51,8 @@ from iptcinfo3 import IPTCInfo
 import piexif
 import io
 import pandas as pd
+import pytz
+import timezonefinder
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -2997,23 +2999,33 @@ def updateEarthRanger(task_id):
             df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
             
             # Send data to EarthRanger
-            er_url = 'https://sensors.api.gundiservice.org/v2/events/
+            tf = timezonefinder.TimezoneFinder()
+            er_url = 'https://sensors.api.gundiservice.org/v2/events/'
 
             for index, row in df.iterrows():
                 if pd.isnull(row['timestamp']):
-                    row['timestamp'] = datetime(1970, 1, 1)
-                
+                    row['timestamp'] = datetime.utcnow()
+
+                if row['trapgroup_lat'] != 0 and row['trapgroup_lon'] != 0:
+                    tz = tf.timezone_at(lng=row['trapgroup_lon'], lat=row['trapgroup_lat'])
+                    if tz:
+                        row['timestamp'] = pytz.timezone(tz).localize(row['timestamp'])
+                    else:
+                        row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
+                else:
+                    row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
+
                 payload = {
-                    "source": str(row['cluster_id']) + '_' + str(row['species']),
+                    "source": str(row['cluster_id']) + '_' + str(row['species']).lower(),
                     "title": "TrapTagger Event",
-                    "recorded_at": row['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "recorded_at": row['timestamp'].isoformat(),
                     "location": {
                         "lat": row['trapgroup_lat'],
                         "lon": row['trapgroup_lon']
                     },
                     "event_details": { 
                         "location": row['trapgroup_tag'],
-                        "species": row['species'],
+                        "species": row['species'].lower(),
                         "tags": row['tag'],
                         "group_size": row['count']
                     }
