@@ -3947,7 +3947,7 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
                                 cluster.labels.append(label_translations[specie])
                             for det in item['detections']:
                                 top, left, bottom, right = convertBBox(det['bbox'])
-                                detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b')
+                                detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b',status='active')
                                 db.session.add(detection)
                                 labelgroup = Labelgroup(task_id=task_id,detection=detection)
                                 db.session.add(labelgroup)
