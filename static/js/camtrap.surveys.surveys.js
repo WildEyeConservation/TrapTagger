@@ -546,7 +546,7 @@ function updatePage(url){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply)
-            if (reply.surveys[0].status.toLowerCase()=='uploading') {
+            if (reply.surveys[0] && reply.surveys[0].status.toLowerCase()=='uploading') {
                 document.getElementById('btnNewSurvey').disabled = true
             } else {
                 document.getElementById('btnNewSurvey').disabled = false

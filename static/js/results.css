@@ -137,13 +137,6 @@ input:checked + .slider:before {
   border-radius: 50%;
 }
 
-datalist {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  writing-mode: horizontal-lr;
-  width: 100%;
-}
 
 tbody:hover td[rowspan],
 tr:hover td {

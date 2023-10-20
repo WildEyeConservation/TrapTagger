@@ -107,3 +107,36 @@ def updateUserAdminStatus(user_id):
         db.session.commit()
 
     return True
+
+def removeAdminNotifications(user_id, organisation_id):
+    '''Removes all admin type notifications for a user in an organisation.'''
+
+    organisation_name = db.session.query(Organisation.name).filter(Organisation.id==organisation_id).first()[0]
+    user_default = db.session.query(UserPermissions.default).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()[0]
+
+    if not user_default or user_default != 'admin':
+        notif_contents = [
+            organisation_name +' has a pending survey share request to ',   # Survey share request  (sender)
+            ' with '+organisation_name+'. Do you',                          # Survey share request  (receiver)
+            ' has been invited to join '+organisation_name+'.']             # Pending worker invite (sender)
+
+        for notif_content in notif_contents:
+            notifications = db.session.query(Notification).filter(Notification.user_id==user_id).filter(Notification.contents.contains(notif_content)).all()
+
+            for notification in notifications:
+                db.session.delete(notification)
+
+        db.session.commit()
+
+    return True
+
+def checkDefaultAdminPermission(user_id, organisation_id):
+    '''Checks if a user has admin permission for an organisation.'''
+
+    user_default = db.session.query(UserPermissions.default).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()[0]
+
+    if user_default and user_default == 'admin':
+        return True
+    else:
+        return False
+    

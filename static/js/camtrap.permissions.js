@@ -205,7 +205,6 @@ function buildUserTable(users) {
             slider.setAttribute("max", "4");
             slider.setAttribute("step", "1");
             slider.setAttribute("id", "defaultAccessSlider-" + users[i].id + '-' + user_permissions[j].organisation_id);
-            slider.setAttribute("list", "accessLevels");
             slider.value = access_slider_values[user_permissions[j].default]
             col1.appendChild(slider);
 
@@ -213,20 +212,15 @@ function buildUserTable(users) {
             row.classList.add('row');
             userTableBodyRowData.appendChild(row)
 
-            colsspace = document.createElement('div')
-            colsspace.classList.add('col-lg-1');
-            colsspace.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
-            row.appendChild(colsspace)
-
             var col0 = document.createElement('div')
-            col0.classList.add('col-lg-2');
+            col0.classList.add('col-lg-3');
             col0.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
             col0.innerText = default_access[0];
             row.appendChild(col0)
 
             var col1 = document.createElement('div')
             col1.classList.add('col-lg-2');
-            col1.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col1.setAttribute('style','vertical-align: middle; text-align: left; padding: 0px;')
             col1.innerText = default_access[1];
             row.appendChild(col1)
 
@@ -238,20 +232,15 @@ function buildUserTable(users) {
 
             var col3 = document.createElement('div')
             col3.classList.add('col-lg-2');
-            col3.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+            col3.setAttribute('style','vertical-align: middle; text-align: right; padding: 0px;')
             col3.innerText = default_access[3];
             row.appendChild(col3)
 
             var col4 = document.createElement('div')
-            col4.classList.add('col-lg-2');
+            col4.classList.add('col-lg-3');
             col4.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
             col4.innerText = default_access[4];
             row.appendChild(col4)
-
-            colsspace = document.createElement('div')
-            colsspace.classList.add('col-lg-1');
-            colsspace.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
-            row.appendChild(colsspace)
 
             slider.addEventListener('change', function (userID, orgID){
                 return function() {
@@ -1157,9 +1146,9 @@ function savePermissions(permission_type, permission_value){
                 if(modalAdminConfirm.hasClass('show')){
                     modalAdminConfirm.modal('hide')
                 }
-
-                getUsers()
             }
+
+            getUsers()
         }
     }
     xhttp.open("POST", '/savePermissions')
@@ -1181,12 +1170,13 @@ function saveSharedSurveyPermissions(permission_value){
             reply = JSON.parse(this.responseText);
             console.log(reply)
             if (reply.status == 'SUCCESS') {
-                document.getElementById('dataSharingErrors').innerHTML = ''
-                getSharedData()
+                document.getElementById('dataSharingErrors').innerHTML = '' 
             }
             else{
                 document.getElementById('dataSharingErrors').innerHTML = reply.message
             }
+
+            getSharedData()
         }
     }
     xhttp.open("POST", '/saveSharedSurveyPermissions')
@@ -1226,7 +1216,7 @@ function openInvite() {
             modalInvite.modal({keyboard: true});
         }
     }
-    xhttp.open("GET", "/getOrganisations");
+    xhttp.open("GET", "/getAdminOrganisations");
     xhttp.send();
 
 }
@@ -1581,15 +1571,16 @@ function removeSharedSurvey(){
             console.log(reply)
             if (reply.status == 'SUCCESS') {
                 confirmationModal.modal('hide');
-                if (sharingType == 'received') {
-                    getReceivedData()
-                }
-                else{
-                    getSharedData()
-                }
             }
             else{
                 document.getElementById('confirmationText').innerText = reply.message
+            }
+
+            if (sharingType == 'received') {
+                getReceivedData()
+            }
+            else{
+                getSharedData()
             }
         }
     }
@@ -1620,6 +1611,11 @@ modalInvite.on('hidden.bs.modal', function () {
     /** Function for when the invite modal is closed. */
     document.getElementById('inviteStatus').innerHTML = ''
     document.getElementById('inviteEmail').value = ''
+    getUsers()
+});
+
+modalAdminConfirm.on('hidden.bs.modal', function () {
+    /** Function for when the admin confirmation modal is closed. */
     getUsers()
 });
 
