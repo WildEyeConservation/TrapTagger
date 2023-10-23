@@ -2243,6 +2243,11 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                             print('type: iptc')
                             info = IPTCInfo(temp_file.name)
                             if Config.DEBUGGING: print('Info extracted')
+                            labelgroups = []
+                            for detection in image.detections:
+                                labelgroup = Labelgroup(task_id==task_id,detection==detection)
+                                db.session.add(labelgroup)
+                                labelgroups.append(labelgroup)
                             for label_name in info['keywords']:
                                 description = label_name.decode()
                                 if Config.DEBUGGING: print('Handling label: {}'.format(description))
@@ -2253,6 +2258,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
+                                for labelgroup in labelgroups:
+                                    labelgroup.labels.append(label)
                                 if Config.DEBUGGING: print('label added')
                         elif label_source=='path':
                             descriptions = [image.camera.path.split('/')[-1],image.camera.path.split('/')[-1]]
