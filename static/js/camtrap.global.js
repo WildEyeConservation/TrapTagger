@@ -115,7 +115,7 @@ function openNotifications() {
             for (let i = 0; i < notifications.length; i++) {
                 let notification = document.createElement('div');
                 notification.id = 'notification-' + notifications[i].id;
-                notification.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); height: auto; padding: 10px; padding-right: 10px; ');
+                notification.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); padding: 10px; padding-right: 10px; height: auto; cursor: pointer;');
                 notificationMenu.appendChild(notification);
 
                 p = document.createElement('p');

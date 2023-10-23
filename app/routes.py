@@ -10677,10 +10677,20 @@ def saveSharedSurveyPermissions():
 
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
         survey_share = db.session.query(SurveyShare).filter(SurveyShare.id==survey_share_id).first()
+        rec_org_id = survey_share.organisation_id
+        admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id.in_([org_id, rec_org_id])).filter(UserPermissions.default=='admin').distinct().all()]
+
         if survey_share:
             survey_share.permission = permission_value
             db.session.commit()
 
+            notif_msg = '<p> The permission for shared survey {} has been set to {}.</p>'.format(survey_share.survey.name, permission_value)
+            for admin in admins:
+                notif = Notification(user_id=admin, contents=notif_msg, seen=False)
+                db.session.add(notif)
+
+            db.session.commit()
+            
             status = 'SUCCESS'
             message = ''
 
