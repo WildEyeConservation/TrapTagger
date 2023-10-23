@@ -78,12 +78,14 @@ class Config(object):
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
     CPU_INSTANCE_TYPES = ['t2.large','t3a.large'] #['t2.medium', 't3a.medium']
+    PIPELINE_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
         'parallel':         {'t2.large': 1000, 't3a.large': 1000},  #estimated
         'default':         {'t2.large': 1000, 't3a.large': 1000},  #estimated
-        'statistics':         {'t2.large': 1000, 't3a.large': 1000}  #estimated
+        'statistics':         {'t2.large': 1000, 't3a.large': 1000},  #estimated
+        'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000}  #estimated
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
@@ -93,6 +95,7 @@ class Config(object):
     MAX_PARALLEL = 25
     MAX_DEFAULT = 8
     MAX_STATS = 4
+    MAX_PIPELINE = 8
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -118,7 +121,8 @@ class Config(object):
         'classification': '300',
         'parallel': '300',
         'default': '300',
-        'statistics': '300'
+        'statistics': '300',
+        'pipeline': '300'
     }
 
     #Aurora DB stuff
@@ -132,14 +136,16 @@ class Config(object):
         'classification': 12,
         'parallel': 48,
         'default': 12,
-        'statistics': 12
+        'statistics': 12,
+        'pipeline': 12
     }
 
     # Celery Worker concurrency
     CONCURRENCY = {
         'parallel': 1,
         'default': 1,
-        'statistics': 1
+        'statistics': 1,
+        'pipeline': 1
     }
 
     # Queue config
@@ -294,6 +300,49 @@ class Config(object):
                 os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
                 os.environ.get('AWS_SECRET_ACCESS_KEY') + "' " + 
                 '-l info'
+        },
+        'pipeline': {
+            'type': 'CPU',
+            'ami': PARALLEL_AMI,
+            'instances': PIPELINE_INSTANCE_TYPES,
+            'max_instances': MAX_PIPELINE,
+            'launch_delay': 120,
+            'rate': 2,
+            'queue_type': 'rate',
+            'repo': os.environ.get('MAIN_GIT_REPO'),
+            'branch': BRANCH,
+            'user_data':
+                'bash /home/ubuntu/TrapTagger/launch.sh ' + 
+                'pipeline_worker_{}' + ' ' + 
+                'pipeline' + " '" + 
+                HOST_IP + "' '" + 
+                SQLALCHEMY_DATABASE_NAME + "' '" + 
+                HOST_IP + "' '" + 
+                DNS + "' '" + 
+                SQLALCHEMY_DATABASE_SERVER + "' '" + 
+                os.environ.get('AWS_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_SECRET_ACCESS_KEY') + "' '" + 
+                AWS_REGION + "' '" + 
+                SECRET_KEY + "' '" + 
+                MAIL_USERNAME + "' '" + 
+                MAIL_PASSWORD + "' '" + 
+                BRANCH + "' '" + 
+                SG_ID + "' '" + 
+                PUBLIC_SUBNET_ID + "' '" + 
+                TOKEN + "' '" + 
+                PARALLEL_AMI + "' '" + 
+                KEY_NAME + "' '" + 
+                SETUP_PERIOD['pipeline'] + "' '" + 
+                'IDLE_MULTIPLIER' + "' '" + 
+                os.environ.get('MAIN_GIT_REPO') + "' '" + 
+                str(CONCURRENCY['pipeline']) + "' '" + 
+                MONITORED_EMAIL_ADDRESS + "' '" + 
+                BUCKET + "' '" + 
+                IAM_ADMIN_GROUP + "' '" + 
+                PRIVATE_SUBNET_ID + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                ' -l info'
         },
         # 'classification': {
         #     'type': 'GPU',
