@@ -1529,7 +1529,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 ordered_ids = {k: v for k, v in sorted(x.items(), key=lambda item: item[1], reverse=True)}
 
             # Add other images up until size limit
-            if (id or isBounding or ('-4' in taggingLevel) or ('-5' in taggingLevel)) or (len(images) < 5):
+            # if (id or isBounding or ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-3' in taggingLevel)) or (len(images) < 5):
+            if True:
                 for image_id in ordered_ids:
                     if image_id not in covered_images:
                         covered_images.append(image_id)
@@ -1562,7 +1563,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         })
                     
                     # dont break if certain annotation types
-                    if not (id or isBounding or ('-4' in taggingLevel) or ('-5' in taggingLevel)) and (len(images) >= 5): break
+                    # if not (id or isBounding or ('-4' in taggingLevel) or ('-5' in taggingLevel) or ('-3' in taggingLevel)) and (len(images) >= 5): break
 
             # Handle classifications
             classification = []
