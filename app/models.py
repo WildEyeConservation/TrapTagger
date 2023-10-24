@@ -244,7 +244,7 @@ class User(db.Model, UserMixin):
     affiliation = db.Column(db.String(64))
     regions = db.Column(db.String(128))
     folder = db.Column(db.String(64), index=True, unique=True)
-    email = db.Column(db.String(64), index=False, unique=True)
+    email = db.Column(db.String(64), index=True, unique=False)
     passwordHash = db.Column(db.String(128), index=False, unique=False)
     passed = db.Column(db.String(64), index=True)
     admin = db.Column(db.Boolean, default=False, index=False)
