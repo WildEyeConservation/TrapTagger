@@ -1,0 +1,59 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+
+{% extends "base.html" %}
+
+{% block app_content %}
+
+<div class="container" style="display: flex; justify-content: center; align-items: center; min-height: 90vh;">
+    <div id="landingDiv">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h1>Welcome to TrapTagger!</h1>
+                <p class="lead">Join an organisation or register your own to get started.</p>
+            </div>
+        </div>
+        <br>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card" style="height: 150px;">
+                    <div class="card-body">
+                        <h4 class="card-title" style="margin-bottom: 2px;">Join an Organisation</h4>
+                        <p class="card-text">
+                            An organisation administrator has to invite you to join their organisation. Your invitation will appear in your notifications. Accept it to gain access to surveys and annotation jobs.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card" style="height: 150px;">
+                    <div class="card-body">
+                        <h4 class="card-title" style="margin-bottom: 2px;">Register a New Organisation</h4>
+                        <p class="card-text">
+                            If you want to register a new organisation, click <a href="{{ url_for('TTRegisterAdmin') + '?logout=true' }}">here</a>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <br>
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <p>Learn how to use TrapTagger with our tutorial videos <a href="https://www.youtube.com/playlist?list=PLz-q4hjV3X_YfKdix0LKovQNyANuZc0-R">here</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1212,7 +1212,7 @@ function openInvite() {
             fillSelect(select, optionTexts, optionValues)
 
             document.getElementById('inviteStatus').innerHTML = ''
-            document.getElementById('inviteEmail').value = ''
+            document.getElementById('inviteUsername').value = ''
             modalInvite.modal({keyboard: true});
         }
     }
@@ -1222,11 +1222,11 @@ function openInvite() {
 }
 
 function sendInvite() {
-    inviteEmail = document.getElementById('inviteEmail').value
+    inviteUsername = document.getElementById('inviteUsername').value
     orgID = document.getElementById('organisationSelect').value
 
     var formData = new FormData()
-    formData.append("inviteEmail", JSON.stringify(inviteEmail))
+    formData.append("inviteUsername", JSON.stringify(inviteUsername))
     formData.append("orgID", JSON.stringify(orgID))
 
     var xhttp = new XMLHttpRequest();
@@ -1610,7 +1610,7 @@ modalShareData.on('hidden.bs.modal', function () {
 modalInvite.on('hidden.bs.modal', function () {
     /** Function for when the invite modal is closed. */
     document.getElementById('inviteStatus').innerHTML = ''
-    document.getElementById('inviteEmail').value = ''
+    document.getElementById('inviteUsername').value = ''
     getUsers()
 });
 

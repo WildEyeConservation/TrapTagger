@@ -42,6 +42,7 @@ import redis
 from datetime import datetime, timedelta
 import numpy as np
 from app.functions.imports import s3traverse
+from app.functions.permissions import surveyPermissionsSQ
 
 def translate(labels, dictionary):
     '''
@@ -2554,9 +2555,9 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
 
         if task_ids:
             if task_ids[0] == '0':
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), user_id, 'read').distinct().all()
             else:
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user_id == user_id).filter(Task.id.in_(task_ids)).all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), user_id, 'read').distinct().all()
 
             task_ids = [r[0] for r in tasks]
             survey_ids = list(set([r[1] for r in tasks]))

@@ -112,9 +112,9 @@ def removeAdminNotifications(user_id, organisation_id):
     '''Removes all admin type notifications for a user in an organisation.'''
 
     organisation_name = db.session.query(Organisation.name).filter(Organisation.id==organisation_id).first()[0]
-    user_default = db.session.query(UserPermissions.default).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()[0]
+    user_default = db.session.query(UserPermissions.default).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
 
-    if not user_default or user_default != 'admin':
+    if not user_default or user_default[0] != 'admin':
         notif_contents = [
             organisation_name +' has a pending survey share request to ',   # Survey share request  (sender)
             ' with '+organisation_name+'. Do you',                          # Survey share request  (receiver)

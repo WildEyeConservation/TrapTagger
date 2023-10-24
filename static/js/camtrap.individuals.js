@@ -258,6 +258,33 @@ function getIndividualInfo(individualID){
                     } else {                    
                         box.checked = false
                     }
+
+                    if (info.access == 'write'){
+                        box.onclick = function(){
+                            return true
+                        }
+                    }
+                    else{
+                        box.onclick = function(){
+                            return false
+                        }
+                    }
+                }
+
+                if (info.access == 'write'){
+                    document.getElementById('newIndividualName').readOnly = false
+                    document.getElementById('idNotes').readOnly = false
+                    document.getElementById('btnDelIndiv').disabled = false
+                    document.getElementById('btnRemoveImg').disabled = false
+                    document.getElementById('btnSubmitInfoChange').disabled = false
+                }
+                else{
+                    document.getElementById('newIndividualName').readOnly = true
+                    document.getElementById('newIndividualName').style.backgroundColor = 'white'
+                    document.getElementById('idNotes').readOnly = true
+                    document.getElementById('btnDelIndiv').disabled = true
+                    document.getElementById('btnRemoveImg').disabled = true
+                    document.getElementById('btnSubmitInfoChange').disabled = true
                 }
 
             }

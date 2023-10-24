@@ -66,7 +66,9 @@ limitations under the License. -->
                     {% elif current_user.username != 'Dashboard' %}
                         <button type="button" class="btn btn-link btn-sm" align="right" value="help" onclick="helpOpen('{{ helpFile }}')"> Help </button>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
-                        <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
+                        {% if current_user.admin == true %}
+                            <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
+                        {% endif %}
                         <li class="nav-item">
                             <div class="dropdown">
                                 <a class="btn btn-link" id="notificationsButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" onclick="openNotifications()" style="padding: 5.5px 8px;">

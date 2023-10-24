@@ -529,7 +529,7 @@ def editIndividualName():
     name = ast.literal_eval(request.form['name'])
     individual = db.session.query(Individual).get(individual_id)
     if name != '':
-        if (individual and (current_user == individual.tasks[0].survey.user)):
+        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
             check = db.session.query(Individual)\
                             .join(Task,Individual.tasks)\
                             .filter(Individual.species==individual.species)\
@@ -543,7 +543,7 @@ def editIndividualName():
                 db.session.commit()
                 return json.dumps({'status': 'success'}) 
         else:
-            error = 'Individual does not exist.'
+            error = 'Could not edit individual name.'
     else:
         error = "Name cannot be empty."
 
@@ -558,7 +558,7 @@ def getIndividuals(task_id,species):
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
 
-    if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         page = request.args.get('page', 1, type=int)
         
         if species.lower()=='all':
@@ -598,7 +598,7 @@ def deleteIndividual(individual_id):
     task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
     if not task: task = individual.tasks[0]
 
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         task_ids = [r.id for r in individual.tasks]
 
         for detection in individual.detections:
@@ -662,7 +662,8 @@ def getIndividual(individual_id):
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
-    if individual and (individual.tasks[0].survey.user==current_user):
+    # if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
         images = db.session.query(Image)\
                     .join(Detection)\
                     .join(Camera)\
@@ -753,7 +754,7 @@ def getCameraStamps():
 
     survey = db.session.query(Survey).get(survey_id)
 
-    if survey and (survey.user==current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
 
         data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
                             .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
@@ -803,7 +804,7 @@ def getTags(individual_id):
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and ((current_user == individual.tasks[0].survey.user)):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
         tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).distinct().all()
 
         for tag in tags:
@@ -820,7 +821,8 @@ def submitTagsIndividual(individual_id):
     individual = db.session.query(Individual).get(individual_id)
     tags = ast.literal_eval(request.form['tags'])
     if Config.DEBUGGING: app.logger.info('Submit Individual tags: {}'.format(tags))
-    if individual and((current_user == individual.tasks[0].survey.user)):
+
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         if tags:
             individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
         else:
@@ -1146,9 +1148,9 @@ def checkSightingEditStatus():
 
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
 
         task_ids = [r[0] for r in tasks]
     
@@ -1752,7 +1754,7 @@ def getAdvancedOptions(survey_id):
     '''Returns the advanced options settings for the specified survey.'''
     reply = 'error'
     survey = db.session.query(Survey).get(int(survey_id))
-    if survey and survey.user==current_user:
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         reply = {'smallDetections': str(survey.ignore_small_detections),'skyMask': str(survey.sky_masked)}
     return json.dumps(reply)
 
@@ -1871,7 +1873,7 @@ def editSurvey():
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
-
+    # TODO: DOUBLE CHECK THIS FUNCTION
     if current_user.is_authenticated:
         if current_user.username=='Dashboard':
             return redirect(url_for('dashboard'))
@@ -1910,7 +1912,7 @@ def TTWorkerSignup():
 @app.route('/newWorkerAccount/<token>')
 def newWorkerAccount(token):
     '''Handles the worker-account registration token.'''
-
+    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -1931,9 +1933,14 @@ def newWorkerAccount(token):
                 turkcode = Turkcode(code=username, active=False, tagging_time=0)
                 db.session.add(turkcode)
                 turkcode.user = user
+                notifications = db.session.query(Notification)\
+                        .filter(Notification.user_id==None)\
+                        .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
+                        .distinct().all()
+                user.seen_notifications = notifications
                 db.session.commit()
                 login_user(user, remember=False)
-                return redirect(url_for('jobs', _external=True))
+                return redirect(url_for('landing', _external=True))
     return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/grantQualification/<token>')
@@ -2015,9 +2022,9 @@ def getPolarData():
     reply = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -2184,7 +2191,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -2265,9 +2272,9 @@ def getBarData():
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -2450,7 +2457,7 @@ def getBarDataIndividual():
     data = []
     labels = []
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -2761,7 +2768,7 @@ def dotask(username):
 @app.route('/createAccount/<token>')
 def createAccount(token):
     '''Creates a new account based on the recieved token.'''
-    
+    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -2769,24 +2776,37 @@ def createAccount(token):
 
     if ('organisation' in info.keys()) and (info['organisation'].lower() not in Config.DISALLOWED_USERNAMES):
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
-        check = db.session.query(User).filter(or_(
-            func.lower(User.username)==info['organisation'].lower(),
-            User.folder==folder,
-            User.email==info['email']
+
+        check = db.session.query(Organisation).filter(or_(
+            func.lower(Organisation.name)==info['organisation'].lower(),
+            Organisation.folder==folder
         )).first()
         
-        if (check == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder, previous_image_count=0, image_count=0)
+        check2 = db.session.query(User).filter(func.lower(User.username)==info['organisation']).first()
+
+        if (check == None) and (check2 == None) and (len(folder) <= 64):
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending')
             newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
+            newOrganisation = Organisation(name=info['organisation'], folder=folder, previous_image_count=0, image_count=0)
+            newUserPermission = UserPermissions(default='admin', annotation=True, create=True, delete=True) 
             newTurkcode.user = newUser
+            newOrganisation.root = newUser
+            newUserPermission.user = newUser
+            newUserPermission.organisation = newOrganisation
             newPassword = randomString()
             newUser.set_password(newPassword)
-            # notifications = db.session.query(Notification)\
-            #                         .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
-            #                         .distinct().all()
+
+            notifications = db.session.query(Notification)\
+                                    .filter(Notification.user_id==None)\
+                                    .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
+                                    .distinct().all()
+
+            newUser.seen_notifications = notifications
+
             db.session.add(newUser)
             db.session.add(newTurkcode)
-            # newUser.notifications = notifications
+            db.session.add(newOrganisation)
+            db.session.add(newUserPermission)
             db.session.commit()
 
             #Create all the necessary AWS stuff
@@ -2910,6 +2930,8 @@ def tutorial():
             return redirect(url_for('index'))
     elif current_user.admin and (current_user.username=='Dashboard'):
         return redirect(url_for('dashboard'))
+    elif not current_user.permissions:
+        return redirect(url_for('landing'))
     else:
         return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET, version=Config.VERSION)
 
@@ -2930,6 +2952,7 @@ def individuals():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/individuals.html', title='Individuals', helpFile='individuals_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/index')
@@ -2942,9 +2965,15 @@ def index():
         if current_user.username=='Dashboard':
             return redirect(url_for('dashboard'))
         else:
-            return redirect(url_for('surveys'))
+            if current_user.permissions:
+                return redirect(url_for('surveys'))
+            else:
+                return redirect(url_for('landing'))
     elif current_user.parent_id == None:
-        return redirect(url_for('jobs'))
+        if current_user.permissions:
+            return redirect(url_for('jobs'))
+        else:
+            return redirect(url_for('landing'))
     elif current_user.turkcode[0].task.is_bounding:
         return redirect(url_for('sightings'))
     elif '-4' in current_user.turkcode[0].task.tagging_level:
@@ -2973,12 +3002,14 @@ def jobs():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
 @app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
 def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
-    
+    # TODO: DOUBLE CHECK THIS FUNCTION
+    logout = request.args.get('logout', None)
     if current_user.is_authenticated:
         if current_user.admin:
             if current_user.username=='Dashboard':
@@ -2987,7 +3018,11 @@ def TTRegisterAdmin():
                 return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
-                return redirect(url_for('jobs'))
+                if logout:
+                    logout_user()
+                    return redirect(url_for('TTRegisterAdmin'))
+                else:
+                    return redirect(url_for('jobs'))
             else:
                 if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
@@ -3003,24 +3038,26 @@ def TTRegisterAdmin():
             if enquiryForm.info.data == '':
                 folder = enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
 
-                check = db.session.query(User).filter(or_(
-                    func.lower(User.username)==enquiryForm.organisation.data.lower(),
-                    User.folder==folder
+                check = db.session.query(Organisation).filter(or_(
+                    func.lower(Organisation.name)==enquiryForm.organisation.data.lower(),
+                    Organisation.folder==folder
                 )).first()
+
+                check2 = db.session.query(User).filter(func.lower(User.username)==enquiryForm.organisation.data.lower()).first()
 
                 disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
                 disallowed = any(r in disallowed_chars for r in enquiryForm.organisation.data)
 
-                if (check == None) and (len(folder) <= 64) and not disallowed:
+                if (check == None) and (check2 == None) and (len(folder) <= 64) and not disallowed:
                     send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
                     flash('Enquiry submitted.')
                     return redirect(url_for('TTRegisterAdmin'))
                 elif disallowed:
                     flash('Your organisation name cannot contain special characters.')
-                elif len(folder) <= 64:
+                elif len(folder) > 64:
                     flash('Your organisation name is too long.')
                 else:
-                    flash('Invalid organsiation name. Please try again.')
+                    flash('Invalid organisation name. Please try again.')
             else:
                 flash('Enquiry (not) submitted.')
                 return redirect(url_for('TTRegisterAdmin'))
@@ -3094,6 +3131,7 @@ def surveys():
                     return redirect(url_for('index'))
 
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
 
         newSurveyForm = NewSurveyForm()
 
@@ -3209,6 +3247,7 @@ def workers():
                     return redirect(url_for('index'))
 
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
 
         return render_template('html/workers.html', title='Annotation Statistics', helpFile='workers', version=Config.VERSION)
 
@@ -3243,7 +3282,7 @@ def getWorkerStats():
         survey = db.session.query(Survey).get(survey_id)
         tasks = db.session.query(Task).filter(Task.survey==survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all()
     
-    if survey.user == current_user:
+    if checkSurveyPermission(current_user.id,survey.id,'read'):
 
         for task in tasks:
             if worker_id:
@@ -3863,24 +3902,24 @@ def inviteWorker():
     '''Invites a user to work for the current user.'''
 
     status = 'Error'
-    message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worker account.'
+    message = 'Could not find user with that username. Please check the username, or ask them to sign up for a user account.'
 
     try:
-        inviteEmail = ast.literal_eval(request.form['inviteEmail'])
+        inviteUsername = ast.literal_eval(request.form['inviteUsername'])
         orgID = ast.literal_eval(request.form['orgID'])
 
-        if inviteEmail:
+        if inviteUsername:
             organisation = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==orgID).filter(UserPermissions.default=='admin').first()
             if organisation:
-                worker = db.session.query(User).filter(User.email==inviteEmail).first()
+                worker = db.session.query(User).filter(User.username==inviteUsername).first()
                 if worker:
                     check = db.session.query(UserPermissions).filter(UserPermissions.user_id==worker.id).filter(UserPermissions.organisation_id==organisation.id).first()
                     if check:
-                        message = 'That worker already works for you.'
+                        message = 'That user is already a member of your organisation.'
                     else:
                         check_notif = db.session.query(Notification).filter(Notification.user_id==worker.id).filter(Notification.contents.contains(organisation.name+' has invited you to join their organisation.')).first()
                         if check_notif:
-                            message = 'That worker has already been invited to join your organisation.'
+                            message = 'That user has already been invited to join your organisation.'
                         else:
                             token = jwt.encode(
                             {'organisation_id': organisation.id, 'worker_id': worker.id, 'user_id': current_user.id},
@@ -3967,8 +4006,8 @@ def acceptInvitation(token,action):
             updateUserAdminStatus(worker_id)
         
     except:
-        return redirect(url_for('index'))
-
+        pass
+    
     return redirect(url_for('index'))
 
 @app.route('/cancelInvitation/<token>')
@@ -4009,9 +4048,9 @@ def cancelInvitation(token):
                 removeAdminNotifications(current_user.id, organisation_id)
 
     except:
-        return redirect(url_for('index'))
+        pass
         
-    return redirect(url_for('index'))
+    return redirect(url_for('permissions'))
 
 # @app.route('/reClassify/<survey>')
 # @login_required
@@ -4278,6 +4317,7 @@ def explore():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             task_id = request.args.get('task', None)
             if task_id:
                 task = db.session.query(Task).get(task_id)
@@ -4309,6 +4349,7 @@ def exploreKnockdowns():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
             if task and (task.survey.user==current_user):
@@ -4378,7 +4419,10 @@ def login_page():
             if user.admin:
                 next_page = url_for('surveys', _external=True)
             elif user.parent_id == None:
-                next_page = url_for('jobs', _external=True)
+                if user.permissions:
+                    next_page = url_for('jobs', _external=True)
+                else:
+                    next_page = url_for('landing', _external=True)
         return redirect(next_page)
 
     return render_template('html/login.html', title='Sign In', form=form, helpFile='login', version=Config.VERSION)
@@ -5228,7 +5272,12 @@ def getIndividualInfo(individual_id):
         else:
             lastSeen = None
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen]})
+        if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+            access = 'write'
+        else:
+            access = 'read'
+
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen], 'access': access})
     else:
         return json.dumps('error')
 
@@ -5955,9 +6004,9 @@ def getTrapgroups():
     task_ids = ast.literal_eval(request.form['task_ids'])
     if task_ids:
         if task_ids[0] == '0':
-            surveys = db.session.query(Survey.id).filter(Survey.user==current_user).all()
+            surveys = surveyPermissionsSQ(db.session.query(Survey.id), current_user.id, 'read').distinct().all()
         else:
-            surveys = db.session.query(Survey.id).filter(Survey.user==current_user).filter(Survey.tasks.any(Task.id.in_(task_ids))).all()
+            surveys = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.tasks.any(Task.id.in_(task_ids))), current_user.id, 'read').distinct().all()
         survey_ids = [r[0] for r in surveys]
     
         names = ['None','All']
@@ -5975,7 +6024,7 @@ def getTrapgroupCoords(survey_id):
     
     reply = []
     survey = db.session.query(Survey).get(int(survey_id))
-    if (survey and survey.user==current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
         for trapgroup in db.session.query(Trapgroup).filter(Trapgroup.survey==survey).order_by(Trapgroup.tag).distinct().all():
             data = {}
             data['tag'] = trapgroup.tag
@@ -5992,7 +6041,7 @@ def getSurveyClassifications(survey_id):
     '''Returns a list of all classifications in the specified survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
-    if survey and (survey.user == current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
         classList = db.session.query(Detection.classification)\
                             .join(Image)\
                             .join(Camera)\
@@ -6029,9 +6078,9 @@ def getCoords():
     if current_user and current_user.is_authenticated:
         if task_ids:
             if task_ids[0] == '0':
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
             else:
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
             task_ids = [r[0] for r in tasks]
             survey_ids = list(set([r[1] for r in tasks]))
 
@@ -6149,9 +6198,9 @@ def getTrapgroupCounts():
     maxVal = 0
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [t[0] for t in tasks]
         survey_ids = list(set([t[1] for t in tasks]))
 
@@ -6329,7 +6378,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(individual_id)
-    if individual and (current_user == individual.tasks[0].survey.user):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection)
         elif int(baseUnit) == 2:
@@ -6755,7 +6804,7 @@ def getSurveys():
     '''Returns a list of survey names and IDs owned by the current user.'''
     requiredPermission = request.args.get('requiredPermission',None)
     if requiredPermission==None: requiredPermission = 'read'
-    return json.dumps(surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).all())
+    return json.dumps(surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all())
 
 @app.route('/getWorkerSurveys')
 @login_required
@@ -6955,6 +7004,7 @@ def comparison():
                     return redirect(url_for('index'))
         else:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
 
             confusions = GLOBALS.redisClient.get('confusions_'+str(current_user.id))
 
@@ -8626,16 +8676,15 @@ def getIndividualIDSurveysTasks():
 
     species = request.form['species']
 
-    surveys = db.session.query(Survey)\
+    surveys = surveyPermissionsSQ(db.session.query(Survey)\
                         .join(Task)\
                         .join(Label)\
                         .filter(Label.description==species)\
                         .filter(Label.icID_count==0)\
                         .filter(Label.icID_allowed==True)\
-                        .filter(Survey.user==current_user)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
-                        .distinct().all()
+                        ,current_user.id, 'write').distinct().all()
 
     reply = {}
     for survey in surveys:
@@ -8646,6 +8695,9 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.survey==survey)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                        .filter(Task.name != 'default')\
+                        .filter(~Task.name.contains('_o_l_d_'))\
+                        .filter(~Task.name.contains('_copying'))\
                         .distinct().all()
 
         reply[survey.name] = []
@@ -8664,7 +8716,7 @@ def writeInfoToImages(type_id,id):
 
     if type_id == 'task':
         task = db.session.query(Task).get(id)
-        if task and (task.survey.user==current_user):
+        if task and checkSurveyPermission(task.survey.id,current_user.id,'admin'):
             if species != '0':
                 individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id==id).filter(Individual.species == species).all()
             else:
@@ -8752,7 +8804,7 @@ def writeInfoToImages(type_id,id):
         return json.dumps('success')
     elif type_id == 'individual':
         individual = db.session.query(Individual).get(id)
-        if individual and (individual.tasks[0].survey.user==current_user):
+        if individual and checkSurveyPermission(individual.tasks[0].survey.id,current_user.id,'admin'):
             images = db.session.query(Image)\
                     .join(Detection)\
                     .filter(Detection.individuals.contains(individual))\
@@ -8848,7 +8900,7 @@ def getIndividualAssociations(individual_id, order):
 
     reply = []
 
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
 
         clusterSQ = db.session.query(Cluster)\
             .join(Task)\
@@ -8945,6 +8997,7 @@ def results():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/results.html', title='Analysis', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 
@@ -9039,9 +9092,9 @@ def getLineData():
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -9275,7 +9328,7 @@ def getLineDataIndividual():
     data = []
     data_labels = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
         if baseUnit == '1':
             baseQuery = db.session.query(
                                 Image.id,
@@ -10136,6 +10189,7 @@ def settings():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)
         else:
             if current_user.parent_id == None:
@@ -10169,6 +10223,7 @@ def saveIntegrations():
     status = 'FAILURE'
     message = 'Unable to save integrations.'
     if current_user and current_user.is_authenticated:
+        admin_orgs = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()]
         # EarthRanger
         earth_ranger_integrations = integrations['earthranger']
 
@@ -10178,23 +10233,40 @@ def saveIntegrations():
         er_edited = earth_ranger_integrations['edited']
         er_new = earth_ranger_integrations['new']
 
+        status = 'SUCCESS'
+        message = 'Integrations saved successfully.'
+
         for er in er_deleted:
-            db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
+            if int(er['org_id']) in admin_orgs:
+                db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
+            else:
+                status = 'FAILURE'
+                message = 'Unable to save integrations.'
 
         for er in er_edited:
-            er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
-            er_integration.label = er['species']
-            er_integration.api_key = er['api_key']
+            if int(er['org_id']) in admin_orgs:
+                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
+                if er_integration.organisation_id in admin_orgs:
+                    er_integration.label = er['species']
+                    er_integration.api_key = er['api_key']
+                    er_integration.organisation_id = er['org_id']
+                else:
+                    status = 'FAILURE'
+                    message = 'Unable to save integrations.'
+            else:
+                status = 'FAILURE'
+                message = 'Unable to save integrations.'
 
         for er in er_new:
-            er_integration = EarthRanger(user_id=current_user.id, api_key=er['api_key'], label=er['species'])
-            db.session.add(er_integration)
+            if int(er['org_id']) in admin_orgs:
+                er_integration = EarthRanger(organisation_id=er['org_id'], api_key=er['api_key'], label=er['species'])
+                db.session.add(er_integration)
+            else:
+                status = 'FAILURE'
+                message = 'Unable to save integrations.'
 
         db.session.commit()
 
-        status = 'SUCCESS'
-        message = 'Integrations saved successfully.'
-        
     return json.dumps({'status': status, 'message': message})
 
 @app.route('/getIntegrations')
@@ -10204,25 +10276,26 @@ def getIntegrations():
 
     integrations = []
     if current_user and current_user.is_authenticated:
-        earth_ranger_integrations = db.session.query(EarthRanger).filter(EarthRanger.user_id==current_user.id).all()
-
+        earth_ranger_integrations = db.session.query(EarthRanger).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
         er = {}
         for earth_ranger_integration in earth_ranger_integrations:
             api_key = earth_ranger_integration.api_key
             label = earth_ranger_integration.label
             id = earth_ranger_integration.id
+            organisation = earth_ranger_integration.organisation_id
             if api_key in er:
                 er[api_key]['species'].append(label)
                 er[api_key]['ids'].append(id)
             else:
-                er[api_key] = {'species': [label], 'ids': [id]}
+                er[api_key] = {'species': [label], 'ids': [id], 'organisation': organisation}
 
         for key, value in er.items():
             integrations.append({
                 'integration': 'earthranger',
                 'api_key': key,
                 'species': value['species'],
-                'ids': value['ids']
+                'ids': value['ids'],
+                'organisation': value['organisation']
             })
 
     return json.dumps({'integrations': integrations})
@@ -10235,6 +10308,7 @@ def permissions():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             return render_template('html/permissions.html', title='Permissions', helpFile='permissions', bucket=Config.BUCKET, version=Config.VERSION)
         else:
             if current_user.parent_id == None:
@@ -10817,7 +10891,7 @@ def acceptSurveyShare(token, action):
     except:
         pass
 
-    return redirect(url_for('index'))
+    return redirect(url_for('surveys'))
 
 @app.route('/cancelSurveyShare/<token>')
 def cancelSurveyShare(token):
@@ -10856,7 +10930,7 @@ def cancelSurveyShare(token):
     except:
         pass
 
-    return redirect(url_for('index'))
+    return redirect(url_for('permissions'))
 
 @app.route('/getOrganisations')
 @login_required
@@ -10904,6 +10978,10 @@ def removeUserFromOrganisation():
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
         user_permission = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.user_id==user_id).first()
         db.session.delete(user_permission)
+
+        user_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(Survey.organisation_id==org_id).filter(SurveyPermissionException.user_id==user_id).all()
+        for user_exception in user_exceptions:
+            db.session.delete(user_exception)
 
         org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
         org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default=='admin').all()]
@@ -11081,3 +11159,22 @@ def populateSpeciesSelector():
         response = labels
 
     return json.dumps(response)
+
+@app.route('/landing')
+def landing():
+    '''Renders the landing page.'''
+
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    elif current_user.parent_id != None:
+        if current_user.turkcode[0].task.is_bounding:
+            return redirect(url_for('sightings'))
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
+            return redirect(url_for('clusterID'))
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
+            return redirect(url_for('individualID'))
+        else:
+            return redirect(url_for('index'))
+    else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        return render_template('html/landing.html', title='Welcome To TrapTagger!', helpFile='landing', version=Config.VERSION)

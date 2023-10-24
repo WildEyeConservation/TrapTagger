@@ -13,6 +13,7 @@
 // limitations under the License.
 
 var globalLabels = []
+var globalOrganisations = []
 var globalERIntegrations = []
 
 
@@ -29,6 +30,20 @@ function getLabels(){
         }
     }
     xhttp.open("GET", '/getAllLabels');
+    xhttp.send();
+}
+
+function getOrganisations(){
+    /** Function for getting the organisations from the database. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            globalOrganisations = reply.organisations
+        }
+    }
+    xhttp.open("GET", '/getAdminOrganisations');
     xhttp.send();
 }
 
@@ -102,6 +117,40 @@ function buildIntegrationSelect(){
     var earthRangerDiv = document.createElement('div')
     earthRangerDiv.setAttribute('id','earthRangerDiv-'+String(IDNum))
     col1.appendChild(earthRangerDiv)
+
+    earthRangerDiv.appendChild(document.createElement('br'))
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Organisation'
+    h5.setAttribute('style','margin-bottom: 2px;')
+    earthRangerDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
+    h5.innerHTML = '<i>Select the organisation for which to set up the integration.</i>'
+    earthRangerDiv.appendChild(h5)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    earthRangerDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-10')
+    row.appendChild(col1)
+
+    var earthRangerOrganisation = document.createElement('select')
+    earthRangerOrganisation.setAttribute('class','form-control')
+    earthRangerOrganisation.setAttribute('id','earthRangerOrganisation-'+String(IDNum))
+    earthRangerOrganisation.setAttribute('placeholder','Select Organisation')
+    col1.appendChild(earthRangerOrganisation)
+
+    var optionTexts = []
+    var optionValues = []
+    for (let i=0;i<globalOrganisations.length;i++) {
+        optionTexts.push(globalOrganisations[i].name)
+        optionValues.push(globalOrganisations[i].id)
+    }
+    fillSelect(earthRangerOrganisation, optionTexts, optionValues)
 
     earthRangerDiv.appendChild(document.createElement('br'))
 
@@ -260,6 +309,7 @@ function getEarthRangerIntegrations(){
         if (integration == 'earthranger'){
             var integrationID = integrationSelects[i].id.split('-')[1]
             var api_key = document.getElementById('earthRangerApiKey-'+String(integrationID)).value
+            var org_id = document.getElementById('earthRangerOrganisation-'+String(integrationID)).value
             var earthRangerSpeciesDiv = document.getElementById('earthRangerSpeciesDiv-'+String(integrationID))
             var speciesSelects = earthRangerSpeciesDiv.getElementsByTagName('select')
             var species = []
@@ -269,11 +319,11 @@ function getEarthRangerIntegrations(){
                     species.push(label)
                     if (speciesSelects[j].classList[1] && speciesSelects[j].classList[1].includes('id-')){
                         id = speciesSelects[j].classList[1].split('-')[1]
-                        editedERIntegrations.push({'id': id, 'species': label, 'api_key': api_key})
+                        editedERIntegrations.push({'id': id, 'species': label, 'api_key': api_key, 'org_id': org_id})
                     }
                     else{
                         id = -1
-                        newERIntegrations.push({'id': id, 'species': label, 'api_key': api_key})
+                        newERIntegrations.push({'id': id, 'species': label, 'api_key': api_key, 'org_id': org_id})
                     }
                 }
             }
@@ -285,7 +335,7 @@ function getEarthRangerIntegrations(){
         for (var j = 0; j < editedERIntegrations.length; j++){
             if (globalERIntegrations[i].id == editedERIntegrations[j].id){
                 found = true
-                if (globalERIntegrations[i].species == editedERIntegrations[j].species && globalERIntegrations[i].api_key == editedERIntegrations[j].api_key){
+                if (globalERIntegrations[i].species == editedERIntegrations[j].species && globalERIntegrations[i].api_key == editedERIntegrations[j].api_key  && globalERIntegrations[i].org_id == editedERIntegrations[j].org_id){
                     editedERIntegrations.splice(j,1)
                 }
             }
@@ -302,7 +352,7 @@ function getEarthRangerIntegrations(){
 function validateIntegrationSettings(){
     /** Function for validating the integration settings. */
     var valid = true
-    var api_keys = []
+    var api_keys_org_ids = []
 
     var integrationSelects = document.querySelectorAll('[id^="integrationSelect-"]')
     for (var i = 0; i < integrationSelects.length; i++){
@@ -312,26 +362,30 @@ function validateIntegrationSettings(){
             var errorMessages = ''
             var integrationID = integrationSelects[i].id.split('-')[1]
             var api_key = document.getElementById('earthRangerApiKey-'+String(integrationID)).value
+            var org_id = document.getElementById('earthRangerOrganisation-'+String(integrationID)).value
 
             if (api_key == ''){
                 valid = false
                 errorMessages += 'EarthRanger API Key is required. '
             }
-            else{
-                if (api_keys.indexOf(api_key) == -1){
-                    api_keys.push(api_key)
+            else if (org_id == '-1' || org_id == ''){
+                valid = false
+                errorMessages += 'Organisation is required. '
+            }
+            else {
+                api_org = api_key + '-' + org_id
+                if (api_keys_org_ids.indexOf(api_org) == -1){
+                    api_keys_org_ids.push(api_org)
                 }
                 else{
                     valid = false
-                    errorMessages += 'EarthRanger API Key must be unique. '
+                    errorMessages += 'EarthRanger API Key and Organisation must be unique for each integration. '
                 }
             }
-
 
             var earthRangerSpeciesDiv = document.getElementById('earthRangerSpeciesDiv-'+String(integrationID))
             var speciesSelects = earthRangerSpeciesDiv.getElementsByTagName('select')
             var species = []
-
 
             for (var j = 0; j < speciesSelects.length; j++){
                 label = speciesSelects[j].value
@@ -343,7 +397,6 @@ function validateIntegrationSettings(){
                 }
             }
 
-
             if (species.length == 0){
                 valid = false
                 errorMessages += 'At least one species must be selected. '
@@ -354,7 +407,7 @@ function validateIntegrationSettings(){
                 errorMessages += 'Species must be unique for each integration. '
             }
 
-            document.getElementById('earthRangerErrors-'+String(i)).innerHTML = errorMessages
+            document.getElementById('earthRangerErrors-'+String(integrationID)).innerHTML = errorMessages
         }
    
     }
@@ -362,9 +415,11 @@ function validateIntegrationSettings(){
     return valid
 }
 
-function loadEarthRangerIntegration(IDNum, api_key, species, ids){
+function loadEarthRangerIntegration(IDNum, api_key, species, ids, organisation){
     /** Function for loading the EarthRanger Integration options from the database. */
     document.getElementById('earthRangerApiKey-'+String(IDNum)).value = api_key
+    document.getElementById('earthRangerOrganisation-'+String(IDNum)).value = organisation
+
     earthRangerSpeciesDiv = document.getElementById('earthRangerSpeciesDiv-'+String(IDNum))
     while (earthRangerSpeciesDiv.firstChild) {
         earthRangerSpeciesDiv.removeChild(earthRangerSpeciesDiv.firstChild);
@@ -375,7 +430,7 @@ function loadEarthRangerIntegration(IDNum, api_key, species, ids){
         var speciesSelect = document.getElementById('speciesSelectorER_'+String(IDNum)+'-'+i.toString())
         speciesSelect.value = species[i]
         speciesSelect.classList.add('id-'+ids[i])
-        globalERIntegrations.push({'id': ids[i], 'species': species[i], 'api_key': api_key})
+        globalERIntegrations.push({'id': ids[i], 'species': species[i], 'api_key': api_key, 'org_id': organisation})
     }
 }
 
@@ -392,6 +447,7 @@ function loadIntegrations(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
+            console.log(reply)
             var integrations = reply.integrations
             for (let i = 0; i < integrations.length; i++){
                 buildIntegrationSelect()
@@ -399,7 +455,7 @@ function loadIntegrations(){
                 integrationSelect.value = integrations[i].integration
                 integrationSelect.dispatchEvent(new Event('change'));
                 if (integrations[i].integration == 'earthranger'){
-                    loadEarthRangerIntegration(i, integrations[i].api_key, integrations[i].species, integrations[i].ids)
+                    loadEarthRangerIntegration(i, integrations[i].api_key, integrations[i].species, integrations[i].ids, integrations[i].organisation)
                 }
             }
         }
@@ -412,6 +468,7 @@ function loadIntegrations(){
 function onload(){
     /**Function for initialising the page on load.*/
     getLabels();
+    getOrganisations();
 }
 
 window.addEventListener('load', onload, false);
