@@ -2245,7 +2245,7 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                             if Config.DEBUGGING: print('Info extracted')
                             labelgroups = []
                             for detection in image.detections:
-                                labelgroup = Labelgroup(task_id==task_id,detection==detection)
+                                labelgroup = Labelgroup(task_id=task_id,detection=detection)
                                 db.session.add(labelgroup)
                                 labelgroups.append(labelgroup)
                             for label_name in info['keywords']:
