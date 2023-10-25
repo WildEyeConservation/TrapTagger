@@ -1683,6 +1683,10 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
             detection.status = status
         db.session.commit()
 
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
         if ignore_small_detections=='true':
@@ -1739,6 +1743,10 @@ def maskSky(self,survey_id,sky_masked,edge):
         for detection in detections:
             detection.status = status
         db.session.commit()
+
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
