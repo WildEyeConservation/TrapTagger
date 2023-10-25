@@ -254,7 +254,8 @@ def launchTask():
         return json.dumps({'message': message, 'status': 'Error'})
 
     # if (statusPass) and (task.survey.user_id==current_user.id):
-    if statusPass and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+    # if statusPass and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+    if statusPass and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks):
         survey = task.survey
         task.status = 'PENDING'
         survey.status = 'Launched'
@@ -435,11 +436,13 @@ def getAllIndividuals():
     reply = []
     next = None
     prev = None
-    if(task_ids):
+    if task_ids:
         if task_ids[0] == '0':
-            task_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Task.id).join(Survey),current_user.id, 'read').all()]
+            task_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Task.id).join(Survey),current_user.id, 'read').distinct().all()]
         else:
-            task_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Task.id).join(Survey).filter(Task.id.in_(task_ids)),current_user.id, 'read').all()]
+            task_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Task.id).join(Survey).filter(Task.id.in_(task_ids)),current_user.id, 'read').distinct().all()]
+
+    #TODO: Check the permissions for this query on all tasks
 
     individuals = db.session.query(Individual)\
                         .join(Detection,Individual.detections)\
@@ -653,6 +656,7 @@ def getIndividual(individual_id):
     '''Returns a dictionary of all images associated with the specified individual with the following info: ID, URL, timestamp, trapgroup, and detections.'''
     
     reply = []
+    access = None
     individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
 
@@ -663,7 +667,7 @@ def getIndividual(individual_id):
     end_date = ast.literal_eval(request.form['end_date'])
 
     # if individual and (individual.tasks[0].survey.user==current_user):
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         images = db.session.query(Image)\
                     .join(Detection)\
                     .join(Camera)\
@@ -737,7 +741,9 @@ def getIndividual(individual_id):
                             ]
                         })
 
-    return json.dumps(reply)
+        access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
+
+    return json.dumps({'individual': reply, 'access': access})
 
 @app.route('/getCameraStamps')
 @login_required
@@ -754,7 +760,7 @@ def getCameraStamps():
 
     survey = db.session.query(Survey).get(survey_id)
 
-    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
 
         data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
                             .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
@@ -804,7 +810,7 @@ def getTags(individual_id):
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).distinct().all()
 
         for tag in tags:
@@ -1223,12 +1229,14 @@ def imageViewer():
         reqImages = []
         if view_type=='image':
             image = db.session.query(Image).get(int(id_no))
-            if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
                 reqImages = [image]
 
         elif view_type=='capture':
             image = db.session.query(Image).get(int(id_no))
-            if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera_id==image.camera_id)\
                                 .filter(Image.corrected_timestamp==image.corrected_timestamp)\
@@ -1236,12 +1244,14 @@ def imageViewer():
 
         elif view_type=='cluster':
             cluster = db.session.query(Cluster).get(int(id_no))
-            if cluster and ((cluster.task.survey.user==current_user) or (current_user.id==admin.id)):
+            # if cluster and ((cluster.task.survey.user==current_user) or (current_user.id==admin.id)):
+            if cluster and checkSurveyPermission(current_user.id,cluster.task.survey_id,'read'):
                 reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
 
         elif view_type=='camera':
             camera = db.session.query(Camera).get(int(id_no))
-            if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if camera and checkSurveyPermission(current_user.id,camera.trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera==camera)\
                                 .order_by(Image.corrected_timestamp)\
@@ -1249,7 +1259,8 @@ def imageViewer():
 
         elif view_type=='trapgroup':
             trapgroup = db.session.query(Trapgroup).get(int(id_no))
-            if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if trapgroup and checkSurveyPermission(current_user.id,trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .filter(Camera.trapgroup==trapgroup)\
@@ -1258,7 +1269,8 @@ def imageViewer():
 
         elif view_type=='survey':
             survey = db.session.query(Survey).get(int(id_no))
-            if survey and ((survey.user==current_user) or (current_user.id==admin.id)):
+            # if survey and ((survey.user==current_user) or (current_user.id==admin.id)):
+            if survey and checkSurveyPermission(current_user.id,survey.id,'read'):
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
@@ -1269,7 +1281,8 @@ def imageViewer():
         if comparisonsurvey:
             check = db.session.query(Survey).get(comparisonsurvey)
 
-        if (len(reqImages) == 0) or (comparisonsurvey and ((check.user!=current_user) and (current_user.id!=admin.id))):
+        # if (len(reqImages) == 0) or (comparisonsurvey and ((check.user!=current_user) and (current_user.id!=admin.id))):
+        if (len(reqImages) == 0) or (comparisonsurvey and not checkSurveyPermission(current_user.id,check.id,'read')):
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
@@ -1331,9 +1344,10 @@ def createNewSurvey():
     message = ''
     organisation_id = request.form['organisation_id']
 
+    organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
 
-    if userPermissions and userPermissions.create:
+    if organisation and userPermissions and userPermissions.create:
         surveyName = request.form['surveyName']
         newSurveyDescription = request.form['newSurveyDescription']
         newSurveyTGCode = request.form['newSurveyTGCode']
@@ -1377,7 +1391,7 @@ def createNewSurvey():
         else:
             if newSurveyS3Folder=='none':
                 # Browser upload - check that folder doesn't already exist
-                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=current_user.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
+                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=organisation.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
                 if 'CommonPrefixes' in response:
                     status = 'error'
                     message = 'That folder name is already in use in your storage. Please try another name for your survey.' 
@@ -1393,7 +1407,7 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
 
-        test = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='Uploading').first()
+        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
         if test and (newSurveyS3Folder=='none'):
             status = 'error'
             message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
@@ -1401,7 +1415,7 @@ def createNewSurvey():
         if status == 'success':
 
             if fileAttached:
-                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
+                key = organisation.folder + '-comp/kmlFiles/' + surveyName + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
@@ -1683,7 +1697,7 @@ def getFolders():
     if current_user.is_authenticated:
         organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
         for organisation in organisations:
-            folders.extend(list_all(Config.BUCKET,current_user.folder+'/')[0])
+            folders.extend(list_all(Config.BUCKET,organisation.folder+'/')[0])
             if 'Downloads' in folders: folders.remove('Downloads')
 
     return json.dumps(folders)
@@ -1794,6 +1808,7 @@ def editSurvey():
     sky_masked = request.form['sky_masked']
 
     survey = db.session.query(Survey).get(survey_id)
+    organisation = survey.organisation
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
         
         if 'classifier' in request.form:
@@ -1838,7 +1853,7 @@ def editSurvey():
                 message = 'Coordinates file must have a name.' 
 
             if status == 'success':
-                key = current_user.folder + '-comp/kmlFiles/' + survey.name + '.kml'
+                key = organisation.folder + '-comp/kmlFiles/' + survey.name + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
@@ -1867,6 +1882,10 @@ def editSurvey():
             else:
                 status = 'error'
                 message = 'You do not have permission to add images to this survey.'
+
+    else:
+        status = 'error'
+        message = 'You do not have permission to edit this survey.'
 
     return json.dumps({'status': status, 'message': message})
 
@@ -2191,7 +2210,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -2457,7 +2476,7 @@ def getBarDataIndividual():
     data = []
     labels = []
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -3809,14 +3828,20 @@ def getJobs():
 @app.route('/getWorkers')
 @login_required
 def getWorkers():
-    '''Returns a paginated list of workers for the current user.'''
-    
+    '''Returns a paginated list of users for annotation statistics'''
+
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
     search = request.args.get('search', '', type=str)
 
-    worker_ids = [r.id for r in current_user.workers]
-    worker_ids.append(current_user.id)
+    # worker_ids = [r.id for r in current_user.workers]
+    # worker_ids.append(current_user.id)
+
+    worker_ids = [current_user.id]
+    org_ids = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()]
+    if len(org_ids) > 0:
+        worker_ids.extend([r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id.in_(org_ids)).distinct().all()])
+
     workers = db.session.query(User).filter(User.id.in_(worker_ids))
 
     searches = re.split('[ ,]',search)
@@ -4160,11 +4185,13 @@ def exportRequest():
     data = ast.literal_eval(data)
 
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         app.logger.info('export request made: {}, {}, {}'.format(task_id,exportType,data))
 
         if exportType == 'WildBook':
-            fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+            # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
 
             # Delete old file if exists
             try:
@@ -4230,7 +4257,8 @@ def editTranslations(task_id):
     '''Endpoint for editing translations. Launches task upon completion and returns success/error status.'''
 
     task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
         translation = request.form['translation']
         translation = ast.literal_eval(translation)
         edit_translations(int(task_id), translation)
@@ -4283,7 +4311,8 @@ def UploadCSV():
     survey_id = int(request.form['survey'])
     survey = db.session.query(Survey).get(survey_id)
 
-    if survey and (survey.user==current_user):
+    # if survey and (survey.user==current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
         survey_name = survey.name
         filePath = 'import/'+current_user.username+'/'+survey_name+'_'+taskName+'.csv'
 
@@ -4352,7 +4381,8 @@ def exploreKnockdowns():
             if not current_user.permissions: return redirect(url_for('landing'))
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
-            if task and (task.survey.user==current_user):
+            # if task and (task.survey.user==current_user):
+            if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
                 return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
@@ -5233,7 +5263,7 @@ def getIndividualInfo(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     # if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
-    if individual and (checkAnnotationPermission(current_user.parent_id,individual.tasks[0].id) or checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read')):
+    if individual and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks)):
 
         # Find all family
         family = []
@@ -5600,7 +5630,8 @@ def getImage():
     reqId = request.args.get('reqId', '-99')
     image = db.session.query(Image).get(int(id))
 
-    if image and (current_user == image.camera.trapgroup.survey.user):
+    # if image and (current_user == image.camera.trapgroup.survey.user):
+    if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
         images = [{'id': image.id,
                 'url': image.camera.path + '/' + image.filename,
                 'rating': image.detection_rating,
@@ -5661,7 +5692,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     '''
     
     task = db.session.query(Task).get(int(task_id))
-    if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
+    # if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
+    if (checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id)) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
         task.status = 'Knockdown Analysis'
         db.session.commit()
 
@@ -5671,7 +5703,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     result = None
     sortedImages = None
     finished = False
-    if task.survey.user==current_user:
+    # if task.survey.user==current_user:
+    if checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id):
         if int(clusterID) != -102:
             # GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
@@ -5906,7 +5939,7 @@ def individualNote():
 
     individual = db.session.query(Individual).get(int(individualID))
     # if individual and ((individual.tasks[0].survey.user==current_user.parent) or (current_user.parent in individual.tasks[0].survey.user.workers)):
-    if individual and (checkAnnotationPermission(current_user.parent_id,individual.tasks[0].id)):
+    if individual and all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks):
         individual.notes = note
         db.session.commit()
         return json.dumps({'status': 'success','message': 'Success.'})
@@ -6041,7 +6074,7 @@ def getSurveyClassifications(survey_id):
     '''Returns a list of all classifications in the specified survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
-    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
         classList = db.session.query(Detection.classification)\
                             .join(Image)\
                             .join(Camera)\
@@ -6378,7 +6411,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(individual_id)
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection)
         elif int(baseUnit) == 2:
@@ -6497,7 +6530,7 @@ def assignNote():
             individualID = ast.literal_eval(request.form['individual_id'])
             individual = db.session.query(Individual).get(individualID)
             # if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
-            if individual and (checkAnnotationPermission(current_user.parent_id,individual.tasks[0].id) or checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'write')):
+            if individual and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks)):
                 if len(note) > 512:
                     note = note[:512]
                 individual.notes = note
@@ -6836,21 +6869,22 @@ def getTasks(survey_id):
                             .filter(User.parent_id==worker_id)\
                             .filter(Survey.id == int(survey_id))\
                             .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
-                            ,current_user.id,'write').distinct().all()
+                            ,current_user.id,'read').distinct().all()
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
             return json.dumps([(-1, 'Southern African')])
         else:
-            return json.dumps(surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').all())
+            return json.dumps(surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all())
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required
 def getOtherTasks(task_id):
     '''Returns a list of task names and IDs for the survey of the given task.'''
     task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user):
-        return json.dumps(db.session.query(Task.id, Task.name).filter(Task.survey_id == task.survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).all())
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        return json.dumps(db.session.query(Task.id, Task.name).filter(Task.survey_id == task.survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all())
     else:
         return json.dumps([])
 
@@ -6951,7 +6985,8 @@ def getAllTaskLabels(task_id1,task_id2):
     labels2 = []
     task1 = db.session.query(Task).get(task_id1)
     task2 = db.session.query(Task).get(task_id2)
-    if task1 and task2 and (current_user==task1.survey.user) and (current_user==task2.survey.user):
+    # if task1 and task2 and (current_user==task1.survey.user) and (current_user==task2.survey.user):
+    if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read') and checkSurveyPermission(current_user.id,task2.survey_id,'read'):
         alist = [[GLOBALS.knocked_id,'Knocked Down'],[GLOBALS.nothing_id,'Nothing'],[GLOBALS.unknown_id,'Unknown'],[GLOBALS.vhl_id,'Vehicles/Humans/Livestock']]
 
         labels1.extend(buildOrderedLabels(None,task_id1))
@@ -7148,7 +7183,8 @@ def getLabels(task_id):
 
     reply = []
     task = db.session.query(Task).get(task_id)
-    if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
+    # if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
+    if (int(task_id) == -1) or (task and checkSurveyPermission(current_user.id,task.survey_id,'read')):
         if int(task_id) == -1: #template
             task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
             task_id = task.id
@@ -7549,10 +7585,12 @@ def generateExcel(selectedTask):
     
     task = db.session.query(Task).get(selectedTask)
 
-    if (task == None) or (task.survey.user != current_user):
+    # if (task == None) or (task.survey.user != current_user):
+    if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps('error')
 
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.xlsx'
 
     # Delete old file if exists
     try:
@@ -7602,7 +7640,8 @@ def generateCSV():
 
     for selectedTask in selectedTasks:
         task = db.session.query(Task).get(selectedTask)
-        if (task == None) or (task.survey.user != current_user):
+        # if (task == None) or (task.survey.user != current_user):
+        if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
             return json.dumps({'status':'error',  'message': None})
 
         if start_date != None:
@@ -7617,7 +7656,8 @@ def generateCSV():
           
 
     task = db.session.query(Task).get(selectedTasks[0])
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.csv'
 
     # Delete old file if exists
     try:
@@ -7643,10 +7683,12 @@ def generateCOCO():
     task_id = request.form['task_id']
     task = db.session.query(Task).get(task_id)
 
-    if (task == None) or (task.survey.user != current_user):
+    # if (task == None) or (task.survey.user != current_user):
+    if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps('error')
 
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.json'
 
     # Delete old file if exists
     try:
@@ -7681,7 +7723,8 @@ def getSpeciesandIDs(task_id):
     final_ids = [0]
     for task_id in tasks:
         task = db.session.query(Task).get(task_id)
-        if task and (task.survey.user==current_user):
+        # if task and (task.survey.user==current_user):
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
             names = []
             ids = []
             parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).order_by(Label.description).all()
@@ -7709,10 +7752,12 @@ def checkDownload(fileType,selectedTask):
 
     task = db.session.query(Task).get(selectedTask)
 
-    if (task == None) or (task.survey.user != current_user):
+    # if (task == None) or (task.survey.user != current_user):
+    if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps('error')
 
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
         fileName += '.csv'
     elif fileType == 'excel':
@@ -8716,7 +8761,7 @@ def writeInfoToImages(type_id,id):
 
     if type_id == 'task':
         task = db.session.query(Task).get(id)
-        if task and checkSurveyPermission(task.survey.id,current_user.id,'admin'):
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'admin'):
             if species != '0':
                 individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id==id).filter(Individual.species == species).all()
             else:
@@ -8804,7 +8849,7 @@ def writeInfoToImages(type_id,id):
         return json.dumps('success')
     elif type_id == 'individual':
         individual = db.session.query(Individual).get(id)
-        if individual and checkSurveyPermission(individual.tasks[0].survey.id,current_user.id,'admin'):
+        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'admin') for task in individual.tasks):
             images = db.session.query(Image)\
                     .join(Detection)\
                     .filter(Detection.individuals.contains(individual))\
@@ -8900,7 +8945,7 @@ def getIndividualAssociations(individual_id, order):
 
     reply = []
 
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
 
         clusterSQ = db.session.query(Cluster)\
             .join(Task)\
@@ -9328,7 +9373,7 @@ def getLineDataIndividual():
     data = []
     data_labels = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read'):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if baseUnit == '1':
             baseQuery = db.session.query(
                                 Image.id,
@@ -9568,6 +9613,8 @@ def editGroup():
 
     survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgroup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
     permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
+    status = 'success'
+    message = ''
     if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
             group = db.session.query(Sitegroup).get(group_id)
@@ -9600,13 +9647,16 @@ def deleteGroup(group_id):
     ''' Delete a group of sites '''
     if current_user and current_user.is_authenticated:
         try:
-            group = db.session.query(Sitegroup).get(group_id)
+            group = surveyPermissionsSQ(db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'write').filter(Sitegroup.id==group_id).first()
             if group:
                 group.trapgroups = []
                 db.session.delete(group)
                 db.session.commit()
-            status = 'success'
-            message = 'Group deleted successfully.'
+                status = 'success'
+                message = 'Group deleted successfully.'
+            else:
+                status = 'error'
+                message = 'Group not found.'
         except:
             status = 'error'
             message = 'An error occurred while deleting the group.'

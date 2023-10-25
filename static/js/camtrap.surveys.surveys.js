@@ -3176,13 +3176,13 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         document.getElementById('btnAddImages').disabled = true
         if (document.getElementById('addImagesEditClassifier').checked) {
             var formData = new FormData()
-            formData.append("surveyName", surveyName)
+            formData.append("survey_id", selectedSurvey)
             formData.append("classifier", classifier)               
             addImagesSendRequest(formData)
         } else if (document.getElementById('addImagesAddCoordinates').checked) {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 var formData = new FormData()
-                formData.append("surveyName", surveyName)
+                formData.append("survey_id", selectedSurvey)
                 formData.append("newSurveyTGCode", addImagesTGCode)
                 formData.append("newSurveyS3Folder", addImagesS3Folder)
                 formData.append("checkbox", addImagesCheckboxChecked.toString())
@@ -3202,7 +3202,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                 regex = JSON.parse(this.responseText);                      
                                 if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                                     var formData = new FormData()
-                                    formData.append("surveyName", surveyName)
+                                    formData.append("survey_id", selectedSurvey)
                                     formData.append("newSurveyTGCode", addImagesTGCode)
                                     formData.append("newSurveyS3Folder", addImagesS3Folder)
                                     formData.append("checkbox", addImagesCheckboxChecked.toString())
@@ -3233,7 +3233,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                         }
                         if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                             var formData = new FormData()
-                            formData.append("surveyName", surveyName)
+                            formData.append("survey_id", selectedSurvey)
                             formData.append("newSurveyTGCode", addImagesTGCode)
                             formData.append("newSurveyS3Folder", addImagesS3Folder)
                             formData.append("checkbox", addImagesCheckboxChecked.toString())

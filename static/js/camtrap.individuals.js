@@ -299,7 +299,7 @@ function getIndividualInfo(individualID){
 
 function getIndividual(individualID, individualName, order_value = 'a1', site='0', start_date='', end_date=''){
     /** Gets the specified individual*/
-    initialiseMapAndSlider()
+   
     selectedIndividual = individualID
     selectedIndividualName = individualName
 
@@ -313,87 +313,95 @@ function getIndividual(individualID, individualName, order_value = 'a1', site='0
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            individualImages = JSON.parse(this.responseText);
-            // console.log(individualImages)
-            var sites = []
-            if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
-                allIndividualImages = individualImages
-                allSites = []
-                var valueExists = false
-                for (let i=0;i<allIndividualImages.length;i++) {
-                    for (let j=0;j<allSites.length;j++) {
-                        if(allIndividualImages[i].trapgroup.tag == allSites[j].tag){
-                            valueExists = true
-                            break
+            reply = JSON.parse(this.responseText);
+            individualImages = reply.individual
+            individualAccess = reply.access
+
+            if (individualAccess == 'write' || individualAccess == 'read'){
+                initialiseMapAndSlider()
+                var sites = []
+                if(order_value == 'a1' && site == '0' && start_date == '' && end_date == ''){
+                    allIndividualImages = individualImages
+                    allSites = []
+                    var valueExists = false
+                    for (let i=0;i<allIndividualImages.length;i++) {
+                        for (let j=0;j<allSites.length;j++) {
+                            if(allIndividualImages[i].trapgroup.tag == allSites[j].tag){
+                                valueExists = true
+                                break
+                            }
+                            else{
+                                valueExists = false
+                            }
                         }
-                        else{
-                            valueExists = false
+
+                        if(!valueExists){
+                            allSites.push(allIndividualImages[i].trapgroup)
+                            sites.push(allIndividualImages[i].trapgroup.tag)
                         }
                     }
-
-                    if(!valueExists){
-                        allSites.push(allIndividualImages[i].trapgroup)
-                        sites.push(allIndividualImages[i].trapgroup.tag)
+                }
+                else{
+                    for(let i = 0; i < allSites.length; i++){
+                        sites.push(allSites[i].tag)
                     }
                 }
-            }
-            else{
-                for(let i = 0; i < allSites.length; i++){
-                    sites.push(allSites[i].tag)
-                }
-            }
 
-            texts = ['All']
-            texts.push(...sites)
-            values = ['0']
-            values.push(...sites)
-            clearSelect(document.getElementById('sitesIndividualSelector'))
-            fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
+                texts = ['All']
+                texts.push(...sites)
+                values = ['0']
+                values.push(...sites)
+                clearSelect(document.getElementById('sitesIndividualSelector'))
+                fillSelect(document.getElementById('sitesIndividualSelector'), texts, values)
 
-            if(individualImages.length > 0){
-                document.getElementById('individualName').innerHTML = individualName
-                document.getElementById('newIndividualName').value = individualName
+                if(individualImages.length > 0){
+                    document.getElementById('individualName').innerHTML = individualName
+                    document.getElementById('newIndividualName').value = individualName
 
-                document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
-                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp     
+                    document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
+                    document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp     
 
-                getIndividualInfo(individualID)
+                    getIndividualInfo(individualID)
 
-                document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
-                    document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                    document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
-                    document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
-                    modalAlertIndividualsReturn = true
-                    modalIndividual.modal('hide')
-                    modalAlertIndividuals.modal({keyboard: true});
-                });
-
-
-                document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
-                    if (individualImages.length > 1){
+                    document.getElementById('btnDelIndiv').addEventListener('click', ()=>{
                         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
+                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
                         modalAlertIndividualsReturn = true
                         modalIndividual.modal('hide')
                         modalAlertIndividuals.modal({keyboard: true});
+                    });
+
+
+                    document.getElementById('btnRemoveImg').addEventListener('click', ()=>{
+                        if (individualImages.length > 1){
+                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                            modalAlertIndividualsReturn = true
+                            modalIndividual.modal('hide')
+                            modalAlertIndividuals.modal({keyboard: true});
+                        }
+
+                        
+                    });
+
+                    prepMapIndividual(individualImages[0])
+                    updateSlider()
+
+                    buildAssociationTable(individualID)
+                
+                }
+                else{
+                    if(start_date != '' || end_date != ''){
+                        document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
                     }
-
                     
-                });
-
-                prepMapIndividual(individualImages[0])
-                updateSlider()
-
-                buildAssociationTable(individualID)
-             
+                }   
             }
             else{
-                if(start_date != '' || end_date != ''){
-                    document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
-                }
-                
-            }   
+                modalIndividual.modal('hide')
+            }
 
         }
     }
@@ -415,24 +423,31 @@ function updateIndividual(individualID, individualName, order_value = 'a1', site
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
-            individualImages = JSON.parse(this.responseText);
+            reply = JSON.parse(this.responseText);
+            individualImages = reply.individual
+            individualAccess = reply.access
             // console.log(individualImages)
+            if (individualAccess == 'write' || individualAccess == 'read'){
 
-            if(individualImages.length > 0){
-                document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
-                document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
+                if(individualImages.length > 0){
+                    document.getElementById('tgInfo').innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
+                    document.getElementById('timeInfo').innerHTML = individualImages[0].timestamp
 
-                initialiseMapAndSlider()
-                prepMapIndividual(individualImages[0])
-                updateSlider()        
-                
+                    initialiseMapAndSlider()
+                    prepMapIndividual(individualImages[0])
+                    updateSlider()        
+                    
+                }
+                else{
+                    if(start_date != '' || end_date != ''){
+                        document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
+                    }
+                    
+                }   
             }
             else{
-                if(start_date != '' || end_date != ''){
-                    document.getElementById('dateErrorsIndiv').innerHTML = 'No images available for this date range. Please select another date range.'
-                }
-                
-            }   
+                modalIndividual.modal('hide')
+            }
 
         }
     }

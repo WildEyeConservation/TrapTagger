@@ -123,133 +123,152 @@ function getIndividuals(page = null) {
                         xhttp.onreadystatechange =
                         function(){
                             if (this.readyState == 4 && this.status == 200) {
-                                individualImages = JSON.parse(this.responseText);
-                                individualDiv = document.getElementById('individualDiv')
-                                document.getElementById('individualName').innerHTML = individualName
+                                reply = JSON.parse(this.responseText);
+                                individualImages = reply.individual
+                                indivdualAccess = reply.access
 
-                                while(individualDiv.firstChild){
-                                    individualDiv.removeChild(individualDiv.firstChild);
-                                }
+                                if (individualImages.length > 0) {
+                                    individualDiv = document.getElementById('individualDiv')
+                                    document.getElementById('individualName').innerHTML = individualName
 
-                                //build image viewer
-                                info = document.createElement('h5')
-                                info.setAttribute('id','tgInfo')
-                                info.setAttribute('align','center')
-                                info.innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
-                                individualDiv.appendChild(info)
+                                    while(individualDiv.firstChild){
+                                        individualDiv.removeChild(individualDiv.firstChild);
+                                    }
 
-                                info2 = document.createElement('h6')
-                                info2.setAttribute('id','timeInfo')
-                                info2.setAttribute('align','center')
-                                info2.innerHTML = individualImages[0].timestamp
-                                individualDiv.appendChild(info2)
+                                    //build image viewer
+                                    info = document.createElement('h5')
+                                    info.setAttribute('id','tgInfo')
+                                    info.setAttribute('align','center')
+                                    info.innerHTML = 'Site: ' + individualImages[0].trapgroup.tag
+                                    individualDiv.appendChild(info)
 
-                                row = document.createElement('div')
-                                row.classList.add('row')
-                                individualDiv.appendChild(row)
+                                    info2 = document.createElement('h6')
+                                    info2.setAttribute('id','timeInfo')
+                                    info2.setAttribute('align','center')
+                                    info2.innerHTML = individualImages[0].timestamp
+                                    individualDiv.appendChild(info2)
 
-                                col1 = document.createElement('div')
-                                col1.classList.add('col-lg-3')
-                                row.appendChild(col1)
+                                    row = document.createElement('div')
+                                    row.classList.add('row')
+                                    individualDiv.appendChild(row)
 
-                                col2 = document.createElement('div')
-                                col2.classList.add('col-lg-6')
-                                row.appendChild(col2)
+                                    col1 = document.createElement('div')
+                                    col1.classList.add('col-lg-3')
+                                    row.appendChild(col1)
 
-                                col3 = document.createElement('div')
-                                col3.classList.add('col-lg-2')
-                                row.appendChild(col3)
+                                    col2 = document.createElement('div')
+                                    col2.classList.add('col-lg-6')
+                                    row.appendChild(col2)
 
-                                col4 = document.createElement('div')
-                                col4.classList.add('col-lg-1')
-                                row.appendChild(col4)
+                                    col3 = document.createElement('div')
+                                    col3.classList.add('col-lg-2')
+                                    row.appendChild(col3)
 
-                                btn = document.createElement('button');
-                                btn.classList.add('btn');
-                                btn.classList.add('btn-danger');
-                                btn.classList.add('btn-block');
-                                btn.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
-                                btn.innerHTML = 'Delete Individual';
-                                col3.appendChild(btn)
+                                    col4 = document.createElement('div')
+                                    col4.classList.add('col-lg-1')
+                                    row.appendChild(col4)
 
-                                btn.addEventListener('click', ()=>{
-                                    document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                    document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
-                                    document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
-                                    modalAlertIndividualsReturn = true
-                                    modalIndividual.modal('hide')
-                                    modalAlertIndividuals.modal({keyboard: true});
-                                });
+                                    btn = document.createElement('button');
+                                    btn.classList.add('btn');
+                                    btn.classList.add('btn-danger');
+                                    btn.classList.add('btn-block');
+                                    btn.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
+                                    btn.innerHTML = 'Delete Individual';
+                                    col3.appendChild(btn)
 
-                                btn2 = document.createElement('button');
-                                btn2.classList.add('btn');
-                                btn2.classList.add('btn-primary');
-                                btn2.classList.add('btn-block');
-                                btn2.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
-                                btn2.innerHTML = 'Remove Image';
-                                col3.appendChild(btn2)
-
-                                btn2.addEventListener('click', ()=>{
-                                    if(individualImages.length > 1){
+                                    btn.addEventListener('click', ()=>{
                                         document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
-                                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
-                                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                                        document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently delete this individual?'
+                                        document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','deleteIndividual()')
                                         modalAlertIndividualsReturn = true
                                         modalIndividual.modal('hide')
                                         modalAlertIndividuals.modal({keyboard: true});
+                                    });
+
+                                    if (indivdualAccess == 'write'){
+                                        btn.disabled = false
                                     }
-                                });
+                                    else{
+                                        btn.disabled = true
+                                    }
 
-                                center = document.createElement('center')
-                                col2.appendChild(center)
+                                    btn2 = document.createElement('button');
+                                    btn2.classList.add('btn');
+                                    btn2.classList.add('btn-primary');
+                                    btn2.classList.add('btn-block');
+                                    btn2.setAttribute('style','margin-top: 2px; margin-bottom: 2px;')
+                                    btn2.innerHTML = 'Remove Image';
+                                    col3.appendChild(btn2)
 
-                                mapDiv = document.createElement('div')
-                                mapDiv.setAttribute('id','mapDiv')
-                                mapDiv.setAttribute('style','height: 800px')
-                                center.appendChild(mapDiv)
+                                    btn2.addEventListener('click', ()=>{
+                                        if(individualImages.length > 1){
+                                            document.getElementById('modalAlertIndividualsHeader').innerHTML = 'Confirmation'
+                                            document.getElementById('modalAlertIndividualsBody').innerHTML = 'Do you want to permanently remove this image from this individual?'
+                                            document.getElementById('btnContinueIndividualAlert').setAttribute('onclick','removeImage()')
+                                            modalAlertIndividualsReturn = true
+                                            modalIndividual.modal('hide')
+                                            modalAlertIndividuals.modal({keyboard: true});
+                                        }
+                                    });
 
-                                row = document.createElement('div')
-                                row.classList.add('row')
-                                individualDiv.appendChild(row)
+                                    if (indivdualAccess == 'write'){
+                                        btn2.disabled = false
+                                    }
+                                    else{
+                                        btn2.disabled = true
+                                    }
 
-                                col1 = document.createElement('div')
-                                col1.classList.add('col-lg-1')
-                                row.appendChild(col1)
+                                    center = document.createElement('center')
+                                    col2.appendChild(center)
 
-                                col2 = document.createElement('div')
-                                col2.classList.add('col-lg-10')
-                                row.appendChild(col2)
+                                    mapDiv = document.createElement('div')
+                                    mapDiv.setAttribute('id','mapDiv')
+                                    mapDiv.setAttribute('style','height: 800px')
+                                    center.appendChild(mapDiv)
 
-                                col3 = document.createElement('div')
-                                col3.classList.add('col-lg-1')
-                                row.appendChild(col3)
+                                    row = document.createElement('div')
+                                    row.classList.add('row')
+                                    individualDiv.appendChild(row)
 
-                                card = document.createElement('div')
-                                card.classList.add('card')
-                                card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
-                                col2.appendChild(card)
+                                    col1 = document.createElement('div')
+                                    col1.classList.add('col-lg-1')
+                                    row.appendChild(col1)
 
-                                body = document.createElement('div')
-                                body.classList.add('card-body')
-                                body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
-                                card.appendChild(body)
+                                    col2 = document.createElement('div')
+                                    col2.classList.add('col-lg-10')
+                                    row.appendChild(col2)
 
-                                splide = document.createElement('div')
-                                splide.classList.add('splide')
-                                splide.setAttribute('id','splide')
-                                body.appendChild(splide)
+                                    col3 = document.createElement('div')
+                                    col3.classList.add('col-lg-1')
+                                    row.appendChild(col3)
 
-                                track = document.createElement('div')
-                                track.classList.add('splide__track')
-                                splide.appendChild(track)
-                    
-                                list = document.createElement('ul')
-                                list.classList.add('splide__list')
-                                list.setAttribute('id','imageSplide')
-                                track.appendChild(list)
+                                    card = document.createElement('div')
+                                    card.classList.add('card')
+                                    card.setAttribute('style','background-color: rgb(60, 74, 89);margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px; padding-top: 5px; padding-bottom: 5px; padding-left: 5px; padding-right: 5px')
+                                    col2.appendChild(card)
 
-                                modalIndividuals.modal('hide')
-                                modalIndividual.modal({keyboard: true});
+                                    body = document.createElement('div')
+                                    body.classList.add('card-body')
+                                    body.setAttribute('style','margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; padding-top: 0px; padding-bottom: 0px; padding-left: 0px; padding-right: 0px')
+                                    card.appendChild(body)
+
+                                    splide = document.createElement('div')
+                                    splide.classList.add('splide')
+                                    splide.setAttribute('id','splide')
+                                    body.appendChild(splide)
+
+                                    track = document.createElement('div')
+                                    track.classList.add('splide__track')
+                                    splide.appendChild(track)
+                        
+                                    list = document.createElement('ul')
+                                    list.classList.add('splide__list')
+                                    list.setAttribute('id','imageSplide')
+                                    track.appendChild(list)
+
+                                    modalIndividuals.modal('hide')
+                                    modalIndividual.modal({keyboard: true});
+                                }
                             }
                         }
                         xhttp.open("POST", '/getIndividual/'+individualID);

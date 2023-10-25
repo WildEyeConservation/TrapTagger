@@ -219,7 +219,7 @@ function addSiteToGroup(checkbox) {
                 if (colDivs[i].childNodes[0].id == checkbox.id) {
                     colDivs[i].childNodes[0].checked = true
                     groupSites[gID].push(checkbox.value)
-                    groupSitesTags[gID].push(checkbox.id.split('-')[0])
+                    groupSitesTags[gID].push(checkbox.id.split('-b')[0])
                     checkBoxExists = true
                     break
                 }
@@ -257,7 +257,7 @@ function addSiteToGroup(checkbox) {
             input.checked = true
 
             groupSites[gID].push(checkbox.value)
-            groupSitesTags[gID].push(checkbox.id.split('-')[0])
+            groupSitesTags[gID].push(checkbox.id.split('-b')[0])
             site_col_count[gID] += 1
         }
     }
@@ -809,7 +809,7 @@ function buildGroup(group) {
                         }
                         else {
                             groupSites['S'].push(this.value)
-                            var g_tag = this.id.split('-')[0]
+                            var g_tag = this.id.split('-b')[0]
                             groupSitesTags['S'].push(g_tag)
                         }
                     });
@@ -904,7 +904,7 @@ function buildGroup(group) {
                         }
                         else {
                             groupSites["M"].push(this.value)
-                            var g_tag = this.id.split('-')[0]
+                            var g_tag = this.id.split('-b')[0]
                             groupSitesTags['M'].push(g_tag)
                         }
                     });
@@ -1518,7 +1518,7 @@ function loadFromSites(){
                 }
                 else {
                     groupSites['M'].push(this.value)
-                    var g_tag = this.id.split('-')[0]
+                    var g_tag = this.id.split('-b')[0]
                     groupSitesTags['M'].push(g_tag)
                 }
             });

@@ -258,6 +258,11 @@ modalDetails.on('shown.bs.modal', function(){
             }
             clearSelect(surveySelect)
             fillSelect(surveySelect, optionTexts, optionValues)
+
+            optionTexts = ['None']
+            optionValues = ["-99999"] 
+            clearSelect(taskSelect)
+            fillSelect(taskSelect, optionTexts, optionValues)
         }
     }
     xhttp.open("GET", '/getWorkerSurveys?worker_id='+currentUser.toString());
