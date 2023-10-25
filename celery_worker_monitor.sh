@@ -23,7 +23,7 @@
 } || {
   exit 100
 }
-if grep -q "empty" <<< "$RESPONSE"; then
+if grep -q "    \- empty \-" <<< "$RESPONSE"; then
   exit 23
 fi
 exit 50
