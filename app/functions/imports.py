@@ -103,7 +103,7 @@ def findImID(survey_id,fullPath):
     else:
         return image.id
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def importCSV(self,survey_id,task_id,filePath,user_id):
     '''
     Celery task for importing a csv file.
@@ -378,7 +378,7 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters=
 
     return newClusters
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def cluster_trapgroup(self,trapgroup_id,force=False):
     '''Clusters the specified trapgroup. Handles pre-existing clusters cleanly, reusing labels etc where possible.'''
     
@@ -692,7 +692,7 @@ def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
 
 #     return True
     
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def processCameraStaticDetections(self,camera_id,imcount):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
 
@@ -1414,7 +1414,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
 
     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
     '''
     Imports all specified images from a directory path under a single camera object in the database. Ignores duplicate image hashes, and duplicate image paths (from previous imports).
@@ -1680,7 +1680,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 
 #     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier):
     '''
     Run species classification on a trapgroup.
@@ -2387,7 +2387,7 @@ def classifyCluster(cluster):
     
     return 'nothing'
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def classifyTrapgroup(self,task_id,trapgroup_id):
     '''
     Classifies the species contained in each cluster in a trapgroup for a given task.
@@ -2438,7 +2438,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
     
 #     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def updateTrapgroupDetectionRatings(self,trapgroup_id):
     '''Updates detection ratings for all images in a trapgroup.'''
     try:
@@ -3153,7 +3153,7 @@ def correct_timestamps(survey_id,setup_time=31):
     return True
 
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classifier,processes=4):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
@@ -3271,7 +3271,7 @@ def import_survey(self,s3Folder,surveyName,tag,user_id,correctTimestamps,classif
 #             labelgroup.labels = [label]
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=False)
+@celery.task(bind=True,max_retries=5,ignore_result=False)
 def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
@@ -3322,7 +3322,7 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
 
     return True
 
-# @celery.task(bind=True,max_retries=29,ignore_result=False)
+# @celery.task(bind=True,max_retries=5,ignore_result=False)
 # def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
 #     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
@@ -3350,7 +3350,7 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
 
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=False)
+@celery.task(bind=True,max_retries=5,ignore_result=False)
 def pipeline_cluster_camera(self,camera_id,task_id):
     '''Helper function to parallelise pipeline clustering'''
 
@@ -3380,7 +3380,7 @@ def pipeline_cluster_camera(self,camera_id,task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroupCode,min_area,exclusions,sourceBucket,label_source):
     '''
     Celery task for processing pre-annotated data. Creates a survey etc. as normal, but does not classify the data, nor bother to 
@@ -3589,7 +3589,7 @@ def validate_csv(stream,survey_id):
 
     return False
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
     '''Celery wrapper for extract_images_from_video'''
     try:
@@ -3721,7 +3721,7 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):   
     try:
         for image_id in images:

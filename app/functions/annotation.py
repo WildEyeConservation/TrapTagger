@@ -32,7 +32,7 @@ import traceback
 import time
 from multiprocessing.pool import ThreadPool as Pool
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def launch_task(self,task_id):
     '''Celery task for launching the specified task for annotation.'''
 
@@ -295,7 +295,7 @@ def launch_task(self,task_id):
 
     return True
 
-# @celery.task(bind=True,max_retries=29,ignore_result=True)
+# @celery.task(bind=True,max_retries=5,ignore_result=True)
 def freeUpWork(task_id, taggingLevel):
     '''Attempts to free up trapgroups etc. to allow task annotation to complete.'''
 
@@ -337,7 +337,7 @@ def freeUpWork(task_id, taggingLevel):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def wrapUpTask(self,task_id):
     '''Cleans up a task after annotation.'''
 
