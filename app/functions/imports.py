@@ -3612,6 +3612,10 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
             extract_images_from_video(localsession, dirpath+'/'+filename, bucket, trapgroup_id)
         localsession.commit()
 
+        # only delete files after db commit #indempotency
+        for filename in batch:
+            GLOBALS.s3client.delete_object(Bucket=bucket, Key=dirpath+'/'+filename)
+
     except Exception as exc:
         app.logger.info(' ')
         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -3661,8 +3665,14 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                     video_timestamp = None
 
             if video_timestamp:
-                video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
-            
+                try:
+                    video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+                except:
+                    try:
+                        video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%d %H:%M:%S')
+                    except:
+                        video_timestamp = None
+
             # Extract images
             video = cv2.VideoCapture(temp_file.name)
             video_fps = video.get(cv2.CAP_PROP_FPS)
@@ -3728,7 +3738,6 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
         video = Video(camera=camera, filename=filename, hash=video_hash)
         localsession.add(video)
-        GLOBALS.s3client.delete_object(Bucket=bucketName, Key=sourceKey)
 
     except:
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
