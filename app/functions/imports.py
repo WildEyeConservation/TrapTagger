@@ -82,7 +82,7 @@ def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
             for labelgroup in labelgroups:
                 labelgroup.labels.append(theLabel)
 
-def findImID(survey_id,fullPath):
+def findImID(survey_id,fullPath,isVideo):
     '''
     ImportCSV helper function. Returns image ID for the given path, or NAN if the image cannot be found.
 
@@ -97,11 +97,15 @@ def findImID(survey_id,fullPath):
     filename = re.split('/',fullPath)[-1]
     # path = re.split(filename,fullPath)[0][:-1]
     path = os.path.join(*re.split('/',fullPath)[:-1])
-    image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
-    if image == None:
-        return np.nan
+    if list(filter(isVideo.search, [filename])):
+        images = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.contains(path)).filter(Video.filename==filename).distinct().all()
     else:
-        return image.id
+        images = [db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.contains(path)).filter(Image.filename==filename).first()]
+    if images:
+        return [image.id for image in images]
+    else:
+        return np.nan
+
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def importCSV(self,survey_id,task_id,filePath,user_id):
@@ -115,12 +119,19 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             user_id: The user who owns the csv
     '''
     try:
-        if os.path.isfile(filePath):
-            df = pd.read_csv(filePath)
+        localsession=db.session()
 
-            df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename), axis=1)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=filePath, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        if df:
+            isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
+            df.drop_duplicates(subset=['filepath'], keep=True, inplace=True)
+            df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename,isVideo), axis=1)
             df = df[df['image_id'].notna()]
             del df['filename']
+            df=df.explode('image_id')
 
             labelColumns = []
             for column in df:
@@ -159,7 +170,6 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             del df['labelstemp']
             for column in labelColumns: del df[column]
 
-            localsession=db.session()
             df.apply(lambda x: clusterAndLabel(localsession,task_id,user_id,x.image_id,x.labels), axis=1)
             # localsession.commit()
 
@@ -173,10 +183,9 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
                 cluster.classification = classifyCluster(cluster)
             
             localsession.commit()
-            os.remove(filePath)
 
         # # Classify clusters
-        task = db.session.query(Task).get(task_id)
+        task = localsession.query(Task).get(task_id)
         # pool = Pool(processes=4)
         # for trapgroup in task.survey.trapgroups:
         #     pool.apply_async(classifyTrapgroup,(task.id,trapgroup.id))
@@ -185,7 +194,12 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
 
         task.status = 'Ready'
         task.survey.status = 'Ready'
-        db.session.commit()
+        localsession.commit()
+
+        try:
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=filePath)
+        except:
+            pass
 
     except Exception as exc:
         app.logger.info(' ')
@@ -196,7 +210,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.remove()
+        localsession.remove()
 
     return True
 

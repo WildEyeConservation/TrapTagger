@@ -3977,13 +3977,13 @@ def UploadCSV():
         filePath = 'import/'+current_user.username+'/'+survey_name+'_'+taskName+'.csv'
 
         uploaded_file = request.files['csv']
-        if uploaded_file.filename != '':
+        if uploaded_file and uploaded_file.filename != '':
             if os.path.splitext(uploaded_file.filename)[1].lower() == '.csv':
                 if validate_csv(uploaded_file.stream,survey_id):
-                    if not os.path.isdir('import/'+current_user.username):
-                        os.makedirs('import/'+current_user.username)
 
-                    uploaded_file.save(filePath)
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                        uploaded_file.save(temp_file.name)
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=filePath,Body=temp_file)
 
                     task = Task(survey_id=survey_id,name=taskName,tagging_level='-1',test_size=0,status='Importing')
                     db.session.add(task)
