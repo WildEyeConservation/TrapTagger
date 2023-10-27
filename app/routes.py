@@ -577,7 +577,7 @@ def getIndividuals(task_id,species):
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': image.camera.path + '/' + image.filename
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
                         })
 
         next = individuals.next_num if individuals.has_next else None
@@ -707,11 +707,11 @@ def getIndividual(individual_id):
 
             video_url = None
             if image.camera.videos:
-                video_url = image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename
+                video_url = (image.camera.path.split('_video_images_')[0] + image.camera.videos[0].filename).replace('+','%2B')
 
             reply.append({
                             'id': image.id,
-                            'url': image.camera.path + '/' + image.filename,
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                             'video_url': video_url,
                             'timestamp': stringify_timestamp(image.corrected_timestamp), 
                             'trapgroup': 
@@ -4114,13 +4114,13 @@ def UploadCSV():
         filePath = 'import/'+current_user.username+'/'+survey_name+'_'+taskName+'.csv'
 
         uploaded_file = request.files['csv']
-        if uploaded_file.filename != '':
+        if uploaded_file and uploaded_file.filename != '':
             if os.path.splitext(uploaded_file.filename)[1].lower() == '.csv':
                 if validate_csv(uploaded_file.stream,survey_id):
-                    if not os.path.isdir('import/'+current_user.username):
-                        os.makedirs('import/'+current_user.username)
 
-                    uploaded_file.save(filePath)
+                    with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                        uploaded_file.save(temp_file.name)
+                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=filePath,Body=temp_file)
 
                     task = Task(survey_id=survey_id,name=taskName,tagging_level='-1',test_size=0,status='Importing')
                     db.session.add(task)
@@ -4902,7 +4902,7 @@ def getSuggestion(individual_id):
             sortedImages = db.session.query(Image).join(Detection).filter(Detection.individuals.contains(individual)).all()
 
             images = [{'id': image.id,
-                    'url': image.camera.path + '/' + image.filename,
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                     'timestamp': numify_timestamp(image.corrected_timestamp),
                     'camera': image.camera_id,
                     'rating': image.detection_rating,
@@ -5298,7 +5298,7 @@ def get_clusters():
         label_description = session.query(Label).get(int(taggingLevel)).description
 
     if id:
-        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,id)
+        clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,None,session,None,id)
 
     else:
 
@@ -5344,7 +5344,7 @@ def get_clusters():
                     return json.dumps({'id': reqId, 'info': [Config.FINISHED_CLUSTER]})
 
                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
                 # if len(clusterInfo)==0: current_user.trapgroup = []
                 if (len(clusterInfo) <= limit) and not max_request:
@@ -6468,7 +6468,7 @@ def assignLabel(clusterID):
                                 newClusters = []
                             else:
                                 limit = task_size - int(GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id)).decode())
-                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session)
+                                clusterInfo, max_request = fetch_clusters(taggingLevel,task_id,isBounding,trapgroup.id,session,limit)
 
                                 # if len(clusterInfo)==0: current_user.trapgroup = []
                                 if (len(clusterInfo) <= limit) and not max_request:
@@ -8041,7 +8041,8 @@ def get_presigned_url():
                                                                 Params={'Bucket': Config.BUCKET,
                                                                         'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
                                                                         'ContentType': request.json['contentType'],
-                                                                        'Body' : ''})
+                                                                        'Body' : ''},
+                                                                ExpiresIn=604800) # 7 days (the maximum)
     else:
         return 'error'
 
@@ -8730,7 +8731,7 @@ def getIndividualAssociations(individual_id, order):
                     'name': association[1],
                     'cluster_count': association[2],
                     'image_count': association[3],	
-                    'url': image.camera.path + '/' + image.filename
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
                 }
             )
 
@@ -9944,18 +9945,22 @@ def settings():
 
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
-    elif current_user.parent_id != None:
-        if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
-            return redirect(url_for('sightings'))
-        elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
-            return redirect(url_for('clusterID'))
-        elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
-            return redirect(url_for('individualID'))
-        else:
-            return redirect(url_for('index'))
     else:
-        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
-        return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)
+        if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)
+        else:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            elif current_user.parent_id != None:
+                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
 
 @app.route('/getAllLabels')
 @login_required
@@ -9975,7 +9980,7 @@ def saveIntegrations():
 
     status = 'FAILURE'
     message = 'Unable to save integrations.'
-    if current_user and current_user.is_authenticated:
+    if current_user and current_user.is_authenticated and current_user.admin:
         # EarthRanger
         earth_ranger_integrations = integrations['earthranger']
 
@@ -10010,7 +10015,7 @@ def getIntegrations():
     ''' Get the Earth Ranger integration details '''
 
     integrations = []
-    if current_user and current_user.is_authenticated:
+    if current_user and current_user.is_authenticated and current_user.admin:
         earth_ranger_integrations = db.session.query(EarthRanger).filter(EarthRanger.user_id==current_user.id).all()
 
         er = {}

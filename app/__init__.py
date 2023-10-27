@@ -82,7 +82,8 @@ def make_celery(flask_app):
         Queue('priority',     routing_key='priority.#'),
         Queue('parallel',     routing_key='parallel.#'),
         Queue('ram_intensive',     routing_key='ram_intensive.#'),
-        Queue('statistics',     routing_key='statistics.#')
+        Queue('statistics',     routing_key='statistics.#'),
+        Queue('pipeline',     routing_key='pipeline.#')
     ]
 
     if not Config.INITIAL_SETUP:

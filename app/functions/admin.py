@@ -32,7 +32,7 @@ from config import Config
 import json
 import boto3
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def delete_task(self,task_id):
     '''
     Deletes task, and all associated data, for specified task ID.
@@ -258,7 +258,7 @@ def delete_task(self,task_id):
 
     return status, message
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def stop_task(self,task_id):
     '''Celery function that stops a running task.'''
 
@@ -356,7 +356,7 @@ def stop_task(self,task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def delete_survey(self,survey_id):
     '''
     Celery task for deleting a specified survey, along with all associated data.
@@ -532,7 +532,7 @@ def delete_survey(self,survey_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def checkAndRelease(self,task_id):
     '''
     Celery task that checks to see if a reserved task has been launched successfully. If not, task is returned to a ready state.
@@ -645,7 +645,7 @@ def processChanges(changes, keys, sessionLabels, task_id):
 
     return skipped, sessionLabels
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def handleTaskEdit(self,task_id,changes,user_id):
     '''
     Celery task that handles task edits, specifically relating to the editing of labels.
@@ -724,7 +724,7 @@ def copyClusters(newTask,session=None):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def prepTask(self,newTask_id, survey_id, includes, translation, labels):
     '''
     Celery task for preparing a new task for a survey, includes setting up translations, clustering, and auto-classification.
@@ -773,7 +773,7 @@ def prepTask(self,newTask_id, survey_id, includes, translation, labels):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
     '''Reclusters all tasks for a specified survey after a timestamp correction, preserving all labels etc.'''
 
@@ -963,7 +963,7 @@ def reclusterAfterTimestampChange(self,survey_id,trapgroup_ids,camera_ids):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def wrapUpAfterTimestampChange(self,survey_id,trapgroup_ids):
     '''Wraps up a survey after a timestamp change by re-classifying & reclustering large clusters'''
 
@@ -1239,7 +1239,7 @@ def wrapUpAfterTimestampChange(self,survey_id,trapgroup_ids):
             
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateCoords(self,survey_id,coordData):
     '''Updates the survey's trapgroup coordinates.'''
 
@@ -1284,7 +1284,7 @@ def updateCoords(self,survey_id,coordData):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def changeTimestamps(self,survey_id,timestamps):
     '''
     Celery task for shifting the camera timestamps of a specified survey. Re-clusters all tasks afterword.
@@ -1425,7 +1425,7 @@ def changeTimestamps(self,survey_id,timestamps):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def re_classify_survey(self,survey_id,classifier):
     '''Celery task for reclassifying the specified survey.'''
     
@@ -1610,7 +1610,7 @@ def generateLabels(labels, task_id, labelDictionary):
 
     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName):
     '''Celery task that does the trapgroup code check. Returns the user message.'''
 
@@ -1648,7 +1648,7 @@ def findTrapgroupTags(self,tgCode,folder,organisation_id,surveyName):
 
     return reply
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
     '''Celery task that sets all small detections to hidden.'''
 
@@ -1683,6 +1683,10 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
             detection.status = status
         db.session.commit()
 
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
         if ignore_small_detections=='true':
@@ -1704,7 +1708,7 @@ def hideSmallDetections(self,survey_id,ignore_small_detections,edge):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def maskSky(self,survey_id,sky_masked,edge):
     '''Celery task that masks all detections in the sky.'''
 
@@ -1739,6 +1743,10 @@ def maskSky(self,survey_id,sky_masked,edge):
         for detection in detections:
             detection.status = status
         db.session.commit()
+
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status = 'Ready'
@@ -1797,7 +1805,7 @@ def get_AWS_costs(startDate,endDate):
 
     return costs
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateStatistics(self):
     '''Updates the site statistics in the database for dashboard reference purposes.'''
 

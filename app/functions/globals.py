@@ -51,6 +51,8 @@ from iptcinfo3 import IPTCInfo
 import piexif
 import io
 import pandas as pd
+import pytz
+import timezonefinder
 
 # def cleanupWorkers(one, two):
 #     '''
@@ -145,7 +147,7 @@ import pandas as pd
 # signal.signal(signal.SIGINT, cleanupWorkers)
 # signal.signal(signal.SIGABRT, cleanupWorkers)
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def checkQueueingProcessing(self,task_id):
     '''
     Celery task helper function for completion of knockdown analysis. Periodically checks queueing and processing statuses of survey trapgroups and 
@@ -794,7 +796,7 @@ def updateIndividualIdStatus(task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def removeFalseDetections(self,cluster_id,undo):
     '''
     Celery task for marking false detections as static. Takes all relevent detections from a cluster marked as containing nothing, and marks all high-IOU detections 
@@ -962,7 +964,7 @@ def removeFalseDetections(self,cluster_id,undo):
    
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, session=None):
     '''
     Celery task for marking a camera as knocked down. Combines all images into a new cluster, and reclusters the images from the other cameras.
@@ -1133,7 +1135,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
 
     return ''
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def unknock_cluster(self,image_id, label_id, user_id, task_id):
     '''
     Celery task for undoing the effects of marking a cluster as knocked down.
@@ -1447,7 +1449,7 @@ def update_label_ids():
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def splitClusterAndUnknock(self,oldClusterID, SplitPoint):
     '''
     Celery task that splits a knocked-down cluster at a specified index point, and performs unknock_cluster on the second half.
@@ -1497,7 +1499,7 @@ def randomString(stringLength=10):
 def retryTime(retries):
     '''Returns the jittered exponential-backed-off retry time based on the specified number of retries.'''
 
-    countdown = int(60*2**(random.uniform(retries-0.5,retries+0.5)))
+    countdown = int(60*4**(random.uniform(retries-0.5,retries+0.5)))
     if countdown > 3600: countdown=3600
     return countdown
 
@@ -1535,7 +1537,7 @@ def deleteTurkcodes(number_of_jobs, task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateAllStatuses(self,task_id,celeryTask=True):
     '''Updates the completion status of all parent labels of a specified task.'''
 
@@ -2045,7 +2047,7 @@ def md5(fname):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_info):
     '''Batch cropping job to parallelise the process on worker instances.'''
 
@@ -2069,7 +2071,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
     return True
 
-# @celery.task(bind=True,max_retries=29)
+# @celery.task(bind=True,max_retries=5)
 # def extract_labels(self,image_ids,source,external,label_source,task_id):
 #     try:
 #         for image_id in image_ids:
@@ -2135,7 +2137,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
 #     return True
 
-def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):
+def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):
     '''
     Crops all the detections out of the supplied image and saves them to S3 for training purposes.
 
@@ -2151,10 +2153,21 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
     '''
 
     image = db.session.query(Image).get(image_id)
+
     try:
         if Config.DEBUGGING: print('Asserting image')
         assert image
         if Config.DEBUGGING: print('Success')
+
+        if check:
+            detection = rDets(db.session.query(Detection).filter(Detection.image_id==image_id)).first()
+            key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
+            try:
+                check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                # it already exists: bail out
+                return False
+            except:
+                pass
 
         # Download file
         print('Downloading file...')
@@ -2230,6 +2243,11 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                             print('type: iptc')
                             info = IPTCInfo(temp_file.name)
                             if Config.DEBUGGING: print('Info extracted')
+                            labelgroups = []
+                            for detection in image.detections:
+                                labelgroup = Labelgroup(task_id=task_id,detection=detection)
+                                db.session.add(labelgroup)
+                                labelgroups.append(labelgroup)
                             for label_name in info['keywords']:
                                 description = label_name.decode()
                                 if Config.DEBUGGING: print('Handling label: {}'.format(description))
@@ -2240,6 +2258,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
+                                for labelgroup in labelgroups:
+                                    labelgroup.labels.append(label)
                                 if Config.DEBUGGING: print('label added')
                         elif label_source=='path':
                             descriptions = [image.camera.path.split('/')[-1],image.camera.path.split('/')[-1]]
@@ -2549,7 +2569,7 @@ def generate_raw_image_hash(filename):
         
     return hash
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def calculateChunkHashes(self,chunk):
     '''Partner function to calculateTrapgroupHashes. Allows further parallisation.'''
 
@@ -2580,7 +2600,7 @@ def calculateChunkHashes(self,chunk):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def calculateTrapgroupHashes(self,trapgroup_id):
     '''Temporary function to allow massive parallisation of hash calculation.'''
     
@@ -2951,7 +2971,6 @@ def updateEarthRanger(task_id):
                             Trapgroup.tag.label('trapgroup_tag'),
                             Trapgroup.latitude.label('trapgroup_lat'),
                             Trapgroup.longitude.label('trapgroup_lon'),
-                            Trapgroup.altitude.label('trapgroup_alt'),
                             Tag.description.label('tag'),
                             sq2.c.species.label('species'),
                             sq2.c.count.label('count'),
@@ -2977,7 +2996,7 @@ def updateEarthRanger(task_id):
 
             df['tag'] = df['tag'].fillna('None')
             df = df.sort_values(by=['cluster_id','species','count'], ascending=False)
-            df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon','trapgroup_alt']).agg({
+            df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon']).agg({
                 'timestamp':'min',
                 'tag': lambda x: x.unique().tolist(),
                 'count':'max',
@@ -2987,24 +3006,35 @@ def updateEarthRanger(task_id):
             df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
             
             # Send data to EarthRanger
-            # TODO: Fix this & TEST (current url not working)
-            er_url = 'https://cdip-dev-api.pamdas.org/api/v2/events/'
+            tf = timezonefinder.TimezoneFinder()
+            er_url = 'https://sensors.api.gundiservice.org/v2/events/'
 
             for index, row in df.iterrows():
+                if pd.isnull(row['timestamp']):
+                    row['timestamp'] = datetime.utcnow()
+
+                if row['trapgroup_lat'] != 0 and row['trapgroup_lon'] != 0:
+                    tz = tf.timezone_at(lng=row['trapgroup_lon'], lat=row['trapgroup_lat'])
+                    if tz:
+                        row['timestamp'] = pytz.timezone(tz).localize(row['timestamp'])
+                    else:
+                        row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
+                else:
+                    row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
+
                 payload = {
-                    "source": str(row['cluster_id']) + '_' + str(row['species']),
+                    "source": str(row['cluster_id']),
                     "title": "TrapTagger Event",
-                    "recorded_at": row['timestamp'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "recorded_at": row['timestamp'].isoformat(),
                     "location": {
                         "lat": row['trapgroup_lat'],
-                        "lon": row['trapgroup_lon'],
-                        "alt": row['trapgroup_alt']
+                        "lon": row['trapgroup_lon']
                     },
                     "event_details": { 
                         "location": row['trapgroup_tag'],
-                        "species": row['species'],
+                        "species": row['species'].lower(),
                         "tags": row['tag'],
-                        "numberAnimals": row['count']
+                        "group_size": row['count']
                     }
                 }
 
@@ -3028,13 +3058,14 @@ def updateEarthRanger(task_id):
                         try:
                             response = requests.post(er_url, headers=er_header_json, json=payload)
                             assert response.status_code == 200 and response.json()['object_id']
-                            if Config.DEBUGGING: print('Event {} posted to EarthRanger'.format(object_id))
                             retry = False
                         except:
                             retry = True
 
                     # Dowload image from S3 and send blob to EarthRanger
                     if response.status_code == 200 and response.json()['object_id']:
+                        if Config.DEBUGGING: app.logger.info('Event posted to EarthRanger: {}'.format(payload['source']))
+
                         object_id = response.json()['object_id']
                         image_key = row['path']+'/'+row['filename']
                         er_url_img = er_url + object_id + '/attachments/'
@@ -3042,10 +3073,7 @@ def updateEarthRanger(task_id):
                         with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
                             GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
 
-                            with open(temp_file.name, 'rb') as f:
-                                image_blob = f.read()
-
-                            files = {'file1': image_blob}
+                            files = {'file1': open(temp_file.name, 'rb')}
 
                             retry_img = True
                             attempts_img = 0
@@ -3053,16 +3081,17 @@ def updateEarthRanger(task_id):
                             while retry_img and (attempts_img < max_attempts_img):
                                 attempts_img += 1
                                 try:
-                                    response = requests.post(er_url_img, headers=er_header_img, files=files)
-                                    assert response.status_code == 200 and response.json()['object_id']
-                                    if Config.DEBUGGING: print('Image {} posted to EarthRanger'.format(row['filename']))
+                                    response_img = requests.post(er_url_img, headers=er_header_img, files=files)
+                                    assert response_img.status_code == 200 and response_img.json()['object_id']
                                     retry_img = False
                                 except:
                                     retry_img = True
 
-                            if response.status_code != 200:
-                                if Config.DEBUGGING: print('Error posting image to EarthRanger: {}'.format(response.status_code))
+                            if response_img.status_code == 200 and response_img.json()['object_id']:
+                                if Config.DEBUGGING: app.logger.info('Image posted to EarthRanger: {}'.format(row['filename']))
+                            else:
+                                if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: {}'.format(response.status_code))
                     else:
-                        if Config.DEBUGGING: print('Error posting event to EarthRanger: {}'.format(response.status_code))
+                        if Config.DEBUGGING: app.logger.info('Error posting event to EarthRanger: {}'.format(response.status_code))
 
     return True
