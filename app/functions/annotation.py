@@ -441,7 +441,6 @@ def manage_task(task_id):
 
     session = db.session()
     task = session.query(Task).get(task_id)
-    task_id = task.id
     taggingLevel = task.tagging_level
     survey_id = task.survey_id
     jobs_to_delete = 0
@@ -592,7 +591,9 @@ def manageTasks():
         # Check Knockdown for timeout
         tasks = session.query(Task)\
                         .join(Survey)\
-                        .join(User)\
+                        .join(Organisation)\
+                        .join(UserPermissions)\
+                        .join(User,UserPermissions.user_id==User.id)\
                         .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
                         .filter(Task.status=='Knockdown Analysis')\
                         .distinct().all()
@@ -644,29 +645,25 @@ def manageTasks():
 
         # session.commit()
 
-        Owner = alias(User)
         Worker = alias(User)
-        tasks = session.query(Task)\
-                        .join(Survey)\
-                        .join(Owner,Owner.c.id==Survey.user_id)\
-                        .outerjoin(workersTable,Owner.c.id==workersTable.c.user_id)\
-                        .outerjoin(Worker,Worker.c.id==workersTable.c.worker_id)\
-                        .outerjoin(Turkcode)\
-                        .outerjoin(User)\
+        task_ids = session.query(Task.id)\
+                        .outerjoin(Survey)\
+                        .outerjoin(Organisation)\
+                        .outerjoin(UserPermissions)\
+                        .outerjoin(User,UserPermissions.user_id==User.id)\
+                        .outerjoin(Turkcode,Turkcode.task_id==Task.id)\
+                        .outerjoin(Worker,Turkcode.user_id==Worker.c.id)\
                         .filter(or_(
                             User.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
-                            Owner.c.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
                             Worker.c.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
                             ))\
                         .filter(Task.status=='PROGRESS')\
                         .distinct().all()
-        print('{} tasks are currently active.'.format(len(tasks)))
-
-        task_ids = [r.id for r in tasks]
+        print('{} tasks are currently active.'.format(len(task_ids)))
 
         active_jobs = []
-        for task in tasks:
-            active_jobs.extend([r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task.id))])
+        for task_id in task_ids:
+            active_jobs.extend([r.decode() for r in GLOBALS.redisClient.smembers('active_jobs_'+str(task_id))])
 
         #Look for abandoned jobs
         abandoned_jobs = session.query(User,Task)\
@@ -1780,7 +1777,9 @@ def manageDownloads():
 
         tasks = [r[0] for r in db.session.query(Task.id)\
                             .join(Survey)\
-                            .join(User)\
+                            .join(Organisation)\
+                            .outerjoin(UserPermissions)\
+                            .outerjoin(User,User.id==UserPermissions.user_id)\
                             .join(Trapgroup)\
                             .join(Camera)\
                             .join(Image)\
@@ -1794,7 +1793,9 @@ def manageDownloads():
 
         tasks = [r[0] for r in db.session.query(Task.id)\
                             .join(Survey)\
-                            .join(User)\
+                            .join(Organisation)\
+                            .outerjoin(UserPermissions)\
+                            .outerjoin(User,User.id==UserPermissions.user_id)\
                             .join(Trapgroup)\
                             .join(Camera)\
                             .join(Video)\
