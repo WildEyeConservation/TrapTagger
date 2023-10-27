@@ -40,7 +40,7 @@ function buildWorker(worker) {
     newWorkerDiv.appendChild(entireRow)
 
     workerDiv = document.createElement('div')
-    workerDiv.classList.add('col-lg-3');
+    workerDiv.classList.add('col-lg-4');
     entireRow.appendChild(workerDiv)
     headingElement = document.createElement('h4')
     headingElement.innerHTML = worker.name
@@ -90,24 +90,24 @@ function buildWorker(worker) {
         }
     }(worker.id));
 
-    removeDiv = document.createElement('div')
-    removeDiv.classList.add('col-lg-1');
-    entireRow.appendChild(removeDiv)
+    // removeDiv = document.createElement('div')
+    // removeDiv.classList.add('col-lg-1');
+    // entireRow.appendChild(removeDiv)
 
-    removeBtn = document.createElement('btn')
-    removeBtn.setAttribute('class','btn btn-danger btn-block  btn-sm')
-    removeBtn.innerHTML = 'Remove'
-    if (worker.isOwner=='true') {
-        removeBtn.classList.add("disabled")
-    } else {
-        removeBtn.addEventListener('click', function(wrapWorkerId) {
-            return function() {
-                currentUser = wrapWorkerId
-                confirmationModal.modal({keyboard: true});
-            }
-        }(worker.id));
-    }
-    removeDiv.appendChild(removeBtn)
+    // removeBtn = document.createElement('btn')
+    // removeBtn.setAttribute('class','btn btn-danger btn-block  btn-sm')
+    // removeBtn.innerHTML = 'Remove'
+    // if (worker.isOwner=='true') {
+    //     removeBtn.classList.add("disabled")
+    // } else {
+    //     removeBtn.addEventListener('click', function(wrapWorkerId) {
+    //         return function() {
+    //             currentUser = wrapWorkerId
+    //             confirmationModal.modal({keyboard: true});
+    //         }
+    //     }(worker.id));
+    // }
+    // removeDiv.appendChild(removeBtn)
 
     newWorkerDiv.appendChild(document.createElement('br'))
 }
@@ -258,6 +258,11 @@ modalDetails.on('shown.bs.modal', function(){
             }
             clearSelect(surveySelect)
             fillSelect(surveySelect, optionTexts, optionValues)
+
+            optionTexts = ['None']
+            optionValues = ["-99999"] 
+            clearSelect(taskSelect)
+            fillSelect(taskSelect, optionTexts, optionValues)
         }
     }
     xhttp.open("GET", '/getWorkerSurveys?worker_id='+currentUser.toString());
@@ -334,4 +339,14 @@ taskSelect.addEventListener('change', ()=>{
         xhttp.open("GET", '/getWorkerStats?task_id='+task+'&worker_id='+currentUser.toString());
         xhttp.send();
     }
+});
+
+btnNextWorkers.addEventListener('click', ()=>{
+    /** Moves to the next page of workers. */
+    updatePage(next_url)
+});
+
+btnPrevWorkers.addEventListener('click', ()=>{
+    /** Moves to the previous page of workers. */
+    updatePage(prev_url)
 });

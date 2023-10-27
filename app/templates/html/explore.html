@@ -21,19 +21,7 @@ limitations under the License. -->
     }
 </style>
 
-<div class="row">
-    <div class="col-lg-2"></div>
-    <div class="col-lg-8" style="text-align: center;">
-        <p></p>
-            <p id="debug-text">
-                <div id="debugImage" align="center"></div>
-            </p>
-        <p></p>
-    </div>
-    <div class="col-lg-2"></div>
-</div>
-
-
+<br>
 <div class="row" >
     <div class="col-lg-3">
         <div class="row">
@@ -41,59 +29,93 @@ limitations under the License. -->
             <div class="col-lg-8" style="padding: 0px">
                 <div class='card' style="font-size:80%">
                     <div class='card-body'>
-                        <div id="l1">Cluster Note:</div>
-                        <textarea id="noteboxExp" rows="5" cols="35" style="width:100%"></textarea>
-                        <div id="notif"></div>
-                        <button id='btnNoteSubmitExp' type='button' class='btn btn-primary btn-block' onclick=sendNoteExplore()>Submit Note</button>
-                        <button id='btnNoteDeleteExp' type='button' class='btn btn-danger btn-block' onclick=delNoteExplore()>Delete Note</button>
-                        <p></p>
-                        <div id="l2">Search Notes:</div>
-                        <textarea id="noteboxExpSearch" rows="2" cols="35" style="width:100%"></textarea>
-                        <div id="notif1"></div>
-                        <button id='btnNoteSearch' type='button' class='btn btn-primary btn-block' onclick=searchNotes()>Search</button>
-                        <p></p>
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input" id="onlyNotesCheckbox" name="onlyNotesCheckbox"> 
-                            <label class="custom-control-label" for="onlyNotesCheckbox">Show only clusters with notes</label>
-                        </div>
+                        <div id="debugLabels" style="margin-top: 0px;"></div>
+
+                        <div id="classifierLabels" style="margin-top: 5px;"></div>
+
+                        <div id="annotatorLabel" style="margin-top: 5px;"></div>
+
+                        <div id="siteLabel" style="margin-top: 5px;"></div>
+
+                        <div id="debugCoords" style="margin-top: 5px;"></div>
+
+                        <div id="imageTimestamp" style="margin-top: 5px;"></div>
+
+                        <div id="debugImage" style="margin-top: 5px; ; word-break: break-all;"></div>
+                        
+                        <div style="margin-top: 5px;">Cluster Note:</div>
+                        <textarea id="noteboxExp" rows="3" cols="35"  maxlength="512" style="width:100% ; outline-color: #DF691A;"></textarea>
                     </div>
                 </div>
             </div>
             <div class="col-lg-2" style="padding: 0px"></div>
         </div>
+        <br>
+        <div class="row">
+            <div class="col-lg-2" style="padding: 0px"></div>
+            <div class="col-lg-8" style="padding: 0px">
+                <div class='card' style="font-size:80%">
+                    <div class='card-body'>
+                        <label for="annotationLevel" style="margin: 0;">Annotation Type:</label>
+                        <select id="annotationLevel" class="form-control" disabled>
+                            <option value="-1" selected>Species Labelling</option>
+                            <option value="-2">Informational Tagging</option>
+                        </select>
+
+                        <label for="divSelector" style="margin-top: 5px; margin-bottom: 0px;">Species:</label>
+                        <select id="divSelector" class="form-control"></select>
+
+                        <label for="divTagSelector" style="margin-top: 5px; margin-bottom: 0px;">Tag:</label>
+                        <select id="divTagSelector" class="form-control"></select>
+
+                        <label for="divSiteSelector" style="margin-top: 5px; margin-bottom: 0px;">Site:</label>
+                        <select id="divSiteSelector" class="form-control"></select>
+
+                        <label for="divAnnotatorSelector" style="margin-top: 5px; margin-bottom: 0px;">Annotator:</label>
+                        <select id="divAnnotatorSelector" class="form-control"></select>
+
+                        <div id="l2" style="margin-top: 5px;">Search Notes:</div>
+                        <input type="text" id="noteboxExpSearch" name="noteboxExpSearch" style="width:100%" class="form-control">
+                        <div id="notif1" style="color: #DF691A; font-size: 80%;"></div>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="onlyNotesCheckbox" name="onlyNotesCheckbox"> 
+                            <label class="custom-control-label" for="onlyNotesCheckbox">Show only clusters with notes</label>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <label for="expStartDate" style="margin-top: 5px; margin-bottom: 0px;">Start Date:</label>
+                                <input type="date" id="expStartDate" name="expStartDate">
+                            </div>
+                            <div class="col-lg-6">
+                                <label for="expEndDate" style="margin-top: 5px; margin-bottom: 0px;">End Date:</label>
+                                <input type="date" id="expEndDate" name="expEndDate">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-2" style="padding: 0px"></div>
+        </div>
+        <br>
     </div>
 
     <div class="col-lg-6" style="text-align: center; padding: 0px">
-        <!-- <p></p> -->
-        <!-- <p id="debug-text">
-            <div id="debugImage" align="center"></div>
-        </p> -->
         <center>
             <div id="mapDiv" style='height: 800px'></div>
         </center>
 
         <div class="row" >
-            <div class="col-lg-12">
-                <div id="clusterPosition" style="font-size:140%" align="center"></div>
+            <div class="col-lg-12 d-flex align-items-center justify-content-center">
+                <div id="clusterPosition" style="font-size:60%;">
+                    <ul class="pagination" id="paginationCircles" style="margin: 10px;">
+                </div>
             </div>
-        </div>
-
-        <div class="row" >
-            <!-- <div class="col-lg-1"></div> -->
-            <div class="col-lg-4">
-                <div id="debugLabels" align="left"></div>
-            </div>
-            <div class="col-lg-4">
-            </div>
-            <div class="col-lg-4">
-                <div id="classifierLabels" align="right"></div>
-            </div>
-            <!-- <div class="col-lg-1"></div> -->
         </div>
 
         <div class="control-group">
             <div class="row">
-                <!-- <div class="col-lg-2"></div> -->
                 <div class="col-lg-3">
                     <button id="prevCluster" class="btn btn-secondary btn-block" onclick=prevCluster()>Previous Cluster <span style="font-size:100%">&#x27F2;</span></button>
                 </div>
@@ -106,8 +128,8 @@ limitations under the License. -->
                 <div class="col-lg-3">
                     <button id="nextCluster" class="btn btn-secondary btn-block" onclick=nextCluster()>Next Cluster <span style="font-size:100%">&#x276f;&#x276f;</span></button>
                 </div>
-                <!-- <div class="col-lg-2"></div> -->
             </div>
+            <br>
         </div>
 
     </div>
@@ -118,14 +140,6 @@ limitations under the License. -->
                 <div class='card' style="font-size:80%">
                     <div class='card-body'>
                         <div class="control-group">
-                            <div id="divSelector"></div>
-                            <div id="divTagSelector"></div>
-                            <div id="divSiteSelector"></div>
-                            <div class="dropdown">
-                                <button class="btn btn-danger btn-block dropdown-toggle btn-sm" type="button" data-toggle="dropdown">Annotation Level</button>
-                                <div id = "level-selector" class="dropdown-menu"></div>
-                            </div>
-
                             <div id="divBtns"></div>
                         </div>
                     </div>
@@ -222,6 +236,7 @@ limitations under the License. -->
 {% block page_scripts %}
 <script src="js/camtrap.common.v{{ version }}.js"></script>
 <script src="js/camtrap.explore.v{{ version }}.js"></script>
+<script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
    integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
    crossorigin=""/>

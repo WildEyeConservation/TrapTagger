@@ -254,7 +254,8 @@ def launchTask():
         return json.dumps({'message': message, 'status': 'Error'})
 
     # if (statusPass) and (task.survey.user_id==current_user.id):
-    if statusPass and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+    # if statusPass and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+    if statusPass and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks):
         survey = task.survey
         task.status = 'PENDING'
         survey.status = 'Launched'
@@ -435,11 +436,13 @@ def getAllIndividuals():
     reply = []
     next = None
     prev = None
-    if(task_ids):
+    if task_ids:
         if task_ids[0] == '0':
-            task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.user==current_user).all()]
+            task_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Task.id).join(Survey),current_user.id, 'read').distinct().all()]
         else:
-            task_ids = [r[0] for r in db.session.query(Task.id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()]
+            task_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Task.id).join(Survey).filter(Task.id.in_(task_ids)),current_user.id, 'read').distinct().all()]
+
+    #TODO: Check the permissions for this query on all tasks
 
     individuals = db.session.query(Individual)\
                         .join(Detection,Individual.detections)\
@@ -529,7 +532,7 @@ def editIndividualName():
     name = ast.literal_eval(request.form['name'])
     individual = db.session.query(Individual).get(individual_id)
     if name != '':
-        if (individual and (current_user == individual.tasks[0].survey.user)):
+        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
             check = db.session.query(Individual)\
                             .join(Task,Individual.tasks)\
                             .filter(Individual.species==individual.species)\
@@ -543,7 +546,7 @@ def editIndividualName():
                 db.session.commit()
                 return json.dumps({'status': 'success'}) 
         else:
-            error = 'Individual does not exist.'
+            error = 'Could not edit individual name.'
     else:
         error = "Name cannot be empty."
 
@@ -558,7 +561,7 @@ def getIndividuals(task_id,species):
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
 
-    if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         page = request.args.get('page', 1, type=int)
         
         if species.lower()=='all':
@@ -598,7 +601,7 @@ def deleteIndividual(individual_id):
     task = db.session.query(Task).join(Individual,Task.individuals).filter(Task.sub_tasks.any()).filter(Individual.id==individual_id).distinct().first()
     if not task: task = individual.tasks[0]
 
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         task_ids = [r.id for r in individual.tasks]
 
         for detection in individual.detections:
@@ -653,6 +656,7 @@ def getIndividual(individual_id):
     '''Returns a dictionary of all images associated with the specified individual with the following info: ID, URL, timestamp, trapgroup, and detections.'''
     
     reply = []
+    access = None
     individual_id = int(individual_id)
     individual = db.session.query(Individual).get(individual_id)
 
@@ -662,7 +666,8 @@ def getIndividual(individual_id):
     start_date = ast.literal_eval(request.form['start_date'])
     end_date = ast.literal_eval(request.form['end_date'])
 
-    if individual and (individual.tasks[0].survey.user==current_user):
+    # if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         images = db.session.query(Image)\
                     .join(Detection)\
                     .join(Camera)\
@@ -736,7 +741,9 @@ def getIndividual(individual_id):
                             ]
                         })
 
-    return json.dumps(reply)
+        access = 'write' if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks) else 'read'
+
+    return json.dumps({'individual': reply, 'access': access})
 
 @app.route('/getCameraStamps')
 @login_required
@@ -753,7 +760,7 @@ def getCameraStamps():
 
     survey = db.session.query(Survey).get(survey_id)
 
-    if survey and (survey.user==current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
 
         data = db.session.query(Trapgroup.tag, Camera.id, Camera.path, func.min(Image.timestamp), func.min(Image.corrected_timestamp))\
                             .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
@@ -803,7 +810,7 @@ def getTags(individual_id):
 
     reply = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and ((current_user == individual.tasks[0].survey.user)):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).distinct().all()
 
         for tag in tags:
@@ -820,7 +827,8 @@ def submitTagsIndividual(individual_id):
     individual = db.session.query(Individual).get(individual_id)
     tags = ast.literal_eval(request.form['tags'])
     if Config.DEBUGGING: app.logger.info('Submit Individual tags: {}'.format(tags))
-    if individual and((current_user == individual.tasks[0].survey.user)):
+
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
         if tags:
             individual.tags = db.session.query(Tag).join(Task).filter(Task.individuals.contains(individual)).filter(Tag.description.in_(tags)).distinct().all()
         else:
@@ -1025,7 +1033,7 @@ def stopTask(task_id):
     '''Stops the specified task and does all necessary clean up. Returns success on completion, error otherwise.'''
 
     task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user) and (task.status.lower() not in Config.TASK_READY_STATUSES):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'write') and (task.status.lower() not in Config.TASK_READY_STATUSES):
         task.status = 'Stopping'
         db.session.commit()
         stop_task.apply_async(kwargs={'task_id':task_id})
@@ -1069,7 +1077,7 @@ def deleteSurvey(survey_id):
 
     survey = db.session.query(Survey).get(survey_id)
     if survey:
-        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).all()
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.delete:
             tasks = db.session.query(Task).filter(Task.survey_id==survey_id).all()
@@ -1129,7 +1137,7 @@ def updateSurveyStatus(survey_id, status):
             survey.status = status
             db.session.commit()
             if status == 'Import Queued':
-                import_survey.delay(s3Folder=surveyName,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
     
     return json.dumps('')
 
@@ -1146,9 +1154,9 @@ def checkSightingEditStatus():
 
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
 
         task_ids = [r[0] for r in tasks]
     
@@ -1221,12 +1229,14 @@ def imageViewer():
         reqImages = []
         if view_type=='image':
             image = db.session.query(Image).get(int(id_no))
-            if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
                 reqImages = [image]
 
         elif view_type=='capture':
             image = db.session.query(Image).get(int(id_no))
-            if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if image and ((image.camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera_id==image.camera_id)\
                                 .filter(Image.corrected_timestamp==image.corrected_timestamp)\
@@ -1234,12 +1244,14 @@ def imageViewer():
 
         elif view_type=='cluster':
             cluster = db.session.query(Cluster).get(int(id_no))
-            if cluster and ((cluster.task.survey.user==current_user) or (current_user.id==admin.id)):
+            # if cluster and ((cluster.task.survey.user==current_user) or (current_user.id==admin.id)):
+            if cluster and checkSurveyPermission(current_user.id,cluster.task.survey_id,'read'):
                 reqImages = db.session.query(Image).filter(Image.clusters.contains(cluster)).order_by(Image.corrected_timestamp).distinct().all()
 
         elif view_type=='camera':
             camera = db.session.query(Camera).get(int(id_no))
-            if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if camera and ((camera.trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if camera and checkSurveyPermission(current_user.id,camera.trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
                                 .filter(Image.camera==camera)\
                                 .order_by(Image.corrected_timestamp)\
@@ -1247,7 +1259,8 @@ def imageViewer():
 
         elif view_type=='trapgroup':
             trapgroup = db.session.query(Trapgroup).get(int(id_no))
-            if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            # if trapgroup and ((trapgroup.survey.user==current_user) or (current_user.id==admin.id)):
+            if trapgroup and checkSurveyPermission(current_user.id,trapgroup.survey_id,'read'):
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .filter(Camera.trapgroup==trapgroup)\
@@ -1256,7 +1269,8 @@ def imageViewer():
 
         elif view_type=='survey':
             survey = db.session.query(Survey).get(int(id_no))
-            if survey and ((survey.user==current_user) or (current_user.id==admin.id)):
+            # if survey and ((survey.user==current_user) or (current_user.id==admin.id)):
+            if survey and checkSurveyPermission(current_user.id,survey.id,'read'):
                 reqImages = db.session.query(Image)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
@@ -1267,7 +1281,8 @@ def imageViewer():
         if comparisonsurvey:
             check = db.session.query(Survey).get(comparisonsurvey)
 
-        if (len(reqImages) == 0) or (comparisonsurvey and ((check.user!=current_user) and (current_user.id!=admin.id))):
+        # if (len(reqImages) == 0) or (comparisonsurvey and ((check.user!=current_user) and (current_user.id!=admin.id))):
+        if (len(reqImages) == 0) or (comparisonsurvey and not checkSurveyPermission(current_user.id,check.id,'read')):
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
@@ -1329,9 +1344,10 @@ def createNewSurvey():
     message = ''
     organisation_id = request.form['organisation_id']
 
+    organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
 
-    if userPermissions and userPermissions.create:
+    if organisation and userPermissions and userPermissions.create:
         surveyName = request.form['surveyName']
         newSurveyDescription = request.form['newSurveyDescription']
         newSurveyTGCode = request.form['newSurveyTGCode']
@@ -1339,6 +1355,12 @@ def createNewSurvey():
         checkbox = request.form['checkbox']
         correctTimestamps = request.form['correctTimestamps']
         classifier = request.form['classifier']
+        permission = request.form['permission']
+        annotation = request.form['annotation']
+        if 'detailed_access' in request.form:
+            detailed_access = ast.literal_eval(request.form['detailed_access'])
+        else:
+            detailed_access = None
 
         if 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -1369,7 +1391,7 @@ def createNewSurvey():
         else:
             if newSurveyS3Folder=='none':
                 # Browser upload - check that folder doesn't already exist
-                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=current_user.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
+                response = GLOBALS.s3client.list_objects(Bucket=Config.BUCKET, Prefix=organisation.folder+'/'+surveyName, Delimiter='/',MaxKeys=1)
                 if 'CommonPrefixes' in response:
                     status = 'error'
                     message = 'That folder name is already in use in your storage. Please try another name for your survey.' 
@@ -1385,7 +1407,7 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
 
-        test = db.session.query(Survey).filter(Survey.user==current_user).filter(Survey.status=='Uploading').first()
+        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
         if test and (newSurveyS3Folder=='none'):
             status = 'error'
             message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
@@ -1393,7 +1415,7 @@ def createNewSurvey():
         if status == 'success':
 
             if fileAttached:
-                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
+                key = organisation.folder + '-comp/kmlFiles/' + surveyName + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
@@ -1407,6 +1429,40 @@ def createNewSurvey():
             else:
                 import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier)
 
+            # Add permissions
+            survey_id = db.session.query(Survey.id).filter(Survey.name==surveyName).first()[0]
+            exclude_user_ids = [current_user.id]
+            if detailed_access:
+                for access in detailed_access:
+                    exclude_user_ids.append(access['user_id'])
+                    annotation_access = True if access['annotation']=='1' else False
+                    newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
+                    db.session.add(newDetailedException)
+
+            if permission != 'default' and annotation != 'default':
+                user_ids = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()]
+                annotation_access = True if annotation== '1' else False
+                for user_id in user_ids:
+                    newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
+                    db.session.add(newException)
+            elif permission != 'default':
+                user_query = db.session.query(User.id, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_ids = [r[0] for r in user_query]
+                user_annotations = [r[1] for r in user_query]
+                for i in range(len(user_ids)):
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
+                    db.session.add(newException)
+            elif annotation != 'default':
+                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_ids = [r[0] for r in user_query]
+                user_permissions = [r[1] for r in user_query]
+                annotation_access = True if annotation== '1' else False
+                for i in range(len(user_ids)):
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=user_permissions[i], annotation=annotation_access)
+                    db.session.add(newException)
+                    
+            db.session.commit()
+    
         return json.dumps({'status': status, 'message': message})
     else:
         return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
@@ -1641,7 +1697,7 @@ def getFolders():
     if current_user.is_authenticated:
         organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
         for organisation in organisations:
-            folders.extend(list_all(Config.BUCKET,current_user.folder+'/')[0])
+            folders.extend(list_all(Config.BUCKET,organisation.folder+'/')[0])
             if 'Downloads' in folders: folders.remove('Downloads')
 
     return json.dumps(folders)
@@ -1712,7 +1768,7 @@ def getAdvancedOptions(survey_id):
     '''Returns the advanced options settings for the specified survey.'''
     reply = 'error'
     survey = db.session.query(Survey).get(int(survey_id))
-    if survey and survey.user==current_user:
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         reply = {'smallDetections': str(survey.ignore_small_detections),'skyMask': str(survey.sky_masked)}
     return json.dumps(reply)
 
@@ -1752,6 +1808,7 @@ def editSurvey():
     sky_masked = request.form['sky_masked']
 
     survey = db.session.query(Survey).get(survey_id)
+    organisation = survey.organisation
     if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
         
         if 'classifier' in request.form:
@@ -1796,14 +1853,14 @@ def editSurvey():
                 message = 'Coordinates file must have a name.' 
 
             if status == 'success':
-                key = current_user.folder + '-comp/kmlFiles/' + surveyName + '.kml'
+                key = organisation.folder + '-comp/kmlFiles/' + survey.name + '.kml'
                 with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:
                     uploaded_file.save(temp_file.name)
                     GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=key,Body=temp_file)
                 importKML(survey.id)
         
         else:
-            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).all()
+            userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
             if userPermissions and userPermissions.create:
                 newSurveyTGCode = request.form['newSurveyTGCode']
                 newSurveyS3Folder = request.form['newSurveyS3Folder']
@@ -1817,7 +1874,7 @@ def editSurvey():
                     db.session.commit()
                     
                     if newSurveyS3Folder!='none':
-                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None)
+                        import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=survey.name,tag=newSurveyTGCode,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=None)
                     else:
                         survey.status = 'Uploading'
                         db.session.commit()
@@ -1826,12 +1883,16 @@ def editSurvey():
                 status = 'error'
                 message = 'You do not have permission to add images to this survey.'
 
+    else:
+        status = 'error'
+        message = 'You do not have permission to edit this survey.'
+
     return json.dumps({'status': status, 'message': message})
 
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
-
+    # TODO: DOUBLE CHECK THIS FUNCTION
     if current_user.is_authenticated:
         if current_user.username=='Dashboard':
             return redirect(url_for('dashboard'))
@@ -1870,7 +1931,7 @@ def TTWorkerSignup():
 @app.route('/newWorkerAccount/<token>')
 def newWorkerAccount(token):
     '''Handles the worker-account registration token.'''
-
+    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -1891,9 +1952,14 @@ def newWorkerAccount(token):
                 turkcode = Turkcode(code=username, active=False, tagging_time=0)
                 db.session.add(turkcode)
                 turkcode.user = user
+                notifications = db.session.query(Notification)\
+                        .filter(Notification.user_id==None)\
+                        .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
+                        .distinct().all()
+                user.seen_notifications = notifications
                 db.session.commit()
                 login_user(user, remember=False)
-                return redirect(url_for('jobs', _external=True))
+                return redirect(url_for('landing', _external=True))
     return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
 
 @app.route('/grantQualification/<token>')
@@ -1975,9 +2041,9 @@ def getPolarData():
     reply = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -2144,7 +2210,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -2225,9 +2291,9 @@ def getBarData():
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -2410,7 +2476,7 @@ def getBarDataIndividual():
     data = []
     labels = []
     individual = db.session.query(Individual).get(int(individual_id))
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if baseUnit == '1':
             baseQuery = db.session.query(Image).join(Detection)
         elif baseUnit == '2':
@@ -2456,7 +2522,7 @@ def getBarDataIndividual():
 def setAdminTask(task):
     '''Sets the current user's active task to the specified one.'''
 
-    if (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)): return {'redirect': url_for('done')}, 278
 
     if current_user.parent_id == None:
         turkcode = current_user.turkcode[0]
@@ -2721,7 +2787,7 @@ def dotask(username):
 @app.route('/createAccount/<token>')
 def createAccount(token):
     '''Creates a new account based on the recieved token.'''
-    
+    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -2729,25 +2795,37 @@ def createAccount(token):
 
     if ('organisation' in info.keys()) and (info['organisation'].lower() not in Config.DISALLOWED_USERNAMES):
         folder = info['organisation'].lower().replace(' ','-').replace('_','-')
-        check = db.session.query(User).filter(or_(
-            func.lower(User.username)==info['organisation'].lower(),
-            User.folder==folder,
-            User.email==info['email']
+
+        check = db.session.query(Organisation).filter(or_(
+            func.lower(Organisation.name)==info['organisation'].lower(),
+            Organisation.folder==folder
         )).first()
         
-        if (check == None) and (len(folder) <= 64):
-            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending', folder=folder, previous_image_count=0, image_count=0)
+        check2 = db.session.query(User).filter(func.lower(User.username)==info['organisation']).first()
+
+        if (check == None) and (check2 == None) and (len(folder) <= 64):
+            newUser = User(username=info['organisation'], email=info['email'], admin=True, passed='pending')
             newTurkcode = Turkcode(code=info['organisation'], active=False, tagging_time=0)
+            newOrganisation = Organisation(name=info['organisation'], folder=folder, previous_image_count=0, image_count=0)
+            newUserPermission = UserPermissions(default='admin', annotation=True, create=True, delete=True) 
             newTurkcode.user = newUser
+            newOrganisation.root = newUser
+            newUserPermission.user = newUser
+            newUserPermission.organisation = newOrganisation
             newPassword = randomString()
             newUser.set_password(newPassword)
+
             notifications = db.session.query(Notification)\
                                     .filter(Notification.user_id==None)\
                                     .filter(or_(Notification.expires==None,Notification.expires<datetime.utcnow()))\
                                     .distinct().all()
+
+            newUser.seen_notifications = notifications
+
             db.session.add(newUser)
             db.session.add(newTurkcode)
-            newUser.seen_notifications = notifications
+            db.session.add(newOrganisation)
+            db.session.add(newUserPermission)
             db.session.commit()
 
             #Create all the necessary AWS stuff
@@ -2871,6 +2949,8 @@ def tutorial():
             return redirect(url_for('index'))
     elif current_user.admin and (current_user.username=='Dashboard'):
         return redirect(url_for('dashboard'))
+    elif not current_user.permissions:
+        return redirect(url_for('landing'))
     else:
         return render_template('html/tutorial.html', helpFile='tutorial', bucket=Config.BUCKET, version=Config.VERSION)
 
@@ -2891,6 +2971,7 @@ def individuals():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/individuals.html', title='Individuals', helpFile='individuals_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 @app.route('/index')
@@ -2903,9 +2984,15 @@ def index():
         if current_user.username=='Dashboard':
             return redirect(url_for('dashboard'))
         else:
-            return redirect(url_for('surveys'))
+            if current_user.permissions:
+                return redirect(url_for('surveys'))
+            else:
+                return redirect(url_for('landing'))
     elif current_user.parent_id == None:
-        return redirect(url_for('jobs'))
+        if current_user.permissions:
+            return redirect(url_for('jobs'))
+        else:
+            return redirect(url_for('landing'))
     elif current_user.turkcode[0].task.is_bounding:
         return redirect(url_for('sightings'))
     elif '-4' in current_user.turkcode[0].task.tagging_level:
@@ -2934,12 +3021,14 @@ def jobs():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/jobs.html', title='Jobs', helpFile='jobs_page', version=Config.VERSION)
 
 @app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
 def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
-    
+    # TODO: DOUBLE CHECK THIS FUNCTION
+    logout = request.args.get('logout', None)
     if current_user.is_authenticated:
         if current_user.admin:
             if current_user.username=='Dashboard':
@@ -2948,7 +3037,11 @@ def TTRegisterAdmin():
                 return redirect(url_for('surveys'))
         else:
             if current_user.parent_id == None:
-                return redirect(url_for('jobs'))
+                if logout:
+                    logout_user()
+                    return redirect(url_for('TTRegisterAdmin'))
+                else:
+                    return redirect(url_for('jobs'))
             else:
                 if current_user.turkcode[0].task.is_bounding:
                     return redirect(url_for('sightings'))
@@ -2964,24 +3057,26 @@ def TTRegisterAdmin():
             if enquiryForm.info.data == '':
                 folder = enquiryForm.organisation.data.lower().replace(' ','-').replace('_','-')
 
-                check = db.session.query(User).filter(or_(
-                    func.lower(User.username)==enquiryForm.organisation.data.lower(),
-                    User.folder==folder
+                check = db.session.query(Organisation).filter(or_(
+                    func.lower(Organisation.name)==enquiryForm.organisation.data.lower(),
+                    Organisation.folder==folder
                 )).first()
+
+                check2 = db.session.query(User).filter(func.lower(User.username)==enquiryForm.organisation.data.lower()).first()
 
                 disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
                 disallowed = any(r in disallowed_chars for r in enquiryForm.organisation.data)
 
-                if (check == None) and (len(folder) <= 64) and not disallowed:
+                if (check == None) and (check2 == None) and (len(folder) <= 64) and not disallowed:
                     send_enquiry_email(enquiryForm.organisation.data,enquiryForm.email.data,enquiryForm.description.data)
                     flash('Enquiry submitted.')
                     return redirect(url_for('TTRegisterAdmin'))
                 elif disallowed:
                     flash('Your organisation name cannot contain special characters.')
-                elif len(folder) <= 64:
+                elif len(folder) > 64:
                     flash('Your organisation name is too long.')
                 else:
-                    flash('Invalid organsiation name. Please try again.')
+                    flash('Invalid organisation name. Please try again.')
             else:
                 flash('Enquiry (not) submitted.')
                 return redirect(url_for('TTRegisterAdmin'))
@@ -3011,11 +3106,11 @@ def trainingCSV():
     else:
         admin = db.session.query(User).filter(User.username=='Admin').first()
         if current_user==admin:
-            user_data = []
-            organisations = db.session.query(Organisation).order_by(Organisation.name).all()
+            organisation_data = []
+            organisations = db.session.query(Organisation).order_by(Organisation.name).distinct().all()
             for organisation in organisations:
-                user_data.append({'id': str(organisation.id), 'username': organisations.name})
-            return render_template('html/trainingCSV.html', title='Training CSV', user_data=user_data, helpFile='training_csv', version=Config.VERSION)
+                organisation_data.append({'id':organisation.id, 'name':organisation.name})
+            return render_template('html/trainingCSV.html', title='Training CSV', organisation_data=organisation_data, helpFile='training_csv', version=Config.VERSION)
         else:
             return redirect(url_for('index'))
 
@@ -3055,6 +3150,7 @@ def surveys():
                     return redirect(url_for('index'))
 
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
 
         newSurveyForm = NewSurveyForm()
 
@@ -3170,8 +3266,9 @@ def workers():
                     return redirect(url_for('index'))
 
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
 
-        return render_template('html/workers.html', title='Workers', helpFile='workers', version=Config.VERSION)
+        return render_template('html/workers.html', title='Annotation Statistics', helpFile='workers', version=Config.VERSION)
 
 @app.route('/getTaskCompletionStatus/<task_id>')
 @login_required
@@ -3179,7 +3276,7 @@ def getTaskCompletionStatus(task_id):
     '''Returns whether the specified task has had all initial-level clusters tagged.'''
 
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
 
         if task.init_complete:
             return json.dumps(str(True))
@@ -3204,7 +3301,7 @@ def getWorkerStats():
         survey = db.session.query(Survey).get(survey_id)
         tasks = db.session.query(Task).filter(Task.survey==survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all()
     
-    if survey.user == current_user:
+    if checkSurveyPermission(current_user.id,survey.id,'read'):
 
         for task in tasks:
             if worker_id:
@@ -3372,13 +3469,13 @@ def getHomeSurveys():
             share_permission=item[25]
             if item[0] not in survey_permissions.keys():
                 survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
-            if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception
+            if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
             if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
             if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
             if share_permission: survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-    permission_order = [None,'read','write','admin']
+    permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
     for survey_id in survey_permissions:
         if survey_permissions[survey_id]['exception']:
             survey_data[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -3480,13 +3577,13 @@ def getHomeSurveys():
                 share_permission=item[25]
                 if item[0] not in survey_permissions.keys():
                     survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
-                if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception
+                if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
                 if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
                 if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
                 if share_permission: survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-        permission_order = [None,'read','write','admin']
+        permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
         for survey_id in survey_permissions:
             if survey_permissions[survey_id]['exception']:
                 survey_data2[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -3731,14 +3828,20 @@ def getJobs():
 @app.route('/getWorkers')
 @login_required
 def getWorkers():
-    '''Returns a paginated list of workers for the current user.'''
-    
+    '''Returns a paginated list of users for annotation statistics'''
+
     page = request.args.get('page', 1, type=int)
     order = request.args.get('order', 1, type=int)
     search = request.args.get('search', '', type=str)
 
-    worker_ids = [r.id for r in current_user.workers]
-    worker_ids.append(current_user.id)
+    # worker_ids = [r.id for r in current_user.workers]
+    # worker_ids.append(current_user.id)
+
+    worker_ids = [current_user.id]
+    org_ids = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()]
+    if len(org_ids) > 0:
+        worker_ids.extend([r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id.in_(org_ids)).distinct().all()])
+
     workers = db.session.query(User).filter(User.id.in_(worker_ids))
 
     searches = re.split('[ ,]',search)
@@ -3824,59 +3927,155 @@ def inviteWorker():
     '''Invites a user to work for the current user.'''
 
     status = 'Error'
-    message = 'Could not find worker with that email address. Please check the address, or ask them to sign up for a worker account.'
+    message = 'Could not find user with that username. Please check the username, or ask them to sign up for a user account.'
 
     try:
-        inviteEmail = request.form['inviteEmail']
-        if inviteEmail and current_user.root_organisation:
-            worker = db.session.query(User).filter(User.email==inviteEmail).first()
-            if worker:
-                userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==worker.id).filter(UserPermissions.organisation_id==current_user.root_organisation.id).first()
-                if userPermissions:
-                    message = 'That worker already works for you.'
-                else:
-                    token = jwt.encode(
-                            {'organisation_id': current_user.root_organisation.id, 'worker_id': worker.id},
+        inviteUsername = ast.literal_eval(request.form['inviteUsername'])
+        orgID = ast.literal_eval(request.form['orgID'])
+
+        if inviteUsername:
+            organisation = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==orgID).filter(UserPermissions.default=='admin').first()
+            if organisation:
+                worker = db.session.query(User).filter(User.username==inviteUsername).first()
+                if worker:
+                    check = db.session.query(UserPermissions).filter(UserPermissions.user_id==worker.id).filter(UserPermissions.organisation_id==organisation.id).first()
+                    if check:
+                        message = 'That user is already a member of your organisation.'
+                    else:
+                        check_notif = db.session.query(Notification).filter(Notification.user_id==worker.id).filter(Notification.contents.contains(organisation.name+' has invited you to join their organisation.')).first()
+                        if check_notif:
+                            message = 'That user has already been invited to join your organisation.'
+                        else:
+                            token = jwt.encode(
+                            {'organisation_id': organisation.id, 'worker_id': worker.id, 'user_id': current_user.id},
                             app.config['SECRET_KEY'], algorithm='HS256')
 
-                    url = 'https://'+Config.DNS+'/acceptInvitation/'+token
+                            url = 'https://'+Config.DNS+'/acceptInvitation/'+token + '/'
 
-                    send_email('[TrapTagger] Invitation',
-                            sender=app.config['ADMINS'][0],
-                            recipients=[worker.email],
-                            text_body=render_template('email/workerInvitation.txt',workername=worker.username, username=current_user.username, url=url),
-                            html_body=render_template('email/workerInvitation.html',workername=worker.username, username=current_user.username, url=url))
-                    
-                    status = 'Success'
-                    message = 'Invitation sent.'
+                            notification_message = '<p>'+organisation.name+' has invited you to join their organisation. Do you <a href="'+url+'accept">Accept</a> or <a href="'+url+'decline">Decline</a>?</p>'
+
+                            notification = Notification(user_id=worker.id, contents=notification_message, seen=False)
+                            db.session.add(notification)
+
+                            url_pending = 'https://'+Config.DNS+'/cancelInvitation/'+token 
+
+                            organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
+
+                            prev_pending_notif = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains(worker.username+' has been invited to join '+organisation.name+'.')).all()
+                            for notification in prev_pending_notif:
+                                db.session.delete(notification)
+
+                            for admin_id in organisation_admins:
+                                notification_message = '<p>'+worker.username+' has been invited to join '+organisation.name+'. You can <a href="'+url_pending+'">Cancel</a> this invitation.</p>'
+                                notification = Notification(user_id=admin_id, contents=notification_message, seen=False)
+                                db.session.add(notification)
+
+                            db.session.commit()
+                            
+                            status = 'Success'
+                            message = 'Invitation sent.'
     except:
         pass
 
     return json.dumps({'status': status, 'message':message})
 
-@app.route('/acceptInvitation/<token>')
+@app.route('/acceptInvitation/<token>/<action>')
 @login_required
-def acceptInvitation(token):
+def acceptInvitation(token,action):
     '''Accepts a worker's invitation to annotate for a user based on the supplied token.'''
 
     try:
-        info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        organisation_id = info['organisation_id']
-        worker_id = info['worker_id']
+        if current_user and current_user.is_authenticated:
+            info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            organisation_id = info['organisation_id']
+            worker_id = info['worker_id']
 
-        userPermissions = UserPermissions(organisation_id=organisation_id, user_id=worker_id, default='worker', delete=False, create=False)
-        db.session.add(userPermissions)
+            organisation = db.session.query(Organisation).get(organisation_id)
+            worker = db.session.query(User).get(worker_id)
 
-        # user = db.session.query(User).get(user_id)
-        # worker = db.session.query(User).get(worker_id)
+            notification = db.session.query(Notification).filter(Notification.user_id==current_user.id).filter(Notification.contents.contains(organisation.name+' has invited you to join their organisation.')).first()
+            if notification:
+                db.session.delete(notification)
 
-        # user.workers.append(worker)
-        db.session.commit()
+            organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
+
+            pending_notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains(worker.username+' has been invited to join '+organisation.name+'.')).all()
+            for pending_notification in pending_notifications:
+                db.session.delete(pending_notification)
+
+            if action=='accept':
+                user_permission = UserPermissions(user_id=worker_id, organisation_id=organisation_id, default='worker', annotation=False, delete=False)
+                db.session.add(user_permission)
+
+                notif_msg_org = '<p>'+worker.username+' has accepted the invitation to join '+organisation.name+'. Please modify their permissions as required <a href="/permissions">here</a>.</p>'
+                for admin_id in organisation_admins:
+                    notif_org = Notification(user_id=admin_id, contents=notif_msg_org, seen=False)
+                    db.session.add(notif_org)
+
+                notif_msg_worker = '<p>You have accepted an invitation to join '+organisation.name+'.</p>'
+                notif_worker = Notification(user_id=worker_id, contents=notif_msg_worker, seen=False)
+                db.session.add(notif_worker)
+
+            else:
+                notif_msg_org = '<p>'+worker.username+' has declined the invitation to join '+organisation.name+'.</p>'
+                for admin_id in organisation_admins:
+                    notif_org = Notification(user_id=admin_id, contents=notif_msg_org, seen=False)
+                    db.session.add(notif_org)
+
+                notif_msg_worker = '<p>You have declined an invitation to join '+organisation.name+'.</p>'
+                notif_worker = Notification(user_id=worker_id, contents=notif_msg_worker, seen=False)
+                db.session.add(notif_worker)
+
+            db.session.commit()
+
+            updateUserAdminStatus(worker_id)
+        
+    except:
+        pass
+    
+    return redirect(url_for('index'))
+
+@app.route('/cancelInvitation/<token>')
+@login_required
+def cancelInvitation(token):
+    '''Cancels a worker's invitation to annotate for a user based on the supplied token.'''
+
+    try:
+
+        if current_user and current_user.is_authenticated:
+            info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            organisation_id = info['organisation_id']
+            worker_id = info['worker_id']
+
+            if checkDefaultAdminPermission(current_user.id,organisation_id):
+
+                organisation = db.session.query(Organisation).get(organisation_id)
+                worker = db.session.query(User).get(worker_id)
+                organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]   
+
+                invite_notification = db.session.query(Notification).filter(Notification.user_id==worker_id).filter(Notification.contents.contains(organisation.name+' has invited you to join their organisation.')).first()
+                if invite_notification:
+                    db.session.delete(invite_notification)
+
+                notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains(worker.username+' has been invited to join '+organisation.name+'.')).all()
+                for notification in notifications:
+                    db.session.delete(notification)
+
+                notif_msg_org = '<p> The invitation for '+worker.username+' to join '+organisation.name+' has been cancelled.</p>'
+                for admin_id in organisation_admins:
+                    notif_org = Notification(user_id=admin_id, contents=notif_msg_org, seen=False)
+                    db.session.add(notif_org)
+
+                db.session.commit()
+
+                updateUserAdminStatus(worker_id)
+            else:
+                removeAdminNotifications(current_user.id, organisation_id)
 
     except:
-        return render_template("html/block.html",text="Error.", helpFile='block', version=Config.VERSION)
-
-    return render_template("html/block.html",text="Invitation accepted.", helpFile='block', version=Config.VERSION)
+        pass
+        
+    return redirect(url_for('permissions'))
 
 # @app.route('/reClassify/<survey>')
 # @login_required
@@ -3986,11 +4185,13 @@ def exportRequest():
     data = ast.literal_eval(data)
 
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         app.logger.info('export request made: {}, {}, {}'.format(task_id,exportType,data))
 
         if exportType == 'WildBook':
-            fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+            # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
 
             # Delete old file if exists
             try:
@@ -4056,7 +4257,8 @@ def editTranslations(task_id):
     '''Endpoint for editing translations. Launches task upon completion and returns success/error status.'''
 
     task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
         translation = request.form['translation']
         translation = ast.literal_eval(translation)
         edit_translations(int(task_id), translation)
@@ -4109,7 +4311,8 @@ def UploadCSV():
     survey_id = int(request.form['survey'])
     survey = db.session.query(Survey).get(survey_id)
 
-    if survey and (survey.user==current_user):
+    # if survey and (survey.user==current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
         survey_name = survey.name
         filePath = 'import/'+current_user.username+'/'+survey_name+'_'+taskName+'.csv'
 
@@ -4143,10 +4346,11 @@ def explore():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             task_id = request.args.get('task', None)
             if task_id:
                 task = db.session.query(Task).get(task_id)
-                if task and (task.survey.user==current_user) and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
+                if task and checkSurveyPermission(current_user.id,task.survey_id,'read') and (task.status.lower() in Config.TASK_READY_STATUSES) and (task.survey.status.lower() in Config.SURVEY_READY_STATUSES):
                     task.tagging_level = '-1'
                     db.session.commit()
                     return render_template('html/explore.html', title='Explore', helpFile='explore', bucket=Config.BUCKET, version=Config.VERSION)
@@ -4174,9 +4378,11 @@ def exploreKnockdowns():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             task_id = request.args.get('task', None)
             task = db.session.query(Task).get(task_id)
-            if task and (task.survey.user==current_user):
+            # if task and (task.survey.user==current_user):
+            if task and (checkAnnotationPermission(current_user.parent_id,task.id) or checkSurveyPermission(current_user.id,task.survey_id,'write')):
                 return render_template('html/knockdown.html', title='Knockdowns', helpFile='knockdown_analysis', bucket=Config.BUCKET, version=Config.VERSION)
             else:
                 return redirect(url_for('surveys'))
@@ -4243,7 +4449,10 @@ def login_page():
             if user.admin:
                 next_page = url_for('surveys', _external=True)
             elif user.parent_id == None:
-                next_page = url_for('jobs', _external=True)
+                if user.permissions:
+                    next_page = url_for('jobs', _external=True)
+                else:
+                    next_page = url_for('landing', _external=True)
         return redirect(next_page)
 
     return render_template('html/login.html', title='Sign In', form=form, helpFile='login', version=Config.VERSION)
@@ -5054,7 +5263,7 @@ def getIndividualInfo(individual_id):
     individual = db.session.query(Individual).get(individual_id)
 
     # if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
-    if individual and (checkAnnotationPermission(current_user.parent_id,individual.tasks[0].id) or checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'read')):
+    if individual and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks)):
 
         # Find all family
         family = []
@@ -5093,7 +5302,12 @@ def getIndividualInfo(individual_id):
         else:
             lastSeen = None
 
-        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen]})
+        if all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks):
+            access = 'write'
+        else:
+            access = 'read'
+
+        return json.dumps({'id': individual_id, 'name': individual.name, 'tags': [tag.description for tag in individual.tags], 'label': individual.species,  'notes': individual.notes, 'children': [child.id for child in individual.children], 'family': family, 'surveys': [task.survey.name + ' ' + task.name for task in individual.tasks], 'seen_range': [firstSeen, lastSeen], 'access': access})
     else:
         return json.dumps('error')
 
@@ -5400,6 +5614,10 @@ def get_clusters():
     if ((id is None) and (clusters_allocated >= task_size)) or (reply['info'] == []):
         reply['info'].append(Config.FINISHED_CLUSTER)
 
+    if id:
+        access = checkSurveyPermission(current_user.id,task.survey_id,'write')
+        reply['access'] = access
+
     if Config.DEBUGGING: app.logger.info("Entire get cluster completed in {}".format(time.time() - OverallStartTime))
     return json.dumps(reply)
 
@@ -5412,7 +5630,8 @@ def getImage():
     reqId = request.args.get('reqId', '-99')
     image = db.session.query(Image).get(int(id))
 
-    if image and (current_user == image.camera.trapgroup.survey.user):
+    # if image and (current_user == image.camera.trapgroup.survey.user):
+    if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
         images = [{'id': image.id,
                 'url': image.camera.path + '/' + image.filename,
                 'rating': image.detection_rating,
@@ -5473,7 +5692,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     '''
     
     task = db.session.query(Task).get(int(task_id))
-    if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
+    # if (task.survey.user==current_user) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
+    if (checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id)) and ((int(knockedstatus) == 87) or (task.status == 'successInitial')):
         task.status = 'Knockdown Analysis'
         db.session.commit()
 
@@ -5483,7 +5703,8 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
     result = None
     sortedImages = None
     finished = False
-    if task.survey.user==current_user:
+    # if task.survey.user==current_user:
+    if checkSurveyPermission(current_user.id,task.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,task.id):
         if int(clusterID) != -102:
             # GLOBALS.mutex[int(task_id)]['global'].acquire()
             T_index = int(T_index)
@@ -5718,27 +5939,39 @@ def individualNote():
 
     individual = db.session.query(Individual).get(int(individualID))
     # if individual and ((individual.tasks[0].survey.user==current_user.parent) or (current_user.parent in individual.tasks[0].survey.user.workers)):
-    if individual and (checkAnnotationPermission(current_user.parent_id,individual.tasks[0].id)):
+    if individual and all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks):
         individual.notes = note
         db.session.commit()
         return json.dumps({'status': 'success','message': 'Success.'})
 
     return json.dumps({'status': 'error','message': 'Could not find individual.'})
 
-@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<trapgroup_id>', methods=['POST'])
+@app.route('/getClustersBySpecies/<task_id>/<species>/<tag_id>/<trapgroup_id>/<annotator_id>', methods=['POST'])
 @login_required
-def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
+def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
     '''Returns a list of cluster IDs for the specified task with the specified species and its child labels. 
     Returns all clusters if species is 0.'''
 
     task = db.session.query(Task).get(task_id)
 
-    if task and (current_user == task.survey.user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         # notes = request.args.get('notes', None)
         if 'notes' in request.form:
             notes = ast.literal_eval(request.form['notes'])
         else:
             notes = None
+
+        if 'startDate' in request.form:
+            startDate = ast.literal_eval(request.form['startDate'])
+        else:
+            startDate = None
+
+        if 'endDate' in request.form:
+            endDate = ast.literal_eval(request.form['endDate'])
+        else:
+            endDate = None
+
+        if Config.DEBUGGING: app.logger.info('Get Cluster By species for: task_id:{} species:{} tag_id:{} trapgroup_id:{} annotator_id:{} notes:{} startDate:{} endDate:{}'.format(task_id,species,tag_id,trapgroup_id,annotator_id,notes,startDate,endDate))
 
         clusters = db.session.query(Cluster.id) \
                             .filter(Cluster.task_id == int(task_id))\
@@ -5772,6 +6005,15 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id):
         if trapgroup_id != '0':
             clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
 
+        if annotator_id != '0':
+            clusters = clusters.join(User).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
+
+        if startDate:
+            clusters = clusters.filter(Image.corrected_timestamp>=startDate)
+
+        if endDate:
+            clusters = clusters.filter(Image.corrected_timestamp<=endDate)
+
         if notes:
             if (notes==True) or (notes.lower() == 'true'):
                 clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
@@ -5795,9 +6037,9 @@ def getTrapgroups():
     task_ids = ast.literal_eval(request.form['task_ids'])
     if task_ids:
         if task_ids[0] == '0':
-            surveys = db.session.query(Survey.id).filter(Survey.user==current_user).all()
+            surveys = surveyPermissionsSQ(db.session.query(Survey.id), current_user.id, 'read').distinct().all()
         else:
-            surveys = db.session.query(Survey.id).filter(Survey.user==current_user).filter(Survey.tasks.any(Task.id.in_(task_ids))).all()
+            surveys = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.tasks.any(Task.id.in_(task_ids))), current_user.id, 'read').distinct().all()
         survey_ids = [r[0] for r in surveys]
     
         names = ['None','All']
@@ -5815,7 +6057,7 @@ def getTrapgroupCoords(survey_id):
     
     reply = []
     survey = db.session.query(Survey).get(int(survey_id))
-    if (survey and survey.user==current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'read'):
         for trapgroup in db.session.query(Trapgroup).filter(Trapgroup.survey==survey).order_by(Trapgroup.tag).distinct().all():
             data = {}
             data['tag'] = trapgroup.tag
@@ -5832,7 +6074,7 @@ def getSurveyClassifications(survey_id):
     '''Returns a list of all classifications in the specified survey.'''
 
     survey = db.session.query(Survey).get(survey_id)
-    if survey and (survey.user == current_user):
+    if survey and checkSurveyPermission(current_user.id,survey_id,'write'):
         classList = db.session.query(Detection.classification)\
                             .join(Image)\
                             .join(Camera)\
@@ -5869,9 +6111,9 @@ def getCoords():
     if current_user and current_user.is_authenticated:
         if task_ids:
             if task_ids[0] == '0':
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
             else:
-                tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+                tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
             task_ids = [r[0] for r in tasks]
             survey_ids = list(set([r[1] for r in tasks]))
 
@@ -5989,9 +6231,9 @@ def getTrapgroupCounts():
     maxVal = 0
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [t[0] for t in tasks]
         survey_ids = list(set([t[1] for t in tasks]))
 
@@ -6169,7 +6411,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
     end_date = ast.literal_eval(request.form['end_date'])
 
     individual = db.session.query(Individual).get(individual_id)
-    if individual and (current_user == individual.tasks[0].survey.user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if int(baseUnit) == 1:
             baseQuery = db.session.query(Image).join(Detection)
         elif int(baseUnit) == 2:
@@ -6273,7 +6515,7 @@ def assignNote():
     try:
         note = ast.literal_eval(request.form['note'])
         typeID = ast.literal_eval(request.form['type'])
-        
+        status = 'error'
         if(typeID == "cluster"):
             clusterID = ast.literal_eval(request.form['cluster_id'])
             cluster = db.session.query(Cluster).get(clusterID)
@@ -6283,15 +6525,17 @@ def assignNote():
                     note = note[:512]
                 cluster.notes = note
                 db.session.commit()
+                status = 'success'
         else:
             individualID = ast.literal_eval(request.form['individual_id'])
             individual = db.session.query(Individual).get(individualID)
             # if individual and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user) or (current_user == individual.tasks[0].survey.user)):
-            if individual and (checkAnnotationPermission(current_user.parent_id,individual.tasks[0].id) or checkSurveyPermission(current_user.id,individual.tasks[0].survey_id,'write')):
+            if individual and (all(checkAnnotationPermission(current_user.parent_id,task.id) for task in individual.tasks) or all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in individual.tasks)):
                 if len(note) > 512:
                     note = note[:512]
                 individual.notes = note
                 db.session.commit()
+                status = 'success'
 
     except:
         pass
@@ -6299,7 +6543,7 @@ def assignNote():
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         return {'redirect': url_for('done')}, 278
     else:
-        return json.dumps('')
+        return json.dumps(status)
 
 @app.route('/assignLabel/<clusterID>', methods=['POST'])
 @login_required
@@ -6345,7 +6589,7 @@ def assignLabel(clusterID):
             turkcode.active = False
 
         # if cluster and ((current_user.parent in cluster.task.survey.user.workers) or (current_user.parent == cluster.task.survey.user) or (current_user == cluster.task.survey.user)):
-        if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id) or checkAnnotationPermission(current_user.id,cluster.task_id)):
+        if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id) or checkSurveyPermission(current_user.id,cluster.task.survey_id,'write')):
             num += 1
 
             #Check if image has already been knocked down, if so, ignore new label
@@ -6589,11 +6833,11 @@ def initKeys():
 
 @app.route('/getSurveys')
 @login_required
-def getSurvey():
+def getSurveys():
     '''Returns a list of survey names and IDs owned by the current user.'''
     requiredPermission = request.args.get('requiredPermission',None)
     if requiredPermission==None: requiredPermission = 'read'
-    return json.dumps(surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).all())
+    return json.dumps(surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all())
 
 @app.route('/getWorkerSurveys')
 @login_required
@@ -6625,21 +6869,22 @@ def getTasks(survey_id):
                             .filter(User.parent_id==worker_id)\
                             .filter(Survey.id == int(survey_id))\
                             .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
-                            ,current_user.id,'write').distinct().all()
+                            ,current_user.id,'read').distinct().all()
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
             return json.dumps([(-1, 'Southern African')])
         else:
-            return json.dumps(surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').all())
+            return json.dumps(surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all())
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required
 def getOtherTasks(task_id):
     '''Returns a list of task names and IDs for the survey of the given task.'''
     task = db.session.query(Task).get(int(task_id))
-    if task and (task.survey.user==current_user):
-        return json.dumps(db.session.query(Task.id, Task.name).filter(Task.survey_id == task.survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).all())
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        return json.dumps(db.session.query(Task.id, Task.name).filter(Task.survey_id == task.survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all())
     else:
         return json.dumps([])
 
@@ -6740,7 +6985,8 @@ def getAllTaskLabels(task_id1,task_id2):
     labels2 = []
     task1 = db.session.query(Task).get(task_id1)
     task2 = db.session.query(Task).get(task_id2)
-    if task1 and task2 and (current_user==task1.survey.user) and (current_user==task2.survey.user):
+    # if task1 and task2 and (current_user==task1.survey.user) and (current_user==task2.survey.user):
+    if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read') and checkSurveyPermission(current_user.id,task2.survey_id,'read'):
         alist = [[GLOBALS.knocked_id,'Knocked Down'],[GLOBALS.nothing_id,'Nothing'],[GLOBALS.unknown_id,'Unknown'],[GLOBALS.vhl_id,'Vehicles/Humans/Livestock']]
 
         labels1.extend(buildOrderedLabels(None,task_id1))
@@ -6793,6 +7039,7 @@ def comparison():
                     return redirect(url_for('index'))
         else:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
 
             confusions = GLOBALS.redisClient.get('confusions_'+str(current_user.id))
 
@@ -6936,7 +7183,8 @@ def getLabels(task_id):
 
     reply = []
     task = db.session.query(Task).get(task_id)
-    if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
+    # if (int(task_id) == -1) or (task and (current_user==task.survey.user)):
+    if (int(task_id) == -1) or (task and checkSurveyPermission(current_user.id,task.survey_id,'read')):
         if int(task_id) == -1: #template
             task = db.session.query(Task).filter(Task.name=='template_southern_africa').filter(Task.survey==None).first()
             task_id = task.id
@@ -7240,7 +7488,7 @@ def getSpeciesSelectorBySurvey(label):
     response = []
     task = current_user.turkcode[0].task
 
-    if task and (current_user==task.survey.user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         parent_labels = db.session.query(Label).filter(Label.task_id == task.id).filter(Label.parent_id == None).all()
         
         temp = []
@@ -7284,8 +7532,7 @@ def populateTagSelector():
 
     response = []
     task = current_user.turkcode[0].task
-
-    if task and (current_user==task.survey.user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         tags = db.session.query(Tag).filter(Tag.task_id == task.id).all()
         response.append((0, 'All'))
         for tag in tags:
@@ -7338,10 +7585,12 @@ def generateExcel(selectedTask):
     
     task = db.session.query(Task).get(selectedTask)
 
-    if (task == None) or (task.survey.user != current_user):
+    # if (task == None) or (task.survey.user != current_user):
+    if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps('error')
 
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.xlsx'
 
     # Delete old file if exists
     try:
@@ -7391,7 +7640,8 @@ def generateCSV():
 
     for selectedTask in selectedTasks:
         task = db.session.query(Task).get(selectedTask)
-        if (task == None) or (task.survey.user != current_user):
+        # if (task == None) or (task.survey.user != current_user):
+        if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
             return json.dumps({'status':'error',  'message': None})
 
         if start_date != None:
@@ -7406,7 +7656,8 @@ def generateCSV():
           
 
     task = db.session.query(Task).get(selectedTasks[0])
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.csv'
 
     # Delete old file if exists
     try:
@@ -7432,10 +7683,12 @@ def generateCOCO():
     task_id = request.form['task_id']
     task = db.session.query(Task).get(task_id)
 
-    if (task == None) or (task.survey.user != current_user):
+    # if (task == None) or (task.survey.user != current_user):
+    if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps('error')
 
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.json'
 
     # Delete old file if exists
     try:
@@ -7470,7 +7723,8 @@ def getSpeciesandIDs(task_id):
     final_ids = [0]
     for task_id in tasks:
         task = db.session.query(Task).get(task_id)
-        if task and (task.survey.user==current_user):
+        # if task and (task.survey.user==current_user):
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
             names = []
             ids = []
             parentLabels = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==None).order_by(Label.description).all()
@@ -7498,10 +7752,12 @@ def checkDownload(fileType,selectedTask):
 
     task = db.session.query(Task).get(selectedTask)
 
-    if (task == None) or (task.survey.user != current_user):
+    # if (task == None) or (task.survey.user != current_user):
+    if (task == None) or (not checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return json.dumps('error')
 
-    fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
         fileName += '.csv'
     elif fileType == 'excel':
@@ -7742,21 +7998,49 @@ def getHelp():
 @app.route('/checkNotifications', methods=['POST'])
 @login_required
 def checkNotifications():
-    '''Checks if there are any new notifications for the user.'''
+    '''Checks if there are any new global notifications for the user.'''
     
-    if current_user.admin:
-        notification = db.session.query(Notification)\
-                            .filter(~Notification.users_seen.contains(current_user))\
-                            .filter(Notification.user_id==None)\
-                            .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
-                            .order_by(Notification.id)\
-                            .first()
-        if notification:
-            notification.users_seen.append(current_user)
+    total_unseen = 0
+    global_notification = None
+    notifcation_contents = {}
+    status = 'error'
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
+        notifications = db.session.query(Notification)\
+                    .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
+                    .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
+                    .order_by(desc(Notification.id))\
+                    .all()
+
+
+        for notification in notifications:
+            seen_notif = False
+            if notification.user_id == None:
+                if current_user in notification.users_seen:
+                    seen_notif = True
+                else:
+                    seen_notif = False
+                    global_notification = notification
+            else:
+                if notification.seen == None:
+                    seen_notif = False
+                else:
+                    seen_notif = notification.seen
+
+            if seen_notif == False:
+                total_unseen += 1
+
+        if global_notification:
+            global_notification.users_seen.append(current_user)
             db.session.commit()
-            return json.dumps({'status':'success','content':notification.contents})
+
+            notifcation_contents = {
+                'id': global_notification.id,
+                'contents': global_notification.contents,
+            }
+
+        status = 'success'
     
-    return json.dumps({'status':'error'})
+    return json.dumps({'status':status,'total_unseen':total_unseen,'global_notification':notifcation_contents})
 
 @app.route('/dashboard')
 @login_required
@@ -8438,16 +8722,15 @@ def getIndividualIDSurveysTasks():
 
     species = request.form['species']
 
-    surveys = db.session.query(Survey)\
+    surveys = surveyPermissionsSQ(db.session.query(Survey)\
                         .join(Task)\
                         .join(Label)\
                         .filter(Label.description==species)\
                         .filter(Label.icID_count==0)\
                         .filter(Label.icID_allowed==True)\
-                        .filter(Survey.user==current_user)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
                         .filter(Survey.status.in_(Config.SURVEY_READY_STATUSES))\
-                        .distinct().all()
+                        ,current_user.id, 'write').distinct().all()
 
     reply = {}
     for survey in surveys:
@@ -8458,6 +8741,9 @@ def getIndividualIDSurveysTasks():
                         .filter(Label.icID_allowed==True)\
                         .filter(Task.survey==survey)\
                         .filter(Task.status.in_(Config.TASK_READY_STATUSES))\
+                        .filter(Task.name != 'default')\
+                        .filter(~Task.name.contains('_o_l_d_'))\
+                        .filter(~Task.name.contains('_copying'))\
                         .distinct().all()
 
         reply[survey.name] = []
@@ -8476,7 +8762,7 @@ def writeInfoToImages(type_id,id):
 
     if type_id == 'task':
         task = db.session.query(Task).get(id)
-        if task and (task.survey.user==current_user):
+        if task and checkSurveyPermission(current_user.id,task.survey_id,'admin'):
             if species != '0':
                 individuals = db.session.query(Individual).join(Task,Individual.tasks).filter(Task.id==id).filter(Individual.species == species).all()
             else:
@@ -8564,7 +8850,7 @@ def writeInfoToImages(type_id,id):
         return json.dumps('success')
     elif type_id == 'individual':
         individual = db.session.query(Individual).get(id)
-        if individual and (individual.tasks[0].survey.user==current_user):
+        if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'admin') for task in individual.tasks):
             images = db.session.query(Image)\
                     .join(Detection)\
                     .filter(Detection.individuals.contains(individual))\
@@ -8660,7 +8946,7 @@ def getIndividualAssociations(individual_id, order):
 
     reply = []
 
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
 
         clusterSQ = db.session.query(Cluster)\
             .join(Task)\
@@ -8757,6 +9043,7 @@ def results():
             return redirect(url_for('index'))
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        if not current_user.permissions: return redirect(url_for('landing'))
         return render_template('html/results.html', title='Analysis', helpFile='results_page', bucket=Config.BUCKET, version=Config.VERSION)
 
 
@@ -8851,9 +9138,9 @@ def getLineData():
     data_labels = []
     if task_ids:
         if task_ids[0] == '0':
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user == current_user).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').distinct().all()
         else:
-            tasks = db.session.query(Task.id, Task.survey_id).join(Survey).filter(Survey.user==current_user).filter(Task.id.in_(task_ids)).all()
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.survey_id).join(Survey).filter(Task.id.in_(task_ids)), current_user.id, 'read').distinct().all()
         task_ids = [r[0] for r in tasks]
         survey_ids = list(set([r[1] for r in tasks]))
 
@@ -9087,7 +9374,7 @@ def getLineDataIndividual():
     data = []
     data_labels = []
     individual = db.session.query(Individual).get(individual_id)
-    if individual and (individual.tasks[0].survey.user==current_user):
+    if individual and all(checkSurveyPermission(current_user.id,task.survey_id,'read') for task in individual.tasks):
         if baseUnit == '1':
             baseQuery = db.session.query(
                                 Image.id,
@@ -9252,7 +9539,7 @@ def saveGroup():
 
     status = 'success'
     message = ''
-    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgroup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
     permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
     if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
@@ -9325,14 +9612,16 @@ def editGroup():
 
     if Config.DEBUGGING: app.logger.info('Editing group {} {} {} {}'.format(group_id, group_name, group_description, sites_ids))
 
-    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
+    survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgroup).filter(Trapgroup.id.in_(sites_ids)).distinct().all()]
     permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'write').distinct().all()
+    status = 'success'
+    message = ''
     if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
         try:
             group = db.session.query(Sitegroup).get(group_id)
             if group:
-                check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==name).filter(Sitegroup.id!=group_id).first()
-                if name_check:
+                check = db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey).join(Organisation).join(UserPermissions).filter(UserPermissions.user==current_user).filter(Sitegroup.name==group_name).filter(Sitegroup.id!=group_id).first()
+                if check:
                     status = 'error'
                     message = 'A group with that name already exists.'
                 else:
@@ -9359,13 +9648,16 @@ def deleteGroup(group_id):
     ''' Delete a group of sites '''
     if current_user and current_user.is_authenticated:
         try:
-            group = db.session.query(Sitegroup).get(group_id)
+            group = surveyPermissionsSQ(db.session.query(Sitegroup).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'write').filter(Sitegroup.id==group_id).first()
             if group:
                 group.trapgroups = []
                 db.session.delete(group)
                 db.session.commit()
-            status = 'success'
-            message = 'Group deleted successfully.'
+                status = 'success'
+                message = 'Group deleted successfully.'
+            else:
+                status = 'error'
+                message = 'Group not found.'
         except:
             status = 'error'
             message = 'An error occurred while deleting the group.'
@@ -9870,7 +10162,7 @@ def populateSiteSelector():
     '''Returns site list for populating the site selector.'''
     response = []
     survey = current_user.turkcode[0].task.survey
-    if survey and (current_user==survey.user):
+    if survey and checkSurveyPermission(current_user.id, survey.id, 'read'):
         sites = db.session.query(Trapgroup.id, Trapgroup.tag).filter(Trapgroup.survey_id==survey.id).all()
         response.append((0, 'All'))
         for site in sites:
@@ -9915,7 +10207,7 @@ def getGroupSites():
         permission = []
         group_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Sitegroup.id).join(Trapgroup, Sitegroup.trapgroups).join(Survey),current_user.id,'read').distinct().all()]
     else:
-        survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgoup).join(Sitegroup,Trapgroup.sitegroups).filter(Sitegroup.id.in_(group_ids)).distinct().all()]
+        survey_ids = [r.id for r in db.session.query(Survey.id).join(Trapgroup).join(Sitegroup,Trapgroup.sitegroups).filter(Sitegroup.id.in_(group_ids)).distinct().all()]
         permission = surveyPermissionsSQ(db.session.query(Survey.id).filter(Survey.id.in_(survey_ids)),current_user.id,'read').distinct().all()
 
     if current_user and current_user.is_authenticated and (len(survey_ids)==len(permission)):
@@ -9948,6 +10240,7 @@ def settings():
     else:
         if current_user.admin:
             if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
             return render_template('html/settings.html', title='Settings', helpFile='settings_page', bucket=Config.BUCKET, version=Config.VERSION)
         else:
             if current_user.parent_id == None:
@@ -9980,7 +10273,8 @@ def saveIntegrations():
 
     status = 'FAILURE'
     message = 'Unable to save integrations.'
-    if current_user and current_user.is_authenticated and current_user.admin:
+    if current_user and current_user.is_authenticated:
+        admin_orgs = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').all()]
         # EarthRanger
         earth_ranger_integrations = integrations['earthranger']
 
@@ -9990,23 +10284,40 @@ def saveIntegrations():
         er_edited = earth_ranger_integrations['edited']
         er_new = earth_ranger_integrations['new']
 
+        status = 'SUCCESS'
+        message = 'Integrations saved successfully.'
+
         for er in er_deleted:
-            db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
+            if int(er['org_id']) in admin_orgs:
+                db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).delete()
+            else:
+                status = 'FAILURE'
+                message = 'Unable to save integrations.'
 
         for er in er_edited:
-            er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
-            er_integration.label = er['species']
-            er_integration.api_key = er['api_key']
+            if int(er['org_id']) in admin_orgs:
+                er_integration = db.session.query(EarthRanger).filter(EarthRanger.id==er['id']).first()
+                if er_integration.organisation_id in admin_orgs:
+                    er_integration.label = er['species']
+                    er_integration.api_key = er['api_key']
+                    er_integration.organisation_id = er['org_id']
+                else:
+                    status = 'FAILURE'
+                    message = 'Unable to save integrations.'
+            else:
+                status = 'FAILURE'
+                message = 'Unable to save integrations.'
 
         for er in er_new:
-            er_integration = EarthRanger(user_id=current_user.id, api_key=er['api_key'], label=er['species'])
-            db.session.add(er_integration)
+            if int(er['org_id']) in admin_orgs:
+                er_integration = EarthRanger(organisation_id=er['org_id'], api_key=er['api_key'], label=er['species'])
+                db.session.add(er_integration)
+            else:
+                status = 'FAILURE'
+                message = 'Unable to save integrations.'
 
         db.session.commit()
 
-        status = 'SUCCESS'
-        message = 'Integrations saved successfully.'
-        
     return json.dumps({'status': status, 'message': message})
 
 @app.route('/getIntegrations')
@@ -10015,26 +10326,906 @@ def getIntegrations():
     ''' Get the Earth Ranger integration details '''
 
     integrations = []
-    if current_user and current_user.is_authenticated and current_user.admin:
-        earth_ranger_integrations = db.session.query(EarthRanger).filter(EarthRanger.user_id==current_user.id).all()
-
+    if current_user and current_user.is_authenticated:
+        earth_ranger_integrations = db.session.query(EarthRanger).join(Organisation).join(UserPermissions).filter(UserPermissions.default=='admin').filter(UserPermissions.user_id==current_user.id).all()
         er = {}
         for earth_ranger_integration in earth_ranger_integrations:
             api_key = earth_ranger_integration.api_key
             label = earth_ranger_integration.label
             id = earth_ranger_integration.id
+            organisation = earth_ranger_integration.organisation_id
             if api_key in er:
                 er[api_key]['species'].append(label)
                 er[api_key]['ids'].append(id)
             else:
-                er[api_key] = {'species': [label], 'ids': [id]}
+                er[api_key] = {'species': [label], 'ids': [id], 'organisation': organisation}
 
         for key, value in er.items():
             integrations.append({
                 'integration': 'earthranger',
                 'api_key': key,
                 'species': value['species'],
-                'ids': value['ids']
+                'ids': value['ids'],
+                'organisation': value['organisation']
             })
 
     return json.dumps({'integrations': integrations})
+
+@app.route('/permissions')
+def permissions():
+    '''Renders the settings page.'''
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
+            return render_template('html/permissions.html', title='Permissions', helpFile='permissions', bucket=Config.BUCKET, version=Config.VERSION)
+        else:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            elif current_user.parent_id != None:
+                if db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in db.session.query(Turkcode).filter(Turkcode.user_id==current_user.username).first().task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
+
+@app.route('/getUsers')
+@login_required
+def getUsers():
+    ''' Get all the user permissions for an organisation '''
+    users = []
+    next_users = None
+    prev_users = None
+
+    page = request.args.get('page', 1, type=int)
+    order = request.args.get('order', 1, type=int)
+    search = request.args.get('search', '', type=str)
+
+    if current_user and current_user.is_authenticated:
+        organisation_ids = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').distinct().all()]
+        if len(organisation_ids) > 0:
+            user_permissions = db.session.query(
+                                                User.id,
+                                                User.username,
+                                                User.email,
+                                                UserPermissions.delete,
+                                                UserPermissions.create,
+                                                UserPermissions.annotation,
+                                                UserPermissions.default,
+                                                Organisation.id,
+                                                Organisation.name,
+                                                Organisation.root_user_id
+                                            )\
+                                            .join(UserPermissions, User.id==UserPermissions.user_id)\
+                                            .join(Organisation)\
+                                            .filter(Organisation.id.in_(organisation_ids))
+
+
+            searches = re.split('[ ,]',search)
+            for search in searches:
+                user_permissions = user_permissions.filter(or_(User.username.contains(search),Organisation.name.contains(search)))
+
+
+            if order == 1:
+                user_permissions = user_permissions.order_by(User.username)
+            elif order == 2:
+                user_permissions = user_permissions.order_by(UserPermissions.id)
+            elif order == 3:
+                user_permissions = user_permissions.order_by(desc(UserPermissions.id))
+
+            user_permissions = user_permissions.distinct().paginate(page, 6, False)
+
+            users_ids = {}
+            for user_permission in user_permissions.items:
+                if user_permission[0] == user_permission[9]:
+                    root_user = True
+                else:
+                    root_user = False
+
+                if not root_user:
+                    if user_permission[0] in users_ids:
+                        users[users_ids[user_permission[0]]]['user_permissions'].append({
+                            'delete': user_permission[3],
+                            'create': user_permission[4],
+                            'annotation': user_permission[5],
+                            'default': user_permission[6],
+                            'organisation_id': user_permission[7],
+                            'organisation': user_permission[8],
+                            'root_user': root_user
+                        })
+
+                    else:
+                        users.append({
+                            'id': user_permission[0],
+                            'username': user_permission[1],
+                            'email': user_permission[2],
+                            'user_permissions': [{
+                                'delete': user_permission[3],
+                                'create': user_permission[4],
+                                'annotation': user_permission[5],
+                                'default': user_permission[6],
+                                'organisation_id': user_permission[7],
+                                'organisation': user_permission[8],
+                                'root_user': root_user
+                            }]
+                        })
+                        users_ids[user_permission[0]] = len(users)-1
+
+            next_users = user_permissions.next_num if user_permissions.has_next else None
+            prev_users = user_permissions.prev_num if user_permissions.has_prev else None
+
+    return json.dumps({'users':users, 'next': next_users, 'prev': prev_users})
+
+
+@app.route('/savePermissions', methods=['POST'])
+@login_required
+def savePermissions():
+
+    permission_type = ast.literal_eval(request.form['permission_type'])
+    permission_value = ast.literal_eval(request.form['permission_value'])
+    user_id = ast.literal_eval(request.form['user_id'])
+    organisation_id = ast.literal_eval(request.form['organisation_id'])
+
+    if Config.DEBUGGING: app.logger.info('Permission type: {} Permission value: {} User id: {} Organisation id: {}'.format(permission_type, permission_value, user_id, organisation_id))
+
+    status = 'FAILURE'
+    message = 'Unable to save permissions.'
+
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,organisation_id):
+        user_permission = db.session.query(UserPermissions).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
+        org_name = db.session.query(Organisation.name).filter(Organisation.id==organisation_id).first()[0]
+        user_name = db.session.query(User.username).filter(User.id==user_id).first()[0]
+        if user_permission:
+            user_msg = ''
+            org_msg = ''
+            old_default = ''
+            if permission_type == 'default':
+                old_default = user_permission.default
+                user_permission.default = permission_value
+                user_msg = '<p> Your default permission for organisation {} has been set to {}.</p>'.format(org_name, permission_value)
+                org_msg = '<p> The default permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                if permission_value == 'admin':
+                    user_permission_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(SurveyPermissionException.user_id==user_id).filter(Survey.organisation_id==organisation_id).all()
+                    for user_permission_exception in user_permission_exceptions:
+                        db.session.delete(user_permission_exception)
+            elif permission_type == 'delete':
+                if permission_value == '1':
+                    user_permission.delete = True
+                    user_msg = '<p> You have been granted delete permission for organisation {}.</p>'.format(org_name)
+                else:
+                    user_permission.delete = False
+                    user_msg = '<p> Your delete permission for organisation {} has been revoked.</p>'.format(org_name)
+                org_msg = '<p> The delete permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+            elif permission_type == 'create':
+                if permission_value == '1':
+                    user_permission.create = True
+                    user_msg = '<p> You have been granted create permission for organisation {}.</p>'.format(org_name)
+                else:
+                    user_permission.create = False
+                    user_msg = '<p> Your create permission for organisation {} has been revoked.</p>'.format(org_name)
+                org_msg = '<p> The create permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+            elif permission_type == 'annotation':
+                if permission_value == '1':
+                    user_permission.annotation = True
+                    user_msg = '<p> You have been granted annotation permission for organisation {}.</p>'.format(org_name)
+                else:
+                    user_permission.annotation = False
+                    user_msg = '<p> Your annotation permission for organisation {} has been revoked.</p>'.format(org_name)
+                org_msg = '<p> The annotation permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+
+            if user_msg != '':
+                notif = Notification(user_id=user_id, contents=user_msg, seen=False)
+                db.session.add(notif)
+
+            if org_msg != '':
+                org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default=='admin').distinct().all()]
+                for org_admin in org_admins:
+                    notif = Notification(user_id=org_admin, contents=org_msg, seen=False)
+                    db.session.add(notif)
+
+            db.session.commit()
+
+            updateUserAdminStatus(user_id)
+
+            if permission_type == 'default':
+                if old_default == 'admin' and permission_value != 'admin':
+                    removeAdminNotifications(user_id, organisation_id)
+
+            status = 'SUCCESS'
+            message = 'Permissions saved successfully.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getDetailedAccess/<user_id>/<org_id>')
+@login_required
+def getDetailedAccess(user_id, org_id):
+    ''' Get the detailed access level for the specified user (id) '''
+
+    detailed_access = []
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        survey_permissions = db.session.query(SurveyPermissionException)\
+                                        .join(Survey)\
+                                        .filter(SurveyPermissionException.user_id==user_id)\
+                                        .filter(Survey.organisation_id==org_id)\
+                                        .all()
+
+        for survey_permission in survey_permissions:
+            detailed_access.append({
+                'id': survey_permission.id,
+                'survey_id': survey_permission.survey_id,
+                'permission': survey_permission.permission,
+                'annotation': survey_permission.annotation
+            })
+
+    return json.dumps({'detailed_access':detailed_access})
+
+@app.route('/saveDetailedAccess', methods=['POST'])
+@login_required
+def saveDetailedAccess():
+
+    user_id = ast.literal_eval(request.form['user_id'])
+    org_id = ast.literal_eval(request.form['organisation_id'])
+    detailed_access = ast.literal_eval(request.form['detailed_access'])
+
+    app.logger.info('User {} Detailed Access {}.'.format(user_id, detailed_access))
+
+    status = 'FAILURE'
+    message = 'Unable to save detailed access.'
+
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        new_access = detailed_access['new']
+        edited_access = detailed_access['edit']
+        deleted_access = detailed_access['delete']
+
+        for access in deleted_access:
+            db.session.query(SurveyPermissionException).filter(SurveyPermissionException.id==access['id']).filter(SurveyPermissionException.user_id==user_id).delete()
+
+        for access in edited_access:
+            if access['annotation'] == '1':
+                access['annotation'] = True
+            else:
+                access['annotation'] = False
+
+            survey_permission = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.id==access['id']).filter(SurveyPermissionException.user_id==user_id).first()
+            survey_permission.survey_id = access['survey_id']
+            survey_permission.permission = access['permission']
+            survey_permission.annotation = access['annotation']
+
+        for access in new_access:
+            if access['annotation'] == '1':
+                access['annotation'] = True
+            else:
+                access['annotation'] = False
+
+            survey_permission = SurveyPermissionException(user_id=user_id, survey_id=access['survey_id'], permission=access['permission'], annotation=access['annotation'])
+            db.session.add(survey_permission)
+
+        org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
+        user_name = db.session.query(User.username).filter(User.id==user_id).first()[0]
+
+        user_msg = '<p> Your detailed access permissions for organisation {} have been updated.</p>'.format(org_name)
+        notif = Notification(user_id=user_id, contents=user_msg, seen=False)
+        db.session.add(notif)
+
+        org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default=='admin').distinct().all()]
+        org_msg = '<p> The detailed access permissions for user {} have been updated for organisation {}.</p>'.format(user_name, org_name)
+        for org_admin in org_admins:
+            notif = Notification(user_id=org_admin, contents=org_msg, seen=False)
+            db.session.add(notif)
+
+        db.session.commit()
+
+        updateUserAdminStatus(user_id)
+
+        status = 'SUCCESS'
+        message = ''
+
+    return json.dumps({'status':status, 'message': message})
+
+@app.route('/getSharedData')
+@login_required
+def getSharedData():
+    ''' Get all the surveys that have been shared with other organizations '''
+
+    page = request.args.get('page', 1, type=int)
+    order = request.args.get('order', 1, type=int)
+    search = request.args.get('search', '', type=str)
+
+    shared_data = []
+    prev_data = None 
+    next_data = None
+
+    if current_user and current_user.is_authenticated:
+        organisation_ids = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').distinct().all()]
+        if len(organisation_ids) > 0:
+            shareOrganisation = alias(Organisation)
+
+            survey_shares = db.session.query(
+                                            SurveyShare.id,
+                                            Organisation.id,    
+                                            Organisation.name,
+                                            User.email,
+                                            Survey.id,
+                                            Survey.name,
+                                            SurveyShare.permission,
+                                            shareOrganisation.c.id,
+                                            shareOrganisation.c.name
+                                        )\
+                                        .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                        .join(Organisation, Organisation.id==SurveyShare.organisation_id)\
+                                        .join(User, User.id==Organisation.root_user_id)\
+                                        .join(shareOrganisation, shareOrganisation.c.id==Survey.organisation_id)\
+                                        .filter(Survey.organisation_id.in_(organisation_ids))
+
+            searches = re.split('[ ,]',search)
+            for search in searches:
+                survey_shares = survey_shares.filter(or_(Organisation.name.contains(search),Survey.name.contains(search)))
+
+            if order == 1:
+                survey_shares = survey_shares.order_by(Organisation.name)
+            elif order == 2:
+                survey_shares = survey_shares.order_by(SurveyShare.id)
+            elif order == 3:
+                survey_shares = survey_shares.order_by(desc(SurveyShare.id))
+
+            survey_shares = survey_shares.distinct().paginate(page, 6, False)
+
+            shared = {}
+            for survey_share in survey_shares.items:
+                if survey_share[1] in shared.keys():
+                    shared[survey_share[1]]['surveys'].append({
+                        'id': survey_share[4],
+                        'ss_id': survey_share[0],
+                        'name': survey_share[5],
+                        'permission': survey_share[6],
+                        'share_org_id': survey_share[7],
+                        'share_org_name': survey_share[8]
+                    })
+                else:
+                    shared[survey_share[1]] = {
+                        'org_id': survey_share[1],
+                        'organisation': survey_share[2],
+                        'email': survey_share[3],
+                        'surveys': [{
+                            'id': survey_share[4],
+                            'ss_id': survey_share[0],
+                            'name': survey_share[5],
+                            'permission': survey_share[6],
+                            'share_org_id': survey_share[7],
+                            'share_org_name': survey_share[8]
+                        }]
+                    }
+
+            shared_data = list(shared.values())
+
+            next_data = survey_shares.next_num if survey_shares.has_next else None
+            prev_data = survey_shares.prev_num if survey_shares.has_prev else None
+
+    return json.dumps({'shared_data':shared_data, 'next': next_data, 'prev': prev_data})
+
+@app.route('/getReceivedData')
+@login_required
+def getReceivedData():
+    ''' Get all the surveys that have been shared with the current organisation '''
+
+    page = request.args.get('page', 1, type=int)
+    order = request.args.get('order', 1, type=int)
+    search = request.args.get('search', '', type=str)
+
+    received_surveys = []
+    prev_data = None
+    next_data = None
+
+    if current_user and current_user.is_authenticated:
+        organisation_ids = [r[0] for r in db.session.query(Organisation.id).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.default=='admin').distinct().all()]
+        if len(organisation_ids) > 0:
+            receivedOrganisation = alias(Organisation)
+            survey_shares = db.session.query(
+                                            SurveyShare.id,
+                                            Organisation.id,    
+                                            Organisation.name,
+                                            User.email,
+                                            Survey.id,
+                                            Survey.name,
+                                            SurveyShare.permission,
+                                            receivedOrganisation.c.id,
+                                            receivedOrganisation.c.name
+                                        )\
+                                        .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                        .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                        .join(User, User.id==Organisation.root_user_id)\
+                                        .join(receivedOrganisation, receivedOrganisation.c.id==SurveyShare.organisation_id)\
+                                        .filter(SurveyShare.organisation_id.in_(organisation_ids))
+
+            searches = re.split('[ ,]',search)
+            for search in searches:
+                survey_shares = survey_shares.filter(or_(Organisation.name.contains(search),Survey.name.contains(search)))
+
+            if order == 1:
+                survey_shares = survey_shares.order_by(Organisation.name)
+            elif order == 2:
+                survey_shares = survey_shares.order_by(SurveyShare.id)
+            elif order == 3:
+                survey_shares = survey_shares.order_by(desc(SurveyShare.id))
+
+            survey_shares = survey_shares.distinct().paginate(page, 6, False)
+
+            received = {}
+            for survey_share in survey_shares.items:
+                if survey_share[1] in received:
+                    received[survey_share[1]]['surveys'].append({
+                        'id': survey_share[4],
+                        'ss_id': survey_share[0],
+                        'name': survey_share[5],
+                        'permission': survey_share[6],
+                        'received_org_id': survey_share[7],
+                        'received_org_name': survey_share[8]
+                    })
+                else:
+                    received[survey_share[1]] = {
+                        'org_id': survey_share[1],
+                        'organisation': survey_share[2],
+                        'email': survey_share[3],
+                        'surveys': [{
+                            'id': survey_share[4],
+                            'ss_id': survey_share[0],
+                            'name': survey_share[5],
+                            'permission': survey_share[6],
+                            'received_org_id': survey_share[7],
+                            'received_org_name': survey_share[8]
+                        }]
+                    }
+
+            received_surveys = list(received.values())
+
+            next_data = survey_shares.next_num if survey_shares.has_next else None
+            prev_data = survey_shares.prev_num if survey_shares.has_prev else None
+
+    return json.dumps({'received_surveys':received_surveys, 'next': next_data, 'prev': prev_data})
+
+@app.route('/saveSharedSurveyPermissions', methods=['POST'])
+@login_required
+def saveSharedSurveyPermissions():
+    ''' Save the permissions for a shared survey '''
+
+    permission_value = ast.literal_eval(request.form['permission_value'])
+    survey_share_id = ast.literal_eval(request.form['survey_share_id'])
+    org_id = ast.literal_eval(request.form['org_id'])
+
+    status = 'FAILURE'	
+    message = 'Unable to save permissions.'
+
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        survey_share = db.session.query(SurveyShare).filter(SurveyShare.id==survey_share_id).first()
+        rec_org_id = survey_share.organisation_id
+        admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id.in_([org_id, rec_org_id])).filter(UserPermissions.default=='admin').distinct().all()]
+
+        if survey_share:
+            survey_share.permission = permission_value
+            db.session.commit()
+
+            notif_msg = '<p> The permission for shared survey {} has been set to {}.</p>'.format(survey_share.survey.name, permission_value)
+            for admin in admins:
+                notif = Notification(user_id=admin, contents=notif_msg, seen=False)
+                db.session.add(notif)
+
+            db.session.commit()
+            
+            status = 'SUCCESS'
+            message = ''
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/shareSurveys', methods=['POST'])
+@login_required
+def shareSurveys():
+    ''' Shares surveys with organsisations '''
+
+    shared_data = ast.literal_eval(request.form['shared_data'])
+    organisation_name = ast.literal_eval(request.form['organisation_name'])
+    status = 'FAILURE'
+    message =  'Unable to share survey.'
+
+    try:
+        if current_user and current_user.is_authenticated:
+            organisation = db.session.query(Organisation).filter(Organisation.name==organisation_name).first()
+            if not organisation:
+                return json.dumps({'status': 'FAILURE', 'message': 'Organisation does not exist.'})
+            else:
+                survey_id = shared_data['survey_id']
+                permission = shared_data['permission']
+
+                share_query = surveyPermissionsSQ(db.session.query(
+                                                            Survey.name,
+                                                            Organisation.id,
+                                                            Organisation.name
+                                                        )\
+                                                        .filter(Survey.id==survey_id),current_user.id,'admin').distinct().first()
+
+                if len(share_query) == 0:
+                    return json.dumps({'status': 'FAILURE', 'message': 'You do not have permission to share this survey.'}) 
+                else:
+                    survey_name = share_query[0]
+                    share_org_name = share_query[2]
+
+                    organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
+                    share_org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==share_query[1]).filter(UserPermissions.default=='admin').all()]
+
+                    check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation.id).filter(SurveyShare.survey_id==survey_id).first()
+                    if check:
+                        return json.dumps({'status': 'FAILURE', 'message': 'Survey already shared with organisation.'})
+
+                    token = jwt.encode({'organisation_id': organisation.id, 'survey_id': survey_id, 'permission': permission}, app.config['SECRET_KEY'], algorithm='HS256')
+                    url = 'https://'+Config.DNS+'/acceptSurveyShare/'+token + '/'
+
+                    prev_notification = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains('Organisation '+share_org_name+' wants to share survey '+survey_name+' with '+organisation.name+'.')).first()
+                    if prev_notification:
+                        return json.dumps({'status': 'FAILURE', 'message': 'Survey share request already sent.'})
+
+                    cancel_url = 'https://'+Config.DNS+'/cancelSurveyShare/'+token 
+
+                    for share_org_admin in share_org_admins:
+                        pending_notif = '<p> '+share_org_name+' has a pending survey share request to '+organisation.name+' for '+survey_name+'. Do you wish to <a href="'+cancel_url+'">Cancel</a> the request?</p>'
+                        notification = Notification(user_id=share_org_admin, contents=pending_notif, seen=False)
+                        db.session.add(notification)
+
+                    for organisation_admin in organisation_admins:
+                        notification_message = '<p> Organisation '+share_org_name+' wants to share survey '+survey_name+' with '+organisation.name+'. Do you <a href="'+url+'accept">Accept</a> or <a href="'+url+'decline">Decline</a>?'
+                        notification = Notification(user_id=organisation_admin, contents=notification_message, seen=False)
+                        db.session.add(notification)
+
+                    db.session.commit()
+
+                    status = 'SUCCESS'
+                    message = 'Notification sent to organisation. You will be notified when the organisation has accepted the survey share.'
+    except:
+        pass
+
+    return json.dumps({'status':status, 'message': message})
+
+@app.route('/acceptSurveyShare/<token>/<action>')
+def acceptSurveyShare(token, action):
+    ''' Accepts or declines a survey share '''
+    try:
+
+        if current_user and current_user.is_authenticated:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            organisation_id = data['organisation_id']
+            survey_id = data['survey_id']
+            permission = data['permission']
+
+            if checkDefaultAdminPermission(current_user.id,organisation_id):
+            
+                organisation = db.session.query(Organisation).get(organisation_id)
+                survey = db.session.query(Survey).get(survey_id)
+                share_organisation = survey.organisation
+                organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
+                share_org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==share_organisation.id).filter(UserPermissions.default=='admin').all()]
+                admins = share_org_admins + organisation_admins
+                admins = list(set(admins))
+
+                notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains('Organisation '+share_organisation.name+' wants to share survey '+survey.name+' with '+organisation.name+'.')).all()
+                for notification in notifications:
+                    db.session.delete(notification)
+
+                pending_notifications = db.session.query(Notification).filter(Notification.user_id.in_(share_org_admins)).filter(Notification.contents.contains(share_organisation.name+' has a pending survey share request to '+organisation.name+' for '+survey.name+'.')).all()
+                for pending_notification in pending_notifications:
+                    db.session.delete(pending_notification)
+
+                if action == 'accept':
+                    check = db.session.query(SurveyShare).filter(SurveyShare.organisation_id==organisation.id).filter(SurveyShare.survey_id==survey_id).first()
+                    if not check:
+                        survey_share = SurveyShare(organisation_id=organisation.id, survey_id=survey_id, permission=permission)
+                        db.session.add(survey_share)
+
+                        notif_msg = '<p>'+organisation.name+' has accepted the survey share request from '+share_organisation.name+' for '+survey.name+'.</p>'
+                        for admin in admins:
+                            notif_share_org = Notification(user_id=admin, contents=notif_msg, seen=False)
+                            db.session.add(notif_share_org)
+
+                else:
+                    notif_msg = '<p>'+organisation.name+' has declined the survey share request from '+share_organisation.name+' for '+survey.name+'.</p>'
+                    for admin in admins:
+                        notif_share_org = Notification(user_id=admin, contents=notif_msg, seen=False)
+                        db.session.add(notif_share_org)
+
+                db.session.commit()
+
+            else:
+                removeAdminNotifications(current_user.id, organisation_id)
+
+    except:
+        pass
+
+    return redirect(url_for('surveys'))
+
+@app.route('/cancelSurveyShare/<token>')
+def cancelSurveyShare(token):
+    ''' Cancels a survey share '''
+    try:
+        if current_user and current_user.is_authenticated:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            organisation_id = data['organisation_id']
+            survey_id = data['survey_id']
+            organisation = db.session.query(Organisation).get(organisation_id)
+            survey = db.session.query(Survey).get(survey_id)
+            share_organisation = survey.organisation
+
+            if checkDefaultAdminPermission(current_user.id, share_organisation.id):
+                organisation_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.default=='admin').all()]
+                share_org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==share_organisation.id).filter(UserPermissions.default=='admin').all()]
+
+                notifications = db.session.query(Notification).filter(Notification.user_id.in_(organisation_admins)).filter(Notification.contents.contains('Organisation '+share_organisation.name+' wants to share survey '+survey.name+' with '+organisation.name+'.')).all()
+                for notification in notifications:
+                    db.session.delete(notification)
+
+                pending_notifications = db.session.query(Notification).filter(Notification.user_id.in_(share_org_admins)).filter(Notification.contents.contains(share_organisation.name+' has a pending survey share request to '+organisation.name+' for '+survey.name+'.')).all()
+                for pending_notification in pending_notifications:
+                    db.session.delete(pending_notification)
+
+                cancel_notif = '<p> '+share_organisation.name+' has cancelled the survey share request to '+organisation.name+' for '+survey.name+'.</p>'
+                for share_org_admin in share_org_admins:
+                    notif_share_org = Notification(user_id=share_org_admin, contents=cancel_notif, seen=False)
+                    db.session.add(notif_share_org)
+
+                db.session.commit()
+            
+            else:
+                removeAdminNotifications(current_user.id, share_organisation.id)
+
+    except:
+        pass
+
+    return redirect(url_for('permissions'))
+
+@app.route('/getOrganisations')
+@login_required
+def getOrganisations():
+    ''' Gets all the organisations for the current user ''' 
+
+    organisations = []
+    if current_user and current_user.is_authenticated:
+        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).distinct().all()
+        for org in orgs:
+            organisations.append({
+                'id': org[0],
+                'name': org[1]
+            })
+
+    return json.dumps({'organisations': organisations})
+
+@app.route('/getAdminOrganisations')
+@login_required
+def getAdminOrganisations():
+    ''' Gets all the organisations where the current user is an admin '''
+
+    organisations = []
+    if current_user and current_user.is_authenticated:
+        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.default == 'admin').distinct().all()
+        for org in orgs:
+            organisations.append({
+                'id': org[0],
+                'name': org[1]
+            })
+
+    return json.dumps({'organisations': organisations})
+    
+@app.route('/removeUserFromOrganisation', methods=['POST'])	
+@login_required
+def removeUserFromOrganisation():
+    ''' Removes a user from an organisation '''
+
+    user_id = ast.literal_eval(request.form['user_id'])
+    org_id = ast.literal_eval(request.form['org_id'])
+
+    status = 'FAILURE'
+    message = 'Unable to remove user from organisation.'
+
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        user_permission = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.user_id==user_id).first()
+        db.session.delete(user_permission)
+
+        user_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(Survey.organisation_id==org_id).filter(SurveyPermissionException.user_id==user_id).all()
+        for user_exception in user_exceptions:
+            db.session.delete(user_exception)
+
+        org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
+        org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default=='admin').all()]
+
+        user_notif = '<p> You have been removed from organisation '+org_name+'.</p>'
+        notification = Notification(user_id=user_id, contents=user_notif, seen=False)
+        db.session.add(notification)
+
+        admin_notif = '<p> User '+current_user.username+' has been removed from organisation '+org_name+'.</p>'
+        for org_admin in org_admins:
+            notification = Notification(user_id=org_admin, contents=admin_notif, seen=False)
+            db.session.add(notification)
+
+        db.session.commit()
+
+        updateUserAdminStatus(user_id)
+        removeAdminNotifications(user_id, org_id)
+
+        status = 'SUCCESS'
+        message = 'User removed from organisation successfully.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/removeSharedSurvey', methods=['POST'])	
+@login_required
+def removeSharedSurvey():
+    ''' Removes a shared/recieved survey '''
+    survey_share_id = ast.literal_eval(request.form['survey_share_id'])
+
+    status = 'FAILURE'
+    message = 'Unable to remove shared survey.'
+
+    if current_user and current_user.is_authenticated:
+        survey_share = db.session.query(SurveyShare).filter(SurveyShare.id==survey_share_id).first()
+        if survey_share:
+            received_org = survey_share.organisation
+            share_org = survey_share.survey.organisation
+            admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id.in_([received_org.id, share_org.id])).filter(UserPermissions.default=='admin').distinct().all()]
+            if current_user.id in admins:
+                db.session.delete(survey_share)
+                
+                notif_msg = '<p> Survey share for '+survey_share.survey.name+' from '+share_org.name+' to '+received_org.name+' has been removed.</p>'
+                for admin in admins:
+                    notification = Notification(user_id=admin, contents=notif_msg, seen=False)
+                    db.session.add(notification)
+
+                db.session.commit()
+
+                status = 'SUCCESS'
+                message = 'User removed from organisation successfully.'
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getNotifications')
+@login_required
+def getNotifications():
+    ''' Gets all the notifications for the current user '''
+
+    notifications_data = []
+    next = None
+    prev = None
+
+    page = request.args.get('page', 1, type=int)
+
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
+        notifications = db.session.query(Notification)\
+                    .filter(or_(Notification.user_id==current_user.id, Notification.user_id==None))\
+                    .filter(or_(Notification.expires==None,Notification.expires>datetime.utcnow()))\
+                    .order_by(desc(Notification.id))\
+                    .distinct().paginate(page, 8, False)
+
+        for notification in notifications.items:
+            seen_notif = False
+            if notification.user_id == None:
+                if current_user in notification.users_seen:
+                    seen_notif = True
+                else:
+                    seen_notif = False
+            else:
+                if notification.seen == None:
+                    seen_notif = False
+                else:
+                    seen_notif = notification.seen
+
+            notifications_data.append({
+                'id': notification.id,
+                'contents': notification.contents,
+                'seen': seen_notif,
+                'user_id': notification.user_id
+            })
+
+        next = notifications.next_num if notifications.has_next else None
+        prev = notifications.prev_num if notifications.has_prev else None
+
+    return json.dumps({'notifications': notifications_data, 'next': next, 'prev': prev})
+
+@app.route('/markNotificationSeen/<id>')
+@login_required
+def markNotificationSeen(id):
+    ''' Marks a notification as seen '''
+
+    status = 'FAILURE'
+    message = 'Unable to mark notification as seen.'
+
+    if current_user and current_user.is_authenticated:
+        notification = db.session.query(Notification).get(id)
+        if notification:
+            if notification.user_id == current_user.id:
+                notification.seen = True
+            elif notification.user_id == None:
+                notification.users_seen.append(current_user)
+            
+            db.session.commit()
+
+            status = 'SUCCESS'
+            message = ''
+
+    return json.dumps({'status': status, 'message': message})
+
+@app.route('/getOrganisationSurveys/<org_id>')
+@login_required
+def getOrganisationSurveys(org_id):
+    ''' Gets all the surveys for an organisation or the cureent user's organisations where they are admin ''' 
+    if current_user and current_user.is_authenticated:
+        surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name), current_user.id, 'admin')
+        if org_id == '0':
+            return json.dumps(surveys.distinct().all())
+        else:
+            return json.dumps(surveys.filter(Survey.organisation_id==org_id).distinct().all())
+    else:
+        return json.dumps([])
+
+@app.route('/getOrganisationUsers/<org_id>')	
+@login_required
+def getOrganisationUsers(org_id):
+    ''' Gets all the non admin users for an organisation  '''
+    users = []
+    if current_user and current_user.is_authenticated:
+        users = db.session.query(User.id, User.username).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').distinct().all()
+    return json.dumps(users)
+
+@app.route('/populateAnnotatorSelector')
+@login_required
+def populateAnnotatorSelector():
+    '''Returns annotator list for populating the annotator selector.'''
+
+    response = []
+    task = current_user.turkcode[0].task
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        users = db.session.query(User).join(Cluster, Cluster.user_id==User.id).filter(Cluster.task_id==task.id).distinct().all()
+        for user in users:
+            if user.username == 'Admin':
+                response.append((user.id, 'AI'))
+            elif user.parent_id != None:
+                parent = user.parent
+                response.append((parent.id, parent.username))
+            else:
+                response.append((user.id, user.username))
+
+        response = list(set(response))
+
+        response.insert(0, (0, 'All'))
+
+    return json.dumps(response)
+
+@app.route('/populateSpeciesSelector')
+@login_required
+def populateSpeciesSelector():
+    '''Returns species list for populating the species selector.'''
+    response = []
+    task = current_user.turkcode[0].task
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        labels = db.session.query(Label.id, Label.description).filter(Label.task_id==task.id).distinct().all()
+        labels.insert(0, (0, 'All'))
+        response = labels
+
+    return json.dumps(response)
+
+@app.route('/landing')
+def landing():
+    '''Renders the landing page.'''
+
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    elif current_user.parent_id != None:
+        if current_user.turkcode[0].task.is_bounding:
+            return redirect(url_for('sightings'))
+        elif '-4' in current_user.turkcode[0].task.tagging_level:
+            return redirect(url_for('clusterID'))
+        elif '-5' in current_user.turkcode[0].task.tagging_level:
+            return redirect(url_for('individualID'))
+        else:
+            return redirect(url_for('index'))
+    else:
+        if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+        return render_template('html/landing.html', title='Welcome To TrapTagger!', helpFile='landing', version=Config.VERSION)

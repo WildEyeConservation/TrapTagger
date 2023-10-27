@@ -117,7 +117,6 @@ var surveyName
 var uploading = false
 const modalUploadProgress = $('#modalUploadProgress');
 
-const modalNotification = $('#modalNotification');
 const modalDownload = $('#modalDownload');
 const btnOpenExport = document.querySelector('#btnOpenExport');
 const modalExport = $('#modalExport');
@@ -229,6 +228,10 @@ var timerTaskStatus = null
 
 var pathDisplay = null
 
+const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
+const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
+var globalOrganisationUsers = null
+
 function buildSurveys(survey,disableSurvey) {
     /**
      * Builds the survey row
@@ -253,9 +256,10 @@ function buildSurveys(survey,disableSurvey) {
     entireRowHeading.classList.add('row');
     surveyDivHeading = document.createElement('div')
     surveyDivHeading.classList.add('col-lg-6');
+    surveyDivHeading.setAttribute('style',"margin-bottom: 10px;")
     taskDivHeading = document.createElement('div')
     taskDivHeading.classList.add('col-lg-6');
-    taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:15px; font-size: 110%")
+    taskDivHeading.setAttribute('style',"padding-left: 10px; padding-top:35px; font-size: 110%;")
     entireRowHeading.appendChild(surveyDivHeading)
     entireRowHeading.appendChild(taskDivHeading)
     newSurveyDiv.appendChild(entireRowHeading)
@@ -273,109 +277,140 @@ function buildSurveys(survey,disableSurvey) {
 
     headingElement = document.createElement('h4')
     headingElement.innerHTML = survey.name
-    headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
+    headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px; margin-bottom: 2px;")
     surveyDivHeading.appendChild(headingElement)
+
+    organisationDiv = document.createElement('div')
+    organisationDiv.setAttribute('style',"margin-left: 10px; margin-right:10px; font-size: 80%;")
+    organisationDiv.innerHTML = '<i>' + survey.organisation + '</i>'
+    surveyDivHeading.appendChild(organisationDiv)
 
     newSurveyDiv.appendChild(entireRow)
 
-    infoElementRow = document.createElement('div')
-    infoElementRow.classList.add('row');
-    infoElementRow.classList.add('center');
-    infoElementRow.setAttribute('style',"margin-left: 10px")
+    surveyRow = document.createElement('div')
+    surveyRow.classList.add('row');
+    surveyDiv.appendChild(surveyRow)
+
+    var infoCol = document.createElement('div')
+    infoCol.classList.add('col-lg-5');
+    surveyRow.appendChild(infoCol)
+
+    var buttonCol = document.createElement('div')
+    buttonCol.classList.add('col-lg-7');
+    surveyRow.appendChild(buttonCol)
+
+    var buttonRow = document.createElement('div')
+    buttonRow.classList.add('row');
+    buttonCol.appendChild(buttonRow)
+
+    infoElementRow1 = document.createElement('div')
+    infoElementRow1.classList.add('row');
+    infoElementRow1.classList.add('center');
+    infoElementRow1.setAttribute('style',"margin-left: 10px")
+    infoCol.appendChild(infoElementRow1)
 
     infoElementRow2 = document.createElement('div')
     infoElementRow2.classList.add('row');
     infoElementRow2.classList.add('center');
     infoElementRow2.setAttribute('style',"margin-left: 10px")
+    infoCol.appendChild(infoElementRow2)
 
     infoElementRow3 = document.createElement('div')
     infoElementRow3.classList.add('row');
-    infoElementRow2.classList.add('center');
+    infoElementRow3.classList.add('center');
     infoElementRow3.setAttribute('style',"margin-left: 10px")
+    infoCol.appendChild(infoElementRow3)
 
     if (survey.status.toLowerCase()!='uploading') {
         
         infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-3');
+        infoElementDescription.classList.add('col-lg-6');
         infoElementDescription.setAttribute("style","font-size: 80%")
         infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow.appendChild(infoElementDescription)
+        infoElementRow1.appendChild(infoElementDescription)
 
         infoElementNumTrapgroups = document.createElement('div')
-        infoElementNumTrapgroups.classList.add('col-lg-2');
+        infoElementNumTrapgroups.classList.add('col-lg-6');
         infoElementNumTrapgroups.setAttribute("style","font-size: 80%")
         infoElementNumTrapgroups.innerHTML = 'Sites: ' + survey.numTrapgroups
-        infoElementRow.appendChild(infoElementNumTrapgroups)
+        infoElementRow1.appendChild(infoElementNumTrapgroups)
 
         infoElementNumImages = document.createElement('div')
-        infoElementNumImages.classList.add('col-lg-3');
+        infoElementNumImages.classList.add('col-lg-6');
         infoElementNumImages.setAttribute("style","font-size: 80%")
         infoElementNumImages.innerHTML = 'Images: ' + survey.numImages
         infoElementRow2.appendChild(infoElementNumImages)
 
         infoElementNumVideos = document.createElement('div')
-        infoElementNumVideos.classList.add('col-lg-4');
+        infoElementNumVideos.classList.add('col-lg-6');
         infoElementNumVideos.setAttribute("style","font-size: 80%")
         infoElementNumVideos.innerHTML = 'Videos: ' + survey.numVideos
         infoElementRow2.appendChild(infoElementNumVideos)
 
         infoElementNumFrames = document.createElement('div')
-        infoElementNumFrames.classList.add('col-lg-3');
+        infoElementNumFrames.classList.add('col-lg-6');
         infoElementNumFrames.setAttribute("style","font-size: 80%")
         infoElementNumFrames.innerHTML = 'Frames: ' + survey.numFrames
         infoElementRow3.appendChild(infoElementNumFrames)
 
         infoFiller = document.createElement('div')
-        infoFiller.classList.add('col-lg-5');
-        infoElementRow2.appendChild(infoFiller)	
+        infoFiller.classList.add('col-lg-6');
+        infoElementRow3.appendChild(infoFiller)	
 
 
     } else {
         infoElementDescription = document.createElement('div')
-        infoElementDescription.classList.add('col-lg-5');
+        infoElementDescription.classList.add('col-lg-12');
         infoElementDescription.setAttribute("style","font-size: 80%")
         infoElementDescription.innerHTML = 'Status: ' + survey.status
-        infoElementRow.appendChild(infoElementDescription)
+        infoElementRow1.appendChild(infoElementDescription)
     }
 
-    infoElementFiller = document.createElement('div')
-    infoElementFiller.classList.add('col-lg-9');
     if (!['',' ','null','None',null].includes(survey.description)) {
+        infoElementRow0 = document.createElement('div')
+        infoElementRow0.classList.add('row');
+        infoElementRow0.classList.add('center');
+        infoElementRow0.setAttribute('style',"margin-left: 10px")
+        infoCol.appendChild(infoElementRow0)
+
+        infoElementFiller = document.createElement('div')
+        infoElementFiller.classList.add('col-lg-12');
         infoElementFiller.setAttribute("style","font-size: 80%")
         infoElementFiller.innerHTML = 'Description: ' + survey.description
+        infoElementRow0.appendChild(infoElementFiller)
     }
-    infoElementRow3.appendChild(infoElementFiller)
 
     addImagesCol = document.createElement('div')
-    addImagesCol.classList.add('col-lg-2');
-    infoElementRow.appendChild(addImagesCol)
+    addImagesCol.classList.add('col-lg-3');
+    buttonRow.appendChild(addImagesCol)
 
     addTaskCol = document.createElement('div')
-    addTaskCol.classList.add('col-lg-3');
-    infoElementRow.appendChild(addTaskCol)
+    addTaskCol.classList.add('col-lg-6');
+    buttonRow.appendChild(addTaskCol)
 
     deleteSurveyCol = document.createElement('div')
-    deleteSurveyCol.classList.add('col-lg-2');
+    deleteSurveyCol.classList.add('col-lg-3');
     deleteSurveyBtn = document.createElement('button')
     deleteSurveyBtn.setAttribute("class","btn btn-danger btn-block btn-sm")
     deleteSurveyBtn.setAttribute("id","deleteSurveyBtn"+survey.id)
     deleteSurveyBtn.innerHTML = 'Delete'
     deleteSurveyCol.appendChild(deleteSurveyBtn)
-    infoElementRow.appendChild(deleteSurveyCol)
+    buttonRow.appendChild(deleteSurveyCol)
 
-    deleteSurveyBtn.addEventListener('click', function(wrapSurveyName) {
+    deleteSurveyBtn.addEventListener('click', function(wrapSurveyName,wrapSurveyId) {
         return function() {
+            selectedSurvey = wrapSurveyId
             document.getElementById('modalConfirmHeader').innerHTML = 'Confirmation Required'
             document.getElementById('modalConfirmBody').innerHTML = 'Do you wish to delete ' + wrapSurveyName + '?'
             document.getElementById('btnConfirm').addEventListener('click', confirmSurveyDelete);
             document.getElementById('confirmclose').addEventListener('click', removeSurveyDeleteListeners);
             modalConfirm.modal({keyboard: true});
         }
-    }(survey.name));
+    }(survey.name, survey.id));
 
-    surveyDiv.appendChild(infoElementRow)
-    surveyDiv.appendChild(infoElementRow2)
-    surveyDiv.appendChild(infoElementRow3)
+    // surveyDiv.appendChild(infoElementRow)
+    // surveyDiv.appendChild(infoElementRow2)
+    // surveyDiv.appendChild(infoElementRow3)
 
     newSurveyDiv.appendChild(document.createElement('br'))
     surveyListDiv.appendChild(newSurveyDiv) 
@@ -456,35 +491,38 @@ function buildSurveys(survey,disableSurvey) {
         }
         deleteSurveyBtn.disabled = true
     } else {
-        if (addTaskBtn) {
-            addImagesBtn.disabled = false
-            addTaskBtn.disabled = false
-        }
-        deleteSurveyBtn.disabled = false
-    }
-}
-
-function checkNotifications() {
-    /**Checks for and displays new notifications.*/
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/checkNotifications');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
-
-            if (reply.status=='success') {
-                document.getElementById('modalNotificationBody').innerHTML = reply.content
-                modalNotification.modal({keyboard: true});
+        if (survey.access == 'read'){
+            if (addTaskBtn) {
+                addImagesBtn.disabled = true
+                addTaskBtn.disabled = true
+                deleteSurveyBtn.disabled = true
             }
         }
+        else if (survey.access == 'write' || survey.access == 'admin'){
+            if (addTaskBtn) {
+                addImagesBtn.disabled = false
+                addTaskBtn.disabled = false
+            }
+            if (survey.delete){
+                deleteSurveyBtn.disabled = false
+            }
+            else{
+                deleteSurveyBtn.disabled = true
+            }
+        }
+        else{
+            if (addTaskBtn) {
+                addImagesBtn.disabled = true
+                addTaskBtn.disabled = true
+                deleteSurveyBtn.disabled = true
+            }
+        }
+
     }
-    xhttp.send();
 }
 
 function onload(){
     /**Function for initialising the page on load.*/
-    checkNotifications()
     updatePage(current_page)
 }
 
@@ -507,8 +545,8 @@ function updatePage(url){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-
-            if (reply.surveys[0].status.toLowerCase()=='uploading') {
+            // console.log(reply)
+            if (reply.surveys[0] && reply.surveys[0].status.toLowerCase()=='uploading') {
                 document.getElementById('btnNewSurvey').disabled = true
             } else {
                 document.getElementById('btnNewSurvey').disabled = false
@@ -590,10 +628,8 @@ function confirmSurveyDelete() {
     removeSurveyDeleteListeners()
     modalConfirm.modal('hide')
 
-    var surveyName = document.getElementById('modalConfirmBody').innerHTML.split('Do you wish to delete ')[1].split('?')[0]
-
     var xhttp = new XMLHttpRequest();
-    xhttp.open("GET", '/deleteSurvey/'+surveyName);
+    xhttp.open("GET", '/deleteSurvey/'+selectedSurvey);
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
@@ -2678,6 +2714,7 @@ modalNewSurvey.on('shown.bs.modal', function(){
         speciesClassifierDiv = document.getElementById('speciesClassifierDiv')
         buildClassifierSelectTable(speciesClassifierDiv)
         buildBrowserUpload('newSurveyFormDiv')
+        getOrganisations()
     }
     else {
         helpReturn = false
@@ -2796,9 +2833,13 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
     */
 
     surveyName = document.getElementById('newSurveyName').value
+    surveyOrganisation = document.getElementById('newSurveyOrg').value
     newSurveyDescription = document.getElementById('newSurveyDescription').value
     newSurveyTGCode = document.getElementById('newSurveyTGCode').value
     newSurveyCheckbox = document.getElementById('newSurveyCheckbox')
+    newSurveyPermission = document.getElementById('newSurveyPermission').value
+    newSurveyAnnotation = document.getElementById('newSurveyAnnotation').value
+    detailedAccessSurvey = document.getElementById('detailedAccessSurveyCb').checked
 
     classifier = document.querySelector('input[name="classifierSelection"]:checked')
     if (classifier==null) {
@@ -2824,11 +2865,59 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').innerHTML = 'The survey name cannot contain slashes.'
     }
 
+    legalOrganisation = true
+    if (surveyOrganisation == ''){
+        legalOrganisation = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select an organisation.'
+    }
+
     legalDescription = true
     if ((newSurveyDescription.includes('/'))||(newSurveyDescription.includes('\\'))) {
         legalDescription = false
         document.getElementById('newSurveyErrors').innerHTML = 'The survey description cannot contain slashes.'
     }
+
+    legalPermission = true
+    if (newSurveyPermission == ''){
+        legalPermission = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select a access level.'
+    }
+
+    if (newSurveyAnnotation == ''){
+        legalPermission = false
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select a job access level.'
+    }
+
+    var detailed_access = []
+    if (detailedAccessSurvey) {
+        // Get all selectors 
+        var surveyUserPermissions =  document.querySelectorAll('[id^=surveyUserPermission-]')
+        if (surveyUserPermissions.length==0) {
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to give detailed access to.'
+            legalPermission = false
+        } else {
+            var dup_users = []
+            for (let i=0;i<surveyUserPermissions.length;i++) {
+                user_id = surveyUserPermissions[i].value
+                if (dup_users.indexOf(user_id)==-1) {
+                    dup_users.push(user_id)
+                    var id_num = surveyUserPermissions[i].id.split('-')[1]
+                    var user_permission = default_access[document.getElementById('detailedAccessSurvey-'+id_num).value].toLowerCase()
+                    var annotation = document.getElementById('detailedJobAccessSurvey-'+id_num).checked
+                    detailed_access.push({
+                        'user_id': user_id,
+                        'permission': user_permission,
+                        'annotation': annotation ? '1' : '0'
+                    })
+                }
+                else{
+                    document.getElementById('newSurveyErrors').innerHTML = 'You cannot select the same user twice.'
+                    legalPermission = false
+                }
+            }
+        }
+    }
+
 
     legalTGCode = true
     if (newSurveyTGCode == '') {
@@ -2874,7 +2963,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         document.getElementById('newSurveyErrors').innerHTML = 'Your specified site identifier has not detected any sites. Please try again.'
     }
 
-    if (legalName&&legalDescription&&legalTGCode&&legalInput&&TGCheckReady&&classifier) {
+    if (legalName&&legalOrganisation&&legalDescription&&legalPermission&&legalTGCode&&legalInput&&TGCheckReady&&classifier) {
         document.getElementById('btnSaveSurvey').disabled = true
         if (false) {
             var reader = new FileReader()
@@ -2904,6 +2993,12 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
             formData.append("checkbox", newSurveyCheckbox.checked.toString())
             formData.append("correctTimestamps", 'false')
             formData.append("classifier", classifier)
+            formData.append("organisation_id", surveyOrganisation)
+            formData.append("permission", newSurveyPermission)
+            formData.append("annotation", newSurveyAnnotation)
+            if (detailedAccessSurvey) {
+                formData.append("detailed_access", JSON.stringify(detailed_access))
+            }
 
             submitNewSurvey(formData)
         }
@@ -3081,13 +3176,13 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         document.getElementById('btnAddImages').disabled = true
         if (document.getElementById('addImagesEditClassifier').checked) {
             var formData = new FormData()
-            formData.append("surveyName", surveyName)
+            formData.append("survey_id", selectedSurvey)
             formData.append("classifier", classifier)               
             addImagesSendRequest(formData)
         } else if (document.getElementById('addImagesAddCoordinates').checked) {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 var formData = new FormData()
-                formData.append("surveyName", surveyName)
+                formData.append("survey_id", selectedSurvey)
                 formData.append("newSurveyTGCode", addImagesTGCode)
                 formData.append("newSurveyS3Folder", addImagesS3Folder)
                 formData.append("checkbox", addImagesCheckboxChecked.toString())
@@ -3100,14 +3195,14 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
 
                     if (!document.getElementById('addImagesAddImages').checked) {
                         var xhttp = new XMLHttpRequest();
-                        xhttp.open("GET", '/getSurveyTGcode/'+surveyName);
+                        xhttp.open("GET", '/getSurveyTGcode/'+selectedSurvey);
                         xhttp.onreadystatechange =
                         function(){
                             if (this.readyState == 4 && this.status == 200) {
                                 regex = JSON.parse(this.responseText);                      
                                 if ((kmldata.match(regex)||!regex.includes('[0-9]+'))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                                     var formData = new FormData()
-                                    formData.append("surveyName", surveyName)
+                                    formData.append("survey_id", selectedSurvey)
                                     formData.append("newSurveyTGCode", addImagesTGCode)
                                     formData.append("newSurveyS3Folder", addImagesS3Folder)
                                     formData.append("checkbox", addImagesCheckboxChecked.toString())
@@ -3138,7 +3233,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                         }
                         if ((addImagesCheckboxChecked||kmldata.match(regex))&&(kmldata.includes('Placemark'))&&(kmldata.includes('Point'))) {
                             var formData = new FormData()
-                            formData.append("surveyName", surveyName)
+                            formData.append("survey_id", selectedSurvey)
                             formData.append("newSurveyTGCode", addImagesTGCode)
                             formData.append("newSurveyS3Folder", addImagesS3Folder)
                             formData.append("checkbox", addImagesCheckboxChecked.toString())
@@ -3163,7 +3258,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             }
         } else {
             var formData = new FormData()
-            formData.append("surveyName", surveyName)
+            formData.append("survey_id", selectedSurvey)
             formData.append("newSurveyTGCode", addImagesTGCode)
             formData.append("newSurveyS3Folder", addImagesS3Folder)
             formData.append("checkbox", addImagesCheckboxChecked.toString())
@@ -3311,12 +3406,223 @@ modalAlert.on('hidden.bs.modal', function(){
 //     uploading = false
 // });
 
-modalNotification.on('hidden.bs.modal', function(){
-    /** Checks for the next notification on close*/
-    checkNotifications()
-});
 
 function isValidDate(d) {
     /** Returns whether the specified date is valid or not */
     return d instanceof Date && !isNaN(d);
+}
+
+function getOrganisations(){
+    /* Gets the organisations for the current user and populates the organisation select for the new survey modal. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            var organisations = reply.organisations
+            var select = document.getElementById('newSurveyOrg')
+            clearSelect(select)
+            var optionTexts = []
+            var optionValues = []
+            for (var i=0;i<organisations.length;i++) {
+                optionTexts.push(organisations[i].name)
+                optionValues.push(organisations[i].id)
+            }
+            fillSelect(select,optionTexts,optionValues)
+        }
+    }
+    xhttp.open("GET", '/getOrganisations');
+    xhttp.send();
+    
+}
+
+$('#detailedAccessSurveyCb').change( function() {
+    /** Event listener for the detailed access checkbox on the create new survey modal. */
+    if (this.checked) {
+        org_id = document.getElementById('newSurveyOrg').value
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                globalOrganisationUsers = reply
+
+                var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+                while(surveyPermissionsDiv.firstChild){
+                    surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+                }
+
+                document.getElementById('detailedAccessSurveyDiv').hidden = false
+                buildSurveyPermissionRow()
+            }
+        }
+        xhttp.open("GET", '/getOrganisationUsers/'+org_id);
+        xhttp.send();
+
+    }
+    else{
+        document.getElementById('detailedAccessSurveyDiv').hidden = true
+        var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+        while(surveyPermissionsDiv.firstChild){
+            surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+        }
+    }
+});
+
+$('#newSurveyOrg').change( function() {
+    /** Event listener for the organisation select on the create new survey modal. */
+    if (document.getElementById('detailedAccessSurveyCb').checked) {
+        org_id = document.getElementById('newSurveyOrg').value
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                globalOrganisationUsers = reply
+
+                var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+                while(surveyPermissionsDiv.firstChild){
+                    surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
+                }
+                
+                buildSurveyPermissionRow()
+            }
+        }
+        xhttp.open("GET", '/getOrganisationUsers/'+org_id);
+        xhttp.send();
+    }
+});
+
+function buildSurveyPermissionRow(){
+    /** Builds a row for the detailed survey permission section on the create new survey modal. */
+    var surveyPermissionsDiv = document.getElementById('surveyPermissionsDiv')
+    var IDNum = getIdNumforNext('surveyUserPermission-')
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    surveyPermissionsDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-4')
+    col1.style.display = 'flex'
+    col1.style.alignItems = 'center'
+    col1.style.justifyContent = 'center'
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-5')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    col3.style.display = 'flex'
+    col3.style.alignItems = 'center'
+    col3.style.justifyContent = 'center'
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-1')
+    col4.style.display = 'flex'
+    col4.style.alignItems = 'center'
+    col4.style.justifyContent = 'center'
+    row.appendChild(col4)
+
+    // User
+    var user = document.createElement('select');
+    user.classList.add('form-control')
+    user.id = 'surveyUserPermission-' + IDNum;
+    col1.appendChild(user);
+
+    var optionTexts = []
+    var optionValues = []
+    for (var i=0;i<globalOrganisationUsers.length;i++) {
+        optionTexts.push(globalOrganisationUsers[i][1])
+        optionValues.push(globalOrganisationUsers[i][0])
+    }
+    fillSelect(user,optionTexts,optionValues)
+
+    // Access
+    var defaultDiv = document.createElement('div');
+    defaultDiv.setAttribute('class','text-center')
+    defaultDiv.setAttribute('style','vertical-align: middle;')
+    col2.appendChild(defaultDiv);    
+    
+    var row = document.createElement('div')
+    row.classList.add('row');
+    defaultDiv.appendChild(row)
+    
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-12');
+    row.appendChild(col1)
+
+    var slider = document.createElement('input');
+    slider.setAttribute("type", "range");
+    slider.setAttribute("class", "custom-range");
+    slider.setAttribute('style','width: 85%;')
+    slider.setAttribute("min", "0");
+    slider.setAttribute("max", "3");
+    slider.setAttribute("step", "1");
+    slider.setAttribute("id", "detailedAccessSurvey-" + IDNum);
+    col1.appendChild(slider);
+
+    var row = document.createElement('div')
+    row.classList.add('row');
+    defaultDiv.appendChild(row)
+
+    var col_0 = document.createElement('div')
+    col_0.classList.add('col-lg-3');
+    col_0.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_0.innerText = default_access[0];
+    row.appendChild(col_0)
+
+    var col_1 = document.createElement('div')
+    col_1.classList.add('col-lg-3');
+    col_1.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_1.innerText = default_access[1];
+    row.appendChild(col_1)
+
+    var col_2 = document.createElement('div')
+    col_2.classList.add('col-lg-3');
+    col_2.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_2.innerText = default_access[2];
+    row.appendChild(col_2)
+
+    var col_3 = document.createElement('div')
+    col_3.classList.add('col-lg-3');
+    col_3.setAttribute('style','vertical-align: middle; text-align: center;')
+    col_3.innerText = default_access[3];
+    row.appendChild(col_3)
+
+    // Job Access
+    var toggleDiv = document.createElement('div');
+    toggleDiv.classList.add('text-center');
+    toggleDiv.style.verticalAlign = 'middle';
+    col3.appendChild(toggleDiv);
+
+    var toggle = document.createElement('label');
+    toggle.classList.add('switch');
+    toggleDiv.appendChild(toggle);
+
+    var checkbox = document.createElement('input');
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.id = 'detailedJobAccessSurvey-' + IDNum;
+    toggle.appendChild(checkbox);
+
+    var slider = document.createElement('span');
+    slider.classList.add('slider');
+    slider.classList.add('round');
+    toggle.appendChild(slider);
+
+    // Remove
+    var button = document.createElement('button');
+    button.setAttribute("class",'btn btn-info')
+    button.innerHTML = '&times;';
+    button.id = 'btnRemoveSurveyAccess-' + IDNum;
+    col4.appendChild(button);
+
+    button.addEventListener('click', function () {
+        this.parentNode.parentNode.remove()
+    });
+
 }

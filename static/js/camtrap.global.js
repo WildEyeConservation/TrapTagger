@@ -15,7 +15,12 @@
 var prevModal = null
 var helpReturn = false
 var modalActive = false
+var notificationTimer = null
+var notifications_next = null
+var notifications_prev = null
+var notifications_current_page = 1
 const modalHelp = $('#modalHelp');
+const modalNotification = $('#modalNotification');
 
 function getActiveModal() {
     /** Returns the ID of the currently active modal. Returns null otherwise. */
@@ -89,3 +94,164 @@ function takeJob(jobID) {
     xhttp.open("GET", '/takeJob/'+jobID);
     xhttp.send();
 }
+
+function openNotifications() {
+    /** Builds a notification dropdown menu and opens it. */
+    checkNotifications()
+
+    // Get the notifications
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+
+
+            var notifications = reply.notifications;
+            var notificationMenu = document.getElementById('notificationMenu');
+            while (notificationMenu.firstChild) {
+                notificationMenu.removeChild(notificationMenu.firstChild);
+            }
+
+            for (let i = 0; i < notifications.length; i++) {
+                let notification = document.createElement('div');
+                notification.id = 'notification-' + notifications[i].id;
+                notification.setAttribute('style','border-bottom: 1px solid rgb(60,74,89); padding: 10px; padding-right: 10px; height: auto; cursor: pointer;');
+                notificationMenu.appendChild(notification);
+
+                p = document.createElement('p');
+                p.setAttribute('style', 'margin-bottom: 0px; margin-top: 0px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;');
+                p.innerHTML = notifications[i].contents;
+                notification.appendChild(p);
+
+                if (notifications[i].seen == false) {
+                    notification.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+                }
+                else{
+                    notification.style.backgroundColor = '';
+                }
+
+                notification.addEventListener('click', (function (notification) {
+                    return function () {
+                        // Check if this click was on a link on the notification or not
+                        if (event.target.tagName != 'A') {
+                            var modalNotificationBody = document.getElementById('modalNotificationBody');
+                            modalNotificationBody.innerHTML = '<p>' + notification.contents + '</p>';
+                            modalNotification.modal({ keyboard: true });
+
+                            if (notification.seen == false) {
+                                var xhttp = new XMLHttpRequest();
+                                xhttp.onreadystatechange = function () {
+                                    if (this.readyState == 4 && this.status == 200) {
+                                        reply = JSON.parse(this.responseText);
+                                        if (reply.status == 'SUCCESS') {
+                                            document.getElementById('notificationBadge').innerHTML = parseInt(document.getElementById('notificationBadge').innerHTML) - 1;
+                                            document.getElementById('notification-' + notification.id).style.backgroundColor = '';
+                                        }
+                                    }
+                                };
+                                xhttp.open('GET', '/markNotificationSeen/' + notification.id);
+                                xhttp.send();
+                            }
+                        }
+                    };
+                })(notifications[i]));
+                
+                notification.addEventListener('mouseover', function () {
+                    this.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                });
+
+                notification.addEventListener('mouseout', function (notifSeen) {
+                    return function () {
+                        if (notifSeen) {
+                            this.style.backgroundColor = '';
+                        }
+                        else {
+                            this.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+                        }
+                    }
+                }(notifications[i].seen));
+            }
+
+            if (notifications.length == 0) {
+                var notificationsCard = document.getElementById('notificationsCard')
+                notificationsCard.getElementsByClassName('card-footer')[0].setAttribute('style', 'border-top: 1px solid rgb(60,74,89);');
+            }
+            else {
+                var notificationsCard = document.getElementById('notificationsCard')
+                notificationsCard.getElementsByClassName('card-footer')[0].setAttribute('style', 'border-top: none;');
+            }
+
+            notifications_next = reply.next;
+            if( notifications_next == null){
+                document.getElementById('btnNextNotifications').disabled = true;
+            }
+            else{
+                document.getElementById('btnNextNotifications').disabled = false;
+            }
+
+            notifications_prev = reply.prev;
+            if( notifications_prev == null){
+                document.getElementById('btnPrevNotifications').disabled = true;
+            }
+            else{
+                document.getElementById('btnPrevNotifications').disabled = false;
+            }
+
+        }
+    };
+    xhttp.open('GET', '/getNotifications?page=' + notifications_current_page);
+    xhttp.send();
+}
+
+$('#btnNextNotifications').click(function(event){
+    notifications_current_page = notifications_next
+    event.stopPropagation()
+    openNotifications()
+});
+
+$('#btnPrevNotifications').click(function(event){
+    notifications_current_page = notifications_prev
+    event.stopPropagation()
+    openNotifications()
+});
+
+modalNotification.on('hidden.bs.modal', function () {
+    document.getElementById('modalNotificationBody').innerHTML = '';
+    document.getElementById('notificationsButton').click();
+});
+
+
+function checkNotifications() {
+    /**Checks for and displays new notifications.*/
+    var xhttp = new XMLHttpRequest();
+    xhttp.open("POST", '/checkNotifications');
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+
+            if (reply.global_notification && reply.global_notification.contents) {
+                document.getElementById('modalNotificationBody').innerHTML = reply.global_notification.contents;
+                modalNotification.modal({keyboard: true});
+            }
+
+            var notificationBadge = document.getElementById('notificationBadge')
+            notificationBadge.innerHTML = reply.total_unseen
+
+            if (notificationTimer) {
+                clearTimeout(notificationTimer)
+            }
+
+            notificationTimer = setTimeout(checkNotifications, 30000)
+        }
+    }
+    xhttp.send();
+}
+
+
+function onload() {
+    /** Sets up the notification badge and timer and checks for global notifications. */
+    checkNotifications()
+}
+
+window.addEventListener('load', onload, false);

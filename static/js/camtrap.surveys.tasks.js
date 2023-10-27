@@ -92,6 +92,12 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
     stopTaskCol.appendChild(stopTaskBtn)
     newTaskDiv.appendChild(stopTaskCol)
 
+    if (survey.access=='write' || survey.access=='admin') {
+        stopTaskBtn.disabled = false
+    } else {
+        stopTaskBtn.disabled = true
+    }
+
     if (progressType=='launched') {
         stopTaskBtn.addEventListener('click', function(wrapTaskId) {
             return function() {
@@ -274,11 +280,32 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
             deleteBtn.disabled = true
             taskStatusBtn.disabled = true
         } else {
-            launchTaskBtn.disabled = false
-            editTaskBtn.disabled = false
-            resultsBtn.disabled = false
-            deleteBtn.disabled = false
-            taskStatusBtn.disabled = false
+            if (survey.access=='read') {
+                launchTaskBtn.disabled = true
+                editTaskBtn.disabled = true
+                resultsBtn.disabled = false
+                taskStatusBtn.disabled = false
+                deleteBtn.disabled = true
+            }
+            else if (survey.access=='write' || survey.access=='admin') {
+                launchTaskBtn.disabled = false
+                editTaskBtn.disabled = false
+                resultsBtn.disabled = false
+                taskStatusBtn.disabled = false
+                if (survey.delete){
+                    deleteBtn.disabled = false
+                }
+                else{
+                    deleteBtn.disabled = true
+                }
+            }
+            else{
+                launchTaskBtn.disabled = true
+                editTaskBtn.disabled = true
+                resultsBtn.disabled = true
+                taskStatusBtn.disabled = true
+                deleteBtn.disabled = true
+            }
         }
 
         deleteBtn.addEventListener('click', function(wrapTaskId, wrapTaskName) {

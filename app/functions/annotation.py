@@ -979,11 +979,16 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                             Detection.source,
                             Detection.score,
                             Detection.status,
-                            IndividualTask.c.id
+                            IndividualTask.c.id,
+                            Cluster.user_id,
+                            Trapgroup.tag,
+                            Trapgroup.latitude,
+                            Trapgroup.longitude
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                         .join(Camera) \
+                        .join(Trapgroup) \
                         .outerjoin(Video)\
                         .outerjoin(Detection) \
                         .join(Labelgroup)\
@@ -1064,7 +1069,25 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                     'trapGroup': row[8],
                     'notes': row[1]
                 }
-                if id: clusterInfo[row[0]]['videos'] = {}
+                if id: 
+                    clusterInfo[row[0]]['videos'] = {}
+                    user_id = row[-4]
+                    if user_id:
+                        user = session.query(User.username,User.parent_id).filter(User.id==user_id).first()
+                        if user and user[1]:
+                            clusterInfo[row[0]]['user'] = session.query(User.username).filter(User.id==user[1]).first()[0]
+                        elif user and user[1]==None and user[0] != 'Admin':
+                            clusterInfo[row[0]]['user'] = user[0]
+                        else:
+                            clusterInfo[row[0]]['user'] = 'AI'
+                    else:
+                        clusterInfo[row[0]]['user'] = 'AI'
+                    
+                    clusterInfo[row[0]]['site_tag'] = row[-3]
+                    clusterInfo[row[0]]['latitude'] = row[-2]
+                    clusterInfo[row[0]]['longitude'] = row[-1]
+
+
 
             # Handle images
             if row[2] and (row[2] not in clusterInfo[row[0]]['images'].keys()):
@@ -1528,7 +1551,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                         classification.append([label,clusterInfo[cluster_id]['classification'][label]])
 
             # Add cluster to reply
-            reply['info'].append({
+            cluster_dict = {
                 'id': cluster_id,
                 'classification': classification,
                 'required': required,
@@ -1540,7 +1563,17 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                 'groundTruth': clusterInfo[cluster_id]['groundTruth'], 
                 'trapGroup': clusterInfo[cluster_id]['trapGroup'], 
                 'notes': clusterInfo[cluster_id]['notes']
-            })
+            }
+
+            if id and ('user' in clusterInfo[cluster_id].keys()):
+                cluster_dict['annotator'] = clusterInfo[cluster_id]['user']
+                cluster_dict['site_tag'] = clusterInfo[cluster_id]['site_tag']
+                cluster_dict['latitude'] = clusterInfo[cluster_id]['latitude']
+                cluster_dict['longitude'] = clusterInfo[cluster_id]['longitude']
+
+
+            reply['info'].append(cluster_dict)
+
 
         else:
             break

@@ -138,6 +138,15 @@ limitations under the License. -->
                     </div>
                     <br>
 
+                    <h5 style="margin-bottom: 2px">Organisation</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the organisation that will own this survey.</i></div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <select id="newSurveyOrg" class='form-control'></select>
+                        </div>
+                    </div>
+                    <br>
+
                     <h5 style="margin-bottom: 2px">Description (Optional)</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Any additional information to be associated with the survey.</i></div>
                     <div class="row">
@@ -146,6 +155,52 @@ limitations under the License. -->
                         </div>
                     </div>
                     <br>
+
+                    <h5 style="margin-bottom: 2px">Permissions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Select the user permissions for non-admin users for this survey. Your own permissions will be set to your default.</i></div>
+                    <div class="row">
+                        <div class="col-lg-4">Access:</div>
+                        <div class="col-lg-4">Job Access:</div>
+                    </div>
+                    <div class="row">
+                        <div class='col-lg-4'>
+                            <select id="newSurveyPermission" class='form-control'>
+                                <option value="default" selected>Default</option>
+                                <option value="worker">Worker</option>
+                                <option value="hidden">Hidden</option>
+                                <option value="read">Read</option>
+                                <option value="write">Write</option>
+                            </select>
+                        </div>	
+                        <div class='col-lg-4'>
+                            <select id="newSurveyAnnotation" class='form-control'>
+                                <option value="default" selected>Default</option>
+                                <option value="1">Yes</option>
+                                <option value="0">No</option>
+                            </select>
+                        </div>	
+                        <div class="col-lg-4">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="detailedAccessSurveyCb" name="detailedAccessSurveyCb">
+                                <label class="custom-control-label" for="detailedAccessSurveyCb">Add Detailed Permissions</label>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+
+                    <div id="detailedAccessSurveyDiv" hidden>
+                        <h5 style="margin-bottom: 2px">Detailed Permissions</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the users and their permissions for this survey.</i></div>
+                        <div class="row">
+                            <div class="col-lg-4">User:</div>
+                            <div class="col-lg-5">Access:</div>
+                            <div class="col-lg-3">Job Access:</div>
+                        </div>
+                        <div id="surveyPermissionsDiv"></div>
+                        <button class="btn btn-info" type="button" id="btnAddSurveyPermissionRow" onclick=buildSurveyPermissionRow()>+</button>
+                        <br>
+                        <br>
+                    </div>
 
                     <h5 style="margin-bottom: 2px">Species Classifier</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select which species-identifying AI you would like to use.</i></div>
@@ -1368,33 +1423,6 @@ limitations under the License. -->
             <div class="modal-body">
 
                 <p id='modalAlertBody' align="justify"></p>
-          
-            </div>
-            <div class='modal-footer'>
-
-                <div class='col-lg-3'>
-                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
-                    data-dismiss='modal'>Close</button>
-                </div>
-
-            </div>
-        </div>
-  
-    </div>
-</div>
-
-<!-- Notification Modal -->
-<div id="modalNotification" class="modal fade" role="dialog" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-  
-        <!-- Modal content-->
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Notification</h4>
-            </div>
-            <div class="modal-body">
-
-                <p id='modalNotificationBody' align="justify"></p>
           
             </div>
             <div class='modal-footer'>

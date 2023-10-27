@@ -17,17 +17,32 @@ var clusterReadAheadIndex=0;
 var currentLabel = '0';
 var currentTag = '0';
 var currentSite = '0';
+var currentAnnotator = '0'
+var currentStartDate = null
+var currentEndDate = null
 var prevLabel = '0'
 var prevTag = '0'
 var prevSite = '0'
+var prevAnnotator = '0'
+var prevStartDate = null
+var prevEndDate = null
 isTagging = false
 isReviewing = true
 isKnockdown = false
 isBounding = false
 isIDing = false
-var blockedExploreLabels = ['Skip', 'Wrong', 'Knocked Down', 'Remove False Detections']
+
+wrongStatus = true
+dontResetWrong = true
+tempTaggingLevel = '-1'
+
+var blockedExploreLabels = ['Knocked Down', 'Remove False Detections']
 
 const divSelector = document.querySelector('#divSelector');
+const divTagSelector = document.querySelector('#divTagSelector');
+const divSiteSelector = document.querySelector('#divSiteSelector');
+const divAnnotatorSelector = document.querySelector('#divAnnotatorSelector');
+const annotationLevel = document.querySelector('#annotationLevel');
 
 function loadNewCluster(mapID = 'map1') {
     /** loads the next cluster based on the IDs contained in the clusterIDs array. */
@@ -39,11 +54,35 @@ function loadNewCluster(mapID = 'map1') {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
             function () {
-                if (this.readyState == 4 && this.status == 200) {
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+                else if (this.readyState == 4 && this.status == 200) {
                     info = JSON.parse(this.responseText);
+                    console.log(info)
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
                         newcluster = info.info[0];
                         clusters[mapID].push(newcluster)
+
+                        // Access control
+                        if (info.access == true) {
+                            if (annotationLevel.disabled == true) {
+                                if (globalKeys==null) {
+                                    getKeys()
+                                }
+                                switchTaggingLevel('-1')
+                            }
+                            annotationLevel.disabled = false
+                            document.getElementById('noteboxExp').readOnly = false
+                        }
+                        else{
+                            annotationLevel.disabled = true
+                            while(divBtns.firstChild){
+                                divBtns.removeChild(divBtns.firstChild);
+                            }
+                            document.getElementById('noteboxExp').readOnly = true
+                        }
+
                         if (clusters[mapID].length - 1 == clusterIndex[mapID]) {
                             updateCanvas()
                             updateClusterLabels()
@@ -68,24 +107,30 @@ function getKeys() {
             xhttp.onreadystatechange =
                 function () {
                     if (this.readyState == 4 && this.status == 200) {
-                        globalKeys = JSON.parse(this.responseText);
-
-                        for (let key in globalKeys) {
-                            if (globalKeys[key].length!=0) {
-                                for (let i=0;i<globalKeys[key][1].length;i++) {
-                                    if (blockedExploreLabels.includes(globalKeys[key][1][i])) {
-                                        globalKeys[key][1][i] = 'N'
-                                        globalKeys[key][0][i] = -967
+                        reply = JSON.parse(this.responseText);
+                        
+                        if (reply == 'error') {
+                            globalKeys = null
+                        }
+                        else{
+                            globalKeys = reply
+                            for (let key in globalKeys) {
+                                if (globalKeys[key].length!=0) {
+                                    for (let i=0;i<globalKeys[key][1].length;i++) {
+                                        if (blockedExploreLabels.includes(globalKeys[key][1][i])) {
+                                            globalKeys[key][1][i] = 'N'
+                                            globalKeys[key][0][i] = -967
+                                        }
                                     }
                                 }
                             }
-                        }
-
-                        res = globalKeys[taggingLevel]
     
-                        // Remove undesirable names from the explore page
-                        if (res.length!=0) {    
-                            initKeys(res);
+                            res = globalKeys[taggingLevel]
+        
+                            // Remove undesirable names from the explore page
+                            if (res.length!=0) {    
+                                initKeys(res);
+                            }
                         }
                     }
                 }
@@ -98,27 +143,13 @@ function getKeys() {
 
 function populateLevels() {
     /** Populates the tagging-level selector. */
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            species = JSON.parse(this.responseText);
-            for (let i=0;i<species.length;i++) {
-                ss = document.getElementById('level-selector')
-                a = document.createElement('button')
-                a.classList.add('dropdown-item');
-                a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'switchTaggingLevel('+species[i][0] +')')
-                a.innerHTML = species[i][1]
-                ss.appendChild(a)
-            }
-            switchTaggingLevel(species[0][0])
-            switchTaggingLevel(-1)  // Loads labels by default
-        }
-    }
-    xhttp.open("GET", '/getTaggingLevels');
-    xhttp.send();
+    switchTaggingLevel(annotationLevel.value)
 }
+
+annotationLevel.addEventListener('change', function() {
+    /** Handles the event when the tagging-level selector is changed. */
+    populateLevels()
+});
 
 function getClusterIDs(mapID = 'map1'){
     /** Gets a list of cluster IDs to be explored for the current combination of task and label. */
@@ -127,6 +158,13 @@ function getClusterIDs(mapID = 'map1'){
     if(notesOnly){
         formData.append('notes', JSON.stringify('True'))
     }
+    if(currentStartDate){
+        formData.append('startDate', JSON.stringify(currentStartDate))
+    }
+    if(currentEndDate){
+        formData.append('endDate', JSON.stringify(currentEndDate))
+    }
+
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
@@ -143,8 +181,17 @@ function getClusterIDs(mapID = 'map1'){
                         document.getElementById('onlyNotesCheckbox').click()
                     }
                     currentLabel= prevLabel
+                    divSelector.value = currentLabel
                     currentTag = prevTag
+                    divTagSelector.value = currentTag
                     currentSite = prevSite
+                    divSiteSelector.value = currentSite
+                    currentAnnotator = prevAnnotator
+                    divAnnotatorSelector.value = currentAnnotator
+                    currentStartDate = prevStartDate
+                    document.getElementById('expStartDate').value = currentStartDate ? currentStartDate.split(' ')[0] : ''
+                    currentEndDate = prevEndDate
+                    document.getElementById('expEndDate').value = currentEndDate ? currentEndDate.split(' ')[0] : ''
                     getClusterIDs()
                 }
                 else{
@@ -154,7 +201,7 @@ function getClusterIDs(mapID = 'map1'){
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator);
     xhttp.send(formData);
 }
 
@@ -164,6 +211,12 @@ function searchNotes(mapID='map1'){
     var formData = new FormData()
     notes = noteSearchTextBox.value
     formData.append('notes', JSON.stringify(notes))
+    if(currentStartDate){
+        formData.append('startDate', JSON.stringify(currentStartDate))
+    }
+    if(currentEndDate){
+        formData.append('endDate', JSON.stringify(currentEndDate))
+    }
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
@@ -184,67 +237,85 @@ function searchNotes(mapID='map1'){
                 }
             }
         };
-    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite);
+    xhttp.open("POST", '/getClustersBySpecies/'+selectedTask+'/'+currentLabel+'/'+currentTag+'/'+currentSite+'/'+currentAnnotator);
     xhttp.send(formData);
 }
 
-function populateSpeciesSelector(label, mapID = 'map1'){
+// function populateSpeciesSelector(label, mapID = 'map1'){
+//     /** Populates the species-to-be-explored selector. Also builds sub-species selectors as needed. */
+//     var xhttp = new XMLHttpRequest();
+//     xhttp.onreadystatechange =
+//     function(){
+//         if (this.readyState == 4 && this.status == 200) {
+//             response = JSON.parse(this.responseText);
+
+//             clearSelect(divSelector)
+//             var optionTexts = []
+//             var optionValues = []
+//             labels = response[0]
+//             for (let i=0;i<labels.length;i++) {
+//                 optionTexts.push(labels[i][1])
+//                 optionValues.push(labels[i][0])
+//             }
+//             fillSelect(divSelector, optionTexts, optionValues)
+
+//             divSelector.value = label
+
+//             prevLabel = currentLabel
+//             prevTag = currentTag
+//             prevSite = currentSite
+//             prevAnnotator = currentAnnotator
+//             prevStartDate = currentStartDate
+//             prevEndDate = currentEndDate
+//             currentLabel = label
+//             clusterRequests[mapID] = [];
+//             getClusterIDs()
+//         }
+//     }
+//     xhttp.open("GET", '/getSpeciesSelectorBySurvey/'+label);
+//     xhttp.send();
+// }
+
+function populateSpeciesSelector(){
     /** Populates the species-to-be-explored selector. Also builds sub-species selectors as needed. */
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-
-            while(divSelector.firstChild){
-                divSelector.removeChild(divSelector.firstChild);
+            console.log(response)
+            clearSelect(divSelector)
+            var optionTexts = []
+            var optionValues = []
+            labels = response
+            for (let i=0;i<labels.length;i++) {
+                optionTexts.push(labels[i][1])
+                optionValues.push(labels[i][0])
             }
+            fillSelect(divSelector, optionTexts, optionValues)
 
-            for (let i=0;i<response.length;i++) {
-                newdiv = document.createElement('div');
-                newdiv.classList.add('dropdown');
-                
-                newbtn = document.createElement('button');
-                newbtn.classList.add('btn');
-                newbtn.classList.add('btn-danger');
-                newbtn.classList.add('btn-block');
-                newbtn.classList.add('btn-sm');
-                newbtn.classList.add('dropdown-toggle');
-                newbtn.setAttribute("type", 'button');
-                newbtn.setAttribute("data-toggle", 'dropdown');
-
-                if (i==0) {
-                    newbtn.innerHTML = 'Select Species to be Explored';
-                } else {
-                    newbtn.innerHTML = 'Select Sub-Species to be Explored';
-                }
-
-                newul = document.createElement('div');
-                newul.classList.add('dropdown-menu');
-
-                for (let n=0;n<response[i].length;n++) {
-                    a = document.createElement('button');
-                    a.classList.add('dropdown-item');
-                    a.setAttribute('type', 'button')
-                    a.setAttribute('onclick', 'populateSpeciesSelector('+response[i][n][0]+')');
-                    a.innerHTML = "Show "+response[i][n][1];
-                    newul.appendChild(a);
-                }
-
-                newdiv.appendChild(newbtn);
-                newdiv.appendChild(newul);
-                divSelector.appendChild(newdiv);
-            }
-            prevLabel = currentLabel
-            prevTag = currentTag
-            prevSite = currentSite
-            currentLabel = label
-            clusterRequests[mapID] = [];
-            getClusterIDs()
         }
     }
-    xhttp.open("GET", '/getSpeciesSelectorBySurvey/'+label);
+    xhttp.open("GET", '/populateSpeciesSelector');
     xhttp.send();
+}
+
+divSelector.addEventListener('change', function() {
+    /** Handles the event when a species is selected. */
+    selectSpecies(divSelector.value)
+})
+
+function selectSpecies(label) {
+    /** Selects the species. */
+    prevLabel = currentLabel
+    prevTag = currentTag
+    prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
+    currentLabel = label
+    clusterRequests['map1'] = [];
+    getClusterIDs()
 }
 
 function populateTagSelector() {
@@ -254,45 +325,26 @@ function populateTagSelector() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-
-            divTagSelector = document.getElementById('divTagSelector')
-            while(divTagSelector.firstChild){
-                divTagSelector.removeChild(divTagSelector.firstChild);
+            console.log(response)
+            clearSelect(divTagSelector)
+            var optionTexts = []
+            var optionValues = []
+            tags = response
+            for (let i=0;i<tags.length;i++) {
+                optionTexts.push(tags[i][1])
+                optionValues.push(tags[i][0])
             }
-
-            newdiv = document.createElement('div');
-            newdiv.classList.add('dropdown');
-            
-            newbtn = document.createElement('button');
-            newbtn.classList.add('btn');
-            newbtn.classList.add('btn-danger');
-            newbtn.classList.add('btn-block');
-            newbtn.classList.add('btn-sm');
-            newbtn.classList.add('dropdown-toggle');
-            newbtn.setAttribute("type", 'button');
-            newbtn.setAttribute("data-toggle", 'dropdown');
-            newbtn.innerHTML = 'Select Tag to be Explored';
-
-            newul = document.createElement('div');
-            newul.classList.add('dropdown-menu');
-
-            for (let i=0;i<response.length;i++) {
-                a = document.createElement('button');
-                a.classList.add('dropdown-item');
-                a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'selectTag('+response[i][0]+')');
-                a.innerHTML = "Show "+response[i][1];
-                newul.appendChild(a);
-            }
-
-            newdiv.appendChild(newbtn);
-            newdiv.appendChild(newul);
-            divTagSelector.appendChild(newdiv);
+            fillSelect(divTagSelector, optionTexts, optionValues)
         }
     }
     xhttp.open("GET", '/populateTagSelector');
     xhttp.send();
 }
+
+divTagSelector.addEventListener('change', function() {
+    /** Handles the event when a tag is selected. */
+    selectTag(divTagSelector.value)
+});
 
 function populateSiteSelector() {
     /** Populates the site selector. */
@@ -302,51 +354,66 @@ function populateSiteSelector() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-
-           var divSiteSelector = document.getElementById('divSiteSelector')
-            while(divSiteSelector.firstChild){
-                divSiteSelector.removeChild(divSiteSelector.firstChild);
+            console.log(response)
+            clearSelect(divSiteSelector)
+            var optionTexts = []
+            var optionValues = []
+            sites = response
+            for (let i=0;i<sites.length;i++) {
+                optionTexts.push(sites[i][1])
+                optionValues.push(sites[i][0])
             }
+            fillSelect(divSiteSelector, optionTexts, optionValues)
 
-            var newdiv = document.createElement('div');
-            newdiv.classList.add('dropdown');
-
-            var newbtn = document.createElement('button');
-            newbtn.classList.add('btn');
-            newbtn.classList.add('btn-danger');
-            newbtn.classList.add('btn-block');
-            newbtn.classList.add('btn-sm');
-            newbtn.classList.add('dropdown-toggle');
-            newbtn.setAttribute("type", 'button');
-            newbtn.setAttribute("data-toggle", 'dropdown');
-            newbtn.innerHTML = 'Select Site to be Explored';
-
-            var newul = document.createElement('div');
-            newul.classList.add('dropdown-menu');
-
-            for (let i=0;i<response.length;i++) {
-                var a = document.createElement('button');
-                a.classList.add('dropdown-item');
-                a.setAttribute('type', 'button')
-                a.setAttribute('onclick', 'selectSite('+response[i][0]+')');
-                a.innerHTML = "Show "+response[i][1];
-                newul.appendChild(a);
-            }
-
-            newdiv.appendChild(newbtn);
-            newdiv.appendChild(newul);
-
-            divSiteSelector.appendChild(newdiv);
         }
     }
     xhttp.open("GET", '/populateSiteSelector');
     xhttp.send();
 }
 
+divSiteSelector.addEventListener('change', function() {
+    /** Handles the event when a site is selected. */
+    selectSite(divSiteSelector.value)
+});
+
+function populateAnnotatorSelector() {
+    /** Populates the annotator selector. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            response = JSON.parse(this.responseText);
+            console.log(response)
+
+            clearSelect(divAnnotatorSelector)
+            var optionTexts = []
+            var optionValues = []
+            annotators = response
+            for (let i=0;i<annotators.length;i++) {
+                optionTexts.push(annotators[i][1])
+                optionValues.push(annotators[i][0])
+            }
+            fillSelect(divAnnotatorSelector, optionTexts, optionValues)
+
+        }
+    }
+    xhttp.open("GET", '/populateAnnotatorSelector');
+    xhttp.send();
+}
+
+divAnnotatorSelector.addEventListener('change', function() {
+    /** Handles the event when a site is selected. */
+    selectAnnotator(divAnnotatorSelector.value)
+});
+
 function selectTag(tag) {
     prevTag = currentTag
     prevLabel = currentLabel
     prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
     currentTag = tag
     clusterRequests['map1'] = [];
     getClusterIDs()
@@ -356,10 +423,66 @@ function selectSite(site) {
     prevTag = currentTag
     prevLabel = currentLabel
     prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
     currentSite = site
     clusterRequests['map1'] = [];
     getClusterIDs()
 }
+
+function selectAnnotator(annotator) {
+    /** Selects the annotator. */
+    prevTag = currentTag
+    prevLabel = currentLabel
+    prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
+    currentAnnotator = annotator
+    clusterRequests['map1'] = [];
+    getClusterIDs()
+}
+
+$('#expStartDate').change(function() {
+    /** Handles the event when the start date is changed. */
+    prevTag = currentTag
+    prevLabel = currentLabel
+    prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
+    clusterRequests['map1'] = [];
+
+    if (this.value == '') {
+        currentStartDate = null
+    }
+    else{
+        currentStartDate = this.value + ' 00:00:00'
+    }
+
+    getClusterIDs()
+});
+
+$('#expEndDate').change(function() {
+    /** Handles the event when the end date is changed. */
+    prevTag = currentTag
+    prevLabel = currentLabel
+    prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
+    clusterRequests['map1'] = [];
+
+    if (this.value == '') {
+        currentEndDate = null
+    }
+    else{
+        currentEndDate = this.value + ' 23:59:59'
+    }
+
+    getClusterIDs()
+});
 
 $("#onlyNotesCheckbox").change( function() {
     /** Checks when the checkbox for filtering the cluster by notes is checked */
@@ -373,6 +496,30 @@ $("#onlyNotesCheckbox").change( function() {
         document.getElementById('noteboxExpSearch').value = ''
     }
     getClusterIDs()
+})
+
+$("#noteboxExpSearch").change( function() {
+    /** Handles the event when the search bar for notes is changed */
+    searchNotes()
+});
+
+$("#noteboxExp").on('focus', function(){
+    isNoteActive = true
+})
+
+$("#noteboxExp").on('blur', function(){
+    isNoteActive = false
+    sendNoteExplore()
+})
+
+$("#noteboxExpSearch").on('focus', function(){
+    isNoteActive = true
+    isSearchNoteActive = true
+})
+
+$("#noteboxExpSearch").on('blur', function(){
+    isNoteActive = false
+    isSearchNoteActive = false
 })
 
 

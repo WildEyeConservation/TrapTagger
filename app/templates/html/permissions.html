@@ -1,0 +1,318 @@
+<!-- Copyright 2023
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+{% extends "base.html" %}
+{% block app_content %}
+<br>
+<div class='row'>
+    <div class='col-lg-1'></div>
+    <div class='col-lg-10'>
+        <div class="card" style='min-height:400px' id="mainCard">
+            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
+                <div class='row' style="margin-top: 0px; margin-bottom: 0px">
+                    <div class='col-lg-4'>
+                        <h3>Permissions</h3>
+                    </div>
+                    <div class='col-lg-4'>
+                        <input type="text" class="form-control" placeholder="Search" id="permissionSearch"></input>
+                    </div>
+                    <div class='col-lg-2'></div>
+                    <div class='col-lg-2'>
+                        <select name='orderSelect' id='permissionOrder' class='form-control'>
+                            <option value="1">Alphabetical</option>
+                            <option value="2">Ascending Add Date</option>
+                            <option value="3">Descending Add Date</option>
+                        </select>
+                    </div>
+                  </div>
+            </div>
+
+            <div class="tab">
+                <button id="openUserTab" class="tablinks" onclick="openPermissionsTab(event, 'baseUserTab')">Users</button>
+                <button id="openDataSharingTab" class="tablinks" onclick="openPermissionsTab(event, 'baseDataSharingTab')">Data Sharing: Shared</button>
+                <button id="openReceivedDataTab" class="tablinks" onclick="openPermissionsTab(event, 'baseDataReceivedTab')">Data Sharing: Received</button>
+            </div>
+
+            <div class="card-body" id="permissionsDiv">
+                
+                <div id="baseUserTab" class="tabcontent">
+                    <h5 style="margin-bottom: 2px">Users</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Edit the permissions of the users in your organization.Users can have default read or write access for all surveys. Users can also be given specific read and write access to surveys.
+                        Read access allows the user to view the survey and its results. Write access allows the user full control over the survey except for deleting the survey.</i>
+                    </div>
+                    <br>
+                    <div id="usersDiv"></div>
+                    <br>
+                    <div id="userErrors" style=" font:80%; color: #DF691A"></div>
+                </div>
+
+                <div id="baseDataSharingTab" class="tabcontent">
+                    <h5 style="margin-bottom: 2px">Shared Surveys</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>Edit the surveys as well as their permissions that have been shared to other organizations.</i></div>
+                    <div id="dataSharingDiv"></div>
+                    <br>
+                    <div id="dataSharingErrors" style=" font:80%; color: #DF691A"></div>
+                </div>
+
+                <div id="baseDataReceivedTab" class="tabcontent">
+                    <h5 style="margin-bottom: 2px">Received Surveys</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i>View the surveys that have been shared with your organization.</i></div>
+                    <div id="receivedDataDiv"></div>
+                    <br>
+                    <div id="dataSharingErrors" style=" font:80%; color: #DF691A"></div>
+                </div>
+
+            </div>
+
+            <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
+                <div class="row">
+                    <div class="col-lg-1">
+                        <button type='button' class='btn btn-info btn-block' id='btnPrevPermissions' hidden>Previous</button>
+                    </div>
+                    <div class = "col-lg-4"></div>
+                    <div class="col-lg-2" align="center">
+                        <button type='button' class='btn btn-primary btn-block' id='btnPermissions'>Invite</button>  
+                    </div>
+                    <div class = "col-lg-4"></div>
+                    <div class="col-lg-1">
+                        <button type='button' class='btn btn-info btn-block' id='btnNextPermissions' hidden>Next</button>
+                    </div>
+                </div>   
+            </div>  
+        </div>
+    </div>
+    <div class='col-lg-1'></div>
+</div>
+<br>
+
+
+<!-- Detailed Access Modal -->
+<div id="modalDetailedAccess" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 50%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+              <div class='col-lg-10' style="padding: 0px">
+                  <h4 id='modalDetailedAccessTitle'  class="modal-title">Detailed Access</h4>
+              </div>
+              <div class='col-lg-1' style="padding: 0px">
+                  <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('detailed_access')">Help</button>
+              </div>
+              <div class='col-lg-1' style="padding: 0px">
+                  <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+              </div>
+            </div>
+
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Instructions</h5>
+                <div id='accessInstructions' style="font-size: 80%; margin-bottom: 2px"><i>Select the surveys and the level of access you would like to give the user for each survey. This will override the default access level for the user for the selected surveys.</i></div>
+                <br>
+                <div class="row" id="colTitleDiv"></div>
+                <div id="detailedAccessDiv"></div>
+                <button id="btnAddDetailedAccess" type='button' class='btn btn-info' onclick="buildDetailedAccessRow()">+</button>
+                <br>
+                <br>
+                <div id="detailedAccessErrors" style=" font:80%; color: #DF691A"></div>
+            </div>
+
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="btnSaveDetailedAccess" type='button' class='btn btn-primary btn-block' onclick="saveDetailedAccess()">Save</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+  
+    </div>
+  </div>
+
+  
+  <!-- Confirmation Modal -->
+  <div id="confirmationModal" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Confirm</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+  
+                <p align="justify" id="confirmationText">Do you wish to continue?</p>
+          
+            </div>
+            <div class='modal-footer'>
+  
+                <div class='col-lg-3'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+  
+                <div class='col-lg-3'>
+                  <button type='button' class='btn btn-danger btn-block' onclick="removeFromTable()">Confirm</button>
+                </div>
+  
+            </div>
+        </div>
+  
+    </div>
+  </div>
+
+    <!-- Confirmation Modal -->
+    <div id="modalAdminConfirm" class="modal fade" role="dialog" tabindex="-1">
+        <div class="modal-dialog">
+      
+            <!-- Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Confirm</h4>
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p align="justify" id="confirmationText">
+                        You are about to give this user admin access. The user will have full write access for all surveys in the organisation. All previous detailed exceptions will be removed.
+                        This will also allow the user to add and remove users from the organisation as well as edit the permissions of the users in the organisation. They will also be allowed to 
+                        share and receive surveys from other organisations. Do you wish to continue?
+                    </p>
+                </div>
+                <div class='modal-footer'>
+                    <div class='col-lg-3'>
+                        <button id="helpclose" type='button' class='btn btn-info btn-block' 
+                        data-dismiss='modal'>Close</button>
+                    </div>
+      
+                    <div class='col-lg-3'>
+                      <button type='button' class='btn btn-danger btn-block' onclick="setToAdmin()">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  
+  <!-- invite Modal -->
+  <div id="modalInvite" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Invite User</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('invite_worker')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Organisation</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i> Select the organisation you would like to invite the user to.</i></div>
+                <div class="row">
+                    <div class='col-lg-6'>
+                        <select name='organisationSelect' id='organisationSelect' class='form-control'></select>
+                    </div>
+                </div>
+                <br>
+  
+                <h5 style="margin-bottom: 2px">Username</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the username of the user you would like to invite.</i></div>
+                <div class="row">
+                    <div class='col-lg-6'>
+                        <input type="text" class="form-control" id="inviteUsername">
+                    </div>
+                    <div class='col-lg-2'>
+                        <button id="btnsendInvite" type='button' class='btn btn-primary btn-block' onclick="sendInvite()">Send</button>
+                    </div>
+                </div>
+                <br>
+    
+                <p id="inviteStatus"></p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+            </div>
+        </div>
+  
+    </div>
+  </div>
+
+<!-- Share Data Modal -->
+<div id="modalShareData" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 40%;">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class='col-lg-10' style="padding: 0px">
+                    <h4 class="modal-title">Share Survey</h4>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button class='btn btn-primary btn-sm pull-right' onclick="helpOpen('share_data')">Help</button>
+                </div>
+                <div class='col-lg-1' style="padding: 0px">
+                    <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <h5 style="margin-bottom: 2px">Organisation</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Enter the name of the organisation you would like to share the surveys with.</i></div>
+                <div class="row">
+                    <div class='col-lg-5'>
+                        <input type="text" class="form-control" id="organisationName">
+                    </div>
+                </div>
+                <div id="shareOrganisationStatus" style=" font:80%; color: #DF691A"></div>
+                <br>
+                <br>
+
+                <h5 style="margin-bottom: 2px">Share Survey</h5>
+                <div style="font-size: 80%; margin-bottom: 2px"><i>Select the survey you would like to share with the above organisation. You can also select the level of access you would like to give the organisation for the survey. </i></div>
+                <div class="row">
+                    <div class='col-lg-5'>Survey: </div>
+                    <div class='col-lg-5'>Access Level: </div>
+                </div>
+                <div id="shareDataDiv"></div>
+                <br>
+                <br>
+
+                <div id="shareDataErrors" style=" font:80%; color: #DF691A"></div>                
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id="helpclose" type='button' class='btn btn-info btn-block' data-dismiss='modal'>Close</button>
+                </div>
+                <div class="col-lg-3">
+                    <button id="btnShareData" type='button' class='btn btn-primary btn-block' onclick="shareSurveys()">Share</button>
+                </div>
+            </div>
+        </div>
+  
+    </div>
+</div>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script src="js/camtrap.admin.commons.v{{ version }}.js"></script>
+<script src="js/camtrap.permissions.v{{ version }}.js"></script>
+{% endblock %}
+

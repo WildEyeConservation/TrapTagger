@@ -155,7 +155,7 @@ async function selectFiles(resuming=false) {
     /** Allows a user to select a folder, and then passes the handle to the web work to process */
     resetUploadStatusVariables()
     dirHandle = await window.showDirectoryPicker();
-    uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,surveyName]});
+    uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,surveyName,uploadID]});
 }
 
 async function uploadFiles() {
@@ -165,7 +165,7 @@ async function uploadFiles() {
     } else {
         modalAddImages.modal('hide')
     }
-    uploadWorker.postMessage({'func': 'uploadFiles', 'args': surveyName});
+    uploadWorker.postMessage({'func': 'uploadFiles', 'args': [surveyName,uploadID]});
 }
 
 var uppy = new Uppy.Uppy({

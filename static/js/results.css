@@ -71,3 +71,120 @@ limitations under the License.
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+
+/* The switch - the box around the slider */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+  margin: 0px;
+}
+
+/* Hide default HTML checkbox */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* The slider */
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #DF691A;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #DF691A;
+}
+
+input:checked + .slider:before {
+  -webkit-transform: translateX(16px);
+  -ms-transform: translateX(16px);
+  transform: translateX(16px);
+}
+
+/* Rounded sliders */
+.slider.round {
+  border-radius: 24px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
+
+tbody:hover td[rowspan],
+tr:hover td {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+
+.badge {
+  background-color: #DF691A;
+  color: rgba(255,255,255,0.75);
+  border-radius: 50%;
+  padding: 2px 4px;
+}
+
+.pagination li {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  border: 1px solid #EBEBEB;
+  width: 22px;
+  height: 22px;
+  margin: 0px 1px;
+  color: #EBEBEB;
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 22px; 
+}
+
+.pagination li.active {
+  background-color: #DF691A;
+  border: 1px solid #DF691A;
+  color : white;
+}
+
+.pagination li.disabled {
+  border: 1px solid #EBEBEB;
+  cursor: default;
+}
+
+.pagination li.disabled:hover {
+  background-color: transparent;
+  border: 1px solid #EBEBEB;
+  color: #EBEBEB;
+}
+
+.pagination li:hover {
+  background-color: #DF691A;
+  border: 1px solid #DF691A;
+  color: white ;
+}
