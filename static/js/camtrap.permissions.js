@@ -251,11 +251,29 @@ function buildUserTable(users) {
                     var permission_value = default_access[slider_value].toLowerCase()   
 
                     if (permission_value == 'admin') {
-                        document.getElementById('btnEditUser-' + userID + '-' + orgID).disabled = true
                         modalAdminConfirm.modal('show');
                     }
                     else{
                         document.getElementById('btnEditUser-' + userID + '-' + orgID).disabled = false
+
+                        if (permission_value == 'worker') {
+                            document.getElementById('userSurveyCreation-' + userID + '-' + orgID).checked = false
+                            document.getElementById('userSurveyCreation-' + userID + '-' + orgID).disabled = true
+                            // savePermissions('create', '0')
+                            document.getElementById('userSurveyDeletion-' + userID + '-' + orgID).checked = false
+                            document.getElementById('userSurveyDeletion-' + userID + '-' + orgID).disabled = true
+                            // savePermissions('delete', '0')
+                        }
+                        else{
+                            document.getElementById('userSurveyCreation-' + userID + '-' + orgID).disabled = false
+                            
+                            if (access_slider_values[permission_value] < access_slider_values['write']) {
+                                document.getElementById('userSurveyDeletion-' + userID + '-' + orgID).checked = false
+                                document.getElementById('userSurveyDeletion-' + userID + '-' + orgID).disabled = true
+                                // savePermissions('delete', '0')
+                            }
+                        }
+
                         savePermissions(permission_type, permission_value)
                     }
 
@@ -315,15 +333,34 @@ function buildUserTable(users) {
             slider.classList.add('round');
             toggle.appendChild(slider);
 
-            checkbox.addEventListener('change', function (userID, orgID){
+            if (user_permissions[j].default == 'worker') {
+                document.getElementById('userSurveyCreation-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = true
+            }
+            else{
+                document.getElementById('userSurveyCreation-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = false
+            }
+
+            checkbox.addEventListener('change', function (userID, orgID, defaultAccess){
                 return function() {
                     selectedUser = userID
                     selectedOrganisation = orgID
                     var permission_type = 'create'
                     var permission_value = this.checked ? '1' : '0'
-                    savePermissions(permission_type, permission_value)
+
+                    if (this.checked) {
+                        if (access_slider_values[defaultAccess] < access_slider_values['hidden']) {
+                            document.getElementById('userSurveyCreation-' + userID + '-' + orgID).checked = false
+                            modalAlert.modal('show');
+                        }
+                        else{
+                            savePermissions(permission_type, permission_value)
+                        }
+                    }
+                    else{
+                        savePermissions(permission_type, permission_value)
+                    }
                 };
-            }(users[i].id, user_permissions[j].organisation_id));
+            }(users[i].id, user_permissions[j].organisation_id, user_permissions[j].default));
 
             // Survey Deletion
             var userTableBodyRowData = document.createElement('td');
@@ -346,15 +383,35 @@ function buildUserTable(users) {
             slider.classList.add('round');
             toggle.appendChild(slider);
 
-            checkbox.addEventListener('change', function (userID, orgID){
+            if (access_slider_values[user_permissions[j].default] < access_slider_values['write']) {
+                document.getElementById('userSurveyDeletion-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = true
+            }
+            else{
+                document.getElementById('userSurveyDeletion-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = false
+            }
+
+            checkbox.addEventListener('change', function (userID, orgID, defaultAccess){
                 return function() {
                     selectedUser = userID
                     selectedOrganisation = orgID
                     var permission_type = 'delete'
                     var permission_value = this.checked ? '1' : '0'
-                    savePermissions(permission_type, permission_value)
+
+                    if (this.checked) {
+
+                        if (access_slider_values[defaultAccess] < access_slider_values['write']) {
+                            document.getElementById('userSurveyDeletion-' + userID + '-' + orgID).checked = false
+                            modalAlert.modal('show');
+                        }
+                        else{
+                            savePermissions(permission_type, permission_value)
+                        }
+                    }
+                    else{
+                        savePermissions(permission_type, permission_value)
+                    }
                 };
-            }(users[i].id, user_permissions[j].organisation_id));
+            }(users[i].id, user_permissions[j].organisation_id, user_permissions[j].default));
 
             // Detailed Access
             userTableBodyRowData = document.createElement('td');
@@ -1590,6 +1647,10 @@ function removeSharedSurvey(){
 
 function setToAdmin(){
     /** Sets the user to admin. */
+
+    document.getElementById('btnEditUser-' + selectedUser + '-' + selectedOrganisation).disabled = true
+    document.getElementById('userSurveyCreation-' + selectedUser + '-' + selectedOrganisation).disabled = false
+    document.getElementById('userSurveyDeletion-' + selectedUser + '-' + selectedOrganisation).disabled = false
     savePermissions('default', 'admin')
 }
 

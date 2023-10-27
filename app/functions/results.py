@@ -680,7 +680,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, user_name):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -698,8 +698,10 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
     
     try:
         task = db.session.query(Task).get(selectedTasks[0])
-        filePath = task.survey.user.folder+'/docs/'
-        fileName = task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+        # filePath = task.survey.user.folder+'/docs/'
+        # fileName = task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
+        filePath = task.survey.organisation.folder+'/docs/'
+        fileName = task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'.csv'
         randomness = randomString()
 
         # # Delete old file if exists
@@ -1111,7 +1113,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
     return True
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def generate_wildbook_export(self,task_id, data):
+def generate_wildbook_export(self,task_id, data, user_name):
     '''
     Celery task for generating the WildBook export format. Saves export in zip file locally.
 
@@ -1123,8 +1125,8 @@ def generate_wildbook_export(self,task_id, data):
     try:
         os.makedirs('docs', exist_ok=True)
         task = db.session.query(Task).get(task_id)
-        fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-
+        # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
+        fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name
         # # Delete old file if exists
         # try:
         #     GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=fileName+'.zip')
@@ -1293,13 +1295,14 @@ def child_headings(task_id, label, currentCol, speciesColumns, sheet):
 
 
 @celery.task(bind=True,max_retries=29,ignore_result=True)
-def generate_excel(self,task_id):
+def generate_excel(self,task_id,user_name):
     '''Celery task for generating an Excel summary of a specified task. Saves the file locally for download.'''
     try:
         app.logger.info('generate_excel commenced')
         task = db.session.query(Task).get(task_id)
         survey = task.survey
-        user = survey.user
+        # user = survey.user
+        organisation = survey.organisation
 
         right_border = Border(right=Side(style='thin'))
         left_border = Border(left=Side(style='thin'))
@@ -1557,7 +1560,8 @@ def generate_excel(self,task_id):
         sheet[finalColumn+str(currentRow)].border = Border(right=Side(style='thin'), top=Side(style='thin'), left=Side(style='thin'))
         sheet[finalColumn+str(currentRow+1)].border = Border(right=Side(style='thin'), bottom=Side(style='thin'), left=Side(style='thin'))
 
-        fileName = user.folder+'/docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
+        # fileName = user.folder+'/docs/'+user.username+'_'+survey.name+'_'+task.name+'.xlsx'
+        fileName = organisation.folder+'/docs/'+organisation.name+'_'+user_name+'_'+survey.name+'_'+task.name+'.xlsx'
 
         # Write new file to S3 for fetching
         with tempfile.NamedTemporaryFile(delete=True, suffix='.xlsx') as temp_file:
@@ -2023,10 +2027,11 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                     outputDF = df
 
         # Write output to S3
-        user = task.survey.user.username
+        # user = task.survey.user.username
+        organisation = task.survey.organisation.name
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             outputDF.to_csv(temp_file.name,index=False)
-            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+user+'_classification_ds.csv',Body=temp_file)
+            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+organisation+'_classification_ds.csv',Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -2221,12 +2226,13 @@ def generate_label_spec(self,sourceBucket,translations):
     return True
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_coco(self,task_id):
+def generate_coco(self,task_id,user_name):
     '''Generates a COCO export of a task.'''
 
     try:
         task = db.session.query(Task).get(task_id)
-        fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+        # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
+        fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+user_name+'_'+task.survey.name+'_'+task.name+'.json'
 
         # # Delete old file if exists
         # try:
@@ -2238,7 +2244,7 @@ def generate_coco(self,task_id):
             "version" : 1,
             "description" : task.survey.description,
             "year" : datetime.utcnow().year,
-            "contributor" : task.survey.user.username,
+            "contributor" : task.survey.organisation.name,
             "date_created" : str(datetime.utcnow())
         }
         
@@ -3203,7 +3209,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
     return { 'status': status, 'error': error, 'summary': summary }
 
 @celery.task(bind=True, ignore_result=True)
-def clean_up_R_results(self,R_type, user_folder):
+def clean_up_R_results(self,R_type, folder, user_name):
     ''' Deletes any R results files for the given user folder and R type '''
     try: 
         # Check if delete file task is already in queue
@@ -3217,20 +3223,24 @@ def clean_up_R_results(self,R_type, user_folder):
                         scheduled_files.append(task['request']['kwargs']['fileName'])
 
         if R_type == 'activity':
-            isFile = re.compile('^Activity_Pattern_', re.I)
+            # isFile = re.compile('^_Activity_Pattern_', re.I)
+            isFile = re.compile('^' + user_name + '_Activity_Pattern_', re.I)
 
         elif R_type == 'occupancy':
-            isFile = re.compile('^Occupancy_', re.I)
+            # isFile = re.compile('^Occupancy_', re.I)
+            isFile = re.compile('^' + user_name + '_Occupancy_', re.I)
 
         elif R_type == 'scr':
-            isFile = re.compile('^SCR_', re.I)
+            # isFile = re.compile('^SCR_', re.I)
+            isFile = re.compile('^' + user_name + '_SCR_', re.I)
         else:
-            isFile = re.compile('^(Activity_Pattern_|Occupancy_|SCR_)', re.I)
+            # isFile = re.compile('^(Activity_Pattern_|Occupancy_|SCR_)', re.I)
+            isFile = re.compile('^(' + user_name + '_Activity_Pattern_|' + user_name + '_Occupancy_|' + user_name + '_SCR_)', re.I)
 
         sourceBucket = Config.BUCKET
-        s3Folder = user_folder + '/docs'
+        s3Folder = folder + '/docs'
 
-        if Config.DEBUGGING: app.logger.info('Cleaning up R results (' + R_type + ') for ' + user_folder)
+        if Config.DEBUGGING: app.logger.info('Cleaning up R results (' + R_type + ') in ' + folder + ' for ' + user_name)
 
         for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
             files = list(filter(isFile.search, filenames))

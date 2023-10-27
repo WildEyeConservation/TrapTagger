@@ -497,12 +497,21 @@ function buildSurveys(survey,disableSurvey) {
                 addTaskBtn.disabled = true
                 deleteSurveyBtn.disabled = true
             }
+
+            if (survey.status.toLowerCase()=='uploading' && !uploading) {
+                btnResume.disabled = true
+            }
         }
         else if (survey.access == 'write' || survey.access == 'admin'){
             if (addTaskBtn) {
                 addImagesBtn.disabled = false
                 addTaskBtn.disabled = false
             }
+
+            if  (survey.status.toLowerCase()=='uploading' && !uploading) {
+                btnResume.disabled = false
+            }
+
             if (survey.delete){
                 deleteSurveyBtn.disabled = false
             }
@@ -515,6 +524,10 @@ function buildSurveys(survey,disableSurvey) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
                 deleteSurveyBtn.disabled = true
+            }
+
+            if (survey.status.toLowerCase()=='uploading' && !uploading) {
+                btnResume.disabled = true
             }
         }
 
@@ -911,6 +924,7 @@ function pingTgCheck() {
                     formData.append("task_id", 'none')
                     formData.append("tgCode", tgCode)
                     formData.append("folder", folder)
+                    formData.append("survey_id", selectedSurvey)
                     tgCheckFolder = folder
                     tgCheckCode = tgCode
                 }

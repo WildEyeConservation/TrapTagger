@@ -137,6 +137,11 @@ input:checked + .slider:before {
   border-radius: 50%;
 }
 
+/* Disabled state */
+input:disabled + .slider {
+  cursor: default;
+  background-color: rgba(255, 255, 255, 0.2)
+}
 
 tbody:hover td[rowspan],
 tr:hover td {

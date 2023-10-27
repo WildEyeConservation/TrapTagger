@@ -159,6 +159,7 @@ var globalOccupancyResults = null
 var globalSCRResults = null
 var ssPolygon = null
 var globalIndividualSpecies = []
+var resultsFolder = null
 
 const modalExportAlert = $('#modalExportAlert')
 const modalCovariates = $('#modalCovariates')
@@ -2180,8 +2181,10 @@ function updateActivity(check=false){
         var validActivity = true 
         var validDates = true
         var formData = new FormData();
+        formData.append('folder', JSON.stringify(resultsFolder));
     }
     else{
+        resultsFolder = null
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
@@ -2249,6 +2252,7 @@ function updateActivity(check=false){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 // console.log(reply)
+                resultsFolder = reply.folder
                 resultsDiv = document.getElementById('resultsDiv')
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
@@ -2430,8 +2434,10 @@ function getActivityPatternCSV(check=false){
         var validActivity = true 
         var validDates = true
         var formData = new FormData();
+        formData.append('folder', JSON.stringify(resultsFolder));
     }
     else{
+        resultsFolder = null
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
@@ -2492,6 +2498,7 @@ function getActivityPatternCSV(check=false){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 // console.log(reply)
+                resultsFolder = reply.folder
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     csv_url = reply.activity_results.activity_url
@@ -6032,8 +6039,10 @@ function updateOccupancy(check=false){
         var validOccupancy = true 
         var validDates = true
         var formData = new FormData();
+        formData.append('folder', JSON.stringify(resultsFolder));
     }
     else{
+        resultsFolder = null
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
@@ -6098,6 +6107,7 @@ function updateOccupancy(check=false){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 // console.log(reply)
+                resultsFolder = reply.folder
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     results = reply.results
@@ -6174,8 +6184,10 @@ function getOccupancyCSV(check=false){
         var validDates = true
         var validOccupancy = true 
         var formData = new FormData();
+        formData.append('folder', JSON.stringify(resultsFolder));
     }
     else{
+        resultsFolder = null
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
@@ -6230,6 +6242,7 @@ function getOccupancyCSV(check=false){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 // console.log(reply)
+                resultsFolder = reply.folder
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     csv_urls = reply.results.csv_urls
@@ -7803,10 +7816,11 @@ function exportCSV(){
         document.getElementById('covariatesError').innerHTML = 'No covariates to export.'
     }
     else {
-
+        var tasks = getSelectedTasks()
         var formData = new FormData();
         formData.append('siteCovs', JSON.stringify(siteCovariates));
         formData.append('detCovs', JSON.stringify(detectionCovariates));
+        formData.append('task_ids', JSON.stringify(tasks));
         
         document.getElementById('covariatesError').innerHTML = 'Downloading CSV...'
         var xhttp = new XMLHttpRequest();
@@ -7847,8 +7861,10 @@ function updateSCR(check=false){
         var validDates = true
         var validMask = true
         var formData = new FormData();
+        formData.append('folder', JSON.stringify(resultsFolder));
     }
     else{
+        resultsFolder = null
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
@@ -7955,6 +7971,7 @@ function updateSCR(check=false){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 // console.log(reply)
+                resultsFolder = reply.folder
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     results = reply.results
@@ -9867,8 +9884,10 @@ function getSCRcsv(check=false){
         var validSCR = true 
         var validDates = true
         var formData = new FormData();
+        formData.append('folder', JSON.stringify(resultsFolder))
     }
     else{
+        resultsFolder = null
         var tasks = getSelectedTasks()
         var selectedSites = getSelectedSites()
         var sites = selectedSites[0]
@@ -9924,6 +9943,7 @@ function getSCRcsv(check=false){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
                 // console.log(reply)
+                resultsFolder = reply.folder
                 if(reply.status == 'SUCCESS'){
                     clearTimeout(timeout)
                     csv_urls = reply.results
@@ -10268,7 +10288,9 @@ function cancelResults(){
         result_type = 'scr'
     }
 
+    var tasks = getSelectedTasks()
     formData.append('result_type', JSON.stringify(result_type));
+    formData.append('task_ids', JSON.stringify(tasks));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -10276,18 +10298,19 @@ function cancelResults(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply)
-
-            document.getElementById('rErrors').innerHTML = ''
-            document.getElementById('loadingDiv').style.display = 'none'
-            document.getElementById('loadingCircle').style.display = 'none'
-            document.getElementById('resultsDiv').style.display = 'block'
-            document.getElementById('statisticsErrors').innerHTML = ''
-            enablePanel()
-            while (document.getElementById('resultsDiv').firstChild) {
-                document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild);
+            if (reply.status == 'SUCCESS'){
+                document.getElementById('rErrors').innerHTML = ''
+                document.getElementById('loadingDiv').style.display = 'none'
+                document.getElementById('loadingCircle').style.display = 'none'
+                document.getElementById('resultsDiv').style.display = 'block'
+                document.getElementById('statisticsErrors').innerHTML = ''
+                enablePanel()
+                while (document.getElementById('resultsDiv').firstChild) {
+                    document.getElementById('resultsDiv').removeChild(document.getElementById('resultsDiv').firstChild);
+                }
+                activeImage = {}
+                clearTimeout(timeout)
             }
-            activeImage = {}
-            clearTimeout(timeout)
             
         }
     }
@@ -10528,7 +10551,7 @@ function onload(){
     generateResults()
     pingServer()
     initialiseGroups()
-    cancelResults()
+    // cancelResults()
 }
 
 window.addEventListener('load', onload, false);

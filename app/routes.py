@@ -1131,7 +1131,7 @@ def updateSurveyStatus(survey_id, status):
 
     survey = db.session.query(Survey).get(survey_id)
     if survey:
-        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).all()
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.create:
             survey.status = status
@@ -3472,7 +3472,7 @@ def getHomeSurveys():
             if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
             if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
             if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
-            if share_permission: survey_permissions[item[0]]['share_level']=share_permission
+            if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
     permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
@@ -3580,7 +3580,7 @@ def getHomeSurveys():
                 if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
                 if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
                 if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
-                if share_permission: survey_permissions[item[0]]['share_level']=share_permission
+                if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
         permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
@@ -4191,7 +4191,7 @@ def exportRequest():
 
         if exportType == 'WildBook':
             # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
+            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name
 
             # Delete old file if exists
             try:
@@ -4199,7 +4199,7 @@ def exportRequest():
             except:
                 pass
 
-            generate_wildbook_export.delay(task_id=task_id,data=data)
+            generate_wildbook_export.delay(task_id=task_id,data=data,user_name=current_user.username)
 
         return json.dumps('Success')
 
@@ -7008,7 +7008,7 @@ def submitComparison(groundTruth,task_id1,task_id2):
         translations = request.form['translations']
         task1 = db.session.query(Task).get(int(task_id1))
         task2 = db.session.query(Task).get(int(task_id2))
-        if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read'):
+        if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read') and checkSurveyPermission(current_user.id,task2.survey_id,'read'):
             GLOBALS.redisClient.delete('confusions_'+str(current_user.id))
             prepareComparison.delay(translations=translations,groundTruth=groundTruth,task_id1=task_id1,task_id2=task_id2,user_id=str(current_user.id))
             return json.dumps('success')
@@ -7046,6 +7046,12 @@ def comparison():
             if confusions:
                 confusions = json.loads(confusions.decode())
                 ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
+
+                task1 = db.session.query(Task).get(ground_truths['task1'])
+                task2 = db.session.query(Task).get(ground_truths['task2'])
+
+                if not checkSurveyPermission(current_user.id,task1.survey_id,'read') or not checkSurveyPermission(current_user.id,task2.survey_id,'read'):
+                    return redirect(url_for('index'))
 
                 # Generate some stats
                 total_sightings = 0
@@ -7590,7 +7596,7 @@ def generateExcel(selectedTask):
         return json.dumps('error')
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
 
     # Delete old file if exists
     try:
@@ -7599,7 +7605,7 @@ def generateExcel(selectedTask):
         pass
 
     app.logger.info('Calling generate_excel')
-    generate_excel.delay(task_id=int(selectedTask))
+    generate_excel.delay(task_id=int(selectedTask), user_name=current_user.username)
 
     return json.dumps('success')
 
@@ -7657,7 +7663,7 @@ def generateCSV():
 
     task = db.session.query(Task).get(selectedTasks[0])
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.csv'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.csv'
 
     # Delete old file if exists
     try:
@@ -7670,8 +7676,8 @@ def generateCSV():
     else:
         queue='default'
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations))
-    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations}, queue=queue)
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations, current_user.username))
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -7688,7 +7694,7 @@ def generateCOCO():
         return json.dumps('error')
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.json'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.json'
 
     # Delete old file if exists
     try:
@@ -7696,7 +7702,7 @@ def generateCOCO():
     except:
         pass
 
-    generate_coco.delay(task_id=task_id)
+    generate_coco.delay(task_id=task_id, user_name=current_user.username)
 
     return json.dumps('success')
 
@@ -7757,7 +7763,7 @@ def checkDownload(fileType,selectedTask):
         return json.dumps('error')
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
         fileName += '.csv'
     elif fileType == 'excel':
@@ -8320,27 +8326,51 @@ def getClassifierInfo():
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
     if Config.DEBUGGING: print('Getting presigned')
-    if current_user.admin:
-        return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
-                                                                Params={'Bucket': Config.BUCKET,
-                                                                        'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-                                                                        'ContentType': request.json['contentType'],
-                                                                        'Body' : ''})
-    else:
-        return 'error'
+    # if current_user.admin:
+    #     return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+    #                                                             Params={'Bucket': Config.BUCKET,
+    #                                                                     'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
+    #                                                                     'ContentType': request.json['contentType'],
+    #                                                                     'Body' : ''})
+    # else:
+    #     return 'error'
+
+    #TODO: Updated permissions for now but uploader needs updating
+    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==request.json['survey_id']).first()
+    if organisation:
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
+        if userPermissions and userPermissions.create:
+            
+            return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+                                                                    Params={'Bucket': Config.BUCKET,
+                                                                            'Key': organisation.folder + '/' + request.json['filename'].strip('/'),
+                                                                            'ContentType': request.json['contentType'],
+                                                                            'Body' : ''})
+        
+    return 'error'
 
 @app.route('/fileHandler/check_upload_files', methods=['POST'])
 @login_required
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
-
+     #TODO: Updated permissions for now but uploader needs updating
     files = request.json['filenames']
-
+    survey_id = request.json['survey_id']
     already_uploaded = []
-    for file in files:
-        result = checkFile(file,current_user.folder)
-        if result:
-            already_uploaded.append(result)
+
+    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==survey_id).first()
+    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
+    if organisation and userPermissions and userPermissions.create:
+        for file in files:
+            result = checkFile(file,organisation.folder)
+            if result:
+                already_uploaded.append(result)
+
+    # already_uploaded = []
+    # for file in files:
+    #     result = checkFile(file,current_user.folder)
+    #     if result:
+    #         already_uploaded.append(result)
     
     # results = []
     # pool = Pool(processes=4)
@@ -8362,7 +8392,8 @@ def get_image_info():
     task_id = request.json['task_id']
     hash = request.json['hash']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8425,7 +8456,8 @@ def get_required_files():
     include_video = request.json['include_video']
     include_frames = request.json['include_frames']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8619,7 +8651,8 @@ def set_download_status():
 
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         include_empties = request.json['include_empties']
         labels = request.json['species']
         include_video = request.json['include_video']
@@ -8654,6 +8687,8 @@ def set_download_status():
         else:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=include_video, include_frames=include_frames)
             return json.dumps('success')
+        
+    return json.dumps('error')
 
 @app.route('/fileHandler/check_download_initialised', methods=['POST'])
 @login_required
@@ -8663,7 +8698,8 @@ def check_download_initialised():
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     reply = {'status': 'ready'}
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         filesToDownload = GLOBALS.redisClient.get(str(task.id)+'_filesToDownload')
         if filesToDownload:
             filesToDownload = int(filesToDownload.decode())
@@ -8684,7 +8720,8 @@ def mark_images_downloaded():
     if include_video:
         video_ids = request.json['image_ids']
         video = db.session.query(Video).get(video_ids[0])
-        if video and (video.camera.trapgroup.survey.user==current_user):
+        # if video and (video.camera.trapgroup.survey.user==current_user):
+        if video and checkSurveyPermission(current_user.id,video.camera.trapgroup.survey_id,'read'):
             videos = db.session.query(Video).filter(Video.id.in_(video_ids)).distinct().all()
             for video in videos:
                 video.downloaded = True
@@ -8692,7 +8729,8 @@ def mark_images_downloaded():
     else:
         image_ids = request.json['image_ids']
         image = db.session.query(Image).get(image_ids[0])
-        if image and (image.camera.trapgroup.survey.user==current_user):
+        # if image and (image.camera.trapgroup.survey.user==current_user):
+        if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
             images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
             for image in images:
                 image.downloaded = True
@@ -8707,7 +8745,8 @@ def download_complete():
 
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         return json.dumps('success')
@@ -9734,10 +9773,11 @@ def getActivityPattern():
             csv = True
         else:
             csv = False
-
+        folder = None
         if Config.DEBUGGING: app.logger.info('Activity data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,unit,centre,time,overlap))
     else:
         task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
     
     status = 'FAILURE'
     activity_results = None
@@ -9745,21 +9785,27 @@ def getActivityPattern():
     celery_result = None
     R_type = 'activity'
     if current_user.is_authenticated and current_user.admin:
-        folder = current_user.folder
         if task_ids:
-            if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
-                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-                try:
-                    result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
-                except:
-                    pass
-            
-            user_id = current_user.id
-            bucket = Config.BUCKET
-            result = calculate_activity_pattern.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
-            GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-            status = 'PENDING'
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            if survey:
+                folder = survey[1]
+
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id, terminate=True)
+                    except:
+                        pass
+                
+                user_id = current_user.id
+                bucket = Config.BUCKET
+                result = calculate_activity_pattern.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -9771,25 +9817,25 @@ def getActivityPattern():
                         activity_results = celery_result['activity_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                     else:
                         message = celery_result['error']
                         status = 'FAILURE'
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
             else:
                 activity_results = None
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
-    return json.dumps({'status': status, 'activity_results': activity_results, 'message': message})
+    return json.dumps({'status': status, 'activity_results': activity_results, 'message': message, 'folder': folder})
 
 
 @app.route('/getRScript', methods=['POST'])
@@ -9924,10 +9970,13 @@ def getOccupancy():
             csv = True
         else:
             csv = False
+        
+        folder = None
 
         if Config.DEBUGGING: app.logger.info('Occupancy data requested for tasks:{} species:{} baseUnit:{} trapgroups:{} window:{} siteCovs:{} detCovs:{} covOptions:{} groups:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,baseUnit,trapgroups,window,siteCovs,detCovs,covOptions,groups,startDate,endDate,csv))
     else:
         task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
     
     status = 'FAILURE'
     celery_result = None
@@ -9935,21 +9984,27 @@ def getOccupancy():
     message = None
     R_type = 'occupancy'
     if current_user.is_authenticated and current_user.admin:
-        folder = current_user.folder
         if task_ids:
-            if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
-                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-                try:
-                    result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
-                except:
-                    pass
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            if survey:
+                folder = survey[1]
 
-            user_id = current_user.id
-            bucket = Config.BUCKET
-            result = calculate_occupancy_analysis.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
-            GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-            status = 'PENDING'
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id, terminate=True)
+                    except:
+                        pass
+
+                user_id = current_user.id
+                bucket = Config.BUCKET
+                result = calculate_occupancy_analysis.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -9961,27 +10016,27 @@ def getOccupancy():
                         occupancy_results = celery_result['occupancy_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                     else:
                         status = celery_result['status']
                         message = celery_result['error']
                         occupancy_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     occupancy_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
             else:
                 occupancy_results = {}
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
-    return json.dumps({'status': status, 'results': occupancy_results, 'message': message})
+    return json.dumps({'status': status, 'results': occupancy_results, 'message': message, 'folder': folder})
 
 @app.route('/getCovariateCSV', methods=['POST'])
 @login_required
@@ -9989,40 +10044,50 @@ def getCovariateCSV():
     ''' Converts the covariate data to CSV '''
     siteCovs = ast.literal_eval(request.form['siteCovs'])
     detCovs = ast.literal_eval(request.form['detCovs'])
+    task_ids = ast.literal_eval(request.form['task_ids'])
     cov_url = None
 
     if current_user.is_authenticated and current_user.admin:
-        if (len(siteCovs) > 0):
-            site_covs = pd.DataFrame(siteCovs)
-            site_covs = site_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
-            site_covs = site_covs.rename_axis('site_id').reset_index()
-            site_covs = site_covs.rename_axis(None, axis=1)
-        else:
-            site_covs = pd.DataFrame()
-            site_covs['site_id'] = None
+        if task_ids:
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
 
-        if (len(detCovs) > 0):
-            det_covs = pd.DataFrame(detCovs)
-            det_covs = det_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
-            det_covs = det_covs.rename_axis('site_id').reset_index()
-            det_covs = det_covs.rename_axis(None, axis=1)
-        else:
-            det_covs = pd.DataFrame()
-            det_covs['site_id'] = None
+            if survey:
+                folder = survey[1]
 
-        covs = pd.merge(site_covs, det_covs, on='site_id', how='outer')
+                if (len(siteCovs) > 0):
+                    site_covs = pd.DataFrame(siteCovs)
+                    site_covs = site_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+                    site_covs = site_covs.rename_axis('site_id').reset_index()
+                    site_covs = site_covs.rename_axis(None, axis=1)
+                else:
+                    site_covs = pd.DataFrame()
+                    site_covs['site_id'] = None
 
-        if (len(covs) > 0):
-            covs[['site_id', 'latitude', 'longitude']] = covs['site_id'].str.split('_', expand=True)
+                if (len(detCovs) > 0):
+                    det_covs = pd.DataFrame(detCovs)
+                    det_covs = det_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+                    det_covs = det_covs.rename_axis('site_id').reset_index()
+                    det_covs = det_covs.rename_axis(None, axis=1)
+                else:
+                    det_covs = pd.DataFrame()
+                    det_covs['site_id'] = None
 
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-            covs.to_csv(temp_file.name, index=False)
-            fileName = current_user.folder +'/docs/Occupancy_Covariates.csv'
-            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-            cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+                covs = pd.merge(site_covs, det_covs, on='site_id', how='outer')
 
-            # Schedule deletion
-            deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                if (len(covs) > 0):
+                    covs[['site_id', 'latitude', 'longitude']] = covs['site_id'].str.split('_', expand=True)
+
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    covs.to_csv(temp_file.name, index=False)
+                    fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
+                    GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+
+                    # Schedule deletion
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
 
     return json.dumps({'cov_url': cov_url})
@@ -10069,9 +10134,12 @@ def getSpatialCaptureRecapture():
         else:
             polygonGeoJSON = None
 
+        folder = None
+
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
     else:
         task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
     
     status = 'FAILURE'
     celery_result = None
@@ -10079,49 +10147,56 @@ def getSpatialCaptureRecapture():
     msg = None
     R_type = 'scr'
     if current_user.is_authenticated and current_user.admin:
-        folder = current_user.folder
         if task_ids:
-            if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
-                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-                try:
-                    result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
-                except:
-                    pass
-
-            # check if any indiviuals exist for the species 
-            count = db.session.query(Individual).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species==species).count()
-
-            if count == 0:
-                status = 'NO_INDIVIDUALS'
-                msg = 'No individuals found for the species.'	
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
-                user_id = current_user.id
-                bucket = Config.BUCKET
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
 
-                # save shapefile to user folder
-                if shapefile_file:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shp') as temp_file:
-                        shapefile_file.save(temp_file.name)
-                        fileName = current_user.folder +'/docs/SCR_' + shapefile_file.filename
-                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                        shapefile = fileName
+            if survey:
+                folder = survey[1]
+
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id, terminate=True)
+                    except:
+                        pass
+
+                # check if any indiviuals exist for the species 
+                count = db.session.query(Individual).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species==species).count()
+
+                if count == 0:
+                    status = 'NO_INDIVIDUALS'
+                    msg = 'No individuals found for the species.'	
                 else:
-                    shapefile = None
+                    user_id = current_user.id
+                    bucket = Config.BUCKET
 
-                # save shxfile to user folder
-                if shxfile_file:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shx') as temp_file:
-                        shxfile_file.save(temp_file.name)
-                        fileName = current_user.folder +'/docs/SCR_' + shxfile_file.filename
-                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                        shxfile = fileName
-                else:
-                    shxfile = None
+                    # save shapefile to user folder
+                    if shapefile_file:
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.shp') as temp_file:
+                            shapefile_file.save(temp_file.name)
+                            fileName = folder +'/docs/' + current_user.username + '_SCR_' + shapefile_file.filename
+                            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                            shapefile = fileName
+                    else:
+                        shapefile = None
 
-                result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
-                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-                status = 'PENDING'
+                    # save shxfile to user folder
+                    if shxfile_file:
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.shx') as temp_file:
+                            shxfile_file.save(temp_file.name)
+                            fileName = folder + '/docs/' + current_user.username + '_SCR_' + shxfile_file.filename
+                            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                            shxfile = fileName
+                    else:
+                        shxfile = None
+
+                    result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
+                    GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                    status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -10133,27 +10208,27 @@ def getSpatialCaptureRecapture():
                         scr_results = celery_result['scr_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                     else:
                         status = celery_result['status']
                         msg = celery_result['error']
                         scr_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                 elif status == 'FAILURE':
                     msg = 'Task {} failed'.format(result_id)
                     scr_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
             else:
                 msg = 'No task id found'
                 scr_results = {}
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
-    return json.dumps({'status': status, 'results': scr_results, 'message': msg})
+    return json.dumps({'status': status, 'results': scr_results, 'message': msg, 'folder': folder})
 
 @app.route('/populateSiteSelector')
 @login_required
@@ -10173,24 +10248,37 @@ def populateSiteSelector():
 @login_required
 def cancelResults():
     ''' Cancel a results analysis '''
-    status = ''
+    status = 'FAILURE'
     result_type = ast.literal_eval(request.form['result_type'])
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    
     if current_user.is_authenticated and current_user.admin:
-        result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-        if result_id:
-            try:
-                result_id = result_id.decode()
-                if result_type == 'summary':
-                    celery.control.revoke(result_id, terminate=True)
+        if task_ids:
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            
+            if survey:
+                folder = survey[1]
+
+                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                if result_id:
+                    try:
+                        result_id = result_id.decode()
+                        if result_type == 'summary':
+                            celery.control.revoke(result_id, terminate=True)
+                        else:
+                            celery.control.revoke(result_id, terminate=True)
+                            clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'folder': folder, 'user_name': current_user.username})
+                        if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
+                        GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        status = 'SUCCESS'
+                    except:
+                        status = 'FAILURE'
+                        pass
                 else:
-                    celery.control.revoke(result_id, terminate=True)
-                    clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'user_folder': current_user.folder})
-                if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
-                GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                status = 'SUCCESS'
-            except:
-                status = 'FAILURE'
-                pass
+                    status = 'SUCCESS'
 
     return json.dumps({'status': status})
 
@@ -10474,6 +10562,7 @@ def savePermissions():
 
     status = 'FAILURE'
     message = 'Unable to save permissions.'
+    permission_order = [None, 'worker', 'hidden', 'read', 'write', 'admin']
 
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,organisation_id):
         user_permission = db.session.query(UserPermissions).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -10486,36 +10575,61 @@ def savePermissions():
             if permission_type == 'default':
                 old_default = user_permission.default
                 user_permission.default = permission_value
-                user_msg = '<p> Your default permission for organisation {} has been set to {}.</p>'.format(org_name, permission_value)
-                org_msg = '<p> The default permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                user_msg = '<p> Your default permission for organisation {} has been set to {}.'.format(org_name, permission_value)
+                org_msg = '<p> The default permission for user {} has been set to {} for organisation {}.'.format(user_name, permission_value, org_name)
                 if permission_value == 'admin':
                     user_permission_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(SurveyPermissionException.user_id==user_id).filter(Survey.organisation_id==organisation_id).all()
                     for user_permission_exception in user_permission_exceptions:
                         db.session.delete(user_permission_exception)
+                elif permission_value == 'worker':
+                    user_permission_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(SurveyPermissionException.user_id==user_id).filter(Survey.organisation_id==organisation_id).all()
+                    for user_permission_exception in user_permission_exceptions:
+                        user_permission_exception.permission = 'worker'
+            
+                if permission_order.index(permission_value) < permission_order.index('write'): 
+                    if user_permission.delete:
+                        user_permission.delete = False
+                        user_msg += ' Your delete permission for organisation {} has been revoked.'.format(org_name)
+                        org_msg += ' The delete permission for user {} has been set to False for organisation {}.'.format(user_name, org_name)
+
+                if permission_order.index(permission_value) < permission_order.index('hidden'):
+                    if user_permission.create:
+                        user_permission.create = False
+                        user_msg += ' Your create permission for organisation {} has been revoked.'.format(org_name)
+                        org_msg += ' The create permission for user {} has been set to False for organisation {}.'.format(user_name, org_name)
+
+                user_msg += '</p>'
+                org_msg += '</p>'
+
             elif permission_type == 'delete':
                 if permission_value == '1':
-                    user_permission.delete = True
-                    user_msg = '<p> You have been granted delete permission for organisation {}.</p>'.format(org_name)
+                    if permission_order.index(user_permission.default) >= permission_order.index('write'):
+                        user_permission.delete = True
+                        user_msg = '<p> You have been granted delete permission for organisation {}.</p>'.format(org_name)
+                        org_msg = '<p> The delete permission for user {} has been set to True for organisation {}.</p>'.format(user_name, org_name)
                 else:
                     user_permission.delete = False
                     user_msg = '<p> Your delete permission for organisation {} has been revoked.</p>'.format(org_name)
-                org_msg = '<p> The delete permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                    org_msg = '<p> The delete permission for user {} has been set to False for organisation {}.</p>'.format(user_name, org_name)
             elif permission_type == 'create':
                 if permission_value == '1':
-                    user_permission.create = True
-                    user_msg = '<p> You have been granted create permission for organisation {}.</p>'.format(org_name)
+                    if permission_order.index(user_permission.default) >= permission_order.index('hidden'):
+                        user_permission.create = True
+                        user_msg = '<p> You have been granted create permission for organisation {}.</p>'.format(org_name)
+                        org_msg = '<p> The create permission for user {} has been set to True for organisation {}.</p>'.format(user_name, org_name)
                 else:
                     user_permission.create = False
                     user_msg = '<p> Your create permission for organisation {} has been revoked.</p>'.format(org_name)
-                org_msg = '<p> The create permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                    org_msg = '<p> The create permission for user {} has been set to False for organisation {}.</p>'.format(user_name, org_name)
             elif permission_type == 'annotation':
                 if permission_value == '1':
                     user_permission.annotation = True
                     user_msg = '<p> You have been granted annotation permission for organisation {}.</p>'.format(org_name)
+                    org_msg = '<p> The annotation permission for user {} has been set to True for organisation {}.</p>'.format(user_name, org_name)
                 else:
                     user_permission.annotation = False
-                    user_msg = '<p> Your annotation permission for organisation {} has been revoked.</p>'.format(org_name)
-                org_msg = '<p> The annotation permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                    user_msg = '<p> Your annotation permission for organisation {} has been revoked.</p>'.format(org_name) 
+                    org_msg = '<p> The annotation permission for user {} has been set to False for organisation {}.</p>'.format(user_name, org_name)
 
             if user_msg != '':
                 notif = Notification(user_id=user_id, contents=user_msg, seen=False)
@@ -11167,10 +11281,10 @@ def getOrganisationSurveys(org_id):
 @app.route('/getOrganisationUsers/<org_id>')	
 @login_required
 def getOrganisationUsers(org_id):
-    ''' Gets all the non admin users for an organisation  '''
+    ''' Gets all the non admin users for an organisation and exclude current_user '''
     users = []
     if current_user and current_user.is_authenticated:
-        users = db.session.query(User.id, User.username).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').distinct().all()
+        users = db.session.query(User.id, User.username).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').filter(User.id!=current_user.id).distinct().all()
     return json.dumps(users)
 
 @app.route('/populateAnnotatorSelector')

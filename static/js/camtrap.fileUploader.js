@@ -185,6 +185,7 @@ uppy.use(Uppy.AwsS3, {
             body: JSON.stringify({
                 filename: file.name,
                 contentType: file.type,
+                survey_id: uploadID,
             }),
         }).then((response) => {
             return response.text()

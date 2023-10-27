@@ -164,10 +164,10 @@ class Survey(db.Model):
         return '<Survey {}>'.format(self.name)
 
     @staticmethod
-    def get_or_create(session, name, user_id, trapgroup_code):
-        survey = session.query(Survey).filter_by(name=name,user_id=user_id).first()
+    def get_or_create(session, name, organisation_id, trapgroup_code):
+        survey = session.query(Survey).filter_by(name=name,organisation_id=organisation_id).first()
         if not (survey):
-            survey = Survey(name=name,user_id=user_id,trapgroup_code=trapgroup_code)
+            survey = Survey(name=name,organisation_id=organisation_id,trapgroup_code=trapgroup_code)
             session.add(survey)
         return survey
 
