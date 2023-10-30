@@ -1112,7 +1112,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_wildbook_export(self,task_id, data, user_name):
     '''
     Celery task for generating the WildBook export format. Saves export in zip file locally.
@@ -1212,7 +1212,7 @@ def generate_wildbook_export(self,task_id, data, user_name):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def deleteFile(self,fileName):
     '''
     Celery task that periodically checks for and attempts to delete specified file on S3. Used to cleanup files after successful download.
@@ -1294,7 +1294,7 @@ def child_headings(task_id, label, currentCol, speciesColumns, sheet):
     return currentCol, speciesColumns, sheet
 
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_excel(self,task_id,user_name):
     '''Celery task for generating an Excel summary of a specified task. Saves the file locally for download.'''
     try:
@@ -1825,7 +1825,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 
 #     return True
 
-# @celery.task(bind=True,max_retries=29)
+# @celery.task(bind=True,max_retries=5)
 # def prepare_exif_batch(self,image_ids,task_id,species_sorted,flat_structure,individual_sorted,surveyName,labels):
 #     ''' Prepares a batch of exif images, allowing for parallelisation across instances. 
     
@@ -1856,7 +1856,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 
 #     return True
 
-# @celery.task(bind=True,max_retries=29,ignore_result=True)
+# @celery.task(bind=True,max_retries=5,ignore_result=True)
 # def prepare_exif(self,task_id,species,species_sorted,flat_structure,individual_sorted):
 #     '''
 #     Celery task for preparing an exif dataset download. Triggers the threaded processing of images.
@@ -1947,7 +1947,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
     '''
     Generates a csv file for classification trainingg purposes.
@@ -2046,7 +2046,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
     '''
     Helper task for generate_training_csv that allows the image-cropping process to be parallelised.
@@ -2128,7 +2128,7 @@ def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_classification_ds(self,sourceBucket):
     '''Searches for all the classification_ds files in the source bucket, combines them, and uploades the result to the bucket.'''
 
@@ -2167,7 +2167,7 @@ def generate_classification_ds(self,sourceBucket):
     return True
 
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def generate_label_spec(self,sourceBucket,translations):
     '''
     Generates a label spec file for classifier training purposes based on the supplied translations. 
@@ -2336,7 +2336,7 @@ def generate_coco(self,task_id,user_name):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
     try:
         task = db.session.query(Task).get(task_id)
@@ -2471,7 +2471,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
     
     try:
@@ -2513,7 +2513,7 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
     return True
 
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
     
     try:

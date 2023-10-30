@@ -147,7 +147,7 @@ import timezonefinder
 # signal.signal(signal.SIGINT, cleanupWorkers)
 # signal.signal(signal.SIGABRT, cleanupWorkers)
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def checkQueueingProcessing(self,task_id):
     '''
     Celery task helper function for completion of knockdown analysis. Periodically checks queueing and processing statuses of survey trapgroups and 
@@ -796,7 +796,7 @@ def updateIndividualIdStatus(task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def removeFalseDetections(self,cluster_id,undo):
     '''
     Celery task for marking false detections as static. Takes all relevent detections from a cluster marked as containing nothing, and marks all high-IOU detections 
@@ -964,7 +964,7 @@ def removeFalseDetections(self,cluster_id,undo):
    
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, session=None):
     '''
     Celery task for marking a camera as knocked down. Combines all images into a new cluster, and reclusters the images from the other cameras.
@@ -1135,7 +1135,7 @@ def finish_knockdown(self,rootImageID, task, current_user_id, lastImageID=None, 
 
     return ''
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def unknock_cluster(self,image_id, label_id, user_id, task_id):
     '''
     Celery task for undoing the effects of marking a cluster as knocked down.
@@ -1449,7 +1449,7 @@ def update_label_ids():
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def splitClusterAndUnknock(self,oldClusterID, SplitPoint):
     '''
     Celery task that splits a knocked-down cluster at a specified index point, and performs unknock_cluster on the second half.
@@ -1499,7 +1499,7 @@ def randomString(stringLength=10):
 def retryTime(retries):
     '''Returns the jittered exponential-backed-off retry time based on the specified number of retries.'''
 
-    countdown = int(60*2**(random.uniform(retries-0.5,retries+0.5)))
+    countdown = int(60*4**(random.uniform(retries-0.5,retries+0.5)))
     if countdown > 3600: countdown=3600
     return countdown
 
@@ -1537,7 +1537,7 @@ def deleteTurkcodes(number_of_jobs, task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateAllStatuses(self,task_id,celeryTask=True):
     '''Updates the completion status of all parent labels of a specified task.'''
 
@@ -2047,7 +2047,7 @@ def md5(fname):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_info):
     '''Batch cropping job to parallelise the process on worker instances.'''
 
@@ -2071,7 +2071,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
     return True
 
-# @celery.task(bind=True,max_retries=29)
+# @celery.task(bind=True,max_retries=5)
 # def extract_labels(self,image_ids,source,external,label_source,task_id):
 #     try:
 #         for image_id in image_ids:
@@ -2137,7 +2137,7 @@ def batch_crops(self,image_ids,source,min_area,destBucket,external,update_image_
 
 #     return True
 
-def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):
+def save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):
     '''
     Crops all the detections out of the supplied image and saves them to S3 for training purposes.
 
@@ -2153,10 +2153,21 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
     '''
 
     image = db.session.query(Image).get(image_id)
+
     try:
         if Config.DEBUGGING: print('Asserting image')
         assert image
         if Config.DEBUGGING: print('Success')
+
+        if check:
+            detection = rDets(db.session.query(Detection).filter(Detection.image_id==image_id)).first()
+            key = image.camera.path+'/'+image.filename[:-4] + '_' + str(detection.id) + '.jpg'
+            try:
+                check = GLOBALS.s3client.head_object(Bucket=destBucket,Key=key)
+                # it already exists: bail out
+                return False
+            except:
+                pass
 
         # Download file
         print('Downloading file...')
@@ -2232,6 +2243,11 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                             print('type: iptc')
                             info = IPTCInfo(temp_file.name)
                             if Config.DEBUGGING: print('Info extracted')
+                            labelgroups = []
+                            for detection in image.detections:
+                                labelgroup = Labelgroup(task_id=task_id,detection=detection)
+                                db.session.add(labelgroup)
+                                labelgroups.append(labelgroup)
                             for label_name in info['keywords']:
                                 description = label_name.decode()
                                 if Config.DEBUGGING: print('Handling label: {}'.format(description))
@@ -2242,6 +2258,8 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
                                     db.session.add(label)
                                     db.session.commit()
                                 cluster.labels.append(label)
+                                for labelgroup in labelgroups:
+                                    labelgroup.labels.append(label)
                                 if Config.DEBUGGING: print('label added')
                         elif label_source=='path':
                             descriptions = [image.camera.path.split('/')[-1],image.camera.path.split('/')[-1]]
@@ -2551,7 +2569,7 @@ def generate_raw_image_hash(filename):
         
     return hash
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def calculateChunkHashes(self,chunk):
     '''Partner function to calculateTrapgroupHashes. Allows further parallisation.'''
 
@@ -2582,7 +2600,7 @@ def calculateChunkHashes(self,chunk):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def calculateTrapgroupHashes(self,trapgroup_id):
     '''Temporary function to allow massive parallisation of hash calculation.'''
     
@@ -3005,7 +3023,7 @@ def updateEarthRanger(task_id):
                     row['timestamp'] = row['timestamp'].replace(tzinfo=pytz.UTC)
 
                 payload = {
-                    "source": str(row['cluster_id']) + '_' + str(row['species']),
+                    "source": str(row['cluster_id']),
                     "title": "TrapTagger Event",
                     "recorded_at": row['timestamp'].isoformat(),
                     "location": {
@@ -3014,7 +3032,7 @@ def updateEarthRanger(task_id):
                     },
                     "event_details": { 
                         "location": row['trapgroup_tag'],
-                        "species": row['species'],
+                        "species": row['species'].lower(),
                         "tags": row['tag'],
                         "group_size": row['count']
                     }

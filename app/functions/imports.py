@@ -82,7 +82,7 @@ def clusterAndLabel(localsession,task_id,user_id,image_id,labels):
             for labelgroup in labelgroups:
                 labelgroup.labels.append(theLabel)
 
-def findImID(survey_id,fullPath):
+def findImID(survey_id,fullPath,isVideo):
     '''
     ImportCSV helper function. Returns image ID for the given path, or NAN if the image cannot be found.
 
@@ -97,13 +97,17 @@ def findImID(survey_id,fullPath):
     filename = re.split('/',fullPath)[-1]
     # path = re.split(filename,fullPath)[0][:-1]
     path = os.path.join(*re.split('/',fullPath)[:-1])
-    image = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path==path).filter(Image.filename==filename).first()
-    if image == None:
-        return np.nan
+    if list(filter(isVideo.search, [filename])):
+        images = db.session.query(Image).join(Camera).join(Trapgroup).join(Video).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.contains(path)).filter(Video.filename==filename).distinct().all()
     else:
-        return image.id
+        images = [db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Camera.path.contains(path)).filter(Image.filename==filename).first()]
+    if images:
+        return [image.id for image in images]
+    else:
+        return np.nan
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def importCSV(self,survey_id,task_id,filePath,user_id):
     '''
     Celery task for importing a csv file.
@@ -115,12 +119,19 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             user_id: The user who owns the csv
     '''
     try:
-        if os.path.isfile(filePath):
-            df = pd.read_csv(filePath)
+        localsession=db.session()
 
-            df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename), axis=1)
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=filePath, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        if df:
+            isVideo = re.compile('(\.avi$)|(\.mp4$)', re.I)
+            df.drop_duplicates(subset=['filepath'], keep=True, inplace=True)
+            df['image_id'] = df.apply(lambda x: findImID(survey_id,x.filename,isVideo), axis=1)
             df = df[df['image_id'].notna()]
             del df['filename']
+            df=df.explode('image_id')
 
             labelColumns = []
             for column in df:
@@ -159,7 +170,6 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
             del df['labelstemp']
             for column in labelColumns: del df[column]
 
-            localsession=db.session()
             df.apply(lambda x: clusterAndLabel(localsession,task_id,user_id,x.image_id,x.labels), axis=1)
             # localsession.commit()
 
@@ -173,10 +183,9 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
                 cluster.classification = classifyCluster(cluster)
             
             localsession.commit()
-            os.remove(filePath)
 
         # # Classify clusters
-        task = db.session.query(Task).get(task_id)
+        task = localsession.query(Task).get(task_id)
         # pool = Pool(processes=4)
         # for trapgroup in task.survey.trapgroups:
         #     pool.apply_async(classifyTrapgroup,(task.id,trapgroup.id))
@@ -185,7 +194,12 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
 
         task.status = 'Ready'
         task.survey.status = 'Ready'
-        db.session.commit()
+        localsession.commit()
+
+        try:
+            GLOBALS.s3client.delete_object(Bucket=Config.BUCKET, Key=filePath)
+        except:
+            pass
 
     except Exception as exc:
         app.logger.info(' ')
@@ -196,7 +210,7 @@ def importCSV(self,survey_id,task_id,filePath,user_id):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.remove()
+        localsession.remove()
 
     return True
 
@@ -378,7 +392,7 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters=
 
     return newClusters
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def cluster_trapgroup(self,trapgroup_id,force=False):
     '''Clusters the specified trapgroup. Handles pre-existing clusters cleanly, reusing labels etc where possible.'''
     
@@ -692,7 +706,7 @@ def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
 
 #     return True
     
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def processCameraStaticDetections(self,camera_id,imcount):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
 
@@ -1414,7 +1428,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
 
     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
     '''
     Imports all specified images from a directory path under a single camera object in the database. Ignores duplicate image hashes, and duplicate image paths (from previous imports).
@@ -1680,7 +1694,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 
 #     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id,classifier):
     '''
     Run species classification on a trapgroup.
@@ -2387,7 +2401,7 @@ def classifyCluster(cluster):
     
     return 'nothing'
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def classifyTrapgroup(self,task_id,trapgroup_id):
     '''
     Classifies the species contained in each cluster in a trapgroup for a given task.
@@ -2438,7 +2452,7 @@ def classifyTrapgroup(self,task_id,trapgroup_id):
     
 #     return True
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def updateTrapgroupDetectionRatings(self,trapgroup_id):
     '''Updates detection ratings for all images in a trapgroup.'''
     try:
@@ -3153,7 +3167,7 @@ def correct_timestamps(survey_id,setup_time=31):
     return True
 
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,processes=4):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
@@ -3271,7 +3285,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
 #             labelgroup.labels = [label]
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=False)
+@celery.task(bind=True,max_retries=5,ignore_result=False)
 def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
@@ -3322,7 +3336,7 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
 
     return True
 
-# @celery.task(bind=True,max_retries=29,ignore_result=False)
+# @celery.task(bind=True,max_retries=5,ignore_result=False)
 # def extract_dirpath_labels(self,key,translations,survey_id,destBucket):
 #     '''Helper function for pipeline_survey that extracts the labels for a supplied dataframe.'''
     
@@ -3350,7 +3364,7 @@ def extract_dirpath_labels(self,label_id,dirpath,filenames,task_id,survey_id):
 
 #     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=False)
+@celery.task(bind=True,max_retries=5,ignore_result=False)
 def pipeline_cluster_camera(self,camera_id,task_id):
     '''Helper function to parallelise pipeline clustering'''
 
@@ -3380,7 +3394,7 @@ def pipeline_cluster_camera(self,camera_id,task_id):
 
     return True
 
-@celery.task(bind=True,max_retries=29,ignore_result=True)
+@celery.task(bind=True,max_retries=5,ignore_result=True)
 def pipeline_survey(self,surveyName,bucketName,dataSource,fileAttached,trapgroupCode,min_area,exclusions,sourceBucket,label_source):
     '''
     Celery task for processing pre-annotated data. Creates a survey etc. as normal, but does not classify the data, nor bother to 
@@ -3589,7 +3603,7 @@ def validate_csv(stream,survey_id):
 
     return False
 
-@celery.task(bind=True,max_retries=29)
+@celery.task(bind=True,max_retries=5)
 def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
     '''Celery wrapper for extract_images_from_video'''
     try:
@@ -3597,6 +3611,10 @@ def process_video_batch(self,dirpath,batch,bucket,trapgroup_id):
         for filename in batch:
             extract_images_from_video(localsession, dirpath+'/'+filename, bucket, trapgroup_id)
         localsession.commit()
+
+        # only delete files after db commit #indempotency
+        for filename in batch:
+            GLOBALS.s3client.delete_object(Bucket=bucket, Key=dirpath+'/'+filename)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3647,8 +3665,14 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
                     video_timestamp = None
 
             if video_timestamp:
-                video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
-            
+                try:
+                    video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+                except:
+                    try:
+                        video_timestamp = datetime.strptime(video_timestamp, '%Y-%m-%d %H:%M:%S')
+                    except:
+                        video_timestamp = None
+
             # Extract images
             video = cv2.VideoCapture(temp_file.name)
             video_fps = video.get(cv2.CAP_PROP_FPS)
@@ -3714,18 +3738,17 @@ def extract_images_from_video(localsession, sourceKey, bucketName, trapgroup_id)
 
         video = Video(camera=camera, filename=filename, hash=video_hash)
         localsession.add(video)
-        GLOBALS.s3client.delete_object(Bucket=bucketName, Key=sourceKey)
 
     except:
         app.logger.info('Skipping video {} as it appears to be corrupt.'.format(sourceKey))
 
     return True
 
-@celery.task(bind=True,max_retries=29)
-def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None):   
+@celery.task(bind=True,max_retries=5)
+def batchCropping(self,images,source,min_area,destBucket,external,update_image_info,label_source=None,task_id=None,check=False):   
     try:
         for image_id in images:
-            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id)
+            save_crops(image_id,source,min_area,destBucket,external,update_image_info,label_source,task_id,check)
 
     except Exception as exc:
         app.logger.info(' ')
@@ -3747,10 +3770,10 @@ def convertBBox(api_box):
     y_max = y_min + height_of_box
     return [y_min, x_min, y_max, x_max]
 
-def commitAndCrop(images,source,min_area,destBucket,external,update_image_info):
+def commitAndCrop(images,source,min_area,destBucket,external,update_image_info,check=False):
     '''Helper function for pipelineLILA that commits the db and then kicks off image cropping'''
     db.session.commit()
-    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info},queue='default')
+    batchCropping.apply_async(kwargs={'images': [r.id for r in images],'source':source,'min_area':min_area,'destBucket':destBucket,'external':external,'update_image_info':update_image_info,'label_source':None,'task_id':None,'check':check},queue='default')
     return []
 
 @celery.task(bind=True,ignore_result=True)
@@ -3839,6 +3862,122 @@ def pipelineLILA(self,dets_filename,images_filename,survey_name,tgcode_str,sourc
                         count += 1
                         if count%100==0: print(count)
         images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status='Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,ignore_result=True)
+def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,source,min_area,destBucket):
+    '''Makes use of the MegaDetector results on LILA to pipeline trianing data.'''
+    try:
+        skip_labels = ['unknown','none','fire','human','null','nothinghere','ignore']
+        external = True
+        update_image_info=True
+        tgcode = re.compile(tgcode_str)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.json') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=dets_filename, Filename=temp_file.name)
+            with open(temp_file.name) as f:
+                json_data = json.load(f)
+
+        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+            GLOBALS.s3client.download_file(Bucket=destBucket, Key=images_filename, Filename=temp_file.name)
+            df = pd.read_csv(temp_file.name)
+
+        if 'filename' in df.columns:
+            df = df.rename(columns={'filename': 'filepath','common_name': 'species'})
+
+        # survey = Survey(name=survey_name,user_id=1,trapgroup_code=tgcode_str,status='Importing')
+        # db.session.add(survey)
+        # task = Task(name='import', survey=survey, tagging_level='-1', test_size=0, status='Ready')
+        # db.session.add(task)
+        # db.session.commit()
+        survey = db.session.query(Survey).filter(Survey.user_id==1).filter(Survey.name==survey_name).first()
+        task = survey.tasks[0]
+        task_id=task.id
+        survey_id=survey.id
+
+        label_translations = {}
+        for description in df['species'].unique():
+            if description.lower() not in skip_labels:
+                if description.lower() in ['nothing','empty','blank']:
+                    label = db.session.query(Label).get(GLOBALS.nothing_id)
+                elif description.lower() in ['human']:
+                    label = db.session.query(Label).get(GLOBALS.vhl_id)
+                else:
+                    # label = Label(description=description,task=task)
+                    # db.session.add(label)
+                    label = db.session.query(Label).filter(Label.task==task).filter(Label.description==description).first()
+                label_translations[description] = label
+        # db.session.commit()
+
+        trapgroups = {}
+        for trapgroup in survey.trapgroups:
+            trapgroups[trapgroup.tag] = trapgroup.id
+
+        dirpath_cam_translations = {}
+        for camera in db.session.query(Camera).join(Trapgroup).filter(Trapgroup.survey==survey).distinct().all():
+            dirpath_cam_translations[camera.path] = camera.id
+
+        count = 0
+        images = []
+        # trapgroups = {}
+        # dirpath_cam_translations = {}
+        for item in json_data['images']:
+            if len(df[df['filepath']==item['file']]) == 1:
+                tags = tgcode.findall(item['file'])
+                if tags:
+                    tag = tags[0]
+                    species = [r for r in df[df['filepath']==item['file']]['species'].unique() if r.lower() not in skip_labels]
+                    if species:
+                        dirpath = '/'.join(item['file'].split('/')[:-1])
+                        filename = item['file'].split('/')[-1]
+                        if tag not in trapgroups.keys():
+                            trapgroup = Trapgroup(survey_id=survey_id,tag=tag)
+                            db.session.add(trapgroup)
+                            images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info,True)
+                            trapgroups[tag] = trapgroup.id
+                        trapgroup_id = trapgroups[tag]
+                        if dirpath not in dirpath_cam_translations.keys():
+                            camera = Camera(path=dirpath,trapgroup_id=trapgroup_id)
+                            db.session.add(camera)
+                            images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info,True)
+                            dirpath_cam_translations[dirpath] = camera.id
+                        camera_id = dirpath_cam_translations[dirpath]
+                        image = db.session.query(Image).filter(Image.camera_id==camera_id).filter(Image.filename==filename).first()
+                        if image==None:
+                            image = Image(camera_id=camera_id,filename=filename)
+                            cluster = Cluster(task_id=task_id)
+                            db.session.add(image)
+                            db.session.add(cluster)
+                            cluster.images = [image]
+                            for specie in species:
+                                cluster.labels.append(label_translations[specie])
+                            for det in item['detections']:
+                                top, left, bottom, right = convertBBox(det['bbox'])
+                                detection = Detection(image=image,top=top,left=left,bottom=bottom,right=right,score=det['conf'],category=det['category'],source='MDv5b',status='active')
+                                db.session.add(detection)
+                                labelgroup = Labelgroup(task_id=task_id,detection=detection)
+                                db.session.add(labelgroup)
+                                for specie in species:
+                                    labelgroup.labels.append(label_translations[specie])
+                        images.append(image)
+                        count += 1
+                        if count%100==0: print(count)
+        images = commitAndCrop(images,source,min_area,destBucket,external,update_image_info,True)
 
         survey = db.session.query(Survey).get(survey_id)
         survey.status='Ready'
