@@ -646,7 +646,7 @@ def manageTasks():
         # session.commit()
 
         Worker = alias(User)
-        task_ids = session.query(Task.id)\
+        task_ids = [r[0] for r in session.query(Task.id)\
                         .outerjoin(Survey)\
                         .outerjoin(Organisation)\
                         .outerjoin(UserPermissions)\
@@ -658,7 +658,7 @@ def manageTasks():
                             Worker.c.last_ping>(datetime.utcnow()-timedelta(minutes=5)),
                             ))\
                         .filter(Task.status=='PROGRESS')\
-                        .distinct().all()
+                .distinct().all()]
         print('{} tasks are currently active.'.format(len(task_ids)))
 
         active_jobs = []

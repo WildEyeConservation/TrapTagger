@@ -41,6 +41,7 @@ var nextDataReceivedPage = null
 var prevDataReceivedPage = null
 var shareOrganisation = null
 var receiveOrganisation = null
+var sharedSurveysPermissions = {}
 
 function openPermissionsTab(evt, tabName) {
     /** Opens the permissions tab */
@@ -461,9 +462,9 @@ function buildUserTable(users) {
                 }
             }(users[i].id, users[i].username, user_permissions[j].organisation_id, user_permissions[j].organisation));
 
-            if (user_permissions[j].root_user == true) {
-                document.getElementById('btnRemoveUser-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = true
-            }
+            // if (user_permissions[j].root_user == true) {
+            //     document.getElementById('btnRemoveUser-' + users[i].id + '-' + user_permissions[j].organisation_id).disabled = true
+            // }
         }
     }
 }
@@ -471,7 +472,7 @@ function buildUserTable(users) {
 function openDetailedAccessModal(id, username, org_id, org_name) {
     /**Opens the detailed access modal.*/
     document.getElementById('modalDetailedAccessTitle').innerText = 'Detailed Access: ' + username + ' for ' + org_name
-
+    document.getElementById('detailedAccessErrors').innerHTML = ''
     var colTitleDiv = document.getElementById('colTitleDiv')
     while (colTitleDiv.firstChild) {
         colTitleDiv.removeChild(colTitleDiv.firstChild);
@@ -517,11 +518,18 @@ function openDetailedAccessModal(id, username, org_id, org_name) {
             console.log(surveys)
             globalSurveys = surveys
 
+            sharedSurveysPermissions = {}
+            for (let i = 0; i < surveys.length; i++) {
+                if (surveys[i].length == 3){
+                    sharedSurveysPermissions[surveys[i][0]] = surveys[i][2]
+                }
+            }
+
             getDetailedAccess(worker)
             modalDetailedAccess.modal('show');
         }
     }
-    xhttp.open("GET", '/getOrganisationSurveys/' + org_id);
+    xhttp.open("GET", '/getUserSurveysForOrganisation/' + id + '/' + org_id);
     xhttp.send();
 
 }
@@ -1483,12 +1491,12 @@ function validateShareData(sharedData, organisationName){
 
 function saveDetailedAccess(){
 /** Saves the detailed access for the user */
-    var valid, detailed_access = getDetailedAccessForSave()
+
+    var accessForSave = getDetailedAccessForSave()
+    var valid = accessForSave[0]
+    var detailed_access = accessForSave[1]
 
     if (valid) {
-        document.getElementById('detailedAccessErrors').innerHTML = 'Please do not select the same survey more than once.'
-    }
-    else{
         document.getElementById('detailedAccessErrors').innerHTML = ''
 
         var formData = new FormData();
@@ -1522,6 +1530,7 @@ function getDetailedAccessForSave(){
     var editedAccess = []
     var valid = true
     var dupSurveys = []
+    var error_msg = ''
 
     var worker = false
     if (document.getElementById('defaultAccessSlider-' + selectedUser + '-' + selectedOrganisation).value == access_slider_values['worker']) {
@@ -1535,31 +1544,41 @@ function getDetailedAccessForSave(){
     }
 
     for (let i=0;i<surveySelects.length;i++) {
+        var survey_id = surveySelects[i].value
         if (surveySelects[i].classList[1] && surveySelects[i].classList[1].includes('id-')) {
-            if (surveySelects[i].value != -1) {	
+            if (survey_id) {	
                 editedAccess.push({
                     'id': surveySelects[i].classList[1].split('-')[1],
-                    'survey_id': surveySelects[i].value,
+                    'survey_id': survey_id,
                     'permission': worker ? 'worker' : default_access[accessSliders[i].value].toLowerCase(),
                     'annotation': workerAccesses[i].checked ? '1' : '0'
-                })
+                })   
             }
         }
         else{
-            if (surveySelects[i].value != -1) {
+            if (survey_id) {
                 newAccess.push({
-                    'survey_id': surveySelects[i].value,
+                    'survey_id': survey_id,
                     'permission': worker ? 'worker' : default_access[accessSliders[i].value].toLowerCase(),
                     'annotation': workerAccesses[i].checked ? '1' : '0'
                 })
             }
         }
 
-        if (dupSurveys.indexOf(surveySelects[i].value) == -1) {
-            dupSurveys.push(surveySelects[i].value)
+        if (sharedSurveysPermissions[survey_id]){
+            var shared_permission = sharedSurveysPermissions[survey_id]
+            if (accessSliders[i].value > access_slider_values[shared_permission]) {
+                valid = false
+                error_msg += 'You cannot give a user more access than you have for shared survey ' + surveySelects[i].options[surveySelects[i].selectedIndex].text + '.<br>'
+            }
+        }
+
+        if (dupSurveys.indexOf(survey_id) == -1) {
+            dupSurveys.push(survey_id)
         }
         else{
             valid = false
+            error_msg += 'You cannot select the same survey more than once.<br>'
         }
     }
     
@@ -1585,7 +1604,14 @@ function getDetailedAccessForSave(){
     console.log(deleteAccess)
     console.log(editedAccess)
 
-    return valid , {'new': newAccess, 'delete': deleteAccess, 'edit': editedAccess}
+    if (valid){
+        document.getElementById('detailedAccessErrors').innerHTML = ''
+    }
+    else{
+        document.getElementById('detailedAccessErrors').innerHTML = error_msg
+    }
+
+    return [valid, {'new': newAccess, 'delete': deleteAccess, 'edit': editedAccess}]
 }
 
 function removeUserFromOrganisation(){

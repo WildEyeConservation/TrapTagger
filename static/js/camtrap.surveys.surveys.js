@@ -3556,6 +3556,24 @@ function buildSurveyPermissionRow(){
     }
     fillSelect(user,optionTexts,optionValues)
 
+    user.addEventListener('change', function (wrapIDNum) {
+        return function() {
+            user_id = this.value
+            def_access = globalOrganisationUsers.filter(function(item) {
+                return item[0] == user_id;
+            })[0][2]
+
+            var accessSlider = document.getElementById('detailedAccessSurvey-' + wrapIDNum);
+            if (def_access=='worker') {
+                accessSlider.value = 0
+                accessSlider.disabled = true
+            }
+            else{
+                accessSlider.disabled = false
+            }
+        }
+    }(IDNum));
+
     // Access
     var defaultDiv = document.createElement('div');
     defaultDiv.setAttribute('class','text-center')

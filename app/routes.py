@@ -1433,25 +1433,38 @@ def createNewSurvey():
             survey_id = db.session.query(Survey.id).filter(Survey.name==surveyName).first()[0]
             exclude_user_ids = [current_user.id]
             if detailed_access:
+                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_default = {r[0]:r[1] for r in user_query}
                 for access in detailed_access:
                     exclude_user_ids.append(access['user_id'])
                     annotation_access = True if access['annotation']=='1' else False
-                    newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
-                    db.session.add(newDetailedException)
+                    if user_default[access['user_id']] != 'admin':
+                        if user_default[access['user_id']] == 'worker': 
+                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission='worker', annotation=annotation_access)
+                        else:
+                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
+                        db.session.add(newDetailedException)
 
             if permission != 'default' and annotation != 'default':
-                user_ids = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()]
+                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_ids = [r[0] for r in user_query]
+                user_permissions = [r[1] for r in user_query]   
                 annotation_access = True if annotation== '1' else False
                 for user_id in user_ids:
-                    newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
+                    if user_permissions[i] == 'worker':
+                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission='worker', annotation=annotation_access)
+                    else:
+                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
                     db.session.add(newException)
             elif permission != 'default':
-                user_query = db.session.query(User.id, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_query = db.session.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
                 user_ids = [r[0] for r in user_query]
-                user_annotations = [r[1] for r in user_query]
+                user_permissions = [r[1] for r in user_query]   
+                user_annotations = [r[2] for r in user_query]
                 for i in range(len(user_ids)):
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
-                    db.session.add(newException)
+                    if user_permissions[i] != 'worker':
+                        newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
+                        db.session.add(newException)
             elif annotation != 'default':
                 user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
                 user_ids = [r[0] for r in user_query]
@@ -3357,6 +3370,7 @@ def getHomeSurveys():
     order = request.args.get('order', 5, type=int)
     search = request.args.get('search', '', type=str)
     current_downloads = request.args.get('downloads', '', type=str)
+    permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
 
     siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
     # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
@@ -3475,7 +3489,14 @@ def getHomeSurveys():
             if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-    permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
+            # TODO: LOOk AT THIS
+            # if exception_permission and (exception_uid==current_user.id) and (permission_order.index(exception_permission) > permission_order.index(survey_permissions[item[0]]['exception'])): survey_permissions[item[0]]['exception']=exception_permission
+            # if up_default and (up_uid==current_user.id) and (permission_order.index(up_default) > permission_order.index(survey_permissions[item[0]]['default'])): survey_permissions[item[0]]['default']=up_default
+            # if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
+            # if share_permission and (sup_uid==current_user.id) and (permission_order.index(share_permission) > permission_order.index(survey_permissions[item[0]]['share_level'])): survey_permissions[item[0]]['share_level']=share_permission
+            # if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+
+    # permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
     for survey_id in survey_permissions:
         if survey_permissions[survey_id]['exception']:
             survey_data[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -3583,7 +3604,14 @@ def getHomeSurveys():
                 if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-        permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
+                #TODO: LOOK AT THIS
+                # if exception_permission and (exception_uid==current_user.id) and (permission_order.index(exception_permission) > permission_order.index(survey_permissions[item[0]]['exception'])): survey_permissions[item[0]]['exception']=exception_permission
+                # if up_default and (up_uid==current_user.id) and (permission_order.index(up_default) > permission_order.index(survey_permissions[item[0]]['default'])): survey_permissions[item[0]]['default']=up_default
+                # if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
+                # if share_permission and (sup_uid==current_user.id) and (permission_order.index(share_permission) > permission_order.index(survey_permissions[item[0]]['share_level'])): survey_permissions[item[0]]['share_level']=share_permission
+                # if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+
+        # permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
         for survey_id in survey_permissions:
             if survey_permissions[survey_id]['exception']:
                 survey_data2[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -6738,6 +6766,9 @@ def assignLabel(clusterID):
                     else:
                         session.commit()
                         session.close()
+
+        else:
+            return {'redirect': url_for('done')}, 278
 
         if (not current_user_admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user_username)):
             return {'redirect': url_for('done')}, 278
@@ -10491,13 +10522,13 @@ def getUsers():
                                             )\
                                             .join(UserPermissions, User.id==UserPermissions.user_id)\
                                             .join(Organisation)\
-                                            .filter(Organisation.id.in_(organisation_ids))
+                                            .filter(Organisation.id.in_(organisation_ids))\
+                                            .filter(User.id!=Organisation.root_user_id)
 
 
             searches = re.split('[ ,]',search)
             for search in searches:
                 user_permissions = user_permissions.filter(or_(User.username.contains(search),Organisation.name.contains(search)))
-
 
             if order == 1:
                 user_permissions = user_permissions.order_by(User.username)
@@ -10510,39 +10541,31 @@ def getUsers():
 
             users_ids = {}
             for user_permission in user_permissions.items:
-                if user_permission[0] == user_permission[9]:
-                    root_user = True
-                else:
-                    root_user = False
+                if user_permission[0] in users_ids:
+                    users[users_ids[user_permission[0]]]['user_permissions'].append({
+                        'delete': user_permission[3],
+                        'create': user_permission[4],
+                        'annotation': user_permission[5],
+                        'default': user_permission[6],
+                        'organisation_id': user_permission[7],
+                        'organisation': user_permission[8]
+                    })
 
-                if not root_user:
-                    if user_permission[0] in users_ids:
-                        users[users_ids[user_permission[0]]]['user_permissions'].append({
+                else:
+                    users.append({
+                        'id': user_permission[0],
+                        'username': user_permission[1],
+                        'email': user_permission[2],
+                        'user_permissions': [{
                             'delete': user_permission[3],
                             'create': user_permission[4],
                             'annotation': user_permission[5],
                             'default': user_permission[6],
                             'organisation_id': user_permission[7],
-                            'organisation': user_permission[8],
-                            'root_user': root_user
-                        })
-
-                    else:
-                        users.append({
-                            'id': user_permission[0],
-                            'username': user_permission[1],
-                            'email': user_permission[2],
-                            'user_permissions': [{
-                                'delete': user_permission[3],
-                                'create': user_permission[4],
-                                'annotation': user_permission[5],
-                                'default': user_permission[6],
-                                'organisation_id': user_permission[7],
-                                'organisation': user_permission[8],
-                                'root_user': root_user
-                            }]
-                        })
-                        users_ids[user_permission[0]] = len(users)-1
+                            'organisation': user_permission[8]
+                        }]
+                    })
+                    users_ids[user_permission[0]] = len(users)-1
 
             next_users = user_permissions.next_num if user_permissions.has_next else None
             prev_users = user_permissions.prev_num if user_permissions.has_prev else None
@@ -10578,14 +10601,11 @@ def savePermissions():
                 user_permission.default = permission_value
                 user_msg = '<p> Your default permission for organisation {} has been set to {}.'.format(org_name, permission_value)
                 org_msg = '<p> The default permission for user {} has been set to {} for organisation {}.'.format(user_name, permission_value, org_name)
-                if permission_value == 'admin':
+
+                if permission_value == 'admin' or permission_value == 'worker':
                     user_permission_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(SurveyPermissionException.user_id==user_id).filter(Survey.organisation_id==organisation_id).all()
                     for user_permission_exception in user_permission_exceptions:
                         db.session.delete(user_permission_exception)
-                elif permission_value == 'worker':
-                    user_permission_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(SurveyPermissionException.user_id==user_id).filter(Survey.organisation_id==organisation_id).all()
-                    for user_permission_exception in user_permission_exceptions:
-                        user_permission_exception.permission = 'worker'
             
                 if permission_order.index(permission_value) < permission_order.index('write'): 
                     if user_permission.delete:
@@ -10662,11 +10682,21 @@ def getDetailedAccess(user_id, org_id):
 
     detailed_access = []
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+
+        ss_subquery = db.session.query(SurveyShare.survey_id)\
+                                .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                .filter(UserPermissions.user_id==user_id)\
+                                .filter(SurveyShare.organisation_id==org_id)\
+                                .distinct().subquery()
+    
         survey_permissions = db.session.query(SurveyPermissionException)\
                                         .join(Survey)\
+                                        .outerjoin(SurveyShare)\
                                         .filter(SurveyPermissionException.user_id==user_id)\
-                                        .filter(Survey.organisation_id==org_id)\
-                                        .all()
+                                        .filter(or_(Survey.organisation_id==org_id,and_(~Survey.id.in_(ss_subquery), SurveyShare.organisation_id==org_id)))\
+                                        .distinct().all()
 
         for survey_permission in survey_permissions:
             detailed_access.append({
@@ -11144,7 +11174,21 @@ def removeUserFromOrganisation():
         user_permission = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.user_id==user_id).first()
         db.session.delete(user_permission)
 
-        user_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(Survey.organisation_id==org_id).filter(SurveyPermissionException.user_id==user_id).all()
+        ss_subquery = db.session.query(SurveyShare.survey_id)\
+                                .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                .filter(UserPermissions.user_id==user_id)\
+                                .filter(SurveyShare.organisation_id==org_id)\
+                                .distinct().subquery()
+    
+        user_exceptions = db.session.query(SurveyPermissionException)\
+                                        .join(Survey)\
+                                        .outerjoin(SurveyShare)\
+                                        .filter(SurveyPermissionException.user_id==user_id)\
+                                        .filter(or_(Survey.organisation_id==org_id,and_(~Survey.id.in_(ss_subquery), SurveyShare.organisation_id==org_id)))\
+                                        .distinct().all()
+
         for user_exception in user_exceptions:
             db.session.delete(user_exception)
 
@@ -11285,7 +11329,7 @@ def getOrganisationUsers(org_id):
     ''' Gets all the non admin users for an organisation and exclude current_user '''
     users = []
     if current_user and current_user.is_authenticated:
-        users = db.session.query(User.id, User.username).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').filter(User.id!=current_user.id).distinct().all()
+        users = db.session.query(User.id, User.username, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').filter(User.id!=current_user.id).distinct().all()
     return json.dumps(users)
 
 @app.route('/populateAnnotatorSelector')
@@ -11343,3 +11387,38 @@ def landing():
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
         return render_template('html/landing.html', title='Welcome To TrapTagger!', helpFile='landing', version=Config.VERSION)
+
+@app.route('/getUserSurveysForOrganisation/<user_id>/<org_id>')
+@login_required
+def getUserSurveysForOrganisation(user_id, org_id):
+    ''' Gets all the surveys for a user and organisation (including shared surveys if they do not belong to the organisation that shared them) '''
+
+    surveys = []
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        org_surveys = db.session.query(Survey.id, Survey.name).filter(Survey.organisation_id==org_id).distinct().all()
+
+        ss_subquery = db.session.query(SurveyShare.survey_id)\
+                                        .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                        .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                        .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                        .filter(UserPermissions.user_id==user_id)\
+                                        .filter(SurveyShare.organisation_id==org_id)\
+                                        .distinct().subquery()
+
+        shared_surveys = db.session.query(
+                                            Survey.id,  
+                                            Survey.name,
+                                            SurveyShare.permission
+                                        )\
+                                        .join(SurveyShare, SurveyShare.survey_id==Survey.id)\
+                                        .filter(SurveyShare.organisation_id==org_id)\
+                                        .filter(~Survey.id.in_(ss_subquery))\
+                                        .distinct().all()
+
+        surveys = org_surveys + shared_surveys
+
+    return json.dumps(surveys)
+
+
+
+                    
