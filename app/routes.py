@@ -5068,6 +5068,7 @@ def submitIndividuals():
 
             cluster = db.session.query(Cluster).join(Image,Cluster.images).join(Detection).filter(Cluster.task_id==task_id).filter(Detection.id==individuals[individualID]['detections'][0]).first()
             cluster.user_id = current_user.id
+            cluster.timestamp = datetime.utcnow()
             cluster.examined = True
             db.session.commit()
 
@@ -6558,6 +6559,7 @@ def reviewClassification():
 
                 cluster.examined = True
                 cluster.user_id == current_user.id
+                cluster.timestamp = datetime.utcnow()
                 db.session.commit()
 
                 classifications = getClusterClassifications(cluster.id)
