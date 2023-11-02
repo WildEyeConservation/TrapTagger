@@ -2903,6 +2903,7 @@ def prep_required_images(task_id,trapgroup_id=None):
             categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==parent_id).all()
             categories.append(db.session.query(Label).get(GLOBALS.vhl_id))
             categories.append(db.session.query(Label).get(GLOBALS.nothing_id))
+            categories.append(db.session.query(Label).get(GLOBALS.unknown_id))
 
             if label:
                 categories.append(label)
@@ -2916,7 +2917,7 @@ def prep_required_images(task_id,trapgroup_id=None):
                                                     .filter(Translation.task_id==task_id)\
                                                     .distinct().all()
                 child_classifications = [r[0] for r in child_classifications]
-                
+
                 for child_classification in child_classifications:
                     transDict[child_classification] = category.description
 
