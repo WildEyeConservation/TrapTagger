@@ -2025,7 +2025,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
         user = task.survey.user.username
         with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
             outputDF.to_csv(temp_file.name,index=False)
-            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+user+'_classification_ds.csv',Body=temp_file)
+            GLOBALS.s3client.put_object(Bucket=destBucket,Key='classification_ds/'+randomString()+user+'_classification_ds.csv',Body=temp_file)
 
     except Exception as exc:
         app.logger.info(' ')
