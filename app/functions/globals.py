@@ -2947,13 +2947,22 @@ def updateEarthRanger(task_id):
             # Get applicable data to send to EarthRanger
             labels = db.session.query(Label).filter(Label.description.in_(er_species)).filter(Label.task_id==task_id).all()
             label_list = []
+            parent_children = {}
             for label in labels:
                 label_list.append(label.id)
                 child_labels = []
                 child_labels = addKids(child_labels,label,task_id)
+                if len(child_labels) > 0:
+                    parent_children[label.description] = []
                 for child_label in child_labels:
                     label_list.append(child_label.id)
-                    er_species_api[child_label.description] = er_species_api[label.description]
+                    parent_children[label.description].append(child_label.description)
+                    if child_label.description not in er_species_api.keys():
+                        er_species_api[child_label.description] = er_species_api[label.description]
+                    else:
+                        er_species_api[child_label.description].extend(er_species_api[label.description])
+                    if child_label.description not in er_species:
+                        er_species.append(child_label.description)
 
             sq1 = rDets(db.session.query(Labelgroup.id.label('labelgroup_id'), Label.description.label('species'), Image.id.label('image_id'))\
                                         .join(Label,Labelgroup.labels)\
@@ -2976,7 +2985,8 @@ def updateEarthRanger(task_id):
                             sq2.c.species.label('species'),
                             sq2.c.count.label('count'),
                             Image.filename.label('filename'),
-                            Camera.path.label('path')
+                            Camera.path.label('path'),
+                            Image.detection_rating.label('detection_rating')
                         )\
                         .join(Image, Cluster.images)\
                         .join(Camera)\
@@ -2986,6 +2996,7 @@ def updateEarthRanger(task_id):
                         .join(Label, Labelgroup.labels)\
                         .outerjoin(Tag, Labelgroup.tags)\
                         .join(sq2,sq2.c.image_id==Image.id)\
+                        .filter(sq2.c.species.in_(er_species))\
                         .filter(Cluster.task_id == task_id)\
                         .filter(Labelgroup.task_id == task_id)\
                         .filter(Labelgroup.labels.any(Label.id.in_(label_list))))
@@ -2996,16 +3007,28 @@ def updateEarthRanger(task_id):
                 return True
 
             df['tag'] = df['tag'].fillna('None')
-            df = df.sort_values(by=['cluster_id','species','count'], ascending=False)
+            df = df.sort_values(by=['cluster_id','species','detection_rating'], ascending=False)
             df = df.groupby(['cluster_id','species','trapgroup_tag','trapgroup_lat','trapgroup_lon']).agg({
                 'timestamp':'min',
                 'tag': lambda x: x.unique().tolist(),
                 'count':'max',
-                'filename': 'first',
+                'filename': 'first', # Highest detection rating
                 'path': 'first'
             }).reset_index()
             df['tag'] = df['tag'].apply(lambda x: [] if x == ['None'] else x)
-            
+
+            # Handle clusters that contain multiple species that contains labels from parent and children of parent
+            duplicate_clusters = df[df.duplicated(subset=['cluster_id'], keep=False)]
+            for cluster_id, group in duplicate_clusters.groupby(['cluster_id']):
+                for parent, children in parent_children.items():
+                    if parent in group['species'].unique():
+                        for child in children:
+                            if child in group['species'].unique():
+                                parent_filter = (df['cluster_id'] == cluster_id) & (df['species'] == parent)
+                                child_filter = (df['cluster_id'] == cluster_id) & (df['species'] == child)
+                                df.loc[parent_filter, 'count'] += float(df.loc[child_filter, 'count'])
+                                df = df.drop(df[child_filter].index)
+
             # Send data to EarthRanger
             tf = timezonefinder.TimezoneFinder()
             er_url = 'https://sensors.api.gundiservice.org/v2/events/'
@@ -3039,60 +3062,61 @@ def updateEarthRanger(task_id):
                     }
                 }
 
-                er_api_keys = er_species_api[row['species']]
-                for er_api_key in er_api_keys:
-                    # Set headers
-                    er_header_json = {
-                        'Content-Type': 'application/json',
-                        'apikey': er_api_key
-                    }
-                    er_header_img = {
-                        'apikey': er_api_key
-                    }
+                if row['species'] in er_species_api.keys():
+                    er_api_keys = er_species_api[row['species']]
+                    for er_api_key in er_api_keys:
+                        # Set headers
+                        er_header_json = {
+                            'Content-Type': 'application/json',
+                            'apikey': er_api_key
+                        }
+                        er_header_img = {
+                            'apikey': er_api_key
+                        }
 
-                    # Post payload to EarthRanger
-                    retry = True
-                    attempts = 0
-                    max_attempts = 10
-                    while retry and (attempts < max_attempts):
-                        attempts += 1
-                        try:
-                            response = requests.post(er_url, headers=er_header_json, json=payload)
-                            assert response.status_code == 200 and response.json()['object_id']
-                            retry = False
-                        except:
-                            retry = True
+                        # Post payload to EarthRanger
+                        retry = True
+                        attempts = 0
+                        max_attempts = 10
+                        while retry and (attempts < max_attempts):
+                            attempts += 1
+                            try:
+                                response = requests.post(er_url, headers=er_header_json, json=payload)
+                                assert response.status_code == 200 and response.json()['object_id']
+                                retry = False
+                            except:
+                                retry = True
 
-                    # Dowload image from S3 and send blob to EarthRanger
-                    if response.status_code == 200 and response.json()['object_id']:
-                        if Config.DEBUGGING: app.logger.info('Event posted to EarthRanger: {}'.format(payload['source']))
+                        # Dowload image from S3 and send blob to EarthRanger
+                        if response.status_code == 200 and response.json()['object_id']:
+                            if Config.DEBUGGING: app.logger.info('Event posted to EarthRanger: {}'.format(payload['source']))
 
-                        object_id = response.json()['object_id']
-                        image_key = row['path']+'/'+row['filename']
-                        er_url_img = er_url + object_id + '/attachments/'
-    
-                        with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
-                            GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
+                            object_id = response.json()['object_id']
+                            image_key = row['path']+'/'+row['filename']
+                            er_url_img = er_url + object_id + '/attachments/'
+        
+                            with tempfile.NamedTemporaryFile(delete=True, suffix='.jpg') as temp_file:
+                                GLOBALS.s3client.download_file(Bucket=Config.BUCKET, Key=image_key, Filename=temp_file.name)
 
-                            files = {'file1': open(temp_file.name, 'rb')}
+                                files = {'file1': open(temp_file.name, 'rb')}
 
-                            retry_img = True
-                            attempts_img = 0
-                            max_attempts_img = 10
-                            while retry_img and (attempts_img < max_attempts_img):
-                                attempts_img += 1
-                                try:
-                                    response_img = requests.post(er_url_img, headers=er_header_img, files=files)
-                                    assert response_img.status_code == 200 and response_img.json()['object_id']
-                                    retry_img = False
-                                except:
-                                    retry_img = True
+                                retry_img = True
+                                attempts_img = 0
+                                max_attempts_img = 10
+                                while retry_img and (attempts_img < max_attempts_img):
+                                    attempts_img += 1
+                                    try:
+                                        response_img = requests.post(er_url_img, headers=er_header_img, files=files)
+                                        assert response_img.status_code == 200 and response_img.json()['object_id']
+                                        retry_img = False
+                                    except:
+                                        retry_img = True
 
-                            if response_img.status_code == 200 and response_img.json()['object_id']:
-                                if Config.DEBUGGING: app.logger.info('Image posted to EarthRanger: {}'.format(row['filename']))
-                            else:
-                                if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: {}'.format(response.status_code))
-                    else:
-                        if Config.DEBUGGING: app.logger.info('Error posting event to EarthRanger: {}'.format(response.status_code))
+                                if response_img.status_code == 200 and response_img.json()['object_id']:
+                                    if Config.DEBUGGING: app.logger.info('Image posted to EarthRanger: {}'.format(row['filename']))
+                                else:
+                                    if Config.DEBUGGING: app.logger.info('Error posting image to EarthRanger: {}'.format(response.status_code))
+                        else:
+                            if Config.DEBUGGING: app.logger.info('Error posting event to EarthRanger: {}'.format(response.status_code))
 
     return True
