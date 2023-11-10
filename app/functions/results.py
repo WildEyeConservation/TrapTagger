@@ -2648,7 +2648,6 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
             summary['summary_counts'] = summary_counts
 
             # General query for all results
-            # TODO: double check values here
             if baseUnit == '1' or baseUnit == '4': # Image
                 baseQuery = db.session.query(
                                 Image.id,

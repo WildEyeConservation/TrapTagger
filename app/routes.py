@@ -1049,18 +1049,24 @@ def deleteTask(task_id):
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
     # if (task!=None) and (task.survey.user_id==current_user.id):
-    if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
-        if task.status.lower() not in Config.TASK_READY_STATUSES:
-            status = 'error'
-            message = 'The task is currently in use. Please stop it first.'
-        else:  
-            task.status = 'Deleting'
-            db.session.commit()
-            status = 'success'
-            message = ''
+    # if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+    if task:
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==task.survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+        if userPermissions and userPermissions.delete:
+            if task.status.lower() not in Config.TASK_READY_STATUSES:
+                status = 'error'
+                message = 'The task is currently in use. Please stop it first.'
+            else:  
+                task.status = 'Deleting'
+                db.session.commit()
+                status = 'success'
+                message = ''
 
-            app.logger.info('Deleting task {}.'.format(task_id))
-            delete_task.delay(task_id=task_id)
+                app.logger.info('Deleting task {}.'.format(task_id))
+                delete_task.delay(task_id=task_id)
+        else:
+            status = 'error'
+            message = 'Task cannot be deleted.'
     else:
         status = 'error'
         message = 'The task cannot be found.'
@@ -1650,8 +1656,6 @@ def requestLabelSpec():
 def checkTrapgroupCode():
     '''Checks the user's specified trapgroup code and returns the detected trapgroups in the specified folder.'''
 
-    #TODO added organisation_id and survey_id. The former is needed for survey creation, and the latter is for edit survey modal.
-
     status = 'FAILURE'
     reply = None
     userPermissions = None
@@ -1676,7 +1680,7 @@ def checkTrapgroupCode():
         survey_id = request.form['survey_id']
         survey = db.session.query(Survey).get(survey_id)
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==survey.organisation_id).first()
-        organisation_id = survey.organisation
+        organisation_id = survey.organisation.id
 
     if userPermissions and userPermissions.create:
         if 'revoke_id' in request.form:
@@ -1706,9 +1710,17 @@ def checkTrapgroupCode():
 def getFolders():
     '''Fetches the list of folders in the user's S3 folder.'''
     
+    org_id = request.args.get('org_id', None)
+    survey_id = request.args.get('survey_id', None)
     folders = []
     if current_user.is_authenticated:
-        organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
+        if org_id:
+            organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.create==True).all()
+        elif survey_id:
+            organisations = db.session.query(Organisation).join(UserPermissions).join(Survey).filter(UserPermissions.user_id==current_user.id).filter(Survey.id==survey_id).filter(UserPermissions.create==True).all()
+        else:
+            organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
+       
         for organisation in organisations:
             folders.extend(list_all(Config.BUCKET,organisation.folder+'/')[0])
             if 'Downloads' in folders: folders.remove('Downloads')
@@ -3757,6 +3769,7 @@ def getJobs():
     individual_id_names = []
     covered_tasks = []
     for item in tasks:
+        sub_task_permission = True
         if item[0] not in covered_tasks:
             covered_tasks.append(item[0])
             clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[0]))
@@ -3820,6 +3833,10 @@ def getJobs():
 
                     taskInfo['name'] = name
 
+                    # Check for sub task permission and if you do not have permission then do not add task to list  
+                    if not all(checkAnnotationPermission(current_user.id,sub_task.id) for sub_task in dbTask.sub_tasks):
+                        sub_task_permission = False
+
                 if taskInfo['remaining'] != None:
                     taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
                 else:
@@ -3831,7 +3848,8 @@ def getJobs():
                 else:
                     taskInfo['remaining'] = '0 clusters remaining'
             
-            task_list.append(taskInfo)
+            if sub_task_permission:
+                task_list.append(taskInfo)
 
     if (page*5) >= len(task_list):
         has_next = False
@@ -4589,11 +4607,13 @@ def skipSuggestion(individual_1,individual_2):
                                 .first()
 
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
     # if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
 
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                             or_(\
@@ -4621,11 +4641,13 @@ def undoPreviousSuggestion(individual_1,individual_2):
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
     
     # if (individual1 and individual2) and ((any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks))) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and ((any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks))) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                         or_(\
                                             and_(\
@@ -4692,10 +4714,13 @@ def dissociateDetection(detection_id):
     else:
         task = current_user.turkcode[0].task
 
+    tasks = [r for r in task.sub_tasks]
+    tasks.append(task)
+
     detection = db.session.query(Detection).get(detection_id)
 
     # if task and detection and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
-    if task and detection and (checkSurveyPermission(current_user.id,task.survey_id,'write') or (checkAnnotationPermission(current_user.parent_id,task.id))):
+    if task and detection and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
 
         if not individual_id:
             individual = db.session.query(Individual)\
@@ -4782,9 +4807,11 @@ def reAssociateDetection(detection_id,individual_id):
     detection = db.session.query(Detection).get(detection_id)
     individual = db.session.query(Individual).get(individual_id)
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
 
     # if detection and individual and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
-    if detection and individual and (task in individual.tasks) and checkAnnotationPermission(current_user.parent_id,task.id):
+    if detection and individual and (task in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
 
         oldIndividual = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
@@ -4799,9 +4826,6 @@ def reAssociateDetection(detection_id,individual_id):
 
             if len(oldIndividual.detections[:]) == 0:
                 oldIndividual.active = False
-
-            task_ids = [r.id for r in task.sub_tasks]
-            task_ids.append(task.id)
 
             individual.detections.append(detection)
             individual.tasks = db.session.query(Task)\
@@ -4848,7 +4872,7 @@ def suggestionUnidentifiable(individual_id):
     # num2 = task.size + task.test_size
 
     # if individual and individual.active and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
-    if individual and individual.active and (task in individual.tasks) and checkAnnotationPermission(current_user.parent_id,task.id):
+    if individual and individual.active and (task in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
         
         if Config.DEBUGGING: app.logger.info('Individual {} marked as unidentifiable'.format(individual.name))
 
@@ -4918,7 +4942,7 @@ def acceptSuggestion(individual_1,individual_2):
     # num2 = task.size + task.test_size
 
     # if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
 
         if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
@@ -5022,11 +5046,13 @@ def rejectSuggestion(individual_1,individual_2):
                                 .first()
 
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
     # if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
 
         indSimilarity  = db.session.query(IndSimilarity).filter(\
                                     or_(\
@@ -5061,7 +5087,7 @@ def getSuggestion(individual_id):
     reply = {}
 
     # if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
 
         if suggestionID:
             indSim = db.session.query(IndSimilarity).filter(\
@@ -5514,6 +5540,10 @@ def get_clusters():
     # if (task == None) or ((current_user.parent not in task.survey.user.workers) and (current_user.parent != task.survey.user) and (current_user != task.survey.user)):
     if (task == None) or not (checkAnnotationPermission(current_user.parent_id,task_id) or checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return {'redirect': url_for('done')}, 278
+    else:
+        if '-5' in task.tagging_level:
+            if not all(checkAnnotationPermission(current_user.parent_id,task.id) for task in task.sub_tasks):
+                return {'redirect': url_for('done')}, 278
 
     # Check worker cluster counts
     if current_user.admin:
@@ -9564,10 +9594,15 @@ def searchSites():
     unique_sites = {}
     search = ast.literal_eval(request.form['search'])
     advanced = ast.literal_eval(request.form['advanced'])
+    task_ids = ast.literal_eval(request.form['task_ids'])
 
-    if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {}'.format(search, advanced))
+    if task_ids:
+        if task_ids[0] == '0':
+            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
+        else:
+            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read')
 
-    sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
+    if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {} for tasks {}'.format(search, advanced, task_ids))
 
     if advanced == 'true':
         # Regular expression search 
@@ -9631,14 +9666,27 @@ def saveGroup():
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/getGroups')
+@app.route('/getGroups', methods=['POST'])
 @login_required
 def getGroups():
     ''' Get a list of groups '''
     groups = []
+    survey_ids = []
+    task_ids = ast.literal_eval(request.form['task_ids'])
     if current_user and current_user.is_authenticated:
-        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all.
-        groupsQuery = surveyPermissionsSQ(db.session.query(
+        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all. NOTE: Fixed it but just double check
+        if task_ids:
+            if task_ids[0] == '0':
+                survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id,'read').distinct().all()]
+            else:
+                survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read').distinct().all()]
+
+        subquery = db.session.query(Sitegroup)\
+                        .join(Trapgroup, Sitegroup.trapgroups)\
+                        .filter(~Trapgroup.survey_id.in_(survey_ids))\
+                        .subquery()
+
+        groupsQuery = db.session.query(
                             Sitegroup.id,
                             Sitegroup.name,
                             Sitegroup.description,
@@ -9647,12 +9695,14 @@ def getGroups():
                             Trapgroup.latitude,
                             Trapgroup.longitude
                         )\
+                        .outerjoin(subquery,subquery.c.id==Sitegroup.id)\
                         .join(Trapgroup, Sitegroup.trapgroups)\
-                        .join(Survey),current_user.id,'read')\
+                        .filter(subquery.c.id==None)\
+                        .filter(Trapgroup.survey_id.in_(survey_ids))\
                         .order_by(Trapgroup.id)\
                         .distinct().all()
-
-        groups_df = pd.DataFrame(groupsQuery,columns=['group_id','group_name','group_description','site_id','tag','latitude','longitude'])
+        
+        groups_df = pd.DataFrame(groupsQuery,columns=['group_id','group_name','group_description','site_id','tag','latitude','longitude', 'survey_id','survey_name'])
         groups_df['ids'] = groups_df.groupby(['group_id','group_name','group_description','tag','latitude','longitude'])['site_id'].transform(lambda x: ','.join(x.astype(str)))
         groups_df.drop_duplicates(subset=['group_id','group_name','group_description','tag','latitude','longitude'],inplace=True)
         groups_df.drop(columns=['site_id'],inplace=True)
@@ -9775,7 +9825,7 @@ def getSurveysAndTasksForResults():
 @login_required
 def getActivityPattern():
     ''' Get the activity pattern for a species '''
-    # TODO: need to look at all the permissions for these stats endpoints
+    # TODO: need to look at all the permissions for these stats endpoints NOTE: Complete WorkR Server sstill needs to be updated at end
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         species = ast.literal_eval(request.form['species'])
@@ -11131,10 +11181,13 @@ def cancelSurveyShare(token):
 @login_required
 def getOrganisations():
     ''' Gets all the organisations for the current user ''' 
-
+    create = request.args.get('create', False, type=bool)
     organisations = []
     if current_user and current_user.is_authenticated:
-        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).distinct().all()
+        if create:
+            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.create == True).distinct().all()
+        else:
+            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).distinct().all()
         for org in orgs:
             organisations.append({
                 'id': org[0],
