@@ -218,7 +218,7 @@ def importKML(survey_id):
     '''Import kml file for specified survey. Looks for matching trapgroup tags and placemark names. Overwrites old coordinates.'''
     
     survey = db.session.query(Survey).get(survey_id)
-    key = survey.user.folder + '-comp/kmlFiles/' + survey.name + '.kml'
+    key = survey.organisation.folder + '-comp/kmlFiles/' + survey.name + '.kml'
     
     try:
         with tempfile.NamedTemporaryFile(delete=True, suffix='.kml') as temp_file:

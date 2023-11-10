@@ -70,7 +70,8 @@ async function checkFileBatch() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                filenames: fileNames
+                filenames: fileNames,
+                survey_id: uploadID
             })
         }).then((response) => {
             if (!response.ok) {

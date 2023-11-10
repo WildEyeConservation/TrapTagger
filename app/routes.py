@@ -1049,18 +1049,24 @@ def deleteTask(task_id):
     task_id = int(task_id)
     task = db.session.query(Task).get(task_id)
     # if (task!=None) and (task.survey.user_id==current_user.id):
-    if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
-        if task.status.lower() not in Config.TASK_READY_STATUSES:
-            status = 'error'
-            message = 'The task is currently in use. Please stop it first.'
-        else:  
-            task.status = 'Deleting'
-            db.session.commit()
-            status = 'success'
-            message = ''
+    # if task and checkSurveyPermission(current_user.id,task.survey_id,'write'):
+    if task:
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==task.survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
+        if userPermissions and userPermissions.delete:
+            if task.status.lower() not in Config.TASK_READY_STATUSES:
+                status = 'error'
+                message = 'The task is currently in use. Please stop it first.'
+            else:  
+                task.status = 'Deleting'
+                db.session.commit()
+                status = 'success'
+                message = ''
 
-            app.logger.info('Deleting task {}.'.format(task_id))
-            delete_task.delay(task_id=task_id)
+                app.logger.info('Deleting task {}.'.format(task_id))
+                delete_task.delay(task_id=task_id)
+        else:
+            status = 'error'
+            message = 'Task cannot be deleted.'
     else:
         status = 'error'
         message = 'The task cannot be found.'
@@ -1131,7 +1137,7 @@ def updateSurveyStatus(survey_id, status):
 
     survey = db.session.query(Survey).get(survey_id)
     if survey:
-        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).all()
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.create:
             survey.status = status
@@ -1433,25 +1439,38 @@ def createNewSurvey():
             survey_id = db.session.query(Survey.id).filter(Survey.name==surveyName).first()[0]
             exclude_user_ids = [current_user.id]
             if detailed_access:
+                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_default = {r[0]:r[1] for r in user_query}
                 for access in detailed_access:
                     exclude_user_ids.append(access['user_id'])
                     annotation_access = True if access['annotation']=='1' else False
-                    newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
-                    db.session.add(newDetailedException)
+                    if user_default[access['user_id']] != 'admin':
+                        if user_default[access['user_id']] == 'worker': 
+                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission='worker', annotation=annotation_access)
+                        else:
+                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
+                        db.session.add(newDetailedException)
 
             if permission != 'default' and annotation != 'default':
-                user_ids = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()]
+                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_ids = [r[0] for r in user_query]
+                user_permissions = [r[1] for r in user_query]   
                 annotation_access = True if annotation== '1' else False
                 for user_id in user_ids:
-                    newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
+                    if user_permissions[i] == 'worker':
+                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission='worker', annotation=annotation_access)
+                    else:
+                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
                     db.session.add(newException)
             elif permission != 'default':
-                user_query = db.session.query(User.id, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+                user_query = db.session.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
                 user_ids = [r[0] for r in user_query]
-                user_annotations = [r[1] for r in user_query]
+                user_permissions = [r[1] for r in user_query]   
+                user_annotations = [r[2] for r in user_query]
                 for i in range(len(user_ids)):
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
-                    db.session.add(newException)
+                    if user_permissions[i] != 'worker':
+                        newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
+                        db.session.add(newException)
             elif annotation != 'default':
                 user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
                 user_ids = [r[0] for r in user_query]
@@ -1637,8 +1656,6 @@ def requestLabelSpec():
 def checkTrapgroupCode():
     '''Checks the user's specified trapgroup code and returns the detected trapgroups in the specified folder.'''
 
-    #TODO added organisation_id and survey_id. The former is needed for survey creation, and the latter is for edit survey modal.
-
     status = 'FAILURE'
     reply = None
     userPermissions = None
@@ -1663,7 +1680,7 @@ def checkTrapgroupCode():
         survey_id = request.form['survey_id']
         survey = db.session.query(Survey).get(survey_id)
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==survey.organisation_id).first()
-        organisation_id = survey.organisation
+        organisation_id = survey.organisation.id
 
     if userPermissions and userPermissions.create:
         if 'revoke_id' in request.form:
@@ -1693,9 +1710,17 @@ def checkTrapgroupCode():
 def getFolders():
     '''Fetches the list of folders in the user's S3 folder.'''
     
+    org_id = request.args.get('org_id', None)
+    survey_id = request.args.get('survey_id', None)
     folders = []
     if current_user.is_authenticated:
-        organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
+        if org_id:
+            organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.create==True).all()
+        elif survey_id:
+            organisations = db.session.query(Organisation).join(UserPermissions).join(Survey).filter(UserPermissions.user_id==current_user.id).filter(Survey.id==survey_id).filter(UserPermissions.create==True).all()
+        else:
+            organisations = db.session.query(Organisation).join(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.create==True).all()
+       
         for organisation in organisations:
             folders.extend(list_all(Config.BUCKET,organisation.folder+'/')[0])
             if 'Downloads' in folders: folders.remove('Downloads')
@@ -3357,6 +3382,7 @@ def getHomeSurveys():
     order = request.args.get('order', 5, type=int)
     search = request.args.get('search', '', type=str)
     current_downloads = request.args.get('downloads', '', type=str)
+    permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
 
     siteSQ = db.session.query(Survey.id,func.count(Trapgroup.id).label('count')).join(Trapgroup).group_by(Survey.id).subquery()
     # availableJobsSQ = db.session.query(Task.id,func.count(Turkcode.id).label('count')).join(Turkcode).filter(Turkcode.active==True).group_by(Task.id).subquery()
@@ -3472,10 +3498,17 @@ def getHomeSurveys():
             if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
             if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
             if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
-            if share_permission: survey_permissions[item[0]]['share_level']=share_permission
+            if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-    permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
+            # TODO: LOOk AT THIS
+            # if exception_permission and (exception_uid==current_user.id) and (permission_order.index(exception_permission) > permission_order.index(survey_permissions[item[0]]['exception'])): survey_permissions[item[0]]['exception']=exception_permission
+            # if up_default and (up_uid==current_user.id) and (permission_order.index(up_default) > permission_order.index(survey_permissions[item[0]]['default'])): survey_permissions[item[0]]['default']=up_default
+            # if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
+            # if share_permission and (sup_uid==current_user.id) and (permission_order.index(share_permission) > permission_order.index(survey_permissions[item[0]]['share_level'])): survey_permissions[item[0]]['share_level']=share_permission
+            # if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+
+    # permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
     for survey_id in survey_permissions:
         if survey_permissions[survey_id]['exception']:
             survey_data[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -3580,10 +3613,17 @@ def getHomeSurveys():
                 if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
                 if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
                 if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
-                if share_permission: survey_permissions[item[0]]['share_level']=share_permission
+                if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-        permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
+                #TODO: LOOK AT THIS
+                # if exception_permission and (exception_uid==current_user.id) and (permission_order.index(exception_permission) > permission_order.index(survey_permissions[item[0]]['exception'])): survey_permissions[item[0]]['exception']=exception_permission
+                # if up_default and (up_uid==current_user.id) and (permission_order.index(up_default) > permission_order.index(survey_permissions[item[0]]['default'])): survey_permissions[item[0]]['default']=up_default
+                # if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
+                # if share_permission and (sup_uid==current_user.id) and (permission_order.index(share_permission) > permission_order.index(survey_permissions[item[0]]['share_level'])): survey_permissions[item[0]]['share_level']=share_permission
+                # if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+
+        # permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
         for survey_id in survey_permissions:
             if survey_permissions[survey_id]['exception']:
                 survey_data2[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -3729,6 +3769,7 @@ def getJobs():
     individual_id_names = []
     covered_tasks = []
     for item in tasks:
+        sub_task_permission = True
         if item[0] not in covered_tasks:
             covered_tasks.append(item[0])
             clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(item[0]))
@@ -3792,6 +3833,10 @@ def getJobs():
 
                     taskInfo['name'] = name
 
+                    # Check for sub task permission and if you do not have permission then do not add task to list  
+                    if not all(checkAnnotationPermission(current_user.id,sub_task.id) for sub_task in dbTask.sub_tasks):
+                        sub_task_permission = False
+
                 if taskInfo['remaining'] != None:
                     taskInfo['remaining'] = str(taskInfo['remaining']) + ' individuals remaining'
                 else:
@@ -3803,7 +3848,8 @@ def getJobs():
                 else:
                     taskInfo['remaining'] = '0 clusters remaining'
             
-            task_list.append(taskInfo)
+            if sub_task_permission:
+                task_list.append(taskInfo)
 
     if (page*5) >= len(task_list):
         has_next = False
@@ -4191,7 +4237,7 @@ def exportRequest():
 
         if exportType == 'WildBook':
             # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
+            fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name
 
             # Delete old file if exists
             try:
@@ -4199,7 +4245,7 @@ def exportRequest():
             except:
                 pass
 
-            generate_wildbook_export.delay(task_id=task_id,data=data)
+            generate_wildbook_export.delay(task_id=task_id,data=data,user_name=current_user.username)
 
         return json.dumps('Success')
 
@@ -4561,11 +4607,13 @@ def skipSuggestion(individual_1,individual_2):
                                 .first()
 
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
     # if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
 
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                             or_(\
@@ -4593,11 +4641,13 @@ def undoPreviousSuggestion(individual_1,individual_2):
     individual1 = db.session.query(Individual).get(int(individual_1))
     individual2 = db.session.query(Individual).get(int(individual_2))
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
     
     # if (individual1 and individual2) and ((any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks))) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and ((any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks))) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
         indSimilarity = db.session.query(IndSimilarity).filter(\
                                         or_(\
                                             and_(\
@@ -4664,10 +4714,13 @@ def dissociateDetection(detection_id):
     else:
         task = current_user.turkcode[0].task
 
+    tasks = [r for r in task.sub_tasks]
+    tasks.append(task)
+
     detection = db.session.query(Detection).get(detection_id)
 
     # if task and detection and ((current_user==task.survey.user) or (current_user.parent in detection.image.camera.trapgroup.survey.user.workers) or (current_user.parent == detection.image.camera.trapgroup.survey.user)):
-    if task and detection and (checkSurveyPermission(current_user.id,task.survey_id,'write') or (checkAnnotationPermission(current_user.parent_id,task.id))):
+    if task and detection and (all(checkSurveyPermission(current_user.id,task.survey_id,'write') for task in tasks) or all(checkAnnotationPermission(current_user.parent_id,task.id) for task in tasks)):
 
         if not individual_id:
             individual = db.session.query(Individual)\
@@ -4754,9 +4807,11 @@ def reAssociateDetection(detection_id,individual_id):
     detection = db.session.query(Detection).get(detection_id)
     individual = db.session.query(Individual).get(individual_id)
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
 
     # if detection and individual and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
-    if detection and individual and (task in individual.tasks) and checkAnnotationPermission(current_user.parent_id,task.id):
+    if detection and individual and (task in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
 
         oldIndividual = db.session.query(Individual)\
                                 .join(Task,Individual.tasks)\
@@ -4771,9 +4826,6 @@ def reAssociateDetection(detection_id,individual_id):
 
             if len(oldIndividual.detections[:]) == 0:
                 oldIndividual.active = False
-
-            task_ids = [r.id for r in task.sub_tasks]
-            task_ids.append(task.id)
 
             individual.detections.append(detection)
             individual.tasks = db.session.query(Task)\
@@ -4820,7 +4872,7 @@ def suggestionUnidentifiable(individual_id):
     # num2 = task.size + task.test_size
 
     # if individual and individual.active and (task in individual.tasks) and ((current_user.parent in individual.tasks[0].survey.user.workers) or (current_user.parent == individual.tasks[0].survey.user)):
-    if individual and individual.active and (task in individual.tasks) and checkAnnotationPermission(current_user.parent_id,task.id):
+    if individual and individual.active and (task in individual.tasks) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
         
         if Config.DEBUGGING: app.logger.info('Individual {} marked as unidentifiable'.format(individual.name))
 
@@ -4890,7 +4942,7 @@ def acceptSuggestion(individual_1,individual_2):
     # num2 = task.size + task.test_size
 
     # if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
 
         if Config.DEBUGGING: app.logger.info('Individual {} combined into individual {}'.format(individual2.name,individual1.name))
 
@@ -4994,11 +5046,13 @@ def rejectSuggestion(individual_1,individual_2):
                                 .first()
 
     task = current_user.turkcode[0].task
+    task_ids = [r.id for r in task.sub_tasks]
+    task_ids.append(task.id)
     # num = db.session.query(Individual).filter(Individual.user_id==current_user.id).count()
     # num2 = task.size + task.test_size
 
     # if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if (individual1 and individual2) and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (any(task in individual2.tasks for task in task.sub_tasks) or (task in individual2.tasks)) and (individual1 != individual2) and (all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids)):
 
         indSimilarity  = db.session.query(IndSimilarity).filter(\
                                     or_(\
@@ -5033,7 +5087,7 @@ def getSuggestion(individual_id):
     reply = {}
 
     # if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and ((current_user.parent in individual1.tasks[0].survey.user.workers) or (current_user.parent == individual1.tasks[0].survey.user)):
-    if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and (checkAnnotationPermission(current_user.parent_id,task.id)):
+    if individual1 and (any(task in individual1.tasks for task in task.sub_tasks) or (task in individual1.tasks)) and all(checkAnnotationPermission(current_user.parent_id,task_id) for task_id in task_ids):
 
         if suggestionID:
             indSim = db.session.query(IndSimilarity).filter(\
@@ -5487,6 +5541,10 @@ def get_clusters():
     # if (task == None) or ((current_user.parent not in task.survey.user.workers) and (current_user.parent != task.survey.user) and (current_user != task.survey.user)):
     if (task == None) or not (checkAnnotationPermission(current_user.parent_id,task_id) or checkSurveyPermission(current_user.id,task.survey_id,'read')):
         return {'redirect': url_for('done')}, 278
+    else:
+        if '-5' in task.tagging_level:
+            if not all(checkAnnotationPermission(current_user.parent_id,task.id) for task in task.sub_tasks):
+                return {'redirect': url_for('done')}, 278
 
     # Check worker cluster counts
     if current_user.admin:
@@ -6740,6 +6798,9 @@ def assignLabel(clusterID):
                         session.commit()
                         session.close()
 
+        else:
+            return {'redirect': url_for('done')}, 278
+
         if (not current_user_admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(task_id),current_user_username)):
             return {'redirect': url_for('done')}, 278
         else:
@@ -7010,7 +7071,7 @@ def submitComparison(groundTruth,task_id1,task_id2):
         translations = request.form['translations']
         task1 = db.session.query(Task).get(int(task_id1))
         task2 = db.session.query(Task).get(int(task_id2))
-        if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read'):
+        if task1 and task2 and checkSurveyPermission(current_user.id,task1.survey_id,'read') and checkSurveyPermission(current_user.id,task2.survey_id,'read'):
             GLOBALS.redisClient.delete('confusions_'+str(current_user.id))
             prepareComparison.delay(translations=translations,groundTruth=groundTruth,task_id1=task_id1,task_id2=task_id2,user_id=str(current_user.id))
             return json.dumps('success')
@@ -7048,6 +7109,12 @@ def comparison():
             if confusions:
                 confusions = json.loads(confusions.decode())
                 ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
+
+                task1 = db.session.query(Task).get(ground_truths['task1'])
+                task2 = db.session.query(Task).get(ground_truths['task2'])
+
+                if not checkSurveyPermission(current_user.id,task1.survey_id,'read') or not checkSurveyPermission(current_user.id,task2.survey_id,'read'):
+                    return redirect(url_for('index'))
 
                 # Generate some stats
                 total_sightings = 0
@@ -7592,7 +7659,7 @@ def generateExcel(selectedTask):
         return json.dumps('error')
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.xlsx'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.xlsx'
 
     # Delete old file if exists
     try:
@@ -7601,7 +7668,7 @@ def generateExcel(selectedTask):
         pass
 
     app.logger.info('Calling generate_excel')
-    generate_excel.delay(task_id=int(selectedTask))
+    generate_excel.delay(task_id=int(selectedTask), user_name=current_user.username)
 
     return json.dumps('success')
 
@@ -7659,7 +7726,7 @@ def generateCSV():
 
     task = db.session.query(Task).get(selectedTasks[0])
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.csv'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.csv'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.csv'
 
     # Delete old file if exists
     try:
@@ -7672,8 +7739,8 @@ def generateCSV():
     else:
         queue='default'
 
-    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations))
-    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations}, queue=queue)
+    app.logger.info('Calling generate_csv: {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}'.format(selectedTasks, level, columns, custom_columns, label_type, includes, excludes, start_date, end_date, column_translations, current_user.username))
+    generate_csv.apply_async(kwargs={'selectedTasks':selectedTasks, 'selectedLevel':level, 'requestedColumns':columns, 'custom_columns':custom_columns, 'label_type':label_type, 'includes':includes, 'excludes':excludes, 'startDate':start_date, 'endDate':end_date, 'column_translations': column_translations, 'user_name': current_user.username}, queue=queue)
 
     return json.dumps({'status':'success', 'message': None})
 
@@ -7690,7 +7757,7 @@ def generateCOCO():
         return json.dumps('error')
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name+'.json'
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name+'.json'
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name+'.json'
 
     # Delete old file if exists
     try:
@@ -7698,7 +7765,7 @@ def generateCOCO():
     except:
         pass
 
-    generate_coco.delay(task_id=task_id)
+    generate_coco.delay(task_id=task_id, user_name=current_user.username)
 
     return json.dumps('success')
 
@@ -7759,7 +7826,7 @@ def checkDownload(fileType,selectedTask):
         return json.dumps('error')
 
     # fileName = task.survey.user.folder+'/docs/'+task.survey.user.username+'_'+task.survey.name+'_'+task.name
-    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+task.survey.name+'_'+task.name
+    fileName = task.survey.organisation.folder+'/docs/'+task.survey.organisation.name+'_'+current_user.username+'_'+task.survey.name+'_'+task.name
     if fileType == 'csv':
         fileName += '.csv'
     elif fileType == 'excel':
@@ -8322,28 +8389,52 @@ def getClassifierInfo():
 def get_presigned_url():
     """Returns a presigned URL in order to upload a file directly to S3."""
     if Config.DEBUGGING: print('Getting presigned')
-    if current_user.admin:
-        return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
-                                                                Params={'Bucket': Config.BUCKET,
-                                                                        'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
-                                                                        'ContentType': request.json['contentType'],
-                                                                        'Body' : ''},
-                                                                ExpiresIn=604800) # 7 days (the maximum)
-    else:
-        return 'error'
+    # if current_user.admin:
+    #     return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+    #                                                             Params={'Bucket': Config.BUCKET,
+    #                                                                     'Key': current_user.folder + '/' + request.json['filename'].strip('/'),
+    #                                                                     'ContentType': request.json['contentType'],
+    #                                                                     'Body' : ''})
+    # else:
+    #     return 'error'
+
+    #TODO: Updated permissions for now but uploader needs updating
+    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==request.json['survey_id']).first()
+    if organisation:
+        userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
+        if userPermissions and userPermissions.create:
+            
+            return  GLOBALS.s3UploadClient.generate_presigned_url(ClientMethod='put_object',
+                                                                    Params={'Bucket': Config.BUCKET,
+                                                                            'Key': organisation.folder + '/' + request.json['filename'].strip('/'),
+                                                                            'ContentType': request.json['contentType'],
+                                                                            'Body' : ''},
+                                                                    ExpiresIn=604800) # 7 days (the maximum)
+        
+    return 'error'
 
 @app.route('/fileHandler/check_upload_files', methods=['POST'])
 @login_required
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
-
+     #TODO: Updated permissions for now but uploader needs updating
     files = request.json['filenames']
-
+    survey_id = request.json['survey_id']
     already_uploaded = []
-    for file in files:
-        result = checkFile(file,current_user.folder)
-        if result:
-            already_uploaded.append(result)
+
+    organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==survey_id).first()
+    userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
+    if organisation and userPermissions and userPermissions.create:
+        for file in files:
+            result = checkFile(file,organisation.folder)
+            if result:
+                already_uploaded.append(result)
+
+    # already_uploaded = []
+    # for file in files:
+    #     result = checkFile(file,current_user.folder)
+    #     if result:
+    #         already_uploaded.append(result)
     
     # results = []
     # pool = Pool(processes=4)
@@ -8365,7 +8456,8 @@ def get_image_info():
     task_id = request.json['task_id']
     hash = request.json['hash']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8428,7 +8520,8 @@ def get_required_files():
     include_video = request.json['include_video']
     include_frames = request.json['include_frames']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8622,7 +8715,8 @@ def set_download_status():
 
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         include_empties = request.json['include_empties']
         labels = request.json['species']
         include_video = request.json['include_video']
@@ -8657,6 +8751,8 @@ def set_download_status():
         else:
             setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=include_video, include_frames=include_frames)
             return json.dumps('success')
+        
+    return json.dumps('error')
 
 @app.route('/fileHandler/check_download_initialised', methods=['POST'])
 @login_required
@@ -8666,7 +8762,8 @@ def check_download_initialised():
     task_id = request.json['selectedTask']
     task = db.session.query(Task).get(task_id)
     reply = {'status': 'ready'}
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         filesToDownload = GLOBALS.redisClient.get(str(task.id)+'_filesToDownload')
         if filesToDownload:
             filesToDownload = int(filesToDownload.decode())
@@ -8687,7 +8784,8 @@ def mark_images_downloaded():
     if include_video:
         video_ids = request.json['image_ids']
         video = db.session.query(Video).get(video_ids[0])
-        if video and (video.camera.trapgroup.survey.user==current_user):
+        # if video and (video.camera.trapgroup.survey.user==current_user):
+        if video and checkSurveyPermission(current_user.id,video.camera.trapgroup.survey_id,'read'):
             videos = db.session.query(Video).filter(Video.id.in_(video_ids)).distinct().all()
             for video in videos:
                 video.downloaded = True
@@ -8695,7 +8793,8 @@ def mark_images_downloaded():
     else:
         image_ids = request.json['image_ids']
         image = db.session.query(Image).get(image_ids[0])
-        if image and (image.camera.trapgroup.survey.user==current_user):
+        # if image and (image.camera.trapgroup.survey.user==current_user):
+        if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
             images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
             for image in images:
                 image.downloaded = True
@@ -8710,7 +8809,8 @@ def download_complete():
 
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
-    if task and (task.survey.user==current_user):
+    # if task and (task.survey.user==current_user):
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
         resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         return json.dumps('success')
@@ -9496,10 +9596,15 @@ def searchSites():
     unique_sites = {}
     search = ast.literal_eval(request.form['search'])
     advanced = ast.literal_eval(request.form['advanced'])
+    task_ids = ast.literal_eval(request.form['task_ids'])
 
-    if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {}'.format(search, advanced))
+    if task_ids:
+        if task_ids[0] == '0':
+            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
+        else:
+            sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read')
 
-    sites = surveyPermissionsSQ(db.session.query(Trapgroup.id, Trapgroup.tag, Trapgroup.latitude, Trapgroup.longitude).join(Survey),current_user.id,'read')
+    if Config.DEBUGGING: app.logger.info('Searching for sites matching {} {} for tasks {}'.format(search, advanced, task_ids))
 
     if advanced == 'true':
         # Regular expression search 
@@ -9563,14 +9668,27 @@ def saveGroup():
 
     return json.dumps({'status': status, 'message': message})
 
-@app.route('/getGroups')
+@app.route('/getGroups', methods=['POST'])
 @login_required
 def getGroups():
     ''' Get a list of groups '''
     groups = []
+    survey_ids = []
+    task_ids = ast.literal_eval(request.form['task_ids'])
     if current_user and current_user.is_authenticated:
-        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all.
-        groupsQuery = surveyPermissionsSQ(db.session.query(
+        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all. NOTE: Fixed it but just double check
+        if task_ids:
+            if task_ids[0] == '0':
+                survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id,'read').distinct().all()]
+            else:
+                survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id).join(Task).filter(Task.id.in_(task_ids)),current_user.id,'read').distinct().all()]
+
+        subquery = db.session.query(Sitegroup)\
+                        .join(Trapgroup, Sitegroup.trapgroups)\
+                        .filter(~Trapgroup.survey_id.in_(survey_ids))\
+                        .subquery()
+
+        groupsQuery = db.session.query(
                             Sitegroup.id,
                             Sitegroup.name,
                             Sitegroup.description,
@@ -9579,12 +9697,14 @@ def getGroups():
                             Trapgroup.latitude,
                             Trapgroup.longitude
                         )\
+                        .outerjoin(subquery,subquery.c.id==Sitegroup.id)\
                         .join(Trapgroup, Sitegroup.trapgroups)\
-                        .join(Survey),current_user.id,'read')\
+                        .filter(subquery.c.id==None)\
+                        .filter(Trapgroup.survey_id.in_(survey_ids))\
                         .order_by(Trapgroup.id)\
                         .distinct().all()
-
-        groups_df = pd.DataFrame(groupsQuery,columns=['group_id','group_name','group_description','site_id','tag','latitude','longitude'])
+        
+        groups_df = pd.DataFrame(groupsQuery,columns=['group_id','group_name','group_description','site_id','tag','latitude','longitude', 'survey_id','survey_name'])
         groups_df['ids'] = groups_df.groupby(['group_id','group_name','group_description','tag','latitude','longitude'])['site_id'].transform(lambda x: ','.join(x.astype(str)))
         groups_df.drop_duplicates(subset=['group_id','group_name','group_description','tag','latitude','longitude'],inplace=True)
         groups_df.drop(columns=['site_id'],inplace=True)
@@ -9707,7 +9827,7 @@ def getSurveysAndTasksForResults():
 @login_required
 def getActivityPattern():
     ''' Get the activity pattern for a species '''
-    # TODO: need to look at all the permissions for these stats endpoints
+    # TODO: need to look at all the permissions for these stats endpoints NOTE: Complete WorkR Server sstill needs to be updated at end
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         species = ast.literal_eval(request.form['species'])
@@ -9737,10 +9857,11 @@ def getActivityPattern():
             csv = True
         else:
             csv = False
-
+        folder = None
         if Config.DEBUGGING: app.logger.info('Activity data requested for {} {} {} {} {} {} {} {} {} {}'.format(task_ids,species,baseUnit,trapgroups,startDate,endDate,unit,centre,time,overlap))
     else:
         task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
     
     status = 'FAILURE'
     activity_results = None
@@ -9748,21 +9869,27 @@ def getActivityPattern():
     celery_result = None
     R_type = 'activity'
     if current_user.is_authenticated and current_user.admin:
-        folder = current_user.folder
         if task_ids:
-            if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
-                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-                try:
-                    result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
-                except:
-                    pass
-            
-            user_id = current_user.id
-            bucket = Config.BUCKET
-            result = calculate_activity_pattern.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
-            GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-            status = 'PENDING'
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            if survey:
+                folder = survey[1]
+
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id, terminate=True)
+                    except:
+                        pass
+                
+                user_id = current_user.id
+                bucket = Config.BUCKET
+                result = calculate_activity_pattern.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'unit': unit, 'centre': centre, 'time': time, 'overlap': overlap, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -9774,25 +9901,25 @@ def getActivityPattern():
                         activity_results = celery_result['activity_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                     else:
                         message = celery_result['error']
                         status = 'FAILURE'
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
             else:
                 activity_results = None
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
-    return json.dumps({'status': status, 'activity_results': activity_results, 'message': message})
+    return json.dumps({'status': status, 'activity_results': activity_results, 'message': message, 'folder': folder})
 
 
 @app.route('/getRScript', methods=['POST'])
@@ -9927,10 +10054,13 @@ def getOccupancy():
             csv = True
         else:
             csv = False
+        
+        folder = None
 
         if Config.DEBUGGING: app.logger.info('Occupancy data requested for tasks:{} species:{} baseUnit:{} trapgroups:{} window:{} siteCovs:{} detCovs:{} covOptions:{} groups:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,baseUnit,trapgroups,window,siteCovs,detCovs,covOptions,groups,startDate,endDate,csv))
     else:
         task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
     
     status = 'FAILURE'
     celery_result = None
@@ -9938,21 +10068,27 @@ def getOccupancy():
     message = None
     R_type = 'occupancy'
     if current_user.is_authenticated and current_user.admin:
-        folder = current_user.folder
         if task_ids:
-            if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
-                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-                try:
-                    result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
-                except:
-                    pass
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            if survey:
+                folder = survey[1]
 
-            user_id = current_user.id
-            bucket = Config.BUCKET
-            result = calculate_occupancy_analysis.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
-            GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-            status = 'PENDING'
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id, terminate=True)
+                    except:
+                        pass
+
+                user_id = current_user.id
+                bucket = Config.BUCKET
+                result = calculate_occupancy_analysis.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species, 'baseUnit': baseUnit, 'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'siteCovs': siteCovs, 'detCovs': detCovs, 'covOptions': covOptions, 'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'timeToIndependence': timeToIndependence, 'timeToIndependenceUnit': timeToIndependenceUnit})
+                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -9964,27 +10100,27 @@ def getOccupancy():
                         occupancy_results = celery_result['occupancy_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                     else:
                         status = celery_result['status']
                         message = celery_result['error']
                         occupancy_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     occupancy_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
             else:
                 occupancy_results = {}
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
-    return json.dumps({'status': status, 'results': occupancy_results, 'message': message})
+    return json.dumps({'status': status, 'results': occupancy_results, 'message': message, 'folder': folder})
 
 @app.route('/getCovariateCSV', methods=['POST'])
 @login_required
@@ -9992,40 +10128,50 @@ def getCovariateCSV():
     ''' Converts the covariate data to CSV '''
     siteCovs = ast.literal_eval(request.form['siteCovs'])
     detCovs = ast.literal_eval(request.form['detCovs'])
+    task_ids = ast.literal_eval(request.form['task_ids'])
     cov_url = None
 
     if current_user.is_authenticated and current_user.admin:
-        if (len(siteCovs) > 0):
-            site_covs = pd.DataFrame(siteCovs)
-            site_covs = site_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
-            site_covs = site_covs.rename_axis('site_id').reset_index()
-            site_covs = site_covs.rename_axis(None, axis=1)
-        else:
-            site_covs = pd.DataFrame()
-            site_covs['site_id'] = None
+        if task_ids:
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
 
-        if (len(detCovs) > 0):
-            det_covs = pd.DataFrame(detCovs)
-            det_covs = det_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
-            det_covs = det_covs.rename_axis('site_id').reset_index()
-            det_covs = det_covs.rename_axis(None, axis=1)
-        else:
-            det_covs = pd.DataFrame()
-            det_covs['site_id'] = None
+            if survey:
+                folder = survey[1]
 
-        covs = pd.merge(site_covs, det_covs, on='site_id', how='outer')
+                if (len(siteCovs) > 0):
+                    site_covs = pd.DataFrame(siteCovs)
+                    site_covs = site_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+                    site_covs = site_covs.rename_axis('site_id').reset_index()
+                    site_covs = site_covs.rename_axis(None, axis=1)
+                else:
+                    site_covs = pd.DataFrame()
+                    site_covs['site_id'] = None
 
-        if (len(covs) > 0):
-            covs[['site_id', 'latitude', 'longitude']] = covs['site_id'].str.split('_', expand=True)
+                if (len(detCovs) > 0):
+                    det_covs = pd.DataFrame(detCovs)
+                    det_covs = det_covs.rename(columns={'covariate': 'site_id'}).set_index('site_id').transpose()
+                    det_covs = det_covs.rename_axis('site_id').reset_index()
+                    det_covs = det_covs.rename_axis(None, axis=1)
+                else:
+                    det_covs = pd.DataFrame()
+                    det_covs['site_id'] = None
 
-        with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
-            covs.to_csv(temp_file.name, index=False)
-            fileName = current_user.folder +'/docs/Occupancy_Covariates.csv'
-            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-            cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+                covs = pd.merge(site_covs, det_covs, on='site_id', how='outer')
 
-            # Schedule deletion
-            deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                if (len(covs) > 0):
+                    covs[['site_id', 'latitude', 'longitude']] = covs['site_id'].str.split('_', expand=True)
+
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.csv') as temp_file:
+                    covs.to_csv(temp_file.name, index=False)
+                    fileName = folder +'/docs/' + current_user.username + '_Occupancy_Covariates.csv'
+                    GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                    cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName
+
+                    # Schedule deletion
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
 
 
     return json.dumps({'cov_url': cov_url})
@@ -10072,9 +10218,12 @@ def getSpatialCaptureRecapture():
         else:
             polygonGeoJSON = None
 
+        folder = None
+
         if Config.DEBUGGING: app.logger.info('SCR data requested for tasks:{} species:{} trapgroups:{} groups:{} window:{} tags:{} siteCovs:{} covOptions:{} startDate:{} endDate:{} csv:{}'.format(task_ids,species,trapgroups,groups,window,tags,siteCovs,covOptions,startDate,endDate,csv))
     else:
         task_ids = None
+        folder = ast.literal_eval(request.form['folder'])
     
     status = 'FAILURE'
     celery_result = None
@@ -10082,49 +10231,56 @@ def getSpatialCaptureRecapture():
     msg = None
     R_type = 'scr'
     if current_user.is_authenticated and current_user.admin:
-        folder = current_user.folder
         if task_ids:
-            if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
-                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-                try:
-                    result_id = result_id.decode()
-                    celery.control.revoke(result_id, terminate=True)
-                except:
-                    pass
-
-            # check if any indiviuals exist for the species 
-            count = db.session.query(Individual).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species==species).count()
-
-            if count == 0:
-                status = 'NO_INDIVIDUALS'
-                msg = 'No individuals found for the species.'	
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
             else:
-                user_id = current_user.id
-                bucket = Config.BUCKET
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
 
-                # save shapefile to user folder
-                if shapefile_file:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shp') as temp_file:
-                        shapefile_file.save(temp_file.name)
-                        fileName = current_user.folder +'/docs/SCR_' + shapefile_file.filename
-                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                        shapefile = fileName
+            if survey:
+                folder = survey[1]
+
+                if GLOBALS.redisClient.get('analysis_' + str(current_user.id)):
+                    result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                    try:
+                        result_id = result_id.decode()
+                        celery.control.revoke(result_id, terminate=True)
+                    except:
+                        pass
+
+                # check if any indiviuals exist for the species 
+                count = db.session.query(Individual).join(Task, Individual.tasks).filter(Task.id.in_(task_ids)).filter(Individual.species==species).count()
+
+                if count == 0:
+                    status = 'NO_INDIVIDUALS'
+                    msg = 'No individuals found for the species.'	
                 else:
-                    shapefile = None
+                    user_id = current_user.id
+                    bucket = Config.BUCKET
 
-                # save shxfile to user folder
-                if shxfile_file:
-                    with tempfile.NamedTemporaryFile(delete=True, suffix='.shx') as temp_file:
-                        shxfile_file.save(temp_file.name)
-                        fileName = current_user.folder +'/docs/SCR_' + shxfile_file.filename
-                        GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
-                        shxfile = fileName
-                else:
-                    shxfile = None
+                    # save shapefile to user folder
+                    if shapefile_file:
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.shp') as temp_file:
+                            shapefile_file.save(temp_file.name)
+                            fileName = folder +'/docs/' + current_user.username + '_SCR_' + shapefile_file.filename
+                            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                            shapefile = fileName
+                    else:
+                        shapefile = None
 
-                result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'user_folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
-                GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
-                status = 'PENDING'
+                    # save shxfile to user folder
+                    if shxfile_file:
+                        with tempfile.NamedTemporaryFile(delete=True, suffix='.shx') as temp_file:
+                            shxfile_file.save(temp_file.name)
+                            fileName = folder + '/docs/' + current_user.username + '_SCR_' + shxfile_file.filename
+                            GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
+                            shxfile = fileName
+                    else:
+                        shxfile = None
+
+                    result = calculate_spatial_capture_recapture.apply_async(queue='statistics', kwargs={'task_ids': task_ids, 'species': species,'trapgroups': trapgroups, 'groups': groups, 'startDate': startDate, 'endDate': endDate, 'window': window, 'tags': tags, 'siteCovs': siteCovs, 'covOptions': covOptions,'user_id': user_id, 'folder': folder, 'bucket': bucket, 'csv': csv, 'shapefile': shapefile, 'polygonGeoJSON': polygonGeoJSON, 'shxfile': shxfile})
+                    GLOBALS.redisClient.set('analysis_' + str(user_id), result.id)
+                    status = 'PENDING'
         else:
             result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
             if result_id:
@@ -10136,27 +10292,27 @@ def getSpatialCaptureRecapture():
                         scr_results = celery_result['scr_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                     else:
                         status = celery_result['status']
                         msg = celery_result['error']
                         scr_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
                 elif status == 'FAILURE':
                     msg = 'Task {} failed'.format(result_id)
                     scr_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
             else:
                 msg = 'No task id found'
                 scr_results = {}
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'user_folder': folder})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
 
-    return json.dumps({'status': status, 'results': scr_results, 'message': msg})
+    return json.dumps({'status': status, 'results': scr_results, 'message': msg, 'folder': folder})
 
 @app.route('/populateSiteSelector')
 @login_required
@@ -10176,24 +10332,37 @@ def populateSiteSelector():
 @login_required
 def cancelResults():
     ''' Cancel a results analysis '''
-    status = ''
+    status = 'FAILURE'
     result_type = ast.literal_eval(request.form['result_type'])
+    task_ids = ast.literal_eval(request.form['task_ids'])
+    
     if current_user.is_authenticated and current_user.admin:
-        result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
-        if result_id:
-            try:
-                result_id = result_id.decode()
-                if result_type == 'summary':
-                    celery.control.revoke(result_id, terminate=True)
+        if task_ids:
+            if task_ids[0] == '0':
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).group_by(Task.survey_id).order_by(Task.id), current_user.id, 'read').first()
+            else:
+                survey = surveyPermissionsSQ(db.session.query(Survey.id, Organisation.folder).join(Task).filter(Task.id.in_(task_ids)), current_user.id, 'read').first()
+            
+            if survey:
+                folder = survey[1]
+
+                result_id = GLOBALS.redisClient.get('analysis_' + str(current_user.id))
+                if result_id:
+                    try:
+                        result_id = result_id.decode()
+                        if result_type == 'summary':
+                            celery.control.revoke(result_id, terminate=True)
+                        else:
+                            celery.control.revoke(result_id, terminate=True)
+                            clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'folder': folder, 'user_name': current_user.username})
+                        if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
+                        GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
+                        status = 'SUCCESS'
+                    except:
+                        status = 'FAILURE'
+                        pass
                 else:
-                    celery.control.revoke(result_id, terminate=True)
-                    clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'user_folder': current_user.folder})
-                if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
-                GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                status = 'SUCCESS'
-            except:
-                status = 'FAILURE'
-                pass
+                    status = 'SUCCESS'
 
     return json.dumps({'status': status})
 
@@ -10405,13 +10574,13 @@ def getUsers():
                                             )\
                                             .join(UserPermissions, User.id==UserPermissions.user_id)\
                                             .join(Organisation)\
-                                            .filter(Organisation.id.in_(organisation_ids))
+                                            .filter(Organisation.id.in_(organisation_ids))\
+                                            .filter(User.id!=Organisation.root_user_id)
 
 
             searches = re.split('[ ,]',search)
             for search in searches:
                 user_permissions = user_permissions.filter(or_(User.username.contains(search),Organisation.name.contains(search)))
-
 
             if order == 1:
                 user_permissions = user_permissions.order_by(User.username)
@@ -10424,39 +10593,31 @@ def getUsers():
 
             users_ids = {}
             for user_permission in user_permissions.items:
-                if user_permission[0] == user_permission[9]:
-                    root_user = True
-                else:
-                    root_user = False
+                if user_permission[0] in users_ids:
+                    users[users_ids[user_permission[0]]]['user_permissions'].append({
+                        'delete': user_permission[3],
+                        'create': user_permission[4],
+                        'annotation': user_permission[5],
+                        'default': user_permission[6],
+                        'organisation_id': user_permission[7],
+                        'organisation': user_permission[8]
+                    })
 
-                if not root_user:
-                    if user_permission[0] in users_ids:
-                        users[users_ids[user_permission[0]]]['user_permissions'].append({
+                else:
+                    users.append({
+                        'id': user_permission[0],
+                        'username': user_permission[1],
+                        'email': user_permission[2],
+                        'user_permissions': [{
                             'delete': user_permission[3],
                             'create': user_permission[4],
                             'annotation': user_permission[5],
                             'default': user_permission[6],
                             'organisation_id': user_permission[7],
-                            'organisation': user_permission[8],
-                            'root_user': root_user
-                        })
-
-                    else:
-                        users.append({
-                            'id': user_permission[0],
-                            'username': user_permission[1],
-                            'email': user_permission[2],
-                            'user_permissions': [{
-                                'delete': user_permission[3],
-                                'create': user_permission[4],
-                                'annotation': user_permission[5],
-                                'default': user_permission[6],
-                                'organisation_id': user_permission[7],
-                                'organisation': user_permission[8],
-                                'root_user': root_user
-                            }]
-                        })
-                        users_ids[user_permission[0]] = len(users)-1
+                            'organisation': user_permission[8]
+                        }]
+                    })
+                    users_ids[user_permission[0]] = len(users)-1
 
             next_users = user_permissions.next_num if user_permissions.has_next else None
             prev_users = user_permissions.prev_num if user_permissions.has_prev else None
@@ -10477,6 +10638,7 @@ def savePermissions():
 
     status = 'FAILURE'
     message = 'Unable to save permissions.'
+    permission_order = [None, 'worker', 'hidden', 'read', 'write', 'admin']
 
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,organisation_id):
         user_permission = db.session.query(UserPermissions).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -10489,36 +10651,58 @@ def savePermissions():
             if permission_type == 'default':
                 old_default = user_permission.default
                 user_permission.default = permission_value
-                user_msg = '<p> Your default permission for organisation {} has been set to {}.</p>'.format(org_name, permission_value)
-                org_msg = '<p> The default permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
-                if permission_value == 'admin':
+                user_msg = '<p> Your default permission for organisation {} has been set to {}.'.format(org_name, permission_value)
+                org_msg = '<p> The default permission for user {} has been set to {} for organisation {}.'.format(user_name, permission_value, org_name)
+
+                if permission_value == 'admin' or permission_value == 'worker':
                     user_permission_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(SurveyPermissionException.user_id==user_id).filter(Survey.organisation_id==organisation_id).all()
                     for user_permission_exception in user_permission_exceptions:
                         db.session.delete(user_permission_exception)
+            
+                if permission_order.index(permission_value) < permission_order.index('write'): 
+                    if user_permission.delete:
+                        user_permission.delete = False
+                        user_msg += ' Your delete permission for organisation {} has been revoked.'.format(org_name)
+                        org_msg += ' The delete permission for user {} has been set to False for organisation {}.'.format(user_name, org_name)
+
+                if permission_order.index(permission_value) < permission_order.index('hidden'):
+                    if user_permission.create:
+                        user_permission.create = False
+                        user_msg += ' Your create permission for organisation {} has been revoked.'.format(org_name)
+                        org_msg += ' The create permission for user {} has been set to False for organisation {}.'.format(user_name, org_name)
+
+                user_msg += '</p>'
+                org_msg += '</p>'
+
             elif permission_type == 'delete':
                 if permission_value == '1':
-                    user_permission.delete = True
-                    user_msg = '<p> You have been granted delete permission for organisation {}.</p>'.format(org_name)
+                    if permission_order.index(user_permission.default) >= permission_order.index('write'):
+                        user_permission.delete = True
+                        user_msg = '<p> You have been granted delete permission for organisation {}.</p>'.format(org_name)
+                        org_msg = '<p> The delete permission for user {} has been set to True for organisation {}.</p>'.format(user_name, org_name)
                 else:
                     user_permission.delete = False
                     user_msg = '<p> Your delete permission for organisation {} has been revoked.</p>'.format(org_name)
-                org_msg = '<p> The delete permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                    org_msg = '<p> The delete permission for user {} has been set to False for organisation {}.</p>'.format(user_name, org_name)
             elif permission_type == 'create':
                 if permission_value == '1':
-                    user_permission.create = True
-                    user_msg = '<p> You have been granted create permission for organisation {}.</p>'.format(org_name)
+                    if permission_order.index(user_permission.default) >= permission_order.index('hidden'):
+                        user_permission.create = True
+                        user_msg = '<p> You have been granted create permission for organisation {}.</p>'.format(org_name)
+                        org_msg = '<p> The create permission for user {} has been set to True for organisation {}.</p>'.format(user_name, org_name)
                 else:
                     user_permission.create = False
                     user_msg = '<p> Your create permission for organisation {} has been revoked.</p>'.format(org_name)
-                org_msg = '<p> The create permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                    org_msg = '<p> The create permission for user {} has been set to False for organisation {}.</p>'.format(user_name, org_name)
             elif permission_type == 'annotation':
                 if permission_value == '1':
                     user_permission.annotation = True
                     user_msg = '<p> You have been granted annotation permission for organisation {}.</p>'.format(org_name)
+                    org_msg = '<p> The annotation permission for user {} has been set to True for organisation {}.</p>'.format(user_name, org_name)
                 else:
                     user_permission.annotation = False
-                    user_msg = '<p> Your annotation permission for organisation {} has been revoked.</p>'.format(org_name)
-                org_msg = '<p> The annotation permission for user {} has been set to {} for organisation {}.</p>'.format(user_name, permission_value, org_name)
+                    user_msg = '<p> Your annotation permission for organisation {} has been revoked.</p>'.format(org_name) 
+                    org_msg = '<p> The annotation permission for user {} has been set to False for organisation {}.</p>'.format(user_name, org_name)
 
             if user_msg != '':
                 notif = Notification(user_id=user_id, contents=user_msg, seen=False)
@@ -10550,11 +10734,21 @@ def getDetailedAccess(user_id, org_id):
 
     detailed_access = []
     if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+
+        ss_subquery = db.session.query(SurveyShare.survey_id)\
+                                .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                .filter(UserPermissions.user_id==user_id)\
+                                .filter(SurveyShare.organisation_id==org_id)\
+                                .distinct().subquery()
+    
         survey_permissions = db.session.query(SurveyPermissionException)\
                                         .join(Survey)\
+                                        .outerjoin(SurveyShare)\
                                         .filter(SurveyPermissionException.user_id==user_id)\
-                                        .filter(Survey.organisation_id==org_id)\
-                                        .all()
+                                        .filter(or_(Survey.organisation_id==org_id,and_(~Survey.id.in_(ss_subquery), SurveyShare.organisation_id==org_id)))\
+                                        .distinct().all()
 
         for survey_permission in survey_permissions:
             detailed_access.append({
@@ -10989,10 +11183,13 @@ def cancelSurveyShare(token):
 @login_required
 def getOrganisations():
     ''' Gets all the organisations for the current user ''' 
-
+    create = request.args.get('create', False, type=bool)
     organisations = []
     if current_user and current_user.is_authenticated:
-        orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).distinct().all()
+        if create:
+            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).filter(UserPermissions.create == True).distinct().all()
+        else:
+            orgs = db.session.query(Organisation.id, Organisation.name).join(UserPermissions).filter(UserPermissions.user_id == current_user.id).distinct().all()
         for org in orgs:
             organisations.append({
                 'id': org[0],
@@ -11032,7 +11229,21 @@ def removeUserFromOrganisation():
         user_permission = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.user_id==user_id).first()
         db.session.delete(user_permission)
 
-        user_exceptions = db.session.query(SurveyPermissionException).join(Survey).filter(Survey.organisation_id==org_id).filter(SurveyPermissionException.user_id==user_id).all()
+        ss_subquery = db.session.query(SurveyShare.survey_id)\
+                                .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                .filter(UserPermissions.user_id==user_id)\
+                                .filter(SurveyShare.organisation_id==org_id)\
+                                .distinct().subquery()
+    
+        user_exceptions = db.session.query(SurveyPermissionException)\
+                                        .join(Survey)\
+                                        .outerjoin(SurveyShare)\
+                                        .filter(SurveyPermissionException.user_id==user_id)\
+                                        .filter(or_(Survey.organisation_id==org_id,and_(~Survey.id.in_(ss_subquery), SurveyShare.organisation_id==org_id)))\
+                                        .distinct().all()
+
         for user_exception in user_exceptions:
             db.session.delete(user_exception)
 
@@ -11170,10 +11381,10 @@ def getOrganisationSurveys(org_id):
 @app.route('/getOrganisationUsers/<org_id>')	
 @login_required
 def getOrganisationUsers(org_id):
-    ''' Gets all the non admin users for an organisation  '''
+    ''' Gets all the non admin users for an organisation and exclude current_user '''
     users = []
     if current_user and current_user.is_authenticated:
-        users = db.session.query(User.id, User.username).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').distinct().all()
+        users = db.session.query(User.id, User.username, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').filter(User.id!=current_user.id).distinct().all()
     return json.dumps(users)
 
 @app.route('/populateAnnotatorSelector')
@@ -11231,3 +11442,38 @@ def landing():
     else:
         if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
         return render_template('html/landing.html', title='Welcome To TrapTagger!', helpFile='landing', version=Config.VERSION)
+
+@app.route('/getUserSurveysForOrganisation/<user_id>/<org_id>')
+@login_required
+def getUserSurveysForOrganisation(user_id, org_id):
+    ''' Gets all the surveys for a user and organisation (including shared surveys if they do not belong to the organisation that shared them) '''
+
+    surveys = []
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+        org_surveys = db.session.query(Survey.id, Survey.name).filter(Survey.organisation_id==org_id).distinct().all()
+
+        ss_subquery = db.session.query(SurveyShare.survey_id)\
+                                        .join(Survey, Survey.id==SurveyShare.survey_id)\
+                                        .join(Organisation, Organisation.id==Survey.organisation_id)\
+                                        .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                        .filter(UserPermissions.user_id==user_id)\
+                                        .filter(SurveyShare.organisation_id==org_id)\
+                                        .distinct().subquery()
+
+        shared_surveys = db.session.query(
+                                            Survey.id,  
+                                            Survey.name,
+                                            SurveyShare.permission
+                                        )\
+                                        .join(SurveyShare, SurveyShare.survey_id==Survey.id)\
+                                        .filter(SurveyShare.organisation_id==org_id)\
+                                        .filter(~Survey.id.in_(ss_subquery))\
+                                        .distinct().all()
+
+        surveys = org_surveys + shared_surveys
+
+    return json.dumps(surveys)
+
+
+
+                    

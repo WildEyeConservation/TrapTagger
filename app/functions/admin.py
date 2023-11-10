@@ -476,13 +476,40 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete trap groups.'
                 app.logger.info('Failed to delete Trapgroups')
 
+        #TODO: DOuble check this
+        #Delete survey shares
+        if status != 'error':
+            try:
+                survey_shares = db.session.query(SurveyShare).filter(SurveyShare.survey_id==survey_id).all()
+                for share in survey_shares:
+                    db.session.delete(share)
+                db.session.commit()
+                app.logger.info('Survey shares deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete survey shares.'
+                app.logger.info('Failed to delete survey shares.')
+
+        #Delete Survey Permission Exceptions
+        if status != 'error':
+            try:
+                survey_permission_exceptions = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.survey_id==survey_id).all()
+                for exception in survey_permission_exceptions:
+                    db.session.delete(exception)
+                db.session.commit()
+                app.logger.info('Survey permission exceptions deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete survey permission exceptions.'
+                app.logger.info('Failed to delete survey permission exceptions.')
+                
         #Delete images from S3
         if status != 'error':
             try:
                 survey = db.session.query(Survey).get(survey_id)
                 s3 = boto3.resource('s3')
                 bucketObject = s3.Bucket(Config.BUCKET)
-                bucketObject.objects.filter(Prefix=survey.user.folder+'/'+survey.name+'/').delete()
+                bucketObject.objects.filter(Prefix=survey.organisation.folder+'/'+survey.name+'/').delete()
                 app.logger.info('images deleted from S3 successfully.')
             except:
                 # status = 'error'
@@ -492,7 +519,7 @@ def delete_survey(self,survey_id):
         #Delete images from S3-comp
         if status != 'error':
             try:
-                bucketObject.objects.filter(Prefix=survey.user.folder+'-comp/'+survey.name+'/').delete()
+                bucketObject.objects.filter(Prefix=survey.organisation.folder+'-comp/'+survey.name+'/').delete()
                 app.logger.info('images deleted from S3-comp successfully.')
             except:
                 # status = 'error'

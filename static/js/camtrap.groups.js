@@ -55,9 +55,12 @@ function searchSites() {
         sitesDiv.removeChild(sitesDiv.firstChild);
     }
 
+    var task_ids = getSelectedTasks()
+
     var formData = new FormData();
     formData.append('search', JSON.stringify(search));
     formData.append('advanced', JSON.stringify(advancedSearch.toString()));
+    formData.append('task_ids', JSON.stringify(task_ids));
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -656,6 +659,10 @@ function getGroups() {
     while (groupsDiv.firstChild) {
         groupsDiv.removeChild(groupsDiv.firstChild);
     }
+
+    task_ids = getSelectedTasks()
+    var formData = new FormData();
+    formData.append('task_ids', JSON.stringify(task_ids));
     
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function() {
@@ -664,12 +671,18 @@ function getGroups() {
             var groups = reply.groups
             // console.log(groups)
             if (groups.length == 0) {
+                groupsDiv.appendChild(document.createElement('br'))
+                groupsDiv.appendChild(document.createElement('br'))
                 var noGroups = document.createElement('h5')
                 noGroups.align = 'center'
-                noGroups.innerHTML = 'You have no site groups. You can create a group by clicking the "Save Sites as Group" button.'
+                noGroups.innerHTML = 'You have no site groups for the current data selection. You can create a group by clicking the "Save Sites as Group" button.'
                 groupsDiv.appendChild(noGroups)
+                groupsDiv.appendChild(document.createElement('br'))
+                groupsDiv.appendChild(document.createElement('br'))
+                document.getElementById('modalFooter').style.borderTop = '1px solid rgb(60,74,89)'
             }
             else{
+                document.getElementById('modalFooter').style.borderTop = '0px solid rgb(60,74,89)'
                 for (let i=0; i<groups.length; i++) {
                     buildGroup(groups[i])
                 }
@@ -677,8 +690,8 @@ function getGroups() {
 
         }
     }
-    xhttp.open("GET", '/getGroups');    
-    xhttp.send();
+    xhttp.open("POST", '/getGroups');    
+    xhttp.send(formData);
 }
 
 function buildGroup(group) {

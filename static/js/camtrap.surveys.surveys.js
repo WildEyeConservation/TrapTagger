@@ -114,6 +114,7 @@ var stopFlag = true
 var files
 var s3Setup = false
 var surveyName
+var surveyOrganisation
 var uploading = false
 const modalUploadProgress = $('#modalUploadProgress');
 
@@ -230,7 +231,7 @@ var pathDisplay = null
 
 const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
 const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
-var globalOrganisationUsers = null
+var globalOrganisationUsers = []
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -497,12 +498,21 @@ function buildSurveys(survey,disableSurvey) {
                 addTaskBtn.disabled = true
                 deleteSurveyBtn.disabled = true
             }
+
+            if (survey.status.toLowerCase()=='uploading' && !uploading) {
+                btnResume.disabled = true
+            }
         }
         else if (survey.access == 'write' || survey.access == 'admin'){
             if (addTaskBtn) {
                 addImagesBtn.disabled = false
                 addTaskBtn.disabled = false
             }
+
+            if  (survey.status.toLowerCase()=='uploading' && !uploading) {
+                btnResume.disabled = false
+            }
+
             if (survey.delete){
                 deleteSurveyBtn.disabled = false
             }
@@ -515,6 +525,10 @@ function buildSurveys(survey,disableSurvey) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
                 deleteSurveyBtn.disabled = true
+            }
+
+            if (survey.status.toLowerCase()=='uploading' && !uploading) {
+                btnResume.disabled = true
             }
         }
 
@@ -900,8 +914,12 @@ function pingTgCheck() {
                     // Still the same - just checking status
                     if (modalNewSurvey.is(':visible')) {
                         surveyName = document.getElementById('newSurveyName').value
+                        surveyOrganisation = document.getElementById('newSurveyOrg').value
+                        formData.append("organisation_id", surveyOrganisation)
                     }
-                    
+                    else{
+                        formData.append("survey_id", selectedSurvey)
+                    }
                     formData.append("task_id", tgCheckID)
                     formData.append("surveyName", surveyName)
                 } else {
@@ -911,6 +929,13 @@ function pingTgCheck() {
                     formData.append("task_id", 'none')
                     formData.append("tgCode", tgCode)
                     formData.append("folder", folder)
+                    if (modalNewSurvey.is(':visible')) {
+                        surveyOrganisation = document.getElementById('newSurveyOrg').value
+                        formData.append("organisation_id", surveyOrganisation)
+                    }
+                    else{
+                        formData.append("survey_id", selectedSurvey)
+                    }
                     tgCheckFolder = folder
                     tgCheckCode = tgCode
                 }
@@ -1466,7 +1491,7 @@ function buildAddIms() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
         if (S3BucketAdd.checked) {
             var xhttp = new XMLHttpRequest();
-            xhttp.open("GET", '/getFolders');
+            xhttp.open("GET", '/getFolders?survey_id='+selectedSurvey);
             xhttp.onreadystatechange =
             function(){
                 if (this.readyState == 4 && this.status == 200) {
@@ -2199,9 +2224,10 @@ $("#S3BucketUpload").change( function() {
     /** Listens for and initialises the bucket upload form when the option is selected. */
 
     S3BucketUpload = document.getElementById('S3BucketUpload')
+    org_id = document.getElementById('newSurveyOrg').value
     if (S3BucketUpload.checked) {
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", '/getFolders');
+        xhttp.open("GET", '/getFolders?org_id='+org_id);
         xhttp.onreadystatechange =
         function(){
             if (this.readyState == 4 && this.status == 200) {
@@ -3432,7 +3458,7 @@ function getOrganisations(){
             fillSelect(select,optionTexts,optionValues)
         }
     }
-    xhttp.open("GET", '/getOrganisations');
+    xhttp.open("GET", '/getOrganisations?create=true');
     xhttp.send();
     
 }
@@ -3492,6 +3518,21 @@ $('#newSurveyOrg').change( function() {
         xhttp.open("GET", '/getOrganisationUsers/'+org_id);
         xhttp.send();
     }
+
+    S3BucketUpload = document.getElementById('S3BucketUpload')
+    org_id = document.getElementById('newSurveyOrg').value
+    if (S3BucketUpload.checked) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getFolders?org_id='+org_id);
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                buildBucketUpload('newSurveyFormDiv',reply)
+            }
+        }
+        xhttp.send();
+    }
 });
 
 function buildSurveyPermissionRow(){
@@ -3541,6 +3582,24 @@ function buildSurveyPermissionRow(){
         optionValues.push(globalOrganisationUsers[i][0])
     }
     fillSelect(user,optionTexts,optionValues)
+
+    user.addEventListener('change', function (wrapIDNum) {
+        return function() {
+            user_id = this.value
+            def_access = globalOrganisationUsers.filter(function(item) {
+                return item[0] == user_id;
+            })[0][2]
+
+            var accessSlider = document.getElementById('detailedAccessSurvey-' + wrapIDNum);
+            if (def_access=='worker') {
+                accessSlider.value = 0
+                accessSlider.disabled = true
+            }
+            else{
+                accessSlider.disabled = false
+            }
+        }
+    }(IDNum));
 
     // Access
     var defaultDiv = document.createElement('div');
