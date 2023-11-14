@@ -92,7 +92,7 @@ def delete_task(self,task_id):
             try:
                 individuals_to_delete = []
                 task = db.session.query(Task).get(task_id)
-                tasks = [r[0] for r in db.session.query(Tag.id).filter(Tag.task_id==task_id).all()]
+                tags = [r[0] for r in db.session.query(Tag.id).filter(Tag.task_id==task_id).all()]
                 individuals = db.session.query(Individual).filter(Individual.tasks.contains(task)).all()
                 detections = [r[0] for r in db.session.query(Detection.id)\
                                         .join(Image)\
