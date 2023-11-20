@@ -8,12 +8,17 @@ from config import Config
 import traceback
 
 # TODO: CHECK THE UPDATED PERMISSION QUERIES
-def surveyPermissionsSQ(sq,user_id,requiredPermission):
+def surveyPermissionsSQ(sq,user_id,requiredPermission,aliasPermission=None):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
     allPermissions = ['worker','hidden','read','write','admin']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
-    ShareUserPermissions = alias(UserPermissions)
+
+    if aliasPermission != None:
+        ShareUserPermissions = aliasPermission
+    else:
+        ShareUserPermissions = alias(UserPermissions)
+
     return sq.join(Organisation,Survey.organisation_id==Organisation.id)\
                 .outerjoin(UserPermissions,and_(UserPermissions.organisation_id==Organisation.id,UserPermissions.user_id==user_id))\
                 .outerjoin(SurveyShare,SurveyShare.survey_id==Survey.id)\

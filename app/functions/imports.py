@@ -3905,7 +3905,8 @@ def pipelineLILA2(self,dets_filename,images_filename,survey_name,tgcode_str,sour
         # task = Task(name='import', survey=survey, tagging_level='-1', test_size=0, status='Ready')
         # db.session.add(task)
         # db.session.commit()
-        survey = db.session.query(Survey).filter(Survey.user_id==1).filter(Survey.name==survey_name).first()
+        # TODO: Check  this
+        survey = db.session.query(Survey).filter(Survey.organisation_id==1).filter(Survey.name==survey_name).first()
         task = survey.tasks[0]
         task_id=task.id
         survey_id=survey.id

@@ -3448,7 +3448,7 @@ def getHomeSurveys():
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
-                            .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read')
+                            .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
 
     # uploading/downloading surveys always need to be on the page
     if current_downloads != '':
@@ -3518,20 +3518,12 @@ def getHomeSurveys():
             share_permission=item[25]
             if item[0] not in survey_permissions.keys():
                 survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
-            # if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
-            # if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
-            # if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
-            # if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
-            # if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
-
-            # TODO: LOOk AT THIS
-            if exception_permission and (exception_uid==current_user.id) and (permission_order.index(exception_permission) > permission_order.index(survey_permissions[item[0]]['exception'])): survey_permissions[item[0]]['exception']=exception_permission
-            if up_default and (up_uid==current_user.id) and (permission_order.index(up_default) > permission_order.index(survey_permissions[item[0]]['default'])): survey_permissions[item[0]]['default']=up_default
+            if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
+            if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
             if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
-            if share_permission and (sup_uid==current_user.id) and (permission_order.index(share_permission) > permission_order.index(survey_permissions[item[0]]['share_level'])): survey_permissions[item[0]]['share_level']=share_permission
+            if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-    # permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
     for survey_id in survey_permissions:
         if survey_permissions[survey_id]['exception']:
             survey_data[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -3633,20 +3625,12 @@ def getHomeSurveys():
                 share_permission=item[25]
                 if item[0] not in survey_permissions.keys():
                     survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
-                # if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
-                # if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
-                # if sup_default and (sup_uid==current_user.id): survey_permissions[item[0]]['share_default']=sup_default
-                # if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
-                # if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
-
-                #TODO: LOOK AT THIS
-                if exception_permission and (exception_uid==current_user.id) and (permission_order.index(exception_permission) > permission_order.index(survey_permissions[item[0]]['exception'])): survey_permissions[item[0]]['exception']=exception_permission
-                if up_default and (up_uid==current_user.id) and (permission_order.index(up_default) > permission_order.index(survey_permissions[item[0]]['default'])): survey_permissions[item[0]]['default']=up_default
+                if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
+                if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
                 if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
-                if share_permission and (sup_uid==current_user.id) and (permission_order.index(share_permission) > permission_order.index(survey_permissions[item[0]]['share_level'])): survey_permissions[item[0]]['share_level']=share_permission
+                if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
 
-        # permission_order = [None,'worker', 'hidden', 'read', 'write', 'admin']
         for survey_id in survey_permissions:
             if survey_permissions[survey_id]['exception']:
                 survey_data2[survey_id]['access'] = survey_permissions[survey_id]['exception']
@@ -7329,7 +7313,7 @@ def editTask(task_id):
             task.status='Processing'
             db.session.commit()
             editDict = request.form['editDict']
-            handleTaskEdit.delay(task_id=task_id,changes=editDict,user_id=current_user.id)
+            handleTaskEdit.delay(task_id=task_id,changes=editDict)
         return json.dumps('success')
     except:
         return json.dumps('error')
@@ -8152,7 +8136,7 @@ def checkNotifications():
 @login_required
 def dashboard():
     '''Renders dashboard where the stats of the platform can be explored.'''
-    
+    # TODO: DASHBOARD STILL NEED TO BE UPDATED
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     else:
