@@ -4975,7 +4975,7 @@ function buildSummaryTab(summary, tab){
         row.appendChild(help);
 
         h5 = document.createElement('div')
-        h5.innerHTML = '<i>The following graph shows the total number of days that each site/camera was active.</i>'
+        h5.innerHTML = '<i>The following graph shows the total number of days that each site was active.</i>'
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         effortDaysTab.appendChild(h5)
 
@@ -5113,7 +5113,7 @@ function buildSummaryTab(summary, tab){
         row.appendChild(help);
 
         h5 = document.createElement('div')
-        h5.innerHTML = '<i>The following graph shows the total cluster/image/sighting count of each site/camera.</i>'
+        h5.innerHTML = '<i>The following graph shows the total data unit count for each site.</i>'
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         cameraTrapDataCountsTab.appendChild(h5)
 
@@ -5254,7 +5254,7 @@ function buildSummaryTab(summary, tab){
         row.appendChild(help);
 
         h5 = document.createElement('div')
-        h5.innerHTML = '<i>The following graph indicates on which days each site/camera was active. The heatmap represents the image count of each site/camera on each day.</i>'
+        h5.innerHTML = '<i>The following graph indicates on which days each site was active. The heatmap represents the image count of each site on each day.</i>'
         h5.setAttribute('style','font-size: 80%; margin-bottom: 2px')
         cameraTrapActivityTab.appendChild(h5)
 

@@ -143,6 +143,10 @@ input:disabled + .slider {
   background-color: rgba(255, 255, 255, 0.2)
 }
 
+input:checked:disabled + .slider {
+  background-color: rgba(223, 105, 26, 0.8);
+}
+
 tbody:hover td[rowspan],
 tr:hover td {
   background: rgba(255, 255, 255, 0.2);

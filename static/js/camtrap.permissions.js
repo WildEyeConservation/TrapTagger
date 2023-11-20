@@ -62,16 +62,31 @@ function openPermissionsTab(evt, tabName) {
     tabActive = tabName
 
     if (tabName == 'baseUserTab') {
+        document.getElementById('btnPermissions').style.visibility = 'visible';
+        document.getElementById('permissionSearch').style.visibility = 'visible';
+        document.getElementById('permissionOrder').style.visibility = 'visible';
         document.getElementById('btnPermissions').innerHTML = 'Invite User';
         getUsers();
     }
     else if (tabName == 'baseDataSharingTab') {
+        document.getElementById('btnPermissions').style.visibility = 'visible';
+        document.getElementById('permissionSearch').style.visibility = 'visible';
+        document.getElementById('permissionOrder').style.visibility = 'visible';
         document.getElementById('btnPermissions').innerHTML = 'Share Survey';
         getSharedData();
     }
     else if (tabName == 'baseDataReceivedTab') {
+        document.getElementById('btnPermissions').style.visibility = 'visible';
+        document.getElementById('permissionSearch').style.visibility = 'visible';
+        document.getElementById('permissionOrder').style.visibility = 'visible';
         document.getElementById('btnPermissions').innerHTML = 'Share Survey';
         getReceivedData();
+    }
+    else if (tabName == 'basePermissionsTab') {
+        document.getElementById('btnPermissions').style.visibility = 'hidden';
+        document.getElementById('permissionSearch').style.visibility = 'hidden';
+        document.getElementById('permissionOrder').style.visibility = 'hidden';
+        getPermissions()   
     }
 
 }
@@ -195,7 +210,7 @@ function buildUserTable(users) {
             userTableBodyRowData.appendChild(row)
             
             var col1 = document.createElement('div')
-            col1.classList.add('col-lg-12');access_slider_values
+            col1.classList.add('col-lg-12');
             row.appendChild(col1)
 
             var slider = document.createElement('input');
@@ -1136,7 +1151,7 @@ function buildReceivedDataTable(receivedData) {
 
             // Default Access
             var receivedDataTableBodyRowData = document.createElement('td');
-            receivedDataTableBodyRowData.setAttribute('class','vertical-align: middle;')
+            receivedDataTableBodyRowData.setAttribute('style','vertical-align: middle;')
             receivedDataTableBodyRowData.innerText = surveys[j].permission.charAt(0).toUpperCase() + surveys[j].permission.slice(1);
             receivedDataTableBodyRow.appendChild(receivedDataTableBodyRowData);
 
@@ -1565,11 +1580,18 @@ function getDetailedAccessForSave(){
             }
         }
 
-        if (sharedSurveysPermissions[survey_id]){
-            var shared_permission = sharedSurveysPermissions[survey_id]
-            if (accessSliders[i].value > access_slider_values[shared_permission]) {
-                valid = false
-                error_msg += 'You cannot give a user more access than you have for shared survey ' + surveySelects[i].options[surveySelects[i].selectedIndex].text + '.<br>'
+        if (!worker) {
+            if (sharedSurveysPermissions[survey_id]){
+                var shared_permission = sharedSurveysPermissions[survey_id]
+                if (accessSliders[i].value > access_slider_values[shared_permission]) {
+                    valid = false
+                    error_msg += 'You cannot give a user more access than you have for shared survey ' + surveySelects[i].options[surveySelects[i].selectedIndex].text + '.<br>'
+                }
+
+                if (workerAccesses[i].checked && shared_permission != 'write') {
+                    valid = false
+                    error_msg += 'You cannot give annotation access for shared survey ' + surveySelects[i].options[surveySelects[i].selectedIndex].text + '.<br>'
+                }
             }
         }
 
@@ -1680,6 +1702,420 @@ function setToAdmin(){
     savePermissions('default', 'admin')
 }
 
+function getPermissions(){
+    /** Gets the permissions for the current user. */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);  
+            console.log(reply)
+            var user_permissions = reply.permissions
+            var user_exceptions = reply.exceptions
+
+            adminUser = false 
+            for (let i=0;i<user_permissions.length;i++) {
+                if (user_permissions[i].default == 'admin') {
+                    adminUser = true
+                }
+            }
+
+            if (adminUser) {
+                document.getElementById('permissionsPageTabs').hidden = false
+            }
+            else{
+                document.getElementById('permissionsPageTabs').hidden = true
+            }
+
+            buildPermissions(user_permissions, user_exceptions)
+        }
+    }
+    xhttp.open("GET", '/getPermissions')
+    xhttp.send();
+}
+
+function buildPermissions(user_permissions, user_exceptions){
+    /** Builds the permissions tables. */
+
+    var defaultPermissionsDiv = document.getElementById('defaultPermissionsDiv')
+    var detailedPermissionsDiv = document.getElementById('detailedPermissionsDiv')
+
+    while (defaultPermissionsDiv.firstChild) {
+        defaultPermissionsDiv.removeChild(defaultPermissionsDiv.firstChild);
+    }
+
+    while (detailedPermissionsDiv.firstChild) {
+        detailedPermissionsDiv.removeChild(detailedPermissionsDiv.firstChild);
+    }
+
+    // Default Permissions
+    var defaultPermissionsTable = document.createElement('table');
+    defaultPermissionsTable.id = 'defaultPermissionsTable';
+    defaultPermissionsTable.classList.add('table')
+    defaultPermissionsTable.classList.add('table-bordered')
+    defaultPermissionsTable.classList.add('table-striped')
+    defaultPermissionsTable.classList.add('table-hover')
+    defaultPermissionsTable.style.borderCollapse = 'collapse';
+    defaultPermissionsDiv.appendChild(defaultPermissionsTable);
+
+    var defaultPermissionsTableHead = document.createElement('thead');
+    defaultPermissionsTable.appendChild(defaultPermissionsTableHead);
+
+    var defaultPermissionsTableHeadRow = document.createElement('tr');
+    defaultPermissionsTableHead.appendChild(defaultPermissionsTableHeadRow);
+
+    var defaultPermissionsTableHeadRowHeader = document.createElement('th');
+    defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    defaultPermissionsTableHeadRowHeader.innerText = 'Organisation';
+    defaultPermissionsTableHeadRowHeader.setAttribute('width','30%')
+    defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
+
+    var defaultPermissionsTableHeadRowHeader = document.createElement('th');
+    defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    defaultPermissionsTableHeadRowHeader.innerText = 'Default Access';
+    defaultPermissionsTableHeadRowHeader.setAttribute('width','30%')
+    defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
+
+    var defaultPermissionsTableHeadRowHeader = document.createElement('th');
+    defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    defaultPermissionsTableHeadRowHeader.innerText = 'Job Access';
+    defaultPermissionsTableHeadRowHeader.setAttribute('width','10%')
+    defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
+
+    var defaultPermissionsTableHeadRowHeader = document.createElement('th');
+    defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    defaultPermissionsTableHeadRowHeader.innerText = 'Survey Creation';
+    defaultPermissionsTableHeadRowHeader.setAttribute('width','10%')
+    defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
+
+    var defaultPermissionsTableHeadRowHeader = document.createElement('th');
+    defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    defaultPermissionsTableHeadRowHeader.innerText = 'Survey Deletion';
+    defaultPermissionsTableHeadRowHeader.setAttribute('width','10%')
+    defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
+
+    var defaultPermissionsTableHeadRowHeader = document.createElement('th');
+    defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    defaultPermissionsTableHeadRowHeader.innerText = 'Root User';
+    defaultPermissionsTableHeadRowHeader.setAttribute('width','10%')
+    defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
+
+    var defaultPermissionsTableBody = document.createElement('tbody');
+    defaultPermissionsTable.appendChild(defaultPermissionsTableBody);
+
+    for (let i = 0; i < user_permissions.length; i++) {
+        var defaultPermissionsTableBodyRow = document.createElement('tr');
+        defaultPermissionsTableBody.appendChild(defaultPermissionsTableBodyRow);
+
+        // Organisation
+        var defaultPermissionsTableBodyRowData = document.createElement('td');
+        defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+        defaultPermissionsTableBodyRowData.innerText = user_permissions[i].organisation;
+        defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
+
+        // Default Access
+        var defaultPermissionsTableBodyRowData = document.createElement('td');
+        defaultPermissionsTableBodyRowData.setAttribute('class','text-center')
+        defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        defaultPermissionsTableBodyRowData.appendChild(row)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-12');
+        row.appendChild(col1)
+
+        var slider = document.createElement('input');
+        slider.setAttribute("type", "range");
+        slider.setAttribute("class", "custom-range");
+        slider.setAttribute('style','width: 85%;')
+        slider.setAttribute("min", "0");
+        slider.setAttribute("max", "4");
+        slider.setAttribute("step", "1");
+        slider.value = access_slider_values[user_permissions[i].default]
+        slider.disabled = true
+        // slider.cursor = 'context-menu'
+        col1.appendChild(slider);
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        defaultPermissionsTableBodyRowData.appendChild(row)
+
+        var col0 = document.createElement('div')
+        col0.classList.add('col-lg-3');
+        col0.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+        col0.innerText = default_access[0];
+        row.appendChild(col0)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-2');
+        col1.setAttribute('style','vertical-align: middle; text-align: left; padding: 0px;')
+        col1.innerText = default_access[1];
+        row.appendChild(col1)
+
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-2');
+        col2.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+        col2.innerText = default_access[2];
+        row.appendChild(col2)
+
+        var col3 = document.createElement('div')
+        col3.classList.add('col-lg-2');
+        col3.setAttribute('style','vertical-align: middle; text-align: right; padding: 0px;')
+        col3.innerText = default_access[3];
+        row.appendChild(col3)
+
+        var col4 = document.createElement('div')
+        col4.classList.add('col-lg-3');
+        col4.setAttribute('style','vertical-align: middle; text-align: center; padding: 0px;')
+        col4.innerText = default_access[4];
+        row.appendChild(col4)
+
+        defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
+
+
+        // Job Access
+        var defaultPermissionsTableBodyRowData = document.createElement('td');
+        defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+        
+        var toggleDiv = document.createElement('div');
+        toggleDiv.classList.add('text-center');
+        toggleDiv.style.verticalAlign = 'middle';
+        defaultPermissionsTableBodyRowData.appendChild(toggleDiv);
+
+        var toggle = document.createElement('label');
+        toggle.classList.add('switch');
+        toggleDiv.appendChild(toggle);
+
+        var checkbox = document.createElement('input');
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.checked = user_permissions[i].annotation
+        checkbox.disabled = true
+        toggle.appendChild(checkbox);
+
+        var slider = document.createElement('span');
+        slider.classList.add('slider');
+        slider.classList.add('round');
+        toggle.appendChild(slider);
+
+        defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
+
+        // Survey Creation
+        var defaultPermissionsTableBodyRowData = document.createElement('td');
+        defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+
+        var toggleDiv = document.createElement('div');
+        toggleDiv.classList.add('text-center');
+        toggleDiv.style.verticalAlign = 'middle';
+        defaultPermissionsTableBodyRowData.appendChild(toggleDiv);
+
+        var toggle = document.createElement('label');
+        toggle.classList.add('switch');
+        toggleDiv.appendChild(toggle);
+
+        var checkbox = document.createElement('input');
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.checked = user_permissions[i].create
+        checkbox.disabled = true
+        toggle.appendChild(checkbox);
+
+        var slider = document.createElement('span');
+        slider.classList.add('slider');
+        slider.classList.add('round');
+        toggle.appendChild(slider);
+
+        defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
+
+        // Survey Deletion
+        var defaultPermissionsTableBodyRowData = document.createElement('td');
+        defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+
+        var toggleDiv = document.createElement('div');
+        toggleDiv.classList.add('text-center');
+        toggleDiv.style.verticalAlign = 'middle';
+        defaultPermissionsTableBodyRowData.appendChild(toggleDiv);
+
+        var toggle = document.createElement('label');
+        toggle.classList.add('switch');
+        toggleDiv.appendChild(toggle);
+
+        var checkbox = document.createElement('input');
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.checked = user_permissions[i].delete
+        checkbox.disabled = true
+        toggle.appendChild(checkbox);
+
+        var slider = document.createElement('span');
+        slider.classList.add('slider');
+        slider.classList.add('round');
+        toggle.appendChild(slider);
+
+        defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
+
+        // Root User
+        var defaultPermissionsTableBodyRowData = document.createElement('td');
+        defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+
+        var toggleDiv = document.createElement('div');
+        toggleDiv.classList.add('text-center');
+        toggleDiv.style.verticalAlign = 'middle';
+        defaultPermissionsTableBodyRowData.appendChild(toggleDiv);
+
+        var toggle = document.createElement('label');
+        toggle.classList.add('switch');
+        toggleDiv.appendChild(toggle);
+
+        var checkbox = document.createElement('input');
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.checked = user_permissions[i].root
+        checkbox.disabled = true
+        toggle.appendChild(checkbox);
+
+        var slider = document.createElement('span');
+        slider.classList.add('slider');
+        slider.classList.add('round');
+        toggle.appendChild(slider);
+
+        defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
+
+
+    }
+
+    // Detailed Permissions
+    var detailedPermissionsTable = document.createElement('table');
+    detailedPermissionsTable.id = 'detailedPermissionsTable';
+    detailedPermissionsTable.classList.add('table')
+    detailedPermissionsTable.classList.add('table-bordered')
+    detailedPermissionsTable.classList.add('table-striped')
+    detailedPermissionsTable.classList.add('table-hover')
+    detailedPermissionsTable.style.borderCollapse = 'collapse';
+    detailedPermissionsDiv.appendChild(detailedPermissionsTable);
+    detailedPermissionsTable.style.width = '70%'
+
+    var detailedPermissionsTableHead = document.createElement('thead');
+    detailedPermissionsTable.appendChild(detailedPermissionsTableHead);
+
+    var detailedPermissionsTableHeadRow = document.createElement('tr');
+    detailedPermissionsTableHead.appendChild(detailedPermissionsTableHeadRow);
+
+    var detailedPermissionsTableHeadRowHeader = document.createElement('th');
+    detailedPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    detailedPermissionsTableHeadRowHeader.innerText = 'Survey';
+    detailedPermissionsTableHeadRowHeader.setAttribute('width','30%')
+    detailedPermissionsTableHeadRow.appendChild(detailedPermissionsTableHeadRowHeader);
+
+    var detailedPermissionsTableHeadRowHeader = document.createElement('th');
+    detailedPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    detailedPermissionsTableHeadRowHeader.innerText = 'Access';
+    detailedPermissionsTableHeadRowHeader.setAttribute('width','30%')
+    detailedPermissionsTableHeadRow.appendChild(detailedPermissionsTableHeadRowHeader);
+
+    var detailedPermissionsTableHeadRowHeader = document.createElement('th');
+    detailedPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
+    detailedPermissionsTableHeadRowHeader.innerText = 'Job Access';
+    detailedPermissionsTableHeadRowHeader.setAttribute('width','10%')
+    detailedPermissionsTableHeadRow.appendChild(detailedPermissionsTableHeadRowHeader);
+
+    var detailedPermissionsTableBody = document.createElement('tbody');
+    detailedPermissionsTable.appendChild(detailedPermissionsTableBody);
+
+    for (let i = 0; i < user_exceptions.length; i++) {
+        var detailedPermissionsTableBodyRow = document.createElement('tr');
+        detailedPermissionsTableBody.appendChild(detailedPermissionsTableBodyRow);
+
+        // Survey
+        var detailedPermissionsTableBodyRowData = document.createElement('td');
+        detailedPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+        detailedPermissionsTableBodyRowData.innerText = user_exceptions[i].survey;
+        detailedPermissionsTableBodyRow.appendChild(detailedPermissionsTableBodyRowData);
+
+        // Access
+        var detailedPermissionsTableBodyRowData = document.createElement('td');
+        detailedPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+        detailedPermissionsTableBodyRowData.setAttribute('class','text-center')
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        detailedPermissionsTableBodyRowData.appendChild(row)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-12');
+        row.appendChild(col1)
+
+        var slider = document.createElement('input');
+        slider.setAttribute("type", "range");
+        slider.setAttribute("class", "custom-range");
+        slider.setAttribute('style','width: 85%;')
+        slider.setAttribute("min", "0");
+        slider.setAttribute("max", "3");
+        slider.setAttribute("step", "1");
+        slider.value = access_slider_values[user_exceptions[i].permission]
+        slider.disabled = true
+        slider.cursor = 'context-menu'
+        col1.appendChild(slider);
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        detailedPermissionsTableBodyRowData.appendChild(row)
+
+        var col_0 = document.createElement('div')
+        col_0.classList.add('col-lg-3');
+        col_0.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_0.innerText = default_access[0];
+        row.appendChild(col_0)
+
+        var col_1 = document.createElement('div')
+        col_1.classList.add('col-lg-3');
+        col_1.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_1.innerText = default_access[1];
+        row.appendChild(col_1)
+
+        var col_2 = document.createElement('div')
+        col_2.classList.add('col-lg-3');
+        col_2.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_2.innerText = default_access[2];
+        row.appendChild(col_2)
+
+        var col_3 = document.createElement('div')
+        col_3.classList.add('col-lg-3');
+        col_3.setAttribute('style','vertical-align: middle; text-align: center;')
+        col_3.innerText = default_access[3];
+        row.appendChild(col_3)
+
+        detailedPermissionsTableBodyRow.appendChild(detailedPermissionsTableBodyRowData);
+
+        // Job Access
+        var detailedPermissionsTableBodyRowData = document.createElement('td');
+        detailedPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
+        
+        var toggleDiv = document.createElement('div');
+        toggleDiv.classList.add('text-center');
+        toggleDiv.style.verticalAlign = 'middle';
+        detailedPermissionsTableBodyRowData.appendChild(toggleDiv);
+
+        var toggle = document.createElement('label');
+        toggle.classList.add('switch');
+        toggleDiv.appendChild(toggle);
+
+        var checkbox = document.createElement('input');
+        checkbox = document.createElement('input');
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.checked = user_exceptions[i].annotation
+        checkbox.disabled = true
+        toggle.appendChild(checkbox);
+
+        var slider = document.createElement('span');
+        slider.classList.add('slider');
+        slider.classList.add('round');
+        toggle.appendChild(slider);
+
+        detailedPermissionsTableBodyRow.appendChild(detailedPermissionsTableBodyRowData);
+
+    }
+}
+
 modalShareData.on('hidden.bs.modal', function () {
     /** Function for when the share data modal is closed. */
     document.getElementById('shareDataErrors').innerHTML = ''
@@ -1772,7 +2208,7 @@ $('#permissionSearch').change(function(){
 
 function onload(){
     /**Function for initialising the page on load.*/
-    document.getElementById('openUserTab').click();
+    document.getElementById('openPermissionsTab').click();
     // getOrganisationSurveys()   
 }
 

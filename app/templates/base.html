@@ -47,14 +47,20 @@ limitations under the License. -->
                         <img src="images/Logo.png" style="width:32px;height:32px;"> TrapTagger
                     </a>
                 {% endif %}
-
-                {% if current_user.admin == true and current_user.username != 'Dashboard' %}
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('surveys') }}">Surveys</a>
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('individuals') }}">Individuals</a>
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('results') }}">Analysis</a>
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('jobs') }}">Jobs</a>
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('workers') }}">Annotation Statistics</a>
-                    <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('permissions') }}">Permissions</a>
+                
+                {% if current_user.is_authenticated == true %}
+                    {% if current_user.username != 'Dashboard' %}
+                        {% if current_user.admin == true %}
+                            <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('surveys') }}">Surveys</a>
+                            <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('individuals') }}">Individuals</a>
+                            <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('results') }}">Analysis</a>
+                        {% endif %}
+                        <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('jobs') }}">Jobs</a>
+                        <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('workers') }}">Annotation Statistics</a>
+                        {% if current_user.admin == true %}
+                            <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('permissions') }}">Permissions</a>
+                        {% endif %}
+                    {% endif %}
                 {% endif %}
             </div>
 
@@ -66,9 +72,7 @@ limitations under the License. -->
                     {% elif current_user.username != 'Dashboard' %}
                         <button type="button" class="btn btn-link btn-sm" align="right" value="help" onclick="helpOpen('{{ helpFile }}')"> Help </button>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
-                        {% if current_user.admin == true %}
-                            <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
-                        {% endif %}
+                        <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
                         <li class="nav-item">
                             <div class="dropdown">
                                 <a class="btn btn-link" id="notificationsButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" onclick="openNotifications()" style="padding: 5.5px 8px;">

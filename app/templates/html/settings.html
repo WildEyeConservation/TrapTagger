@@ -27,20 +27,72 @@ limitations under the License. -->
                 </div>
             </div>
 
+            <div class="tab" id="settingsPageTabs" hidden>
+                <button id="openAccountTab" class="tablinks" onclick="openSettingsTab(event, 'baseAccountTab')">Account</button>
+                <button id="openIntegrationsTab" class="tablinks" onclick="openSettingsTab(event, 'baseIntegrationsTab')">Integrations</button>
+            </div>
+
             <div class="card-body" style="padding: 0px;">
-                <div id="integrationsHeadingDiv" style="padding: 20px;">
-                    <div class="row">
-                        <div class="col-lg-10">
-                            <h5 style="margin-bottom: 2px">Integrations</h5>
-                            <div style="font-size: 80%; margin-bottom: 2px"><i>Integrations allow you to connect TrapTagger to other services. Add an integration and setup the required parameters to enable the integration.</i></div>
+                <div id="baseAccountTab" class="tabcontent">
+                    <div id="accountDiv" style="padding: 20px;">
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <h5 style="margin-bottom: 2px">Account</h5>
+                                <div style="font-size: 80%; margin-bottom: 2px"><i>Change your account details here.</i></div>
+                                <br>
+
+                                <h5 style="margin-bottom: 2px">Username</h5>
+                                <div style="font-size: 80%; margin-bottom: 2px"><i>Your username is used to login to TrapTagger.</i></div>
+                                <div class="row">
+                                    <div class="col-lg-9">
+                                        <input type="text" class="form-control" id="username">
+                                    </div>
+                                </div>
+                                <br>
+        
+                                <h5 style="margin-bottom: 2px">Email</h5>
+                                <div style="font-size: 80%; margin-bottom: 2px"><i>Your email is used to get in touch with you.</i></div>
+                                <div class="row">
+                                    <div class="col-lg-9">
+                                        <input type="text" class="form-control" id="email">
+                                    </div>
+                                </div>
+                                <br>
+
+                            </div>
+                            <div class="col-lg-6">
+                                <div id="orgFolder" hidden>
+                                    <h5 style="margin-bottom: 2px">Organisation AWS S3 Folder</h5>
+                                    <div style="font-size: 80%; margin-bottom: 2px"><i>View the AWS S3 folder where your organisation's data are stored.</i></div>
+                                    <br>
+                                    <div class="row">
+                                        <div class="col-lg-6">Organisation:</div>
+                                        <div class="col-lg-6">S3 Folder:</div>
+                                    </div>
+                                    <div id="s3Div"></div>
+                                </div>
+                                <br>
+                            </div>
                         </div>
-                        <div class="col-lg-2">
-                            <button class="btn btn-primary btn-block" type="button" id="btnAddIntegration" onclick="buildIntegrationSelect()">Add Integration</button>
-                        </div>
+                        <div id="accountErrors" style=" font:80%; color: #DF691A"></div>
                     </div>
-                    <div id="settingsErrors" style=" font:80%; color: #DF691A"></div>
                 </div>
-                <div id="integrationsDiv"></div>
+
+                <div id="baseIntegrationsTab" class="tabcontent">
+                    <div id="integrationsHeadingDiv" style="padding: 20px;">
+                        <div class="row">
+                            <div class="col-lg-10">
+                                <h5 style="margin-bottom: 2px">Integrations</h5>
+                                <div style="font-size: 80%; margin-bottom: 2px"><i>Integrations allow you to connect TrapTagger to other services. Add an integration and setup the required parameters to enable the integration.</i></div>
+                            </div>
+                            <div class="col-lg-2">
+                                <button class="btn btn-primary btn-block" type="button" id="btnAddIntegration" onclick="buildIntegrationSelect()">Add Integration</button>
+                            </div>
+                        </div>
+                        <div id="settingsErrors" style=" font:80%; color: #DF691A"></div>
+                    </div>
+                    <div id="integrationsDiv"></div>
+                </div>
             </div>
 
             <div class="card-footer" style="border-top: 1px solid rgb(60,74,89);">
@@ -57,9 +109,6 @@ limitations under the License. -->
     <div class='col-lg-2'></div>
 </div>
 <br>
-
-
-
 {% endblock %}
 
 {% block page_scripts %}
