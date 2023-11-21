@@ -55,8 +55,10 @@ limitations under the License. -->
                             <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('individuals') }}">Individuals</a>
                             <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('results') }}">Analysis</a>
                         {% endif %}
-                        <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('jobs') }}">Jobs</a>
-                        <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('workers') }}">Annotation Statistics</a>
+                        {% if current_user.parent_id is none %}
+                            <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('jobs') }}">Jobs</a>
+                            <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('workers') }}">Annotation Statistics</a>
+                        {% endif %}
                         {% if current_user.admin == true %}
                             <a class="navbar-brand" style="font-size: 100%;" href="{{ url_for('permissions') }}">Permissions</a>
                         {% endif %}
@@ -72,40 +74,41 @@ limitations under the License. -->
                     {% elif current_user.username != 'Dashboard' %}
                         <button type="button" class="btn btn-link btn-sm" align="right" value="help" onclick="helpOpen('{{ helpFile }}')"> Help </button>
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
-                        <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
-                        <li class="nav-item">
-                            <div class="dropdown">
-                                <a class="btn btn-link" id="notificationsButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" onclick="openNotifications()" style="padding: 5.5px 8px;">
-                                    <div style="position: relative;" data-toggle="tooltip" title="Notifications">
-                                        <i class="fa-solid fa-bell" style="color: rgba(255,255,255,0.75);"></i>
-                                        <span class="badge" id="notificationBadge" style="position: absolute; top: -6px; right: -10px;">0</span>
-                                    </div>
-                                </a>
-                                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationsButton" style="width: 400px; overflow-y: auto; padding:0px; max-height: 85vh;">
-                                    <div class="card" style='min-height:200px' id="notificationsCard">
-                                        <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
-                                            <h5>Notifications</h5>
+                        {% if current_user.parent_id is none %}
+                            <li class="nav-item" data-toggle="tooltip" title="Settings"><a class="nav-link" href="{{ url_for('settings') }}"><i class="fa-solid fa-gear"></i></a></li>
+                            <li class="nav-item">
+                                <div class="dropdown">
+                                    <a class="btn btn-link" id="notificationsButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" onclick="openNotifications()" style="padding: 5.5px 8px;">
+                                        <div style="position: relative;" data-toggle="tooltip" title="Notifications">
+                                            <i class="fa-solid fa-bell" style="color: rgba(255,255,255,0.75);"></i>
+                                            <span class="badge" id="notificationBadge" style="position: absolute; top: -6px; right: -10px;">0</span>
                                         </div>
-                                        <div class="card-body" style="padding: 0px;">
-                                            <div id="notificationMenu" style="padding: 0px; margin: 0px;"></div>
+                                    </a>
+                                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="notificationsButton" style="width: 400px; overflow-y: auto; padding:0px; max-height: 85vh;">
+                                        <div class="card" style='min-height:200px' id="notificationsCard">
+                                            <div class='card-header' style="margin-top: 0px; margin-bottom: 0px; border-bottom: 1px solid rgb(60,74,89); ">
+                                                <h5>Notifications</h5>
+                                            </div>
+                                            <div class="card-body" style="padding: 0px;">
+                                                <div id="notificationMenu" style="padding: 0px; margin: 0px;"></div>
+                                            </div>
+                                
+                                            <div class="card-footer">
+                                                <div class="row">
+                                                    <div class="col-lg-5">
+                                                        <button type='button' class='btn btn-primary btn-block' id='btnPrevNotifications'>Previous</button>
+                                                    </div>
+                                                    <div class="col-lg-2"></div>
+                                                    <div class="col-lg-5">
+                                                        <button type='button' class='btn btn-primary btn-block' id='btnNextNotifications'>Next</button>  
+                                                    </div>
+                                                </div>   
+                                            </div>  
                                         </div>
-                            
-                                        <div class="card-footer">
-                                            <div class="row">
-                                                <div class="col-lg-5">
-                                                    <button type='button' class='btn btn-primary btn-block' id='btnPrevNotifications'>Previous</button>
-                                                </div>
-                                                <div class="col-lg-2"></div>
-                                                <div class="col-lg-5">
-                                                    <button type='button' class='btn btn-primary btn-block' id='btnNextNotifications'>Next</button>  
-                                                </div>
-                                            </div>   
-                                        </div>  
                                     </div>
                                 </div>
-                            </div>
-                        </li>
-
+                            </li>
+                        {% endif %}
                     {% else %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
                     {% endif %}

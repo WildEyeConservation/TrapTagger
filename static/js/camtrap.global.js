@@ -223,29 +223,37 @@ modalNotification.on('hidden.bs.modal', function () {
 
 function checkNotifications() {
     /**Checks for and displays new notifications.*/
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("POST", '/checkNotifications');
-    xhttp.onreadystatechange =
-    function(){
-        if (this.readyState == 4 && this.status == 200) {
-            reply = JSON.parse(this.responseText);  
+    if (document.getElementById('notificationBadge')) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("POST", '/checkNotifications');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
 
-            if (reply.global_notification && reply.global_notification.contents) {
-                document.getElementById('modalNotificationBody').innerHTML = reply.global_notification.contents;
-                modalNotification.modal({keyboard: true});
+                if (reply.global_notification && reply.global_notification.contents) {
+                    document.getElementById('modalNotificationBody').innerHTML = reply.global_notification.contents;
+                    modalNotification.modal({keyboard: true});
+                }
+
+                var notificationBadge = document.getElementById('notificationBadge')
+                notificationBadge.innerHTML = reply.total_unseen
+
+                if (notificationTimer) {
+                    clearTimeout(notificationTimer)
+                }
+
+                notificationTimer = setTimeout(checkNotifications, 30000)
             }
-
-            var notificationBadge = document.getElementById('notificationBadge')
-            notificationBadge.innerHTML = reply.total_unseen
-
-            if (notificationTimer) {
-                clearTimeout(notificationTimer)
-            }
-
-            notificationTimer = setTimeout(checkNotifications, 30000)
         }
+        xhttp.send();
     }
-    xhttp.send();
+    else{
+        if (notificationTimer) {
+            clearTimeout(notificationTimer)
+        }
+        notificationTimer = setTimeout(checkNotifications, 30000)
+    }
 }
 
 
