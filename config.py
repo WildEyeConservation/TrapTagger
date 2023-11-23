@@ -111,6 +111,9 @@ class Config(object):
     TASK_READY_STATUSES = ['ready','success','successinitial','stopped']
     SURVEY_READY_STATUSES = ['ready','failed','stopped','cancelled']
 
+    # Detection statuses
+    DET_IGNORE_STATUSES = ['deleted','hidden','masked']
+
     # Hotkey info
     NUMBER_OF_HOTKEYS = 38
     EMPTY_HOTKEY_ID= -967
