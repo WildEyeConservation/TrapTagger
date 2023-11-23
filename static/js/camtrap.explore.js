@@ -59,7 +59,7 @@ function loadNewCluster(mapID = 'map1') {
                 }
                 else if (this.readyState == 4 && this.status == 200) {
                     info = JSON.parse(this.responseText);
-                    console.log(info)
+
                     if (clusterRequests[mapID].includes(parseInt(info.id))) {
                         newcluster = info.info[0];
                         clusters[mapID].push(newcluster)
@@ -283,7 +283,7 @@ function populateSpeciesSelector(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-            console.log(response)
+
             clearSelect(divSelector)
             var optionTexts = []
             var optionValues = []
@@ -325,7 +325,7 @@ function populateTagSelector() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-            console.log(response)
+
             clearSelect(divTagSelector)
             var optionTexts = []
             var optionValues = []
@@ -354,7 +354,7 @@ function populateSiteSelector() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-            console.log(response)
+
             clearSelect(divSiteSelector)
             var optionTexts = []
             var optionValues = []
@@ -384,7 +384,6 @@ function populateAnnotatorSelector() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             response = JSON.parse(this.responseText);
-            console.log(response)
 
             clearSelect(divAnnotatorSelector)
             var optionTexts = []
