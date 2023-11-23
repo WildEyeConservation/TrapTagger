@@ -1231,16 +1231,20 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
             if (isReviewing && document.getElementById('imageTimestamp')){
                 timestamp = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].timestamp
-                var date = new Date(timestamp * 1000);
-                var year = date.getUTCFullYear();
-                var month = (date.getUTCMonth() + 1).toString().padStart(2, '0'); // Month is zero-based
-                var day = date.getUTCDate().toString().padStart(2, '0');
-                var hours = date.getUTCHours().toString().padStart(2, '0');
-                var minutes = date.getUTCMinutes().toString().padStart(2, '0');
-                var seconds = date.getUTCSeconds().toString().padStart(2, '0');
-                var formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
-                document.getElementById('imageTimestamp').innerHTML = "Timestamp: " + formattedDate
+                if (timestamp == 0 || timestamp == null) {
+                    document.getElementById('imageTimestamp').innerHTML = "Timestamp: N/A"
+                } else {
+                    var date = new Date(timestamp * 1000);
+                    var year = date.getUTCFullYear();
+                    var month = (date.getUTCMonth() + 1).toString().padStart(2, '0'); // Month is zero-based
+                    var day = date.getUTCDate().toString().padStart(2, '0');
+                    var hours = date.getUTCHours().toString().padStart(2, '0');
+                    var minutes = date.getUTCMinutes().toString().padStart(2, '0');
+                    var seconds = date.getUTCSeconds().toString().padStart(2, '0');
+                    var formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                    document.getElementById('imageTimestamp').innerHTML = "Timestamp: " + formattedDate
+                }
             }
         } 
     }
