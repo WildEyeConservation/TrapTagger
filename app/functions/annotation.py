@@ -69,7 +69,7 @@ def launch_task(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
-                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                         .filter(Cluster.task_id==task_id)\
                                         .group_by(Cluster.id)\
                                         .subquery()
@@ -87,7 +87,7 @@ def launch_task(self,task_id):
                                         .filter(Labelgroup.task_id==task_id)\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                         .filter(Detection.static == False) \
-                                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                         .filter(individualsSQ.c.id==None)\
                                         .filter(or_(sq.c.detCount==1,sq.c.imCount==1))\
                                         .distinct().all()
@@ -182,11 +182,19 @@ def launch_task(self,task_id):
 
             sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
 
-            clusters = sq.filter(Cluster.task_id == task_id) \
-                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
-                            .distinct().all()
+            if '-6' in taggingLevel:
+                #TODO: THIS STILL NEEDS UPDATING/CHECKING
+                clusters = sq.filter(Cluster.task_id == task_id) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(Detection.status == 'masked') \
+                                .distinct().all()
+            else:
+                clusters = sq.filter(Cluster.task_id == task_id) \
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                .filter(Detection.static == False) \
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                                .distinct().all()
 
             cluster_count = len(clusters)
 
@@ -209,7 +217,8 @@ def launch_task(self,task_id):
 
         task.cluster_count = cluster_count
 
-        if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
+        #TODO: THIS STILL NEEDS UPDATING/CHECKING (-6)
+        if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
             prep_required_images(task_id)
 
         for trapgroup in task.survey.trapgroups:
@@ -888,7 +897,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .filter(Task.id.in_(task_ids))\
                         .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Detection.static==False)\
                         .order_by(desc(sq3.c.count3)).all()
 
@@ -1041,10 +1050,21 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .filter(Cluster.examined==False)
         
         # This need to be ordered by Cluster ID otherwise the a max request will drop random info
-        clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
-                        .filter(Cluster.task_id == task_id) \
-                        .order_by(desc(Cluster.classification), Cluster.id)\
-                        ).distinct().limit(25000).all()
+        if '-6' in taggingLevel:  
+            #TODO: THIS STILL NEEDS UPDATING/CHECKING
+            clusters = clusters.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(Detection.static==False)\
+                            .filter(Detection.status=='masked')\
+                            .filter(Labelgroup.task_id == task_id) \
+                            .filter(Cluster.task_id == task_id) \
+                            .order_by(desc(Cluster.classification), Cluster.id)\
+                            .distinct().limit(25000).all()
+
+        else:
+            clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
+                            .filter(Cluster.task_id == task_id) \
+                            .order_by(desc(Cluster.classification), Cluster.id)\
+                            ).distinct().limit(25000).all()
 
         if len(clusters) == 25000:
             max_request = True
@@ -1105,7 +1125,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
             # Handle detections
             if row[9] and (row[9] not in clusterInfo[row[0]]['images'][row[2]]['detections'].keys()):
-                # if (row[-2] not in ['deleted','hidden']) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
+                # if (row[-2] not in Config.DET_IGNORE_STATUSES) and (row[15]==False) and (row[-3]>Config.DETECTOR_THRESHOLDS[row[-4]]):
                 clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]] = {
                     'id': row[9],
                     'top': row[10],
@@ -1163,7 +1183,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .filter(Trapgroup.id==trapgroup_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                     .filter(Detection.class_score>Classifier.threshold) \
                                     .filter(Cluster.id.in_(cluster_ids))\
@@ -1176,7 +1196,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                                     .filter(Cluster.task_id==task_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                     .filter(Cluster.id.in_(cluster_ids))\
                                     .group_by(Cluster.id)\
@@ -1446,7 +1466,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                     })
 
             # add required images
-            if (not id) and (not isBounding) and (',' not in taggingLevel):
+            #TODO: THIS STILL NEEDS UPDATING/CHECKING (-6)
+            if (not id) and (not isBounding) and (',' not in taggingLevel) and('-6' not in taggingLevel):
                 for image_id in clusterInfo[cluster_id]['required']:
                     if image_id in clusterInfo[cluster_id]['images'].keys():
                         covered_images.append(image_id)
@@ -1619,7 +1640,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                                 .filter(Detection.image_id==image.id)\
 #                                 .filter(Detection.individuals.contains(cluster))\
 #                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-#                                 .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                 .filter(Detection.static==False)\
 #                                 .first()
 
@@ -1656,7 +1677,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                             image,
 #                             [detection for detection in image.detections if (
 #                                 (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
-#                                 (detection.status not in ['deleted','hidden']) and 
+#                                 (detection.status not in Config.DET_IGNORE_STATUSES) and 
 #                                 (detection.static == False)
 #                             )]
 #                         ) for image in sortedImages]
@@ -1698,7 +1719,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                                         .join(Individual,Detection.individuals)\
 #                                         .filter(Detection.image_id==image.id)\
 #                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-#                                         .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                         .filter(Detection.static==False)\
 #                                         .filter(Labelgroup.task_id==cluster.task_id)\
 #                                         .filter(Labelgroup.labels.contains(label))\
@@ -1710,7 +1731,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                                         .join(Labelgroup)\
 #                                         .filter(Detection.image_id==image.id)\
 #                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-#                                         .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                         .filter(Detection.static==False)\
 #                                         .filter(Labelgroup.task_id==cluster.task_id)\
 #                                         .filter(Labelgroup.labels.contains(label))\
@@ -1724,7 +1745,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 #                             image,
 #                             [detection for detection in image.detections if (
 #                                 (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and
-#                                 (detection.status not in ['deleted','hidden']) and 
+#                                 (detection.status not in Config.DET_IGNORE_STATUSES) and 
 #                                 (detection.static == False)
 #                             )]
 #                         ) for image in sortedImages]

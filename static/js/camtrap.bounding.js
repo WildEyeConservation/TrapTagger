@@ -61,8 +61,12 @@ function loadNewCluster(mapID = 'map1') {
                                 if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                     knockedTG=null
                                 }
+
+                                if(((maskedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup==maskedTG))||(newcluster.id == '-101')) {
+                                    maskedTG=null
+                                }
                                 
-                                if (knockedTG==null) {
+                                if (knockedTG==null && maskedTG==null) {
                                     if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
                                         clusterIdList.push(newcluster.id)
                                         for (let n=0;n<newcluster.images.length;n++) {

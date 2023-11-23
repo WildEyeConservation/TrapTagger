@@ -18,8 +18,16 @@ isKnockdown = false
 isBounding = false
 isIDing = false
 
+var drawControl = null
+var toolTipsOpen = true
+var editingEnabled = false
+var maskId = {'map1': null}
+var maskLayer = {'map1': null}
+
 var clusterIdList = []
 // const modalNote = $('#modalNote');
+
+const modalMaskArea = $('#modalMaskArea');
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
@@ -45,8 +53,12 @@ function loadNewCluster(mapID = 'map1') {
                                 if (((knockedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=knockedTG))||(newcluster.id == '-101')) {
                                     knockedTG=null
                                 }
+
+                                if (((maskedTG!=null)&&(parseInt(newcluster.trapGroup)>0)&&(newcluster.trapGroup!=maskedTG))||(newcluster.id == '-101')) {
+                                    maskedTG=null
+                                }
                                 
-                                if (knockedTG==null) {
+                                if (knockedTG==null && maskedTG==null) {
                                     if ((!clusterIdList.includes(newcluster.id))||(newcluster.id=='-101')) {
                                         clusterIdList.push(newcluster.id)
 
@@ -217,6 +229,62 @@ function getKeys() {
                 }
             xhttp.send();
 
+        } else if (taggingLevel == '-6') {
+            multipleStatus = false
+            selectBtns = document.getElementById('selectBtns')
+
+            while(selectBtns.firstChild){
+                selectBtns.removeChild(selectBtns.firstChild);
+            }
+
+            while(divBtns.firstChild){
+                divBtns.removeChild(divBtns.firstChild);
+            }
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Accept (A)';
+            newbtn.setAttribute("id", 1);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                console.log('accept')
+                assignLabel('accept_mask');
+            });
+            divBtns.appendChild(newbtn);
+
+            var newbtn = document.createElement('button');
+            newbtn.classList.add('btn');
+            newbtn.classList.add('btn-primary');
+            newbtn.innerHTML = 'Reject (R)';
+            newbtn.setAttribute("id", 2);
+            newbtn.classList.add('btn-block');
+            newbtn.classList.add('btn-sm');
+            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            newbtn.addEventListener('click', (evt)=>{
+                console.log('reject')
+                assignLabel('reject_mask');
+            });
+            divBtns.appendChild(newbtn);
+
+            hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
+            hotkeys[10] = 'accept_mask' //a
+            hotkeys[27] = 'reject_mask' //r
+
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", '/initKeys', true);
+            xhttp.onreadystatechange =
+                function () {
+                    if (this.readyState == 4 && this.status == 278) {
+                        window.location.replace(JSON.parse(this.responseText)['redirect'])
+                    } else if (this.readyState == 4 && this.status == 200) {
+                        globalKeys = JSON.parse(this.responseText);
+                    }
+                }
+            xhttp.send();
+
         } else {
             if (globalKeys==null) {
                 var xhttp = new XMLHttpRequest();
@@ -359,4 +427,99 @@ modalNote.on('hidden.bs.modal', function(){
     modalActive = false;
     document.getElementById('notebox').value = ''
     document.getElementById('notif').innerHTML = ""
+});
+
+
+function taggingMapPrep(mapID = 'map1') {
+    /** Preps the map for masking and tagging. */
+
+    map[mapID].on("draw:drawstart", function(e) {
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:drawstop", function(e) {
+        editingEnabled = false
+    })
+
+    map[mapID].on('draw:created', function (e) {
+        layer = e.layer;
+        drawnItems[mapID].addLayer(layer)
+        if (!toolTipsOpen) {
+            layer.closeTooltip()
+        }
+        maskLayer[mapID] = layer
+        maskId[mapID] = layer._leaflet_id
+
+
+        modalMaskArea.modal({keyboard: true}) 
+
+    });
+
+}
+
+
+
+function maskArea(mapID = 'map1') {
+
+    maskAreaConfirm = true
+    var masked_area = {}
+
+    if (maskLayer[mapID] != null) {
+        masked_area['top'] = maskLayer[mapID]._bounds._northEast.lat/mapHeight[mapID]
+        masked_area['bottom'] = maskLayer[mapID]._bounds._southWest.lat/mapHeight[mapID]
+        masked_area['left'] = maskLayer[mapID]._bounds._southWest.lng/mapWidth[mapID]
+        masked_area['right'] = maskLayer[mapID]._bounds._northEast.lng/mapWidth[mapID]
+
+        maskedTG = clusters[mapID][clusterIndex[mapID]].trapGroup
+        clusterRequests[mapID] = [];
+        clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+        imageID=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id
+        clusterID=clusters[mapID][clusterIndex[mapID]].id
+
+        console.log(masked_area)
+        console.log(clusterID)
+        console.log(imageID)
+        console.log(maskedTG)
+
+
+        var formData = new FormData();
+        formData.append('masked_area', JSON.stringify(masked_area));
+        formData.append('cluster_id', clusterID);
+        formData.append('image_id', imageID);
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            }
+        }
+        xhttp.open("POST", '/maskArea', true);
+        xhttp.send(formData);
+
+        clusters[mapID][clusterIndex[mapID]][ITEMS] = [maskLabel];
+        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [maskLabel];
+    
+        if (batchComplete) {
+            redirectToDone()
+        }
+
+        clusterIndex[mapID] += 1
+        imageIndex[mapID] = 0
+
+        nextCluster()
+
+    }
+
+    modalMaskArea.modal('hide');
+}
+
+
+modalMaskArea.on('hidden.bs.modal', function(){
+    /** Clears the mask area when the modal is closed. */
+    if (maskId['map1'] != null) {
+        drawnItems['map1'].removeLayer(maskLayer['map1'])
+    }
+    maskLayer['map1'] = null
+    maskId['map1'] = null
 });

@@ -344,7 +344,7 @@ def recluster_large_clusters(task,updateClassifications,session=None,reClusters=
                                 .filter(Detection.image_id==image.id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
-                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .all()
 
             if len(detections) == 0:
@@ -857,7 +857,7 @@ def removeHumans(task_id,trapgroup_ids=None):
                                 .join('image', 'clusters')\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
-                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .filter(~Cluster.labels.any())\
                                 .filter(Cluster.task_id==task_id)\
                                 .group_by(Cluster)\
@@ -1589,7 +1589,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 #                                     .filter(Image.id.in_(chunk))\
 #                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
 #                                     .filter(Detection.static==False)\
-#                                     .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                     .filter(Detection.left!=Detection.right)\
 #                                     .filter(Detection.top!=Detection.bottom)\
 #                                     .distinct().all()
@@ -1614,7 +1614,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 #             #                             .filter(Detection.image_id==int(image_id))\
 #             #                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
 #             #                             .filter(Detection.static==False)\
-#             #                             .filter(~Detection.status.in_(['deleted','hidden']))\
+#             #                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #             #                             .filter(Detection.left!=Detection.right)\
 #             #                             .filter(Detection.top!=Detection.bottom)\
 #             #                             .all()
@@ -1652,7 +1652,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
 #                                 .filter(Image.id.in_(chunk))\
 #                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
 #                                 .filter(Detection.static==False)\
-#                                 .filter(~Detection.status.in_(['deleted','hidden']))\
+#                                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                                 .filter(Detection.left!=Detection.right)\
 #                                 .filter(Detection.top!=Detection.bottom)\
 #                                 .all()
@@ -1713,7 +1713,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .order_by(Image.id).distinct().all()]
 
         batch = images[lower_index:upper_index]
@@ -1724,7 +1724,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                                     .filter(Image.id.in_(batch))\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Detection.left!=Detection.right)\
                                     .filter(Detection.top!=Detection.bottom)\
                                     .distinct().all()
@@ -1749,7 +1749,7 @@ def runClassifier(self,lower_index,upper_index,sourceBucket,batch_size,survey_id
                                 .filter(Image.id.in_(batch))\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
-                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .filter(Detection.left!=Detection.right)\
                                 .filter(Detection.top!=Detection.bottom)\
                                 .all()
@@ -2386,7 +2386,7 @@ def classifyCluster(cluster):
                                 .filter(Image.clusters.contains(cluster))\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                 .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                 .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > Config.DET_AREA)\
                                 .filter(Detection.class_score>Classifier.threshold) \
                                 .group_by(Label.id)\
@@ -2543,7 +2543,7 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
                         .filter(Trapgroup.survey_id==survey_id)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .distinct().count()
 
     chunk_size = round(Config.QUEUES['parallel']['rate']/4)
@@ -2581,7 +2581,7 @@ def classifySurvey(survey_id,sourceBucket,classifier,batch_size=200,processes=4)
                             .filter(Trapgroup.survey_id==survey_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(or_(Detection.left==Detection.right,Detection.top==Detection.bottom))\
                             .all()
 

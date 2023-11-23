@@ -181,7 +181,7 @@ def launchTask():
                             .filter(Label.description==species)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .distinct().count()
 
         if detCount > 2000:
@@ -510,7 +510,7 @@ def getAllIndividuals():
                         .filter(Detection.individuals.contains(individual))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Trapgroup.survey_id.in_(survey_ids))\
                         .order_by(desc(Image.detection_rating)).first()
 
@@ -580,7 +580,7 @@ def getIndividuals(task_id,species):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Trapgroup.survey_id==task.survey_id)\
                             .order_by(desc(Image.detection_rating)).first()
             reply.append({
@@ -686,7 +686,7 @@ def getIndividual(individual_id):
                     .filter(Detection.individuals.contains(individual))\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                     .filter(Trapgroup.survey_id.in_(survey_ids))
 
         if site != '0':
@@ -719,7 +719,7 @@ def getIndividual(individual_id):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .first()
 
             video_url = None
@@ -1036,6 +1036,28 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts.append('Vehicles/Humans/Livestock ('+str(count)+')')
         values.append('-2,'+str(label.id))
 
+    elif task_type=='maskedTag':
+        #TODO: THIS STILL NEEDS UPDATING/CHECKING 
+        disabled = 'true'
+
+        # if task.masked_check_count == None:
+        #     updateAllStatuses.delay(task_id=task_id)
+        #     return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
+    
+        # uncheckedMask = task.unchecked_mask_count
+
+        uncheckedMask = db.session.query(Detection).join(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Detection.status=='masked').filter(Detection.source!='user').distinct().count()
+
+        if uncheckedMask>0:
+            colours = ['#000000']
+        else:
+            colours = ['#0A7850']
+
+        texts = ['Masked Sightings ('+str(uncheckedMask)+')']
+        values = ['-6']
+
+
+
     return json.dumps({'texts': texts, 'values': values, 'disabled':disabled, 'colours':colours})
 
 @app.route('/stopTask/<task_id>')
@@ -1195,7 +1217,7 @@ def checkSightingEditStatus():
                         .filter(Labelgroup.checked==False) \
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static==False) \
-                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                         .filter(subq.c.labelCount>1).first()
 
         if test1:
@@ -1207,7 +1229,7 @@ def checkSightingEditStatus():
                             .filter(Labelgroup.task_id.in_(task_ids)) \
                             .filter(Labelgroup.checked==False) \
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                             .filter(Detection.static==False)
 
             if species not in ['All','None','', '0', '-1']:
@@ -1316,7 +1338,7 @@ def imageViewer():
                                         'static': detection.static}
                                         for detection in image.detections
                                         if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
-                                        (detection.status not in ['deleted','hidden']) and 
+                                        (detection.status not in Config.DET_IGNORE_STATUSES) and 
                                         (detection.static == False) and 
                                         (include_detections.lower()=='true')) ],
                 'comparison': [{'id': detection.id,
@@ -1330,7 +1352,7 @@ def imageViewer():
                                         for detection in db.session.query(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==comparisonsurvey).filter(Camera.path==image.camera.path).filter(Image.filename==image.filename).distinct().all()
                                         if (comparisonsurvey) and 
                                         ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
-                                        (detection.status not in ['deleted','hidden']) and 
+                                        (detection.status not in Config.DET_IGNORE_STATUSES) and 
                                         (detection.static == False) and 
                                         include_detections.lower()=='true') ]
                 } for image in reqImages]
@@ -2266,7 +2288,7 @@ def getPolarDataIndividual(individual_id, baseUnit):
                             .filter(Detection.individuals.contains(individual))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Trapgroup.survey_id.in_(survey_ids))
 
         if trapgroup_tags:
@@ -2539,7 +2561,7 @@ def getBarDataIndividual():
                             .filter(Detection.individuals.contains(individual))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Trapgroup.survey_id.in_(survey_ids))
 
         if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)
@@ -3804,6 +3826,10 @@ def getJobs():
                 else:
                     task_type = 'Multi-Species Differentiation'
                     species = 'All'
+            elif '-6' in item[1]:
+                #TODO: THIS STILL NEEDS UPDATING/CHECKING 
+                task_type = 'Review Masked Sightings'
+                species = 'All'
             else:
                 if item[8] == False:
                     task_type = 'Species Labelling'
@@ -4686,7 +4712,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
                                     .filter(Detection.image_id==image.id)\
                                     .filter(Detection.individuals.contains(individual1))\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Detection.static==False)\
                                     .first()
 
@@ -5188,7 +5214,7 @@ def getSuggestion(individual_id):
                                     'static': detection.static}
                                     for detection in image.detections if (
                                             (detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and 
-                                            (detection.status not in ['deleted','hidden']) and 
+                                            (detection.status not in Config.DET_IGNORE_STATUSES) and 
                                             (detection.static == False) and 
                                             (individual in detection.individuals[:])
                                     )]}
@@ -5710,7 +5736,7 @@ def getImage():
                                 'individual': '-1',
                                 'static': detection.static}
                                 for detection in image.detections
-                                if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden'])) ]}] #and (detection.static == False)
+                                if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in Config.DET_IGNORE_STATUSES)) ]}] #and (detection.static == False)
 
         ground_truths = json.loads(GLOBALS.redisClient.get('ground_truths_'+str(current_user.id)).decode())
 
@@ -5885,7 +5911,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                                     'individual': '-1',
                                     'static': detection.static}
                                     for detection in image.detections
-                                    if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in ['deleted','hidden'])) ]}
+                                    if ((detection.score>Config.DETECTOR_THRESHOLDS[detection.source]) and (detection.status not in Config.DET_IGNORE_STATUSES)) ]}
                     for image in sortedImages]
 
             for n in range(len(images)):
@@ -5934,7 +5960,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
             cluster_count = sq.filter(Cluster.task_id == int(task_id)) \
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .distinct().count()
 
             finished = False
@@ -5943,6 +5969,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
                 code = '-101'
                 task.tagging_level = taggingLevel
                 task.is_bounding = isBounding
+                task.init_complete = False
                 task.status = 'PENDING'
                 task.survey.status = 'Launched'
                 db.session.commit()
@@ -6048,7 +6075,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
                             .filter(Labelgroup.task==task)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
 
         if (species != '0'):
             label_ids = [int(species)]
@@ -6498,7 +6525,7 @@ def getTrapgroupCountsIndividual(individual_id,baseUnit):
                                         .filter(Detection.individuals.contains(individual))\
                                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                         .filter(Detection.static==False)\
-                                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                         .filter(Trapgroup.survey_id.in_(survey_ids))
 
         if start_date: baseQuery = baseQuery.filter(Image.corrected_timestamp >= start_date)
@@ -6752,7 +6779,7 @@ def assignLabel(clusterID):
                                                 .join(Image)\
                                                 .filter(Image.clusters.contains(cluster))\
                                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                                 .filter(Detection.static==False)\
                                                 .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top))<0.1)\
                                                 .first()
@@ -7481,7 +7508,7 @@ def editSightings(image_id,task_id):
                                             .filter(Labelgroup.checked==False) \
                                             .filter(Detection.static==False) \
                                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                            .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                             .first()
 
                 if clusterDetections == None:
@@ -7496,7 +7523,7 @@ def editSightings(image_id,task_id):
                                                 .filter(Labelgroup.checked==True) \
                                                 .filter(Detection.static==False) \
                                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                                .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                                 .distinct(Label.id).all()
                                             
                     cluster.labels = detectionLabels
@@ -7981,7 +8008,7 @@ def knockdown(imageId, clusterId):
 
         if (rootImage.corrected_timestamp==None) or (first_im.corrected_timestamp==None) or ((rootImage.corrected_timestamp - first_im.corrected_timestamp) < timedelta(hours=1)):
             #Still setting up
-            if Config.DEBUGGING: ('Still setting up.')
+            if Config.DEBUGGING: app.logger.info('Still setting up.')
             if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
                 num_clusters = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_clusters < aCluster.task.size) or (current_user.admin == True):
@@ -8007,7 +8034,7 @@ def knockdown(imageId, clusterId):
                     db.session.commit()
 
         else:
-            if Config.DEBUGGING: print('It is really knocked down.')
+            if Config.DEBUGGING: app.logger.info('It is really knocked down.')
             num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
 
             if (num_cluster < db.session.query(Task).get(task_id).size) or (current_user.admin == True):
@@ -8897,7 +8924,7 @@ def writeInfoToImages(type_id,id):
                     .filter(Detection.individuals.contains(individual))\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                     .order_by(Image.corrected_timestamp).all()
 
                 count = 0
@@ -8979,7 +9006,7 @@ def writeInfoToImages(type_id,id):
                     .filter(Detection.individuals.contains(individual))\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static==False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                     .order_by(Image.corrected_timestamp).all()
 
             count = 0
@@ -9140,7 +9167,7 @@ def getIndividualAssociations(individual_id, order):
                 .filter(Detection.individuals.contains(associated_individual))\
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                 .filter(Detection.static==False)\
-                .filter(~Detection.status.in_(['deleted','hidden']))\
+                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                 .filter(Trapgroup.survey_id.in_(survey_ids))\
                 .order_by(desc(Image.detection_rating)).first()
 
@@ -11713,3 +11740,123 @@ def confirmEmail(token):
         flash('Unable to confirm email address.')
 
     return redirect(url_for('settings'))
+
+@app.route('/maskArea', methods=['POST'])
+@login_required
+def maskArea():
+    ''' Masks an area for a camera '''
+    #TODO: THIS STILL NEEDS UPDATING/CHECKING 
+    cluster_id = ast.literal_eval(request.form['cluster_id'])
+    image_id = ast.literal_eval(request.form['image_id'])
+    masked_area = ast.literal_eval(request.form['masked_area'])
+
+    if Config.DEBUGGING: app.logger.info('Cluster {} Image {} Masked Area {}'.format(cluster_id,image_id,masked_area))
+
+    image = db.session.query(Image).get(image_id)
+
+    if not (image and (checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'write') or checkAnnotationPermission(current_user.parent_id,current_user.turkcode[0].task.id))):
+        return {'redirect': url_for('done')}, 278
+
+    taggingLevel = current_user.turkcode[0].task.tagging_level
+
+    if (taggingLevel == '-1') or (taggingLevel == '0'):      
+        cluster = db.session.query(Cluster).get(cluster_id)
+        if cluster:
+            task_id = cluster.task_id
+
+            trapgroup = db.session.query(Trapgroup) \
+                            .join(Camera) \
+                            .join(Image) \
+                            .filter(Image.id == image_id).first()
+
+            if not trapgroup:
+                return {'redirect': url_for('done')}, 278
+
+            # Check that masked_area is big enough
+            masked_top = masked_area['top']
+            masked_left = masked_area['left']
+            masked_bottom = masked_area['bottom']
+            masked_right = masked_area['right']
+
+            area = (masked_bottom - masked_top) * (masked_right - masked_left)
+            if area > Config.DET_AREA:
+                num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+                if (num_cluster < db.session.query(Task).get(task_id).size or current_user.admin):
+
+                    if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
+
+                    GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num_cluster)
+
+                    trapgroup.processing = True
+                    trapgroup.active = False
+                    trapgroup.user_id = None
+
+                    db.session.commit()
+
+                    mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'image_id': image_id, 'masked_area': masked_area})
+
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+        return {'redirect': url_for('done')}, 278
+    else:
+        return ""
+
+@app.route('/reviewMask', methods=['POST'])
+@login_required
+def reviewMask():
+    ''' Accept/Reject masked detection ''' 
+    #TODO: THIS STILL NEEDS UPDATING/CHECKING 
+    mask_data = ast.literal_eval(request.form['data'])
+
+    num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+    turkcode = current_user.turkcode[0]
+    num2 = turkcode.task.size + turkcode.task.test_size
+
+    cluster_id = mask_data['cluster_id']
+    image_ids = mask_data['image_ids']
+    detection_ids = mask_data['detection_ids']
+    mask = mask_data['mask']
+
+    if Config.DEBUGGING: app.logger.info('Review mask for cluster {}, images: {}, detections: {}, action: {}'.format(cluster_id,image_ids,detection_ids,mask))
+
+    cluster = db.session.query(Cluster).get(cluster_id)
+    if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id) or checkSurveyPermission(current_user.id,cluster.task.survey_id,'write')):
+        if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+            if (num < cluster.task.size) or (current_user.admin):
+                num += 1
+        
+                detections = db.session.query(Detection).join(Image).filter(Image.id.in_(image_ids)).filter(Detection.id.in_(detection_ids)).all()
+                for detection in detections:
+                    if mask == 'accept':
+                        detection.status = 'masked'
+                        detection.source = 'user'
+
+                        if Config.DEBUGGING: app.logger.info('Detection {} mask accepted'.format(detection.id))
+
+                    elif mask == 'reject':
+                        detection.status = 'active'
+                        detection.source = 'user'
+
+                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+                        for labelgroup in labelgroups:
+                            labelgroup.labels = cluster.labels
+
+                        if Config.DEBUGGING: app.logger.info('Detection {} mask rejected'.format(detection.id))
+
+                db.session.commit()
+
+                images = db.session.query(Image).filter(Image.id.in_(image_ids)).all()
+                for image in images:
+                    image.detection_rating = detection_rating(image)
+                db.session.commit()
+
+                cluster.user_id = current_user.id
+                cluster.examined = True
+                cluster.timestamp = datetime.utcnow()
+                db.session.commit()
+
+        if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+            return {'redirect': url_for('done')}, 278
+        else:
+            return json.dumps({'progress':(num, num2)})
+    else:
+        return {'redirect': url_for('done')}, 278

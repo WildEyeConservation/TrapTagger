@@ -457,6 +457,7 @@ function resetLaunchTaskPage() {
     document.getElementById('classTag').checked = false
     document.getElementById('infoTag').checked = false
     document.getElementById('individualID').checked = false
+    document.getElementById('maskedTag').checked = false
 
     document.getElementById('taskSize').value = 200
     document.getElementById('launchErrors').value = ''
@@ -464,6 +465,9 @@ function resetLaunchTaskPage() {
     document.getElementById('sightingDifferentiation').disabled = true
     document.getElementById('individualID').disabled = true
     document.getElementById('classTag').disabled = true
+    document.getElementById('infoTag').disabled = true
+    document.getElementById('clusterTag').disabled = false
+    document.getElementById('maskedTag').disabled = true
     clearSelect(document.getElementById('taskTaggingLevel'))
 }
 
@@ -481,6 +485,7 @@ $("#clusterTag").change( function() {
         document.getElementById('individualID').disabled = true
         document.getElementById('classTag').disabled = true
         document.getElementById('infoTag').disabled = true
+        document.getElementById('maskedTag').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Label the species contained in each unlabelled image cluster.</i>"
 
@@ -505,6 +510,7 @@ $("#clusterTag").change( function() {
                 document.getElementById('individualID').disabled = false
                 document.getElementById('classTag').disabled = false
                 document.getElementById('infoTag').disabled = false
+                document.getElementById('maskedTag').disabled = false
             }
         }
         xhttp.send();
@@ -525,6 +531,7 @@ $("#infoTag").change( function() {
         document.getElementById('individualID').disabled = true
         document.getElementById('classTag').disabled = true
         document.getElementById('clusterTag').disabled = true
+        document.getElementById('maskedTag').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Add additional informational tags to each cluster containing a chosen species. You will be able to set up and edit these tags on launch.</i>"
 
@@ -549,6 +556,7 @@ $("#infoTag").change( function() {
                 document.getElementById('individualID').disabled = false
                 document.getElementById('classTag').disabled = false
                 document.getElementById('clusterTag').disabled = false
+                document.getElementById('maskedTag').disabled = false
             }
         }
         xhttp.send();
@@ -738,6 +746,7 @@ $("#individualID").change( function() {
         document.getElementById('sightingDifferentiation').disabled = true
         document.getElementById('infoTag').disabled = true
         document.getElementById('clusterTag').disabled = true
+        document.getElementById('maskedTag').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Identify specific individuals for a chosen individual. Begin by identifying individuals on a cluster-by-cluster basis to try combine multiple viewing angles. Then identify individuals across different clusters based on suggested matches. It is recommended that you correct your sightings (boxes) for your species of interest before beginning this process/</i>"
         clearSelect(document.getElementById('taskTaggingLevel'))
@@ -762,6 +771,7 @@ $("#individualID").change( function() {
                 document.getElementById('sightingDifferentiation').disabled = false
                 document.getElementById('infoTag').disabled = false
                 document.getElementById('clusterTag').disabled = false
+                document.getElementById('maskedTag').disabled = false
                 
             }
         }
@@ -836,6 +846,7 @@ $("#classTag").change( function() {
         document.getElementById('individualID').disabled = true
         document.getElementById('infoTag').disabled = true
         document.getElementById('clusterTag').disabled = true
+        document.getElementById('maskedTag').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Check your cluster-level species labels against the AI to find mistakes.</i>"
 
@@ -860,6 +871,7 @@ $("#classTag").change( function() {
                 document.getElementById('individualID').disabled = false
                 document.getElementById('infoTag').disabled = false
                 document.getElementById('clusterTag').disabled = false
+                document.getElementById('maskedTag').disabled = false
             }
         }
         xhttp.send();
@@ -880,6 +892,7 @@ $("#sightingTag").change( function() {
         document.getElementById('individualID').disabled = true
         document.getElementById('infoTag').disabled = true
         document.getElementById('clusterTag').disabled = true
+        document.getElementById('maskedTag').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Correct the AI-generated boxes for a particular species. Use this to obtain more accurate animal counts or to prepare for individual identification.</i>"
 
@@ -904,6 +917,7 @@ $("#sightingTag").change( function() {
                 document.getElementById('individualID').disabled = false
                 document.getElementById('infoTag').disabled = false
                 document.getElementById('clusterTag').disabled = false
+                document.getElementById('maskedTag').disabled = false
 
             }
         }
@@ -925,6 +939,7 @@ $("#sightingDifferentiation").change( function() {
         document.getElementById('individualID').disabled = true
         document.getElementById('infoTag').disabled = true
         document.getElementById('clusterTag').disabled = true
+        document.getElementById('maskedTag').disabled = true
 
         document.getElementById('annotationDescription').innerHTML = "<i>Differentiate which species each box/sighting contains in clusters that contain multiple species. Do this to obatin more accurate animal counts, and more accurate image-level labelling. Also necessary preparation for individual identification</i>"
 
@@ -949,11 +964,60 @@ $("#sightingDifferentiation").change( function() {
                 document.getElementById('individualID').disabled = false
                 document.getElementById('infoTag').disabled = false
                 document.getElementById('clusterTag').disabled = false
+                document.getElementById('maskedTag').disabled = false
             }
         }
         xhttp.send();
     }
 })
+
+$("#maskedTag").change( function() {
+    /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
+
+    if (document.getElementById('maskedTag').checked) {
+        individualLevel = document.getElementById('individualLevel')
+        while(individualLevel.firstChild){
+            individualLevel.removeChild(individualLevel.firstChild);
+        }
+
+        document.getElementById('classTag').disabled = true
+        document.getElementById('sightingDifferentiation').disabled = true
+        document.getElementById('individualID').disabled = true
+        document.getElementById('infoTag').disabled = true
+        document.getElementById('clusterTag').disabled = true
+        document.getElementById('sightingTag').disabled = true
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Review all sightings that were masked if you have masked an area in a previous task. This can be to ensure that no sightings were missed, or to correct any mistakes.</i>"
+
+        clearSelect(document.getElementById('taskTaggingLevel'))
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/maskedTag');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                clearSelect(document.getElementById('taskTaggingLevel'))
+                fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
+    
+                if (reply.disabled == 'true') {
+                    document.getElementById('taskTaggingLevel').disabled = true
+                } else {
+                    document.getElementById('taskTaggingLevel').disabled = false
+                }
+
+                document.getElementById('classTag').disabled = false
+                document.getElementById('sightingDifferentiation').disabled = false
+                document.getElementById('individualID').disabled = false
+                document.getElementById('infoTag').disabled = false
+                document.getElementById('clusterTag').disabled = false
+                document.getElementById('sightingTag').disabled = false
+
+            }
+        }
+        xhttp.send();
+    }
+})
+
 
 modalEditTranslations.on('hidden.bs.modal', function(){
     /** Cancels the launch task request for the selected task if the user cancels the edit translations modal. */
@@ -1018,6 +1082,7 @@ modalLaunchTask.on('shown.bs.modal', function(){
         document.getElementById('classTag').disabled = true
         document.getElementById('infoTag').disabled = true
         document.getElementById('clusterTag').checked = true
+        document.getElementById('maskedTag').disabled = true
 
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", '/getTaskCompletionStatus/'+selectedTask);
@@ -1031,6 +1096,7 @@ modalLaunchTask.on('shown.bs.modal', function(){
                     document.getElementById('individualID').disabled = false
                     document.getElementById('classTag').disabled = false
                     document.getElementById('infoTag').disabled = false
+                    document.getElementById('maskedTag').disabled = false
                 }
             }
         }

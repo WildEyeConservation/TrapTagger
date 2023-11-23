@@ -204,7 +204,7 @@ def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
                         .filter(Labelgroup.task_id==task_id1)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .subquery()
         sq2 = db.session.query(Image.id.label('image_id2'),Label.id.label('label_id2'))\
                         .join(Detection)\
@@ -213,7 +213,7 @@ def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
                         .filter(Labelgroup.task_id==task_id2)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .subquery()
 
         if ground_truth == 1:
@@ -382,7 +382,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Labelgroup.task_id==task_id) \
                 .filter(Detection.static==False) \
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                .filter(~Detection.status.in_(['deleted','hidden']))
+                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
 
     sq = db.session.query(Image)\
                 .join(Detection)\
@@ -391,7 +391,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .filter(Trapgroup.survey_id==task.survey_id)\
                 .filter(Detection.static==False)\
                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                .filter(~Detection.status.in_(['deleted','hidden']))
+                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
 
     if len(include) != 0:
         query = query.filter(Label.id.in_(include))
@@ -1152,7 +1152,7 @@ def generate_wildbook_export(self,task_id, data, user_name):
                         .filter(Labelgroup.labels.contains(species)) \
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                         .filter(Detection.static == False) \
-                        .filter(~Detection.status.in_(['deleted','hidden'])) \
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                         .statement,db.session.bind)
 
         df['Encounter.genus'] = data['genus'][:1].upper() + data['genus'][1:].lower()
@@ -1406,7 +1406,7 @@ def generate_excel(self,task_id,user_name):
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Cluster.task_id==task_id) \
                                     .filter(Labelgroup.labels.contains(label)) \
                                     .filter(Image.camera_id.in_(camera_ids)) \
@@ -1476,7 +1476,7 @@ def generate_excel(self,task_id,user_name):
                                     .filter(Labelgroup.task_id==task_id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(Detection.static==False)\
-                                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Cluster.task_id==task_id) \
                                     .filter(Labelgroup.labels.contains(label)) \
                                     .distinct(Cluster.id) \
@@ -1522,7 +1522,7 @@ def generate_excel(self,task_id,user_name):
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Cluster.task_id==task_id) \
                             .filter(Labelgroup.labels.contains(label)) \
                             .distinct(Cluster.id) \
@@ -1537,7 +1537,7 @@ def generate_excel(self,task_id,user_name):
                             .filter(Labelgroup.task_id==task_id)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Cluster.task_id==task_id) \
                             .filter(Labelgroup.labels.contains(child)) \
                             .distinct(Cluster.id) \
@@ -1603,7 +1603,7 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                         .filter(Detection.image==image)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Labelgroup.task==task)\
                         .distinct().order_by(Label.description).all()
     
@@ -1616,7 +1616,7 @@ def get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_
                         .filter(Detection.image==image)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Labelgroup.task==task)\
                         .distinct().order_by(Tag.description).all()
 
@@ -1681,7 +1681,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
                         .filter(Image.id.in_(video_images_ids))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Labelgroup.task==task)\
                         .distinct().order_by(Label.description).all()
     
@@ -1695,7 +1695,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
                         .filter(Image.id.in_(video_images_ids))\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static==False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .filter(Labelgroup.task==task)\
                         .distinct().order_by(Tag.description).all()
     
@@ -1893,7 +1893,7 @@ def get_video_paths_and_labels(video,task,individual_sorted,species_sorted,flat_
 #                         .join(Label,Labelgroup.labels)\
 #                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
 #                         .filter(Detection.static==False)\
-#                         .filter(~Detection.status.in_(['deleted','hidden']))\
+#                         .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
 #                         .filter(Labelgroup.task_id==task.id)\
 #                         .filter(Label.id.in_([r.id for r in labels]))\
 #                         .distinct().all()
@@ -1987,7 +1987,7 @@ def generate_training_csv(self,tasks,destBucket,min_area,include_empties=False):
                         .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                         .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                         .filter(Detection.static == False)\
-                        .filter(~Detection.status.in_(['deleted','hidden']))\
+                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                         .statement,db.session.bind)
 
             # Drop detections
@@ -2085,7 +2085,7 @@ def crop_survey_images(self,task_id,min_area,destBucket,include_empties=False):
                     .filter(((Detection.right-Detection.left)*(Detection.bottom-Detection.top)) > min_area)\
                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                     .filter(Detection.static == False)\
-                    .filter(~Detection.status.in_(['deleted','hidden']))\
+                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                     .statement,db.session.bind)
 
         # Drop detections
@@ -2280,7 +2280,7 @@ def generate_coco(self,task_id,user_name):
                             .filter(Labelgroup.task==task)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .distinct().all()
 
         annotations = []
@@ -2587,7 +2587,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
             .filter(Labelgroup.task_id.in_(task_ids))\
             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
             .filter(Detection.static==False)\
-            .filter(~Detection.status.in_(['deleted','hidden']))
+            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
 
             if startDate: summaryQuery = summaryQuery.filter(Image.corrected_timestamp >= startDate)
 
@@ -2673,7 +2673,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                             .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Trapgroup.survey_id.in_(survey_ids))
 
             elif baseUnit == '2': # Cluster
@@ -2703,7 +2703,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                             .filter(Cluster.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Trapgroup.survey_id.in_(survey_ids))
 
             elif baseUnit == '3':  # Detection
@@ -2731,7 +2731,7 @@ def calculate_results_summary(self, task_ids, baseUnit, sites, groups, startDate
                             .filter(Labelgroup.task_id.in_(task_ids))\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                             .filter(Detection.static==False)\
-                            .filter(~Detection.status.in_(['deleted','hidden']))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                             .filter(Trapgroup.survey_id.in_(survey_ids))
                 
             if startDate: baseQuery = baseQuery.filter(Image.corrected_timestamp >= startDate)

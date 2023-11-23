@@ -61,7 +61,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                             .filter(Label.description==species)\
                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                             .filter(Detection.static == False) \
-                            .filter(~Detection.status.in_(['deleted','hidden']))
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
                     
         sq = rootQuery.subquery()
         sq2 = rootQuery.subquery()
@@ -134,7 +134,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                     .filter(Label.description==species)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                     .filter(Detection.static == False) \
-                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                     .distinct().all()
 
                 # Import images
@@ -227,7 +227,7 @@ def calculate_detection_similarities(self,task_ids,species,algorithm):
                                                     .filter(Label.description==species)\
                                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
                                                     .filter(Detection.static == False) \
-                                                    .filter(~Detection.status.in_(['deleted','hidden'])) \
+                                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
                                                     .filter(~Detection.id.in_(covered_detections))\
                                                     .filter(Detection.id!=detection1_id)\
                                                     .distinct().all()]

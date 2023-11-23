@@ -22,6 +22,7 @@ var unknownLabel = -900
 var downLabel = -900
 var wrongLabel = -900
 var unKnockLabel = -123
+var maskLabel = -900
 var xl
 var isReviewing
 var isComparison
@@ -42,10 +43,12 @@ var waitModalID = 0
 var timerWaitModal
 var batchComplete = false
 var knockedTG = null
+var maskedTG = null
 var knockWait = false
 var EMPTY_HOTKEY_ID = '-967'
 var NEXT_CLUSTER_ID = '-729'
 var rectOptions
+var maskRectOptions
 var targetRect = null
 var targetUpdated = null
 var isTutorial = window.location.href.includes("tutorial");
@@ -70,6 +73,7 @@ var orginal_labels
 var orginal_label_ids
 var skipName = null
 var idIndiv101 = false
+var isMaskCheck = false
 const divBtns = document.querySelector('#divBtns');
 const catcounts = document.querySelector('#categorycounts');
 const mapdiv2 = document.querySelector('#mapdiv2');
@@ -121,7 +125,8 @@ var clusterLabels = {"map1": []}
 var clusterPosition = {"map1": document.getElementById('clusterPositionSplide')}
 var clusterPositionSplide = {"map1": null}
 var mapDivs = {'map1': 'mapDiv', 'map2': 'mapdiv2'}
-var splides = {'map1': 'splide', 'map2': 'splide2'}        
+var splides = {'map1': 'splide', 'map2': 'splide2'}     
+var maskCheckData = {}
 
 var colours = {
     'rgba(67,115,98,1)': false,
@@ -652,7 +657,7 @@ function updateCanvas(mapID = 'map1') {
                 modalWait2Hide = false
                 modalWait2.modal({backdrop: 'static', keyboard: false});
             }
-            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && ((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(RFDLabel.toString())) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)))) {
+            if ((typeof clusters[mapID][clusterIndex[mapID]-1] != 'undefined') && (typeof clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS] != 'undefined') && ((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(RFDLabel.toString())) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(downLabel)) || (clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].includes(maskLabel)))) {
                 redirectToDone()
             } else {
                 prevCluster(mapID)
@@ -946,7 +951,7 @@ function updateButtons(mapID = 'map1'){
                 }
             }
         } else {
-            if ((clusterIndex[mapID]==0)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString()].includes(r))))) {
+            if ((clusterIndex[mapID]==0)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString(),maskLabel,maskLabel.toString()].includes(r))))) {
                 prevClusterBtn.classList.add("disabled")
             }else{
                 prevClusterBtn.classList.remove("disabled")
@@ -1110,7 +1115,7 @@ function prevCluster(mapID = 'map1'){
                         }
                     }
                 } else {
-                    if ((!isTagging)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString()].includes(r))))) {
+                    if ((!isTagging)||((clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS]!=undefined)&&(!clusters[mapID][clusterIndex[mapID]-1][ITEM_IDS].some(r=> [downLabel,downLabel.toString(),RFDLabel,RFDLabel.toString(),maskLabel,maskLabel.toString()].includes(r))))) {
                         goToPrevCluster(mapID)
                     }
                 }
@@ -1544,8 +1549,10 @@ function assignLabel(label,mapID = 'map1'){
     }
     
     if (label != EMPTY_HOTKEY_ID) {
-        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label))) {
+        if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label)||(maskLabel==label))) {
             //ignore nothing, skip and knocked down labels in multi
+        } else if (label == maskLabel) {
+            // ignore mask label
         } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
             // confirmation modal for nothing and knockdowns
             if (label==RFDLabel) {
@@ -1687,6 +1694,55 @@ function assignLabel(label,mapID = 'map1'){
                     }
                 }
             
+
+            } else if (taggingLevel=='-6') {    
+                // Review Mask
+                console.log(label)
+                if (label == 'accept_mask') {
+                    // accept
+                    maskCheckData['mask'] = 'accept'
+                } else if (label == 'reject_mask') {
+                    // reject
+                    maskCheckData['mask'] = 'reject'
+                }
+                else {
+                    // mask
+                    maskCheckData['mask'] = 'None'
+                }
+
+                maskCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+                maskCheckData['image_ids'] = []
+                maskCheckData['detection_ids'] = []
+                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                    maskCheckData['image_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].id)
+                    for (let j=0;j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;j++) {
+                        maskCheckData['detection_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
+                    }
+                }
+
+                var formData = new FormData()
+                formData.append("data", JSON.stringify(maskCheckData))
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange =
+                function(wrapClusterIndex,wrapMapID){
+                    return function() {
+                        if (this.readyState == 4 && this.status == 278) {
+                            window.location.replace(JSON.parse(this.responseText)['redirect'])
+                        } else if (this.readyState == 4 && this.status == 200) {                    
+                            response = JSON.parse(this.responseText);
+                            clusters[wrapMapID][wrapClusterIndex].ready = true
+                            updateProgBar(response.progress)
+                        }
+                    }
+                }(clusterIndex[mapID],mapID);
+                xhttp.open("POST", '/reviewMask');
+                clusters[mapID][clusterIndex[mapID]].ready = false
+                xhttp.send(formData);
+
+                maskCheckData = {}
+                nextCluster(mapID)
+                    
             } else {
     
                 if (modalNothingKnock.is(':visible')) {
@@ -1900,6 +1956,11 @@ function fetchTaggingLevel() {
             if (taggingLevel == '-3') {
                 isClassCheck = true
             }
+
+            if (taggingLevel == '-6'){
+                isMaskCheck = true
+            }
+
             if ((!taggingLevel.includes('-4'))&&(!taggingLevel.includes('-5'))) {
                 getKeys()
             }
@@ -2231,7 +2292,42 @@ function prepMap(mapID = 'map1') {
                                 opacity: 0.8,
                                 weight:3,
                                 contextmenu: false,
-                            }            
+                            }      
+                            
+                            if (isTagging && (taggingLevel == '-1')) {
+                                maskRectOptions = {
+                                    color: "rgba(91,192,222,1)",
+                                    fill: true,
+                                    fillOpacity: 0.0,
+                                    opacity: 0.8,
+                                    weight:3,
+                                    contextmenu: false,
+                                }
+                            
+                                if (drawControl != null) {
+                                    drawControl.remove()
+                                }
+                            
+                                drawControl = new L.Control.Draw({
+                                    draw: {
+                                        polygon: false,
+                                        polyline: false,
+                                        circle: false,
+                                        circlemarker: false,
+                                        marker: false,
+                                        rectangle: {
+                                            shapeOptions: maskRectOptions,
+                                            showArea: false
+                                        }
+                                    }
+                                });
+                                map[mapID].addControl(drawControl);
+                                drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Mask Area'
+
+                                taggingMapPrep(wrapMapID)
+
+
+                            }
                         }
                         mapReady[wrapMapID] = true
                         updateCanvas(wrapMapID)
