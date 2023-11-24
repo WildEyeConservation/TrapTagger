@@ -1688,6 +1688,34 @@ limitations under the License. -->
   
     </div>
 </div>
+
+<!-- Check Static Detections Modal -->
+<div id="modalStaticCheck" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4  class="modal-title">Check Static Detections</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p align="justify">
+                    Do you want to check the static detections for this survey?
+                </p>
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button type='button' class='btn btn-info btn-block' data-dismiss='modal' onclick="cancelStaticDetection()">Cancel</button>
+                </div>
+
+                <div class='col-lg-3'>
+                    <button id="btnConfirmStaticCheck" type='button' class='btn btn-danger btn-block' onclick="launchStaticDetectionCheck()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 var selectedTask = 0
+var selectedSurvey = 0
 var isTagging
 var hotkeys = []
 var skipLabel = -900
@@ -230,7 +231,7 @@ function imageHighlight(switchOn,mapID = 'map1') {
 }
 
 function buildDetection(image,detection,mapID = 'map1',colour=null) {
-    if (detection.static == false) {   
+    if (detection.static == false || (detection.static == true && isStaticCheck == true)) {
                  
         if (isIDing && (detection.individual!='-1')) {
             rectOptions.color = individuals[individualIndex][detection.individual].colour
@@ -1139,7 +1140,7 @@ function updateClusterLabels(mapID = 'map1') {
 
 function updateDebugInfo(mapID = 'map1',updateLabels = true) {
     /** Updates the displayed image/cluster info. */
-    if ((!isViewing && !isTagging && !isBounding && !isKnockdown)||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
+    if ((!isViewing && !isTagging && !isBounding && !isKnockdown && !isStaticCheck)||(taggingLevel=='-3')||(isClassCheck)) { //(!isTagging)
         if ((clusters[mapID][clusterIndex[mapID]].id == '-99')||(clusters[mapID][clusterIndex[mapID]].id == '-101')||(clusters[mapID][clusterIndex[mapID]].id == '-782')) {
             document.getElementById('debugImage').innerHTML =  '';
             document.getElementById('debugLabels').innerHTML = '';
@@ -1514,7 +1515,7 @@ function switchToTask(task){
         xhttp.open("GET", '/setAdminTask/'+task);
         xhttp.send();
     }
-    if (!isTagging && !isReviewing && !isKnockdown){
+    if (!isTagging && !isReviewing && !isKnockdown && !isStaticCheck){
         populateSpecies(task)
     }
 }
@@ -2570,6 +2571,14 @@ function onload (){
         }
     }
 
+    if (isStaticCheck) {
+        selectedSurvey = /survey=([^&]+)/.exec(document.location.href)[1]
+        clusters['map1'] = []
+        clusterIndex['map1'] = 0
+        imageIndex['map1'] = 0
+        loadNewCluster()
+    }
+
     // if (document.location.href.includes('task')) {
     //     switchToTask(/task=([^&]+)/.exec(document.location.href)[1])
     // }
@@ -3236,6 +3245,14 @@ document.onkeyup = function(event){
             case 'b': sendBoundingBack()
                 break;
         }
+
+    } else if (isStaticCheck) {
+        switch (event.key.toLowerCase()){
+            case ('a'):handleStatic(1)
+                break;
+            case ('r'):handleStatic(0)
+                break;
+        }
     } else {
         switch (event.key.toLowerCase()){
             case 'arrowright': nextImage()
@@ -3287,7 +3304,7 @@ function checkWaitModal(mapID = 'map1') {
         document.getElementById('PlsWaitCountDownDiv').innerHTML = PlsWaitCountDown
     }
 
-    if ((xl == false)&&(isTagging ==false)&&(isReviewing ==false)&&(isKnockdown == false)) {
+    if ((xl == false)&&(isTagging ==false)&&(isReviewing ==false)&&(isKnockdown == false)&&(isStaticCheck == false)) {
         if (clusterIndex[mapID] >= clusterIDs.length) {
             if (modalWait2.is(':visible')) {
                 modalWait2Hide = true

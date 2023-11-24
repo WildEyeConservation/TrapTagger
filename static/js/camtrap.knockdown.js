@@ -25,6 +25,7 @@ isReviewing = false
 isKnockdown = true
 isBounding = false
 isIDing = false
+isStaticCheck = false
 
 const divSelector = document.querySelector('#divSelector');
 const modalAllFineCheck = $('#modalAllFineCheck');

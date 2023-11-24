@@ -1989,7 +1989,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
     elif (taggingLevel == '-6'):
         #TODO: THIS STILL NEEDS UPDATING/CHECKING
         # Masked sightings
-        sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id)
+        sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False)
 
     else:
         # Specific label levels

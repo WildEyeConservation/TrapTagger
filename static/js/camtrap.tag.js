@@ -17,6 +17,7 @@ isReviewing = false
 isKnockdown = false
 isBounding = false
 isIDing = false
+isStaticCheck = false
 
 var drawControl = null
 var toolTipsOpen = true
@@ -457,13 +458,9 @@ function taggingMapPrep(mapID = 'map1') {
 
 }
 
-
-
 function maskArea(mapID = 'map1') {
-
-    maskAreaConfirm = true
+    /** Masks the area drawn by the user. */
     var masked_area = {}
-
     if (maskLayer[mapID] != null) {
         masked_area['top'] = maskLayer[mapID]._bounds._northEast.lat/mapHeight[mapID]
         masked_area['bottom'] = maskLayer[mapID]._bounds._southWest.lat/mapHeight[mapID]
@@ -476,42 +473,51 @@ function maskArea(mapID = 'map1') {
         imageID=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id
         clusterID=clusters[mapID][clusterIndex[mapID]].id
 
-        console.log(masked_area)
-        console.log(clusterID)
-        console.log(imageID)
-        console.log(maskedTG)
+        maskedArea = (masked_area['right']-masked_area['left'])*(masked_area['bottom']-masked_area['top'])
 
-
-        var formData = new FormData();
-        formData.append('masked_area', JSON.stringify(masked_area));
-        formData.append('cluster_id', clusterID);
-        formData.append('image_id', imageID);
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange =
-        function(){
-            if (this.readyState == 4 && this.status == 278) {
-                window.location.replace(JSON.parse(this.responseText)['redirect'])
-            }
+        if (maskedArea > 0.3) {
+            modalMaskArea.modal('hide');
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too large. Please try again.'
+            modalAlert.modal({keyboard: true});
         }
-        xhttp.open("POST", '/maskArea', true);
-        xhttp.send(formData);
-
-        clusters[mapID][clusterIndex[mapID]][ITEMS] = [maskLabel];
-        clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [maskLabel];
+        else if (maskedArea < 0.0005) {
+            modalMaskArea.modal('hide');
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small. Please try again.'
+            modalAlert.modal({keyboard: true});
+        }
+        else {
+            var formData = new FormData();
+            formData.append('masked_area', JSON.stringify(masked_area));
+            formData.append('cluster_id', clusterID);
+            formData.append('image_id', imageID);
     
-        if (batchComplete) {
-            redirectToDone()
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function(){
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                }
+            }
+            xhttp.open("POST", '/maskArea', true);
+            xhttp.send(formData);
+    
+            clusters[mapID][clusterIndex[mapID]][ITEMS] = [maskLabel];
+            clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [maskLabel];
+        
+            if (batchComplete) {
+                redirectToDone()
+            }
+
+            modalMaskArea.modal('hide');
+    
+            clusterIndex[mapID] += 1
+            imageIndex[mapID] = 0
+    
+            nextCluster()
         }
-
-        clusterIndex[mapID] += 1
-        imageIndex[mapID] = 0
-
-        nextCluster()
 
     }
 
-    modalMaskArea.modal('hide');
 }
 
 

@@ -17,6 +17,7 @@ isReviewing = false
 isKnockdown = false
 isBounding = false
 isIDing = true
+isStaticCheck = false
 
 var suggestions = []
 var suggestionIndex = 0

@@ -159,6 +159,7 @@ const modalCSVGenerate = $('#modalCSVGenerate');
 const btnCsvGenerate = document.querySelector('#btnCsvGenerate');
 const btnExcelDownload = document.querySelector('#btnExcelDownload');
 const btnCsvDownload = document.querySelector('#btnCsvDownload');
+const modalStaticCheck = $('#modalStaticCheck');
 
 var polarColours = {'rgba(10,120,80,0.2)':false,
                     'rgba(255,255,255,0.2)':false,
@@ -477,10 +478,27 @@ function buildSurveys(survey,disableSurvey) {
         addTaskBtn.addEventListener('click', function(wrapSurveyId) {
             return function() {
                 selectedSurvey = wrapSurveyId
-                resetModalAddTask1()
-                resetModalAddTask2()
-                resetModalAddTask3()
-                modalAddTask.modal({keyboard: true});
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange =
+                function(){
+                    if (this.readyState == 4 && this.status == 200) {
+                        reply = JSON.parse(this.responseText);  
+
+                        if (reply.static_check) {
+                            modalStaticCheck.modal({keyboard: true});
+                        }
+                        else {
+                            resetModalAddTask1()
+                            resetModalAddTask2()
+                            resetModalAddTask3()
+                            modalAddTask.modal({keyboard: true});
+                        }
+                    }
+                }
+                xhttp.open("GET", '/staticDetectionCheck/'+selectedSurvey);
+                xhttp.send();
+
             }
         }(survey.id));
     }
@@ -3684,4 +3702,18 @@ function buildSurveyPermissionRow(){
         this.parentNode.parentNode.remove()
     });
 
+}
+
+function launchStaticDetectionCheck() {
+    /** Launches the static detection check */
+    window.location.href = '/checkStaticDetections?survey='+selectedSurvey;
+    modalStaticCheck.modal('hide')
+}
+
+function cancelStaticDetection(){
+    modalStaticCheck.modal('hide')
+    resetModalAddTask1()
+    resetModalAddTask2()
+    resetModalAddTask3()
+    modalAddTask.modal({keyboard: true});
 }

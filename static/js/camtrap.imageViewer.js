@@ -18,6 +18,7 @@ isKnockdown = false
 isBounding = false
 isViewing = true
 isIDing = false
+isStaticCheck = false
 
 window.addEventListener('load', onload, false);
 

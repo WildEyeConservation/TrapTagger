@@ -1046,7 +1046,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
     
         # uncheckedMask = task.unchecked_mask_count
 
-        uncheckedMask = db.session.query(Detection).join(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Detection.status=='masked').filter(Detection.source!='user').distinct().count()
+        uncheckedMask = db.session.query(Detection).join(Labelgroup).join(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Detection.status=='masked').filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False).distinct().count()
 
         if uncheckedMask>0:
             colours = ['#000000']
@@ -11780,7 +11780,7 @@ def maskArea():
             masked_right = masked_area['right']
 
             area = (masked_bottom - masked_top) * (masked_right - masked_left)
-            if area > Config.DET_AREA:
+            if area > Config.DET_AREA and area <= 0.3:
                 num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
                 if (num_cluster < db.session.query(Task).get(task_id).size or current_user.admin):
 
@@ -11831,6 +11831,11 @@ def reviewMask():
                         detection.status = 'masked'
                         detection.source = 'user'
 
+                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+                        for labelgroup in labelgroups:
+                            labelgroup.labels = cluster.labels
+                            labelgroup.checked = True
+
                         if Config.DEBUGGING: app.logger.info('Detection {} mask accepted'.format(detection.id))
 
                     elif mask == 'reject':
@@ -11840,6 +11845,7 @@ def reviewMask():
                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
                         for labelgroup in labelgroups:
                             labelgroup.labels = cluster.labels
+                            labelgroup.checked = False
 
                         if Config.DEBUGGING: app.logger.info('Detection {} mask rejected'.format(detection.id))
 
@@ -11861,3 +11867,191 @@ def reviewMask():
             return json.dumps({'progress':(num, num2)})
     else:
         return {'redirect': url_for('done')}, 278
+
+@app.route('/staticDetectionCheck/<survey_id>')
+@login_required
+def staticDetectionCheck(survey_id):
+    ''' Checks if a static detection check has been done for this survey ''' 
+    #TODO: CHECK/UPDATE THIS (static)
+    static_check = False
+    if current_user and current_user.is_authenticated:
+        if checkSurveyPermission(current_user.id,survey_id,'write'):
+
+            detections = db.session.query(Detection).join(Labelgroup).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).filter(Labelgroup.checked==False).count()
+
+            if detections == 0:
+                return json.dumps({'static_check': False})
+            else:
+                return json.dumps({'static_check': True})
+
+
+            #TODO ADD CHECK TO DB AND HERE 
+
+    return json.dumps({'static_check': static_check})
+
+
+@app.route('/checkStaticDetections')
+@login_required
+def checkStaticDetections():
+    '''Renders the static detections analysis page for the specified survey.'''
+    #TODO: CHECK/UPDATE THIS (static)
+    if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+    else:
+        if current_user.admin:
+            if current_user.username=='Dashboard': return redirect(url_for('dashboard'))
+            if not current_user.permissions: return redirect(url_for('landing'))
+            survey_id = request.args.get('survey', None)
+            survey = db.session.query(Survey).get(survey_id)
+            if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+
+                # Initialise the static detections
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = False
+                db.session.commit()
+
+
+                return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
+            else:
+                return redirect(url_for('surveys'))
+        else:
+            if current_user.parent_id == None:
+                return redirect(url_for('jobs'))
+            else:
+                if current_user.turkcode[0].task.is_bounding:
+                    return redirect(url_for('sightings'))
+                elif '-4' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('clusterID'))
+                elif '-5' in current_user.turkcode[0].task.tagging_level:
+                    return redirect(url_for('individualID'))
+                else:
+                    return redirect(url_for('index'))
+
+
+
+@app.route('/getStaticDetections/<survey_id>/<reqID>')
+@login_required
+def getStaticDetections(survey_id, reqID):
+    #TODO: CHECK/UPDATE THIS (static)
+    if Config.DEBUGGING: app.logger.info('Get static detections for survey {}'.format(survey_id))
+
+    survey = db.session.query(Survey).get(survey_id)
+
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        detectionsClusters = db.session.query(
+                                    Trapgroup.id,
+                                    Camera.id,
+                                    Camera.path,
+                                    Image.id,
+                                    Image.filename,
+                                    Image.detection_rating,
+                                    Detection.id,
+                                    Detection.score,
+                                    Detection.top,
+                                    Detection.bottom,
+                                    Detection.left,
+                                    Detection.right
+                                )\
+                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
+                                .join(Image, Image.camera_id==Camera.id)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .filter(Detection.static==True)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().all()
+
+        if len(detectionsClusters) == 0:
+            return json.dumps({'static_detections': [{'id': -101}]})
+
+        static_detections = []
+        cam_keys = {}
+        for detectionCluster in detectionsClusters:
+            if cam_keys.get(detectionCluster[1]) == None:
+                cam_keys[detectionCluster[1]] = len(static_detections)
+                static_detections.append({
+                    'id': detectionCluster[1],
+                    'images': [{
+                        'id': detectionCluster[3],
+                        'url': detectionCluster[2]+'/'+detectionCluster[4],
+                        'rating': detectionCluster[5],
+                        'detections': []
+                    }],
+                    'labels': ['None'],
+                    'tags': ['None'],
+                    'required': [],
+                    'classification': [],
+                    'groundTruth': [],
+                    'trapGroup': detectionCluster[0]
+                })
+            else:
+               if static_detections[cam_keys[detectionCluster[1]]]['images'][0]['rating'] < detectionCluster[5] and detectionCluster[1] == static_detections[cam_keys[detectionCluster[1]]]['id']:
+                    static_detections[cam_keys[detectionCluster[1]]]['images'][0]['id'] = detectionCluster[3]
+                    static_detections[cam_keys[detectionCluster[1]]]['images'][0]['url'] = detectionCluster[2]+'/'+detectionCluster[4]
+                    static_detections[cam_keys[detectionCluster[1]]]['images'][0]['rating'] = detectionCluster[5]
+
+            static_detections[cam_keys[detectionCluster[1]]]['images'][0]['detections'].append({
+                'id': detectionCluster[6],
+                'top': detectionCluster[8],
+                'bottom': detectionCluster[9],
+                'left': detectionCluster[10],
+                'right': detectionCluster[11],
+                'static': True
+            })
+
+
+    return json.dumps({'static_detections': static_detections, 'id': reqID})
+
+
+@app.route('/assignStatic', methods=['POST'])
+@login_required
+def assignStatic():
+    #TODO: CHECK/UPDATE THIS (static)
+    survey_id = ast.literal_eval(request.form['survey_id'])
+    detection_ids = ast.literal_eval(request.form['detection_ids'])
+    static_status = ast.literal_eval(request.form['static_status'])
+
+    if Config.DEBUGGING: app.logger.info('Assign static detections for survey {}, detections: {}, action: {}'.format(survey_id,detection_ids,static_status))
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+
+        images = []
+        if static_status == 'accept_static':
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            for detection in detections:
+                detection.static = True
+                detection.source = 'user'
+                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = True
+                images.append(detection.image)
+
+                if Config.DEBUGGING: app.logger.info('Detection {} marked as static'.format(detection.id))
+
+            db.session.commit()
+
+        elif static_status == 'reject_static':
+            detections = db.session.query(Detection).filter(Detection.id.in_(detection_ids)).all()
+            for detection in detections:
+                detection.static = False
+                detection.source = 'user'
+                labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = False
+                images.append(detection.image)
+
+                if Config.DEBUGGING: app.logger.info('Detection {} marked as not static'.format(detection.id))
+
+            db.session.commit()
+
+        
+        for image in images:
+            image.detection_rating = detection_rating(image)
+        db.session.commit()
+
+        return json.dumps({'status': 'SUCCESS', 'message': ''})
+
+    else:
+        return redirect(url_for('surveys'))
