@@ -1702,51 +1702,87 @@ function assignLabel(label,mapID = 'map1'){
 
             } else if (taggingLevel=='-6') {    
                 // Review Mask
-                console.log(label)
                 if (label == 'accept_mask') {
                     // accept
                     maskCheckData['mask'] = 'accept'
-                } else if (label == 'reject_mask') {
-                    // reject
-                    maskCheckData['mask'] = 'reject'
-                }
-                else {
-                    // mask
-                    maskCheckData['mask'] = 'None'
-                }
 
-                maskCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
-                maskCheckData['image_ids'] = []
-                maskCheckData['detection_ids'] = []
-                for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-                    maskCheckData['image_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].id)
-                    for (let j=0;j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;j++) {
-                        maskCheckData['detection_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
-                    }
-                }
-
-                var formData = new FormData()
-                formData.append("data", JSON.stringify(maskCheckData))
-
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange =
-                function(wrapClusterIndex,wrapMapID){
-                    return function() {
-                        if (this.readyState == 4 && this.status == 278) {
-                            window.location.replace(JSON.parse(this.responseText)['redirect'])
-                        } else if (this.readyState == 4 && this.status == 200) {                    
-                            response = JSON.parse(this.responseText);
-                            clusters[wrapMapID][wrapClusterIndex].ready = true
-                            updateProgBar(response.progress)
+                    maskCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+                    maskCheckData['image_ids'] = []
+                    maskCheckData['detection_ids'] = []
+                    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+                        maskCheckData['image_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].id)
+                        for (let j=0;j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;j++) {
+                            maskCheckData['detection_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
                         }
                     }
-                }(clusterIndex[mapID],mapID);
-                xhttp.open("POST", '/reviewMask');
-                clusters[mapID][clusterIndex[mapID]].ready = false
-                xhttp.send(formData);
+    
+                    var formData = new FormData()
+                    formData.append("data", JSON.stringify(maskCheckData))
+    
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange =
+                    function(wrapClusterIndex,wrapMapID){
+                        return function() {
+                            if (this.readyState == 4 && this.status == 278) {
+                                window.location.replace(JSON.parse(this.responseText)['redirect'])
+                            } else if (this.readyState == 4 && this.status == 200) {                    
+                                response = JSON.parse(this.responseText);
+                                clusters[wrapMapID][wrapClusterIndex].ready = true
+                                updateProgBar(response.progress)
+                            }
+                        }
+                    }(clusterIndex[mapID],mapID);
+                    xhttp.open("POST", '/reviewMask');
+                    clusters[mapID][clusterIndex[mapID]].ready = false
+                    xhttp.send(formData);
+    
+                    maskCheckData = {}
+                    nextCluster(mapID)
 
-                maskCheckData = {}
-                nextCluster(mapID)
+
+                } else if (label == 'reject_mask') {
+                    // reject
+                    // maskCheckData['mask'] = 'reject'
+
+                    if (divBtns != null) {
+                        orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+                        orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+                        // clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+                        // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+                        // clusterLabels[mapID] = []
+                        updateDebugInfo(mapID,false)
+
+                        selectBtns = document.getElementById('selectBtns')
+                        // multipleStatus = false
+                        wrongStatus = true
+                        tempTaggingLevel = '-1'
+                        taggingLevel = '-1'
+
+                        while(divBtns.firstChild){
+                            divBtns.removeChild(divBtns.firstChild);
+                        }
+
+                        var newbtn = document.createElement('button');
+                        newbtn.classList.add('btn');
+                        newbtn.classList.add('btn-danger');
+                        newbtn.innerHTML = 'Back';
+                        newbtn.setAttribute("id", 0);
+                        newbtn.classList.add('btn-block');
+                        newbtn.classList.add('btn-sm');
+                        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+                        newbtn.addEventListener('click', (evt)=>{
+                            suggestionBack();
+                        });
+                        selectBtns.appendChild(newbtn);
+
+                        // populateLevels()
+                        initKeys(globalKeys['-1'])
+
+                        activateMultiple()
+                    }
+
+                }
+
                     
             } else {
     
@@ -1890,7 +1926,7 @@ function assignLabel(label,mapID = 'map1'){
                                         updateDebugInfo(mapID)
                                     }
                                     
-                                    if (wrongStatus&&!isClassCheck&&!dontResetWrong) {
+                                    if (wrongStatus&&!isClassCheck&&!dontResetWrong&&!isMaskCheck) {
                                         wrongStatus = false
                                         tempTaggingLevel = taggingLevel
                                         initKeys(globalKeys[taggingLevel])
@@ -1904,7 +1940,7 @@ function assignLabel(label,mapID = 'map1'){
                                     }
         
                                     if (!multipleStatus) {
-                                        if (isClassCheck) {
+                                        if (isClassCheck||isMaskCheck) {
                                             wrongStatus = false
                                             suggestionBack(false)
                                         }
@@ -2708,7 +2744,7 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
-                    if (isClassCheck) {
+                    if (isClassCheck||isMaskCheck) {
                         wrongStatus = false
                         suggestionBack(false)
                     }
@@ -2773,6 +2809,9 @@ function submitLabels(mapID = 'map1') {
                                 clusters[wrapMapID][wrapIndex].ready = true
                                 clusters[wrapMapID][wrapIndex].classification = reply.classifications
                             }
+                            if (isMaskCheck) {
+                                clusters[wrapMapID][wrapIndex].ready = true
+                            }
                             Progress = reply.progress
                             updateProgBar(Progress)
                         }
@@ -2782,6 +2821,10 @@ function submitLabels(mapID = 'map1') {
         }
         xhttp.open("POST", url, true);
         if (isClassCheck) {
+            wrongStatus = false
+            clusters[mapID][clusterIndex[mapID]].ready = false
+        }
+        if (isMaskCheck) {
             wrongStatus = false
             clusters[mapID][clusterIndex[mapID]].ready = false
         }

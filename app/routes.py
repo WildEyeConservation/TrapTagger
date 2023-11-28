@@ -1046,7 +1046,17 @@ def getTaggingLevelsbyTask(task_id,task_type):
     
         # uncheckedMask = task.unchecked_mask_count
 
-        uncheckedMask = db.session.query(Detection).join(Labelgroup).join(Image).join(Cluster, Image.clusters).filter(Cluster.task_id==task_id).filter(Detection.status=='masked').filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False).distinct().count()
+        uncheckedMask = db.session.query(Detection)\
+                                    .join(Labelgroup)\
+                                    .join(Image)\
+                                    .join(Cluster, Image.clusters)\
+                                    .filter(Cluster.task_id==task_id)\
+                                    .filter(Detection.status=='masked')\
+                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                                    .filter(Detection.static == False) \
+                                    .filter(Labelgroup.task_id==task_id)\
+                                    .filter(Labelgroup.checked==False)\
+                                    .distinct().count()
 
         if uncheckedMask>0:
             colours = ['#000000']
@@ -6768,6 +6778,32 @@ def assignLabel(clusterID):
 
                     if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
 
+                    if taggingLevel=='-6':
+                        # TODO: CHECK/UPDATE this (-6)
+                        masked_detections = session.query(Detection)\
+                                                .join(Image)\
+                                                .filter(Image.clusters.contains(cluster))\
+                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                                .filter(Detection.static==False)\
+                                                .filter(Detection.status=='masked')\
+                                                .all()
+
+                        images = []
+                        for detection in masked_detections:
+                            detection.status = 'active'
+                            detection.source = 'user'
+                            app.logger.info('Detection {} unmasked'.format(detection.id))
+                            images.append(detection.image)
+                            labelgroups = session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+                            for labelgroup in labelgroups:
+                                labelgroup.checked = False
+                        
+                        session.commit()
+
+                        for image in images:
+                            image.detection_rating = detection_rating(image)
+
+
                     if remove_false_detections:
                         tgs_available = session.query(Trapgroup)\
                                                 .filter(Trapgroup.survey==task.survey)\
@@ -11831,7 +11867,8 @@ def reviewMask():
                         detection.status = 'masked'
                         detection.source = 'user'
 
-                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+                        # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
                         for labelgroup in labelgroups:
                             labelgroup.labels = cluster.labels
                             labelgroup.checked = True
@@ -11842,7 +11879,8 @@ def reviewMask():
                         detection.status = 'active'
                         detection.source = 'user'
 
-                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+                        # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
                         for labelgroup in labelgroups:
                             labelgroup.labels = cluster.labels
                             labelgroup.checked = False
@@ -11903,14 +11941,12 @@ def checkStaticDetections():
             if not current_user.permissions: return redirect(url_for('landing'))
             survey_id = request.args.get('survey', None)
             survey = db.session.query(Survey).get(survey_id)
-            if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-
+            if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 # Initialise the static detections
-                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
-                for labelgroup in labelgroups:
-                    labelgroup.checked = False
-                db.session.commit()
-
+                # labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+                # for labelgroup in labelgroups:
+                #     labelgroup.checked = False
+                # db.session.commit()
 
                 return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
             else:
@@ -11937,9 +11973,11 @@ def getStaticDetections(survey_id, reqID):
     if Config.DEBUGGING: app.logger.info('Get static detections for survey {}'.format(survey_id))
 
     survey = db.session.query(Survey).get(survey_id)
-
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
-        detectionsClusters = db.session.query(
+        survey.status = 'Static Detection Analysis'
+        db.session.commit()
+
+        detectionClusters = db.session.query(
                                     Trapgroup.id,
                                     Camera.id,
                                     Camera.path,
@@ -11962,12 +12000,15 @@ def getStaticDetections(survey_id, reqID):
                                 .filter(Labelgroup.checked==False)\
                                 .distinct().all()
 
-        if len(detectionsClusters) == 0:
+        if len(detectionClusters) == 0:
+            if survey.status == 'Static Detection Analysis':
+                survey.status = 'Ready'
+                db.session.commit()
             return json.dumps({'static_detections': [{'id': -101}]})
 
         static_detections = []
         cam_keys = {}
-        for detectionCluster in detectionsClusters:
+        for detectionCluster in detectionClusters:
             if cam_keys.get(detectionCluster[1]) == None:
                 cam_keys[detectionCluster[1]] = len(static_detections)
                 static_detections.append({
@@ -12001,8 +12042,9 @@ def getStaticDetections(survey_id, reqID):
             })
 
 
-    return json.dumps({'static_detections': static_detections, 'id': reqID})
-
+        return json.dumps({'static_detections': static_detections, 'id': reqID})
+    else:
+        return {'redirect': url_for('surveys')}, 278
 
 @app.route('/assignStatic', methods=['POST'])
 @login_required
@@ -12016,6 +12058,8 @@ def assignStatic():
 
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        survey.status = 'Static Detection Analysis'
+        db.session.commit()
 
         images = []
         if static_status == 'accept_static':
@@ -12052,6 +12096,5 @@ def assignStatic():
         db.session.commit()
 
         return json.dumps({'status': 'SUCCESS', 'message': ''})
-
     else:
-        return redirect(url_for('surveys'))
+        return {'redirect': url_for('surveys')}, 278

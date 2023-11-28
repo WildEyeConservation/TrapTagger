@@ -709,7 +709,7 @@ def cluster_survey(survey_id,queue='parallel',force=False,trapgroup_ids=None):
 @celery.task(bind=True,max_retries=5)
 def processCameraStaticDetections(self,camera_id,imcount):
     '''Checks all the detections associated with a given camera ID to see if they are static or not.'''
-
+    #TODO: WIth new static detection check this might become more lenient
     try:
         ###### Single query approach
         queryTemplate1="""

@@ -116,17 +116,17 @@ function handleStatic(staticCheck, mapID = 'map1') {
         formData.append('survey_id', JSON.stringify(selectedSurvey));
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange =
-            function(wrapClusterIndex,wrapMapID){
-                if (this.readyState == 4 && this.status == 200) {
-                    if (this.readyState == 4 && this.status == 278) {
-                        window.location.replace(JSON.parse(this.responseText)['redirect'])
-                    } else if (this.readyState == 4 && this.status == 200) {                    
-                        response = JSON.parse(this.responseText);
-                        clusters[wrapMapID][wrapClusterIndex].ready = true
-                        nextCluster(wrapMapID)
-                    }
+        function(wrapClusterIndex,wrapMapID){
+            return function() {
+                if (this.readyState == 4 && this.status == 278) {
+                    window.location.replace(JSON.parse(this.responseText)['redirect'])
+                } else if (this.readyState == 4 && this.status == 200) {                    
+                    response = JSON.parse(this.responseText);
+                    clusters[wrapMapID][wrapClusterIndex].ready = true
+                    nextCluster(wrapMapID)
                 }
-            }(clusterIndex[mapID],mapID);
+            }
+        }(clusterIndex[mapID],mapID);
         xhttp.open("POST", '/assignStatic');
         xhttp.send(formData);
 

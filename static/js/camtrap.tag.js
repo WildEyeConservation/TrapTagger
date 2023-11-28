@@ -110,7 +110,12 @@ function suggestionBack(resetLabels=true,mapID='map1') {
         clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = orginal_label_ids
         updateDebugInfo()
     }
-    taggingLevel = '-3'
+    if (isClassCheck) {
+        taggingLevel = '-3'
+    }
+    else if (isMaskCheck) {
+        taggingLevel = '-6'
+    }
     getKeys()
 }
 

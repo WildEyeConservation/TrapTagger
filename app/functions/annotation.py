@@ -610,6 +610,28 @@ def manageTasks():
         for task in tasks:
             task.status = 'successInitial'
 
+        # Check for Static Detection Analysis timeout
+        # Get all surveys where all the users for that survey have timed out (last_ping > 5 minutes)
+        # surveys = session.query(Survey)\
+        #                 .join(Organisation)\
+        #                 .join(UserPermissions)\
+        #                 .join(User,UserPermissions.user_id==User.id)\
+        #                 .filter(Survey.status=='Static Detection Analysis')\
+        #                 .group_by(Survey.id)\
+        #                 .having(func.max(User.last_ping) < (datetime.utcnow() - timedelta(minutes=5)))\
+        #                 .all()
+        
+        surveys = session.query(Survey)\
+                        .join(Organisation)\
+                        .join(UserPermissions)\
+                        .join(User,UserPermissions.user_id==User.id)\
+                        .filter(User.last_ping < (datetime.utcnow()-timedelta(minutes=5)))\
+                        .filter(Survey.status=='Static Detection Analysis')\
+                        .distinct().all()
+
+        for survey in surveys:
+            survey.status = 'Ready'
+
         # #Look for abandoned jobs
         # abandoned_jobs = session.query(User,Task)\
         #                         .join(Turkcode,Turkcode.user_id==User.id)\
