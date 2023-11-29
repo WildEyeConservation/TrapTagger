@@ -679,7 +679,7 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyErrors').innerHTML = ''
 
     document.getElementById('S3BucketUpload').checked = false
-    document.getElementById('BrowserUpload').checked = false
+    document.getElementById('BrowserUpload').checked = true
     document.getElementById('newSurveyCheckbox').checked = false
 
     // document.getElementById('kmlFileUploadText').value = ''
