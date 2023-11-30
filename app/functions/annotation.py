@@ -395,9 +395,14 @@ def wrapUpTask(self,task_id):
                                             .filter(Individual.species==species)\
                                             .filter(Individual.name!='unidentifiable')\
                                             .filter(IndSimilarity.score==None)\
-                                            .distinct().count() 
+                                            .distinct().count()
+            total_individual_count = db.session.query(Individual)\
+                                            .filter(Individual.tasks.contains(task))\
+                                            .filter(Individual.species==species)\
+                                            .filter(Individual.name!='unidentifiable')\
+                                            .count()
             if Config.DEBUGGING: app.logger.info('There are {} incomplete individuals for wrapTask'.format(incompleteIndividuals))
-            if incompleteIndividuals == 0:
+            if (incompleteIndividuals == 0) or (total_individual_count<2):
                 task.survey.status = 'Ready'
 
         elif '-5' in task.tagging_level:
