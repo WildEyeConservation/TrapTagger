@@ -162,7 +162,7 @@ while $flag; do
     for (( i=1; i<=num_procs; i++ ))
     do
       export WORKER_NAME=$BASE_WORKER_NAME${i}
-      docker exec parallel_worker bash celery_worker_monitor.sh ${WORKER_NAME} || STATUS=$?
+      docker exec traptagger1 bash celery_worker_monitor.sh ${WORKER_NAME} || STATUS=$?
       echo "$WORKER_NAME STATUS="$STATUS
       if [ $STATUS == 50 ]; then
         OVERALL_STATUS=50
