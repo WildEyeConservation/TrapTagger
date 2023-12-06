@@ -45,7 +45,7 @@ limitations under the License.
 }
 
 .tab button:disabled {
-  cursor: not-allowed;
+  cursor: default;
   background-color: rgba(60, 74, 89, 0.5);
 }
 

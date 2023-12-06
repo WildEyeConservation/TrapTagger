@@ -217,8 +217,8 @@ var selectedSurvey = 0;
 var selectedTask = 0;
 var legalLabels = false;
 var legalTags = true; //false
-var globalHotkeysParents = ['v', 'q', 'n', 'u', '-', '0']
-var globalDescriptions = ['none', 'vehicles/humans/livestock', 'knocked down', 'wrong', 'nothing', 'unknown', 'skip', 'remove false detections']
+var globalHotkeysParents = ['v', 'q', 'n', 'u', '-', '0', '=']
+var globalDescriptions = ['none', 'vehicles/humans/livestock', 'knocked down', 'wrong', 'nothing', 'unknown', 'skip', 'remove false detections', 'mask area']
 var globalHotkeysChildren = ['9', '0']
 var taskNames = []
 
@@ -233,6 +233,7 @@ var pathDisplay = null
 const default_access  = {0: 'Worker', 1: 'Hidden', 2: 'Read', 3: 'Write', 4: 'Admin'}
 const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 'admin': 4}
 var globalOrganisationUsers = []
+var tabActiveEditSurvey = 'baseAddImagesTab'
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -466,6 +467,7 @@ function buildSurveys(survey,disableSurvey) {
                 selectedSurvey = wrapSurveyId
                 document.getElementById('addImagesHeader').innerHTML =  'Edit Survey: ' + wrapSurveyName
                 modalAddImages.modal({keyboard: true});
+                document.getElementById('openAddImagesTab').click()
             }
         }(survey.name,survey.id));
 
@@ -747,7 +749,7 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyErrors').innerHTML = ''
 
     document.getElementById('S3BucketUpload').checked = false
-    document.getElementById('BrowserUpload').checked = false
+    document.getElementById('BrowserUpload').checked = true
     document.getElementById('newSurveyCheckbox').checked = false
 
     // document.getElementById('kmlFileUploadText').value = ''
@@ -776,16 +778,23 @@ function resetEditSurveyModal() {
 
     // document.getElementById('classifierVersion').value = ''
     // document.getElementById('btnReClassify').disabled = true
-    document.getElementById('addImagesAddImages').checked = false
-    document.getElementById('addImagesAddCoordinates').checked = false
-    document.getElementById('addImagesEditTimestamps').checked = false
-    document.getElementById('addImagesEditClassifier').checked = false
-    document.getElementById('addImagesAdvanced').checked = false
-    document.getElementById('addImagesAddImages').disabled = false
-    document.getElementById('addImagesAddCoordinates').disabled = false
-    document.getElementById('addImagesEditTimestamps').disabled = false
-    document.getElementById('addImagesEditClassifier').disabled = false
-    document.getElementById('addImagesAdvanced').disabled = false
+    // document.getElementById('addImagesAddImages').checked = false
+    // document.getElementById('addImagesAddCoordinates').checked = false
+    // document.getElementById('addImagesEditTimestamps').checked = false
+    // document.getElementById('addImagesEditClassifier').checked = false
+    // document.getElementById('addImagesAdvanced').checked = false
+    // document.getElementById('addImagesAddImages').disabled = false
+    // document.getElementById('addImagesAddCoordinates').disabled = false
+    // document.getElementById('addImagesEditTimestamps').disabled = false
+    // document.getElementById('addImagesEditClassifier').disabled = false
+    // document.getElementById('addImagesAdvanced').disabled = false
+
+
+    var mainModal = document.getElementById('modalAddImages')
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
 
     clearEditSurveyModal()
 }
@@ -1440,7 +1449,7 @@ function buildAddIms() {
     /** Builds the add images form for use in the edit survey modal. */
     
     addImagesAddImsDiv = document.getElementById('addImagesAddImsDiv')
-    addImagesAddImsDiv.appendChild(document.createElement('br'))
+    // addImagesAddImsDiv.appendChild(document.createElement('br'))
 
     // Upload Type
     UTdiv = document.createElement('div')
@@ -1584,7 +1593,7 @@ function buildAddIms() {
     tgBuilder.setAttribute('id','addImagesTgBuilder')
     addImagesAddImsDiv.appendChild(tgBuilder)
 
-    addImagesAddImsDiv.appendChild(document.createElement('br'))
+    // addImagesAddImsDiv.appendChild(document.createElement('br'))
 
     $("#addImagesCheckbox").change( function() {
         addImagesCheckbox = document.getElementById('addImagesCheckbox')
@@ -1640,12 +1649,12 @@ function buildCameras(camera_url='/getCameraStamps') {
                     addImagesCamerasDiv.removeChild(addImagesCamerasDiv.firstChild);
                 }
     
-                document.getElementById('addImagesAddImages').disabled = false
-                document.getElementById('addImagesAddCoordinates').disabled = false
-                document.getElementById('addImagesEditTimestamps').disabled = false
-                document.getElementById('addImagesEditClassifier').disabled = false
-                document.getElementById('addImagesAdvanced').disabled = false
-                addImagesCamerasDiv.appendChild(document.createElement('br'))
+                document.getElementById('openAddImagesTab').disabled = false
+                document.getElementById('openAddCoordinatesTab').disabled = false
+                document.getElementById('openEditTimestampsTab').disabled = false
+                document.getElementById('openEditClassifierTab').disabled = false
+                document.getElementById('openAdvancedTab').disabled = false
+                // addImagesCamerasDiv.appendChild(document.createElement('br'))
             
                 h5 = document.createElement('h5')
                 h5.setAttribute('style','margin-bottom: 2px')
@@ -1765,11 +1774,11 @@ function buildCameras(camera_url='/getCameraStamps') {
 function buildEditTimestamp() {
     /** Builds the form for editing timestamps on the edit survey modal. */
     
-    document.getElementById('addImagesAddImages').disabled = true
-    document.getElementById('addImagesAddCoordinates').disabled = true
-    document.getElementById('addImagesEditTimestamps').disabled = true
-    document.getElementById('addImagesEditClassifier').disabled = true
-    document.getElementById('addImagesAdvanced').disabled = true
+    document.getElementById('openAddImagesTab').disabled = true
+    document.getElementById('openAddCoordinatesTab').disabled = true
+    document.getElementById('openEditTimestampsTab').disabled = true
+    document.getElementById('openEditClassifierTab').disabled = true
+    document.getElementById('openAdvancedTab').disabled = true
 
     global_corrected_timestamps = {}
     global_original_timestamps = {}
@@ -1822,22 +1831,22 @@ function buildEditTimestamp() {
 function buildKml() {
     /** Builds the kml upload functionality in the edit survey modal. */
     
-    addImagesAddCoordinates = document.getElementById('addImsCoordsDiv')
-    addImagesAddCoordinates.appendChild(document.createElement('br'))
+    addImsCoordsDiv = document.getElementById('addImsCoordsDiv')
+    addImsCoordsDiv.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
     h5.innerHTML = 'Site Coordinates'
-    addImagesAddCoordinates.appendChild(h5)
+    addImsCoordsDiv.appendChild(h5)
 
     div = document.createElement('div')
     div.setAttribute('style','font-size: 80%; margin-bottom: 2px')
     div.innerHTML = '<i>Upload a kml file containing your site coordinates. This can be exported from <a href="https://earth.google.com/web/">Google Earth</a>.</i>'
-    addImagesAddCoordinates.appendChild(div)
+    addImsCoordsDiv.appendChild(div)
 
     row = document.createElement('div')
     row.classList.add('row')
-    addImagesAddCoordinates.appendChild(row)
+    addImsCoordsDiv.appendChild(row)
 
     col1 = document.createElement('div')
     col1.classList.add('col-lg-6')
@@ -1871,7 +1880,7 @@ function buildKml() {
     input2.setAttribute('accept','.kml')
     span.appendChild(input2)
 
-    addImagesAddCoordinates.appendChild(document.createElement('br'))
+    addImsCoordsDiv.appendChild(document.createElement('br'))
 
     $("#kmlFileUpload2").change( function() {
         if (document.getElementById("kmlFileUpload2").files.length > 0) {
@@ -1882,15 +1891,14 @@ function buildKml() {
     })
 }
 
-$("#addImagesAddImages").change( function() {
+function openAddImages(){
     /** Listens for and initialises the add images form on the edit survey modal when the radio button is selected. */
 
-    addImagesAddImages = document.getElementById('addImagesAddImages')
-    if (addImagesAddImages.checked) {
+    if (tabActiveEditSurvey=='baseAddImagesTab') {
         clearEditSurveyModal()
         buildAddIms()
     }
-})
+}
 
 function buildManualCoords() {
     /** Build the manual coords editor */
@@ -1986,7 +1994,7 @@ function buildCoordsOptions() {
         addImagesAddCoordsDiv.removeChild(addImagesAddCoordsDiv.firstChild);
     }
 
-    addImagesAddCoordsDiv.appendChild(document.createElement('br'))
+    // addImagesAddCoordsDiv.appendChild(document.createElement('br'))
 
     h5 = document.createElement('h5')
     h5.setAttribute('style','margin-bottom: 2px')
@@ -2099,7 +2107,7 @@ function buildAdvancedOptions() {
             reply = JSON.parse(this.responseText);
             
             addImagesAdvancedDiv = document.getElementById('addImagesAdvancedDiv')
-            addImagesAdvancedDiv.appendChild(document.createElement('br'))
+            // addImagesAdvancedDiv.appendChild(document.createElement('br'))
 
             row = document.createElement('div')
             row.setAttribute('class','row')
@@ -2177,48 +2185,44 @@ function buildAdvancedOptions() {
     xhttp.send();
 }
 
-$("#addImagesAddCoordinates").change( function() {
+function openAddCoordinates(){
     /** Listens for and initialises the add kml file form on the edit survey modal when the radio button is selected. */
 
-    addImagesAddCoordinates = document.getElementById('addImagesAddCoordinates')
-    if (addImagesAddCoordinates.checked) {
+    if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
         clearEditSurveyModal()
         buildCoordsOptions()
     }
-})
+}
 
-$("#addImagesAdvanced").change( function() {
+function openAdvanced(){
     /** Listens for and initialises the advanced options form on the edit survey modal when the radio button is selected. */
 
-    addImagesAdvanced = document.getElementById('addImagesAdvanced')
-    if (addImagesAdvanced.checked) {
+    if (tabActiveEditSurvey=='baseAdvancedTab') {
         clearEditSurveyModal()
         buildAdvancedOptions()
     }
-})
+}
 
-$("#addImagesEditTimestamps").change( function() {
+function openEditTimestamps(){
     /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
 
-    addImagesEditTimestamps = document.getElementById('addImagesEditTimestamps')
-    if (addImagesEditTimestamps.checked) {
+    if (tabActiveEditSurvey=='baseEditTimestampsTab') {
         clearEditSurveyModal()
         buildEditTimestamp()
     }
-})
+}
 
-$("#addImagesEditClassifier").change( function() {
+function openEditClassifier(){
     /** Listens for and initialises the edit timestamps form on the edit survey modal when the radio button is selected. */
 
-    addImagesEditClassifier = document.getElementById('addImagesEditClassifier')
-    if (addImagesEditClassifier.checked) {
+    if (tabActiveEditSurvey=='baseEditClassifierTab') {
         clearEditSurveyModal()
         addImagesEditClassifierDiv = document.getElementById('addImagesEditClassifierDiv')
         addImagesEditClassifierDiv.appendChild(document.createElement('br'))
         buildClassifierSelectTable(addImagesEditClassifierDiv)
-        addImagesEditClassifierDiv.appendChild(document.createElement('br'))
+        // addImagesEditClassifierDiv.appendChild(document.createElement('br'))
     }
-})
+}
 
 $("#newSurveyCheckbox").change( function() {
     /** Listens for and warns the user when they select the adanced trapgroup code option. */
@@ -2667,6 +2671,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     table.setAttribute('class','table table-striped table-bordered table-sm')
     table.setAttribute('cellspacing','0')
     table.setAttribute('width','100%')
+    table.setAttribute('style','margin-bottom: 0px;')
     tableDiv.appendChild(table)
 
     thead = document.createElement('thead')
@@ -2699,6 +2704,7 @@ function buildClassifierSelectTable(speciesClassifierDiv) {
     tbody.setAttribute('id','classifierSelectionTableInfo')
     table.appendChild(tbody)
 
+    speciesClassifierDiv.appendChild(document.createElement('br'))
     row = document.createElement('div')
     row.classList.add('row')
     col0 = document.createElement('div')
@@ -2768,7 +2774,6 @@ modalNewSurvey.on('shown.bs.modal', function(){
 
 modalAddImages.on('shown.bs.modal', function(){
     /** Initialises the edit-survey modal when opened. */
-
     if (!helpReturn) {
         // var xhttp = new XMLHttpRequest();
         // xhttp.open("GET", '/getSurveyClassificationLevel/'+selectedSurvey);
@@ -3117,7 +3122,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
     }
 
     legalFile = true
-    if (document.getElementById('addImagesAddCoordinates').checked) {
+    if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
         if (document.getElementById('addCoordinatesManualMethod').checked) {
             coordData = []
             allLatitudes = document.querySelectorAll('[id^=latitude-]');
@@ -3149,7 +3154,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
     }
 
     legalTGCode = true
-    if (document.getElementById('addImagesAddImages').checked) {
+    if (tabActiveEditSurvey=='baseAddImagesTab') {
         addImagesTGCode = document.getElementById('addImagesTGCode').value
         addImagesCheckboxChecked = document.getElementById('addImagesCheckbox').checked
 
@@ -3206,7 +3211,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
     }
 
     legalClassifier = true
-    if (document.getElementById('addImagesEditClassifier').checked) {
+    if (tabActiveEditSurvey=='baseEditClassifierTab') {
         classifier = document.querySelector('input[name="classifierSelection"]:checked')
         if (classifier==null) {
             document.getElementById('addImagesErrors').innerHTML = 'You must select a classifier.'
@@ -3218,12 +3223,12 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
 
     if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier) {
         document.getElementById('btnAddImages').disabled = true
-        if (document.getElementById('addImagesEditClassifier').checked) {
+        if (tabActiveEditSurvey=='baseEditClassifierTab') {
             var formData = new FormData()
             formData.append("survey_id", selectedSurvey)
             formData.append("classifier", classifier)               
             addImagesSendRequest(formData)
-        } else if (document.getElementById('addImagesAddCoordinates').checked) {
+        } else if (tabActiveEditSurvey=='baseAddCoordinatesTab') {
             if (document.getElementById('addCoordinatesManualMethod').checked) {
                 var formData = new FormData()
                 formData.append("survey_id", selectedSurvey)
@@ -3237,7 +3242,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                 reader.addEventListener('load', (event) => {
                     kmldata = event.target.result
 
-                    if (!document.getElementById('addImagesAddImages').checked) {
+                    if (tabActiveEditSurvey!='baseAddImagesTab') {
                         var xhttp = new XMLHttpRequest();
                         xhttp.open("GET", '/getSurveyTGcode/'+selectedSurvey);
                         xhttp.onreadystatechange =
@@ -3252,7 +3257,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                                     formData.append("checkbox", addImagesCheckboxChecked.toString())
                                     formData.append("kml", kmlFileUpload.files[0])
 
-                                    if (document.getElementById('addImagesEditTimestamps').checked) {
+                                    if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                                         timestampData = {}
                                         for (camera_id in global_corrected_timestamps) {
                                             timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
@@ -3283,7 +3288,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                             formData.append("checkbox", addImagesCheckboxChecked.toString())
                             formData.append("kml", kmlFileUpload.files[0])
                             
-                            if (document.getElementById('addImagesEditTimestamps').checked) {
+                            if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                                 timestampData = {}
                                 for (camera_id in global_corrected_timestamps) {
                                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
@@ -3307,7 +3312,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             formData.append("newSurveyS3Folder", addImagesS3Folder)
             formData.append("checkbox", addImagesCheckboxChecked.toString())
 
-            if (document.getElementById('addImagesEditTimestamps').checked) {
+            if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                 timestampData = {}
                 for (camera_id in global_corrected_timestamps) {
                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
@@ -3342,7 +3347,7 @@ function addImagesSendRequest(formData) {
 
             if (reply.status=='success') {
 
-                if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('BrowserAdd').checked)) {
+                if ((tabActiveEditSurvey=='baseAddImagesTab')&&(document.getElementById('BrowserAdd').checked)) {
                     uploading = true
                     updatePage(current_page)
                     // uploadFiles(true)
@@ -3380,11 +3385,11 @@ function addImagesSendRequest(formData) {
                     // uploadSurveyToCloud(surveyName)
                 } else {
 
-                    if ((document.getElementById('addImagesAddImages').checked)&&(document.getElementById('addImagesAddCoordinates').checked)) {
+                    if ((tabActiveEditSurvey=='baseAddImagesTab')&&(tabActiveEditSurvey=='baseAddCoordinatesTab')) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images and coordinates are being imported.'
-                    } else if (document.getElementById('addImagesAddImages').checked) {
+                    } else if (tabActiveEditSurvey=='baseAddImagesTab') {
                         document.getElementById('modalAlertBody').innerHTML = 'Your additional images are being imported.'
-                    } else if (document.getElementById('addImagesEditTimestamps').checked) {
+                    } else if (tabActiveEditSurvey=='baseEditTimestampsTab') {
                         document.getElementById('modalAlertBody').innerHTML = `<p>Your camera timestamps will now be edited.</p><p>Please note that if you have muliple cameras per site, 
                                                                                 the images from the affected sites will need to be re-clustered if the operation periods of the edited 
                                                                                 cameras overlap with any others (before or after having  had their timestamps edited). In such a case, 
@@ -3399,7 +3404,7 @@ function addImagesSendRequest(formData) {
                                                                                 this step should be peformed directly after data importation for best results. However, editing your 
                                                                                 timestamps later on will not affect the integrity of you data - you may just need to re-annotate some 
                                                                                 percentage it.</p>`
-                    } else if (document.getElementById('addImagesEditClassifier').checked) {
+                    } else if (tabActiveEditSurvey=='baseEditClassifierTab') {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
@@ -3716,4 +3721,50 @@ function cancelStaticDetection(){
     resetModalAddTask2()
     resetModalAddTask3()
     modalAddTask.modal({keyboard: true});
+}
+
+function changeEditSurveyTab(evt, tabName) {
+    /** Opens the permissions tab */
+
+    var mainModal = document.getElementById('modalAddImages')
+    var tabcontent = mainModal.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    var tablinks = mainModal.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActiveEditSurvey = tabName
+
+    if (tabName == 'baseAddImagesTab') {
+        openAddImages()
+    }
+    else if (tabName == 'baseAddCoordinatesTab') {
+        openAddCoordinates()
+    }
+    else if (tabName == 'baseEditTimestampsTab') {
+        openEditTimestamps()
+    }
+    else if (tabName == 'baseEditClassifierTab') {
+        openEditClassifier()
+    }
+    else if (tabName == 'baseAdvancedTab') {
+        openAdvanced()
+    }
+    else if (tabName == 'baseEditMasksTab') {
+        openEditMasks()
+    }
+}
+
+function openEditMasks() {
+    /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
+    if (tabActiveEditSurvey=='baseEditMasksTab') {
+        clearEditSurveyModal()
+        buildEditMasks()
+    }
 }
