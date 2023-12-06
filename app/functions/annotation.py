@@ -182,19 +182,19 @@ def launch_task(self,task_id):
 
             sq = taggingLevelSQ(sq,taggingLevel,isBounding,task_id)
 
-            if '-6' in taggingLevel:
-                #TODO: THIS STILL NEEDS UPDATING/CHECKING
-                clusters = sq.filter(Cluster.task_id == task_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(Detection.status == 'masked') \
-                                .distinct().all()
-            else:
-                clusters = sq.filter(Cluster.task_id == task_id) \
-                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                .filter(Detection.static == False) \
-                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
-                                .distinct().all()
+            # if '-6' in taggingLevel:
+            #     # NOTE: This is not currently used (is for check masked sightings)
+            #     clusters = sq.filter(Cluster.task_id == task_id) \
+            #                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+            #                     .filter(Detection.static == False) \
+            #                     .filter(Detection.status == 'masked') \
+            #                     .distinct().all()
+
+            clusters = sq.filter(Cluster.task_id == task_id) \
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+                            .filter(Detection.static == False) \
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES)) \
+                            .distinct().all()
 
             cluster_count = len(clusters)
 
@@ -217,8 +217,8 @@ def launch_task(self,task_id):
 
         task.cluster_count = cluster_count
 
-        #TODO: THIS STILL NEEDS UPDATING/CHECKING (-6)
-        if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
+        # if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
+        if not (any(item in taggingLevel for item in ['-4','-5']) or isBounding):
             prep_required_images(task_id)
 
         for trapgroup in task.survey.trapgroups:
@@ -1071,22 +1071,21 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
                         .filter(Camera.trapgroup_id==trapgroup_id)\
                         .filter(Cluster.examined==False)
         
-        # This need to be ordered by Cluster ID otherwise the a max request will drop random info
-        if '-6' in taggingLevel:  
-            #TODO: THIS STILL NEEDS UPDATING/CHECKING
-            clusters = clusters.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                            .filter(Detection.static==False)\
-                            .filter(Detection.status=='masked')\
-                            .filter(Labelgroup.task_id == task_id) \
-                            .filter(Cluster.task_id == task_id) \
-                            .order_by(desc(Cluster.classification), Cluster.id)\
-                            .distinct().limit(25000).all()
+        # if '-6' in taggingLevel:  
+        #     # NOTE: This is not currently used (is for check masked sightings)
+        #     clusters = clusters.filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                     .filter(Detection.static==False)\
+        #                     .filter(Detection.status=='masked')\
+        #                     .filter(Labelgroup.task_id == task_id) \
+        #                     .filter(Cluster.task_id == task_id) \
+        #                     .order_by(desc(Cluster.classification), Cluster.id)\
+        #                     .distinct().limit(25000).all()
 
-        else:
-            clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
-                            .filter(Cluster.task_id == task_id) \
-                            .order_by(desc(Cluster.classification), Cluster.id)\
-                            ).distinct().limit(25000).all()
+        # This need to be ordered by Cluster ID otherwise the a max request will drop random info
+        clusters = rDets(clusters.filter(Labelgroup.task_id == task_id) \
+                        .filter(Cluster.task_id == task_id) \
+                        .order_by(desc(Cluster.classification), Cluster.id)\
+                        ).distinct().limit(25000).all()
 
         if len(clusters) == 25000:
             max_request = True
@@ -1348,7 +1347,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,session,limit=No
 
 #     return clusters
 
-def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
+def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskArea):
     '''Returns the labels and hotkeys for the given tagging level and task'''
 
     if taggingLevel == '-1':
@@ -1356,6 +1355,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
         
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
         if not addRemoveFalseDetections: special_categories = special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
+        if not addMaskArea: special_categories = special_categories.filter(Label.id != GLOBALS.mask_area_id)
         
         special_categories = special_categories.all()
         
@@ -1370,6 +1370,7 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
 
         special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
         if not addRemoveFalseDetections: special_categories = special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
+        if not addMaskArea: special_categories = special_categories.filter(Label.id != GLOBALS.mask_area_id)
         special_categories = special_categories.all()
         
         categories.extend(special_categories)
@@ -1381,6 +1382,8 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
         wrong_category = db.session.query(Label).get(GLOBALS.wrong_id)
         categories = db.session.query(Label).filter(Label.task_id==task_id).filter(Label.parent_id==int(taggingLevel)).all()
         categories.append(wrong_category)
+        if addMaskArea: mask_category = db.session.query(Label).get(GLOBALS.mask_area_id)
+        categories.append(mask_category)
         addSkip = True
 
     hotkeys = [Config.EMPTY_HOTKEY_ID] * Config.NUMBER_OF_HOTKEYS
@@ -1397,9 +1400,12 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections):
                 indx = num-55
             elif num==32:
                 #Spacebar
-                indx = Config.NUMBER_OF_HOTKEYS-2
+                indx = Config.NUMBER_OF_HOTKEYS-3
             elif num==45:
                 #minus
+                indx = Config.NUMBER_OF_HOTKEYS-2
+            elif num==61:
+                #equals
                 indx = Config.NUMBER_OF_HOTKEYS-1
             else:
                 #Handle letters
@@ -1488,8 +1494,8 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                     })
 
             # add required images
-            #TODO: THIS STILL NEEDS UPDATING/CHECKING (-6)
-            if (not id) and (not isBounding) and (',' not in taggingLevel) and('-6' not in taggingLevel):
+            # if (not id) and (not isBounding) and (',' not in taggingLevel) and('-6' not in taggingLevel):
+            if (not id) and (not isBounding) and (',' not in taggingLevel):
                 for image_id in clusterInfo[cluster_id]['required']:
                     if image_id in clusterInfo[cluster_id]['images'].keys():
                         covered_images.append(image_id)

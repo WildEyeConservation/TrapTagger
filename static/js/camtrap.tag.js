@@ -113,9 +113,9 @@ function suggestionBack(resetLabels=true,mapID='map1') {
     if (isClassCheck) {
         taggingLevel = '-3'
     }
-    else if (isMaskCheck) {
-        taggingLevel = '-6'
-    }
+    // else if (isMaskCheck) {
+    //     taggingLevel = '-6'
+    // }
     getKeys()
 }
 
@@ -235,61 +235,61 @@ function getKeys() {
                 }
             xhttp.send();
 
-        } else if (taggingLevel == '-6') {
-            multipleStatus = false
-            selectBtns = document.getElementById('selectBtns')
+        // } else if (taggingLevel == '-6') {
+        //     multipleStatus = false
+        //     selectBtns = document.getElementById('selectBtns')
 
-            while(selectBtns.firstChild){
-                selectBtns.removeChild(selectBtns.firstChild);
-            }
+        //     while(selectBtns.firstChild){
+        //         selectBtns.removeChild(selectBtns.firstChild);
+        //     }
 
-            while(divBtns.firstChild){
-                divBtns.removeChild(divBtns.firstChild);
-            }
+        //     while(divBtns.firstChild){
+        //         divBtns.removeChild(divBtns.firstChild);
+        //     }
 
-            var newbtn = document.createElement('button');
-            newbtn.classList.add('btn');
-            newbtn.classList.add('btn-primary');
-            newbtn.innerHTML = 'Accept (A)';
-            newbtn.setAttribute("id", 1);
-            newbtn.classList.add('btn-block');
-            newbtn.classList.add('btn-sm');
-            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-            newbtn.addEventListener('click', (evt)=>{
-                console.log('accept')
-                assignLabel('accept_mask');
-            });
-            divBtns.appendChild(newbtn);
+        //     var newbtn = document.createElement('button');
+        //     newbtn.classList.add('btn');
+        //     newbtn.classList.add('btn-primary');
+        //     newbtn.innerHTML = 'Accept (A)';
+        //     newbtn.setAttribute("id", 1);
+        //     newbtn.classList.add('btn-block');
+        //     newbtn.classList.add('btn-sm');
+        //     newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        //     newbtn.addEventListener('click', (evt)=>{
+        //         console.log('accept')
+        //         assignLabel('accept_mask');
+        //     });
+        //     divBtns.appendChild(newbtn);
 
-            var newbtn = document.createElement('button');
-            newbtn.classList.add('btn');
-            newbtn.classList.add('btn-primary');
-            newbtn.innerHTML = 'Reject (R)';
-            newbtn.setAttribute("id", 2);
-            newbtn.classList.add('btn-block');
-            newbtn.classList.add('btn-sm');
-            newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-            newbtn.addEventListener('click', (evt)=>{
-                console.log('reject')
-                assignLabel('reject_mask');
-            });
-            divBtns.appendChild(newbtn);
+        //     var newbtn = document.createElement('button');
+        //     newbtn.classList.add('btn');
+        //     newbtn.classList.add('btn-primary');
+        //     newbtn.innerHTML = 'Reject (R)';
+        //     newbtn.setAttribute("id", 2);
+        //     newbtn.classList.add('btn-block');
+        //     newbtn.classList.add('btn-sm');
+        //     newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+        //     newbtn.addEventListener('click', (evt)=>{
+        //         console.log('reject')
+        //         assignLabel('reject_mask');
+        //     });
+        //     divBtns.appendChild(newbtn);
 
-            hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
-            hotkeys[10] = 'accept_mask' //a
-            hotkeys[27] = 'reject_mask' //r
+        //     hotkeys = Array(38).fill(EMPTY_HOTKEY_ID)
+        //     hotkeys[10] = 'accept_mask' //a
+        //     hotkeys[27] = 'reject_mask' //r
 
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("GET", '/initKeys', true);
-            xhttp.onreadystatechange =
-                function () {
-                    if (this.readyState == 4 && this.status == 278) {
-                        window.location.replace(JSON.parse(this.responseText)['redirect'])
-                    } else if (this.readyState == 4 && this.status == 200) {
-                        globalKeys = JSON.parse(this.responseText);
-                    }
-                }
-            xhttp.send();
+        //     var xhttp = new XMLHttpRequest();
+        //     xhttp.open("GET", '/initKeys', true);
+        //     xhttp.onreadystatechange =
+        //         function () {
+        //             if (this.readyState == 4 && this.status == 278) {
+        //                 window.location.replace(JSON.parse(this.responseText)['redirect'])
+        //             } else if (this.readyState == 4 && this.status == 200) {
+        //                 globalKeys = JSON.parse(this.responseText);
+        //             }
+        //         }
+        //     xhttp.send();
 
         } else {
             if (globalKeys==null) {
@@ -447,17 +447,42 @@ function taggingMapPrep(mapID = 'map1') {
         editingEnabled = false
     })
 
+    map[mapID].on("draw:editstart", function(e) {
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:editstop", function(e) {
+        editingEnabled = false
+    })
+
+    map[mapID].on("draw:deletestart", function(e) {
+        editingEnabled = true
+    })
+
+    map[mapID].on("draw:deletestop", function(e) {
+        editingEnabled = false
+    })
+
     map[mapID].on('draw:created', function (e) {
-        layer = e.layer;
-        drawnItems[mapID].addLayer(layer)
-        if (!toolTipsOpen) {
-            layer.closeTooltip()
+        var newLayer = e.layer;
+        var newBounds = newLayer.getBounds();
+        var isOverlapping = false;
+
+        drawnMaskItems[mapID].eachLayer(function (layer) {
+            if (newBounds.intersects(layer.getBounds())) {
+                isOverlapping = true;
+            }
+        });
+
+        if (isOverlapping) {
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked overlaps with another masked area. You can edit the existing mask or delete it and try again.'
+            modalAlert.modal({keyboard: true});
+            drawnMaskItems[mapID].removeLayer(newLayer);
+        } else {
+            drawnMaskItems[mapID].addLayer(newLayer);  
         }
-        maskLayer[mapID] = layer
-        maskId[mapID] = layer._leaflet_id
 
-
-        modalMaskArea.modal({keyboard: true}) 
+        // modalMaskArea.modal({keyboard: true}) 
 
     });
 
@@ -465,37 +490,20 @@ function taggingMapPrep(mapID = 'map1') {
 
 function maskArea(mapID = 'map1') {
     /** Masks the area drawn by the user. */
-    var masked_area = {}
-    if (maskLayer[mapID] != null) {
-        masked_area['top'] = maskLayer[mapID]._bounds._northEast.lat/mapHeight[mapID]
-        masked_area['bottom'] = maskLayer[mapID]._bounds._southWest.lat/mapHeight[mapID]
-        masked_area['left'] = maskLayer[mapID]._bounds._southWest.lng/mapWidth[mapID]
-        masked_area['right'] = maskLayer[mapID]._bounds._northEast.lng/mapWidth[mapID]
+    if (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes(maskLabel)) {
+        updateMasks(mapID)
+        if (globalMasks[mapID].length > 0) {
+            maskedTG = clusters[mapID][clusterIndex[mapID]].trapGroup
+            clusterRequests[mapID] = [];
+            clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
+            imageID=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id
+            clusterID=clusters[mapID][clusterIndex[mapID]].id
 
-        maskedTG = clusters[mapID][clusterIndex[mapID]].trapGroup
-        clusterRequests[mapID] = [];
-        clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
-        imageID=clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].id
-        clusterID=clusters[mapID][clusterIndex[mapID]].id
-
-        maskedArea = (masked_area['right']-masked_area['left'])*(masked_area['bottom']-masked_area['top'])
-
-        if (maskedArea > 0.3) {
-            modalMaskArea.modal('hide');
-            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too large. Please try again.'
-            modalAlert.modal({keyboard: true});
-        }
-        else if (maskedArea < 0.0005) {
-            modalMaskArea.modal('hide');
-            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small. Please try again.'
-            modalAlert.modal({keyboard: true});
-        }
-        else {
             var formData = new FormData();
-            formData.append('masked_area', JSON.stringify(masked_area));
+            formData.append('masks', JSON.stringify(globalMasks[mapID]));
             formData.append('cluster_id', clusterID);
             formData.append('image_id', imageID);
-    
+
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange =
             function(){
@@ -505,32 +513,67 @@ function maskArea(mapID = 'map1') {
             }
             xhttp.open("POST", '/maskArea', true);
             xhttp.send(formData);
-    
+
             clusters[mapID][clusterIndex[mapID]][ITEMS] = [maskLabel];
             clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = [maskLabel];
-        
+
             if (batchComplete) {
                 redirectToDone()
             }
 
-            modalMaskArea.modal('hide');
-    
             clusterIndex[mapID] += 1
             imageIndex[mapID] = 0
-    
+
             nextCluster()
         }
-
     }
+} 
 
+function updateMasks(mapID = 'map1') {
+    /** Updates the masks on the map. */
+    globalMasks[mapID] = []
+    if (drawnMaskItems[mapID] != null) {
+        drawnMaskItems[mapID].eachLayer(function (layer) {
+            mask_dict = {}
+            // Check if the layer is a polygon
+            if (layer instanceof L.Polygon) {
+                mask_dict['type'] = 'polygon';
+                mask_dict['points'] = []
+                layer._latlngs[0].forEach(function (point) {
+                    mask_dict['points'].push([point.lat/mapHeight[mapID], point.lng/mapWidth[mapID]])
+                });
+                mask_dict['points'].push(mask_dict['points'][0])
+
+                // Create a box around the polygon
+                poly_box = {}
+                poly_box['top'] = layer._bounds._northEast.lat/mapHeight[mapID]
+                poly_box['bottom'] = layer._bounds._southWest.lat/mapHeight[mapID]
+                poly_box['left'] = layer._bounds._southWest.lng/mapWidth[mapID]
+                poly_box['right'] = layer._bounds._northEast.lng/mapWidth[mapID]
+                mask_dict['poly_box'] = poly_box
+
+                // Check area of polygon
+                var area = (poly_box['bottom']-poly_box['top']) * (poly_box['right']-poly_box['left']) 
+                if (area >= 0.005 && area <= 0.3) {
+                    globalMasks[mapID].push(mask_dict)
+                }
+            }
+            // Check if the layer is a rectangle
+            else if (layer instanceof L.Rectangle) {
+                mask_dict['type'] = 'rectangle';
+                mask_dict['top'] = layer._bounds._northEast.lat/mapHeight[mapID]
+                mask_dict['bottom'] = layer._bounds._southWest.lat/mapHeight[mapID]
+                mask_dict['left'] = layer._bounds._southWest.lng/mapWidth[mapID]
+                mask_dict['right'] = layer._bounds._northEast.lng/mapWidth[mapID]   
+
+                // Check area of rectangle
+                var area = (mask_dict['bottom']-mask_dict['top']) * (mask_dict['right']-mask_dict['left'])
+                if (area >= 0.005 && area <= 0.3) {
+                    globalMasks[mapID].push(mask_dict)
+                }
+                
+            }
+        });
+    }
 }
 
-
-modalMaskArea.on('hidden.bs.modal', function(){
-    /** Clears the mask area when the modal is closed. */
-    if (maskId['map1'] != null) {
-        drawnItems['map1'].removeLayer(maskLayer['map1'])
-    }
-    maskLayer['map1'] = null
-    maskId['map1'] = null
-});

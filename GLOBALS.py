@@ -25,5 +25,6 @@ wrong_id = 3
 unknown_id = 4
 vhl_id = 6
 remove_false_detections_id = 7
+mask_area_id = 8
 results_queue = []
 redisClient = None

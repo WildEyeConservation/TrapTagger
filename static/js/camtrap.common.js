@@ -111,6 +111,7 @@ var clusterRequests = {"map1": []}
 var finishedDisplaying = {"map1": true}
 var map = {"map1": null}
 var drawnItems = {"map1": null}
+var drawnMaskItems = {"map1": null}
 var pauseControl = {"map1": null}
 var playControl = {"map1": null}
 var activeImage = {"map1": null}
@@ -128,6 +129,7 @@ var clusterPositionSplide = {"map1": null}
 var mapDivs = {'map1': 'mapDiv', 'map2': 'mapdiv2'}
 var splides = {'map1': 'splide', 'map2': 'splide2'}     
 var maskCheckData = {}
+var globalMasks = {"map1": []}
 
 var colours = {
     'rgba(67,115,98,1)': false,
@@ -1051,6 +1053,11 @@ function goToPrevCluster(mapID = 'map1') {
     clusterIndex[mapID] = clusterIndex[mapID] - 1
     updateClusterLabels(mapID)
 
+    if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+        drawnMaskItems[mapID].clearLayers()
+        updateMasks(mapID)
+    }
+
     if (wrongStatus && !isReviewing) {
         initKeys(globalKeys[taggingLevel])
     }
@@ -1463,6 +1470,11 @@ function nextCluster(mapID = 'map1') {
 
             updateClusterLabels(mapID)
 
+            if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
+                drawnMaskItems[mapID].clearLayers()
+                updateMasks(mapID)
+            }
+
             if (isIDing && (document.getElementById('btnSendToBack')==null)) {
                 actions = []
                 preLoadCount = 1
@@ -1553,12 +1565,10 @@ function assignLabel(label,mapID = 'map1'){
         label = skipLabel
     }
     
-    if (label != EMPTY_HOTKEY_ID) {
+    if (label != EMPTY_HOTKEY_ID && !editingEnabled) {
         if (multipleStatus && ((nothingLabel==label)||(downLabel==label)||(RFDLabel==label)||(skipLabel==label)||(maskLabel==label))) {
             //ignore nothing, skip and knocked down labels in multi
-        } else if (label == maskLabel) {
-            // ignore mask label
-        } else if ([RFDLabel,downLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
+        } else if ([RFDLabel,downLabel,maskLabel].includes(parseInt(label)) && !modalNothingKnock.is(':visible')) {
             // confirmation modal for nothing and knockdowns
             if (label==RFDLabel) {
                 if (isReviewing) {
@@ -1566,8 +1576,15 @@ function assignLabel(label,mapID = 'map1'){
                 } else {
                     document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current cluster as containing nothing and have the associated false detections removed from all other images from this camera.<br><br><i>If you wish to continue, press the "-" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
                 }
-            } else {
+            } else if (label==downLabel) {
                 document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mark the current camera as knocked down. This will filter out all images from this camera from this timestamp onward.<br><br><i>If you wish to continue, press the "Q" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+            } else if (label==maskLabel) {
+                updateMasks(mapID)
+                if (globalMasks[mapID].length==0) {
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You have not drawn any masks on the current image. Please draw a mask before masking the current image.<br><br><i>Press "Esc" to close this message.</i>'
+                } else {
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mask the areas you have drawn on the current image. This will filter out all detections in the masked areas for this camera.<br><br><i>If you wish to continue, press the "=" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+                }    
             }
             modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
         } else if (label==wrongLabel) {
@@ -1700,88 +1717,89 @@ function assignLabel(label,mapID = 'map1'){
                 }
             
 
-            } else if (taggingLevel=='-6') {    
-                // Review Mask
-                if (label == 'accept_mask') {
-                    // accept
-                    maskCheckData['mask'] = 'accept'
+            // } else if (taggingLevel=='-6') {    
+            //     // Not in use
+            //     // Review Mask
+            //     if (label == 'accept_mask') {
+            //         // accept
+            //         maskCheckData['mask'] = 'accept'
 
-                    maskCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
-                    maskCheckData['image_ids'] = []
-                    maskCheckData['detection_ids'] = []
-                    for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
-                        maskCheckData['image_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].id)
-                        for (let j=0;j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;j++) {
-                            maskCheckData['detection_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
-                        }
-                    }
+            //         maskCheckData['cluster_id'] = clusters[mapID][clusterIndex[mapID]].id
+            //         maskCheckData['image_ids'] = []
+            //         maskCheckData['detection_ids'] = []
+            //         for (let i=0;i<clusters[mapID][clusterIndex[mapID]].images.length;i++) {
+            //             maskCheckData['image_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].id)
+            //             for (let j=0;j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length;j++) {
+            //                 maskCheckData['detection_ids'].push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
+            //             }
+            //         }
     
-                    var formData = new FormData()
-                    formData.append("data", JSON.stringify(maskCheckData))
+            //         var formData = new FormData()
+            //         formData.append("data", JSON.stringify(maskCheckData))
     
-                    var xhttp = new XMLHttpRequest();
-                    xhttp.onreadystatechange =
-                    function(wrapClusterIndex,wrapMapID){
-                        return function() {
-                            if (this.readyState == 4 && this.status == 278) {
-                                window.location.replace(JSON.parse(this.responseText)['redirect'])
-                            } else if (this.readyState == 4 && this.status == 200) {                    
-                                response = JSON.parse(this.responseText);
-                                clusters[wrapMapID][wrapClusterIndex].ready = true
-                                updateProgBar(response.progress)
-                            }
-                        }
-                    }(clusterIndex[mapID],mapID);
-                    xhttp.open("POST", '/reviewMask');
-                    clusters[mapID][clusterIndex[mapID]].ready = false
-                    xhttp.send(formData);
+            //         var xhttp = new XMLHttpRequest();
+            //         xhttp.onreadystatechange =
+            //         function(wrapClusterIndex,wrapMapID){
+            //             return function() {
+            //                 if (this.readyState == 4 && this.status == 278) {
+            //                     window.location.replace(JSON.parse(this.responseText)['redirect'])
+            //                 } else if (this.readyState == 4 && this.status == 200) {                    
+            //                     response = JSON.parse(this.responseText);
+            //                     clusters[wrapMapID][wrapClusterIndex].ready = true
+            //                     updateProgBar(response.progress)
+            //                 }
+            //             }
+            //         }(clusterIndex[mapID],mapID);
+            //         xhttp.open("POST", '/reviewMask');
+            //         clusters[mapID][clusterIndex[mapID]].ready = false
+            //         xhttp.send(formData);
     
-                    maskCheckData = {}
-                    nextCluster(mapID)
+            //         maskCheckData = {}
+            //         nextCluster(mapID)
 
 
-                } else if (label == 'reject_mask') {
-                    // reject
-                    // maskCheckData['mask'] = 'reject'
+            //     } else if (label == 'reject_mask') {
+            //         // reject
+            //         // maskCheckData['mask'] = 'reject'
 
-                    if (divBtns != null) {
-                        orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
-                        orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
-                        // clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
-                        // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
-                        // clusterLabels[mapID] = []
-                        updateDebugInfo(mapID,false)
+            //         if (divBtns != null) {
+            //             orginal_labels = clusters[mapID][clusterIndex[mapID]][ITEMS]
+            //             orginal_label_ids = clusters[mapID][clusterIndex[mapID]][ITEM_IDS]
+            //             // clusters[mapID][clusterIndex[mapID]][ITEMS] = ['None']
+            //             // clusters[mapID][clusterIndex[mapID]][ITEM_IDS] = ['0']
+            //             // clusterLabels[mapID] = []
+            //             updateDebugInfo(mapID,false)
 
-                        selectBtns = document.getElementById('selectBtns')
-                        // multipleStatus = false
-                        wrongStatus = true
-                        tempTaggingLevel = '-1'
-                        taggingLevel = '-1'
+            //             selectBtns = document.getElementById('selectBtns')
+            //             // multipleStatus = false
+            //             wrongStatus = true
+            //             tempTaggingLevel = '-1'
+            //             taggingLevel = '-1'
 
-                        while(divBtns.firstChild){
-                            divBtns.removeChild(divBtns.firstChild);
-                        }
+            //             while(divBtns.firstChild){
+            //                 divBtns.removeChild(divBtns.firstChild);
+            //             }
 
-                        var newbtn = document.createElement('button');
-                        newbtn.classList.add('btn');
-                        newbtn.classList.add('btn-danger');
-                        newbtn.innerHTML = 'Back';
-                        newbtn.setAttribute("id", 0);
-                        newbtn.classList.add('btn-block');
-                        newbtn.classList.add('btn-sm');
-                        newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
-                        newbtn.addEventListener('click', (evt)=>{
-                            suggestionBack();
-                        });
-                        selectBtns.appendChild(newbtn);
+            //             var newbtn = document.createElement('button');
+            //             newbtn.classList.add('btn');
+            //             newbtn.classList.add('btn-danger');
+            //             newbtn.innerHTML = 'Back';
+            //             newbtn.setAttribute("id", 0);
+            //             newbtn.classList.add('btn-block');
+            //             newbtn.classList.add('btn-sm');
+            //             newbtn.setAttribute("style", "margin-top: 3px; margin-bottom: 3px");
+            //             newbtn.addEventListener('click', (evt)=>{
+            //                 suggestionBack();
+            //             });
+            //             selectBtns.appendChild(newbtn);
 
-                        // populateLevels()
-                        initKeys(globalKeys['-1'])
+            //             // populateLevels()
+            //             initKeys(globalKeys['-1'])
 
-                        activateMultiple()
-                    }
+            //             activateMultiple()
+            //         }
 
-                }
+            //     }
 
                     
             } else {
@@ -1798,6 +1816,8 @@ function assignLabel(label,mapID = 'map1'){
                 } else {
                     if (label==downLabel) {
                         knockdown(mapID)
+                    } else if (label==maskLabel) {
+                        maskArea(mapID)
                     } else {
                         var checkVar = 0
                         if ((!taggingLevel.includes('-2'))&&((label==unknownLabel)||(label==nothingLabel)||(label==RFDLabel)||clusters[mapID][clusterIndex[mapID]].required.length>1)) {
@@ -1926,7 +1946,8 @@ function assignLabel(label,mapID = 'map1'){
                                         updateDebugInfo(mapID)
                                     }
                                     
-                                    if (wrongStatus&&!isClassCheck&&!dontResetWrong&&!isMaskCheck) {
+                                    // if (wrongStatus&&!isClassCheck&&!dontResetWrong&&!isMaskCheck) {
+                                    if (wrongStatus&&!isClassCheck&&!dontResetWrong) {
                                         wrongStatus = false
                                         tempTaggingLevel = taggingLevel
                                         initKeys(globalKeys[taggingLevel])
@@ -1940,7 +1961,8 @@ function assignLabel(label,mapID = 'map1'){
                                     }
         
                                     if (!multipleStatus) {
-                                        if (isClassCheck||isMaskCheck) {
+                                        // if (isClassCheck||isMaskCheck) {
+                                        if (isClassCheck) {
                                             wrongStatus = false
                                             suggestionBack(false)
                                         }
@@ -1998,9 +2020,9 @@ function fetchTaggingLevel() {
                 isClassCheck = true
             }
 
-            if (taggingLevel == '-6'){
-                isMaskCheck = true
-            }
+            // if (taggingLevel == '-6'){
+            //     isMaskCheck = true
+            // }
 
             if ((!taggingLevel.includes('-4'))&&(!taggingLevel.includes('-5'))) {
                 getKeys()
@@ -2305,6 +2327,9 @@ function prepMap(mapID = 'map1') {
                 
                         drawnItems[wrapMapID] = new L.FeatureGroup();
                         map[wrapMapID].addLayer(drawnItems[wrapMapID]);
+
+                        drawnMaskItems[wrapMapID] = new L.FeatureGroup();
+                        map[wrapMapID].addLayer(drawnMaskItems[wrapMapID]);
                 
                         map[wrapMapID].on('zoomstart', function(wrapWrapMapID) {
                             return function () { 
@@ -2335,7 +2360,7 @@ function prepMap(mapID = 'map1') {
                                 contextmenu: false,
                             }      
                             
-                            if (isTagging && (taggingLevel == '-1')) {
+                            if (isTagging && (taggingLevel == '-1' || parseInt(taggingLevel) > 0)) {
                                 maskRectOptions = {
                                     color: "rgba(91,192,222,1)",
                                     fill: true,
@@ -2351,7 +2376,10 @@ function prepMap(mapID = 'map1') {
                             
                                 drawControl = new L.Control.Draw({
                                     draw: {
-                                        polygon: false,
+                                        polygon: {
+                                            shapeOptions: maskRectOptions,
+                                            allowIntersection: false,
+                                        },
                                         polyline: false,
                                         circle: false,
                                         circlemarker: false,
@@ -2360,13 +2388,16 @@ function prepMap(mapID = 'map1') {
                                             shapeOptions: maskRectOptions,
                                             showArea: false
                                         }
+                                    },
+                                    edit: {
+                                        featureGroup: drawnMaskItems[wrapMapID],
                                     }
                                 });
                                 map[mapID].addControl(drawControl);
-                                drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Mask Area'
+                                drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Mask Area'
+                                drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Mask Area'
 
                                 taggingMapPrep(wrapMapID)
-
 
                             }
                         }
@@ -2744,7 +2775,8 @@ function activateMultiple(mapID = 'map1') {
                     // nothing
                 } else if ((taggingLevel.includes('-2')) || ((clusters[mapID][clusterIndex[mapID]][ITEMS].length > 0) && (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes('None')))) {
                     submitLabels(mapID)
-                    if (isClassCheck||isMaskCheck) {
+                    // if (isClassCheck||isMaskCheck) {
+                    if (isClassCheck) {
                         wrongStatus = false
                         suggestionBack(false)
                     }
@@ -2809,9 +2841,9 @@ function submitLabels(mapID = 'map1') {
                                 clusters[wrapMapID][wrapIndex].ready = true
                                 clusters[wrapMapID][wrapIndex].classification = reply.classifications
                             }
-                            if (isMaskCheck) {
-                                clusters[wrapMapID][wrapIndex].ready = true
-                            }
+                            // if (isMaskCheck) {
+                            //     clusters[wrapMapID][wrapIndex].ready = true
+                            // }
                             Progress = reply.progress
                             updateProgBar(Progress)
                         }
@@ -2824,10 +2856,10 @@ function submitLabels(mapID = 'map1') {
             wrongStatus = false
             clusters[mapID][clusterIndex[mapID]].ready = false
         }
-        if (isMaskCheck) {
-            wrongStatus = false
-            clusters[mapID][clusterIndex[mapID]].ready = false
-        }
+        // if (isMaskCheck) {
+        //     wrongStatus = false
+        //     clusters[mapID][clusterIndex[mapID]].ready = false
+        // }
         xhttp.send(formData);
         if (batchComplete&&nothingStatus) {
             redirectToDone()
@@ -2957,7 +2989,7 @@ function initKeys(res){
 
         // Add other important buttons
         for (let i=0;i<labs.length;i++) {
-            if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
+            if (((names[i]=='Wrong')||(names[i]=='Skip')||(names[i]=='Remove False Detections')||(names[i]=='Mask Area'))&&(labs[i] != EMPTY_HOTKEY_ID)) {
 
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
@@ -2985,12 +3017,15 @@ function initKeys(res){
                 if (i < 10) {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                } else if (i == labs.length-1) {
-                    newbtn.classList.add('btn-danger');
-                    newbtn.innerHTML = labelName + ' (-)';
                 } else if (i == labs.length-2) {
                     newbtn.classList.add('btn-danger');
+                    newbtn.innerHTML = labelName + ' (-)';
+                } else if (i == labs.length-3) {
+                    newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (Space)';
+                } else if (i == labs.length-1) {
+                    newbtn.classList.add('btn-danger');
+                    newbtn.innerHTML = labelName + ' (=)';
                 } else {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3018,9 +3053,11 @@ function initKeys(res){
                 downLabel = labs[i]
             } else if (names[i]=='Skip') {
                 skipLabel = labs[i]
+            } else if (names[i]=='Mask Area') {
+                maskLabel = labs[i]
             }
 
-            if ((names[i]!='Wrong')&&(names[i]!='Skip')&&(names[i]!='Remove False Detections')) {
+            if ((names[i]!='Wrong')&&(names[i]!='Skip')&&(names[i]!='Remove False Detections')&&(names[i]!='Mask Area')) {
                 hotkeys[i] = labs[i].toString()
                 labelName = names[i]
     
@@ -3030,12 +3067,15 @@ function initKeys(res){
                     if (i < 10) {
                         newbtn.classList.add('btn-primary');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+48) + ')';
-                    } else if (i == labs.length-1) {
-                        newbtn.classList.add('btn-info');
-                        newbtn.innerHTML = labelName + ' (-)';
                     } else if (i == labs.length-2) {
                         newbtn.classList.add('btn-info');
+                        newbtn.innerHTML = labelName + ' (-)';
+                    } else if (i == labs.length-3) {
+                        newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (Space)';
+                    } else if (i == labs.length-1) {
+                        newbtn.classList.add('btn-info');
+                        newbtn.innerHTML = labelName + ' (=)';
                     } else {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3214,7 +3254,10 @@ document.onkeyup = function(event){
 
                 case ('-'):assignLabel(hotkeys[37])
                     break;
-    
+
+                case ('='):assignLabel(hotkeys[38])
+                    break;
+
                 case 'control': activateMultiple()
                     break;
     

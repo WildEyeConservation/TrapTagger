@@ -37,7 +37,7 @@ wrongStatus = true
 dontResetWrong = true
 tempTaggingLevel = '-1'
 
-var blockedExploreLabels = ['Knocked Down', 'Remove False Detections']
+var blockedExploreLabels = ['Knocked Down', 'Remove False Detections', 'Mask Area']
 
 const divSelector = document.querySelector('#divSelector');
 const divTagSelector = document.querySelector('#divTagSelector');

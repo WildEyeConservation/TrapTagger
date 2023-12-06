@@ -1036,35 +1036,28 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts.append('Vehicles/Humans/Livestock ('+str(count)+')')
         values.append('-2,'+str(label.id))
 
-    elif task_type=='maskedTag':
-        #TODO: THIS STILL NEEDS UPDATING/CHECKING 
-        disabled = 'true'
+    # elif task_type=='maskedTag':
+    #     # NOTE: This is not currently used (is for check masked sightings)
+    #     disabled = 'true'
+    #     uncheckedMask = db.session.query(Detection)\
+    #                                 .join(Labelgroup)\
+    #                                 .join(Image)\
+    #                                 .join(Cluster, Image.clusters)\
+    #                                 .filter(Cluster.task_id==task_id)\
+    #                                 .filter(Detection.status=='masked')\
+    #                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
+    #                                 .filter(Detection.static == False) \
+    #                                 .filter(Labelgroup.task_id==task_id)\
+    #                                 .filter(Labelgroup.checked==False)\
+    #                                 .distinct().count()
 
-        # if task.masked_check_count == None:
-        #     updateAllStatuses.delay(task_id=task_id)
-        #     return json.dumps({'texts': [], 'values': [], 'disabled':'false', 'colours':[]})
-    
-        # uncheckedMask = task.unchecked_mask_count
+    #     if uncheckedMask>0:
+    #         colours = ['#000000']
+    #     else:
+    #         colours = ['#0A7850']
 
-        uncheckedMask = db.session.query(Detection)\
-                                    .join(Labelgroup)\
-                                    .join(Image)\
-                                    .join(Cluster, Image.clusters)\
-                                    .filter(Cluster.task_id==task_id)\
-                                    .filter(Detection.status=='masked')\
-                                    .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS)) \
-                                    .filter(Detection.static == False) \
-                                    .filter(Labelgroup.task_id==task_id)\
-                                    .filter(Labelgroup.checked==False)\
-                                    .distinct().count()
-
-        if uncheckedMask>0:
-            colours = ['#000000']
-        else:
-            colours = ['#0A7850']
-
-        texts = ['Masked Sightings ('+str(uncheckedMask)+')']
-        values = ['-6']
+    #     texts = ['Masked Sightings ('+str(uncheckedMask)+')']
+    #     values = ['-6']
 
 
 
@@ -3836,10 +3829,10 @@ def getJobs():
                 else:
                     task_type = 'Multi-Species Differentiation'
                     species = 'All'
-            elif '-6' in item[1]:
-                #TODO: THIS STILL NEEDS UPDATING/CHECKING 
-                task_type = 'Review Masked Sightings'
-                species = 'All'
+            # elif '-6' in item[1]:
+            #     # NOTE: This is not currently used (is for check masked sightings)
+            #     task_type = 'Review Masked Sightings'
+            #     species = 'All'
             else:
                 if item[8] == False:
                     task_type = 'Species Labelling'
@@ -6778,31 +6771,30 @@ def assignLabel(clusterID):
 
                     if taggingLevel=='-3': classifications = getClusterClassifications(cluster.id)
 
-                    if taggingLevel=='-6':
-                        # TODO: CHECK/UPDATE this (-6)
-                        masked_detections = session.query(Detection)\
-                                                .join(Image)\
-                                                .filter(Image.clusters.contains(cluster))\
-                                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                                .filter(Detection.static==False)\
-                                                .filter(Detection.status=='masked')\
-                                                .all()
+                    # if taggingLevel=='-6':
+                    #     # NOTE: This is not currently used (is for check masked sightings)
+                    #     masked_detections = session.query(Detection)\
+                    #                             .join(Image)\
+                    #                             .filter(Image.clusters.contains(cluster))\
+                    #                             .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                    #                             .filter(Detection.static==False)\
+                    #                             .filter(Detection.status=='masked')\
+                    #                             .all()
 
-                        images = []
-                        for detection in masked_detections:
-                            detection.status = 'active'
-                            detection.source = 'user'
-                            app.logger.info('Detection {} unmasked'.format(detection.id))
-                            images.append(detection.image)
-                            labelgroups = session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
-                            for labelgroup in labelgroups:
-                                labelgroup.checked = False
+                    #     images = []
+                    #     for detection in masked_detections:
+                    #         detection.status = 'active'
+                    #         detection.source = 'user'
+                    #         app.logger.info('Detection {} unmasked'.format(detection.id))
+                    #         images.append(detection.image)
+                    #         labelgroups = session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+                    #         for labelgroup in labelgroups:
+                    #             labelgroup.checked = False
                         
-                        session.commit()
+                    #     session.commit()
 
-                        for image in images:
-                            image.detection_rating = detection_rating(image)
-
+                    #     for image in images:
+                    #         image.detection_rating = detection_rating(image)
 
                     if remove_false_detections:
                         tgs_available = session.query(Trapgroup)\
@@ -6955,8 +6947,11 @@ def initKeys():
 
         if task.tagging_level == '-1':
             addRemoveFalseDetections = True
+            addMaskArea = True
         else:
             addRemoveFalseDetections = False
+            if int(task.tagging_level) > 0 and not task.is_bounding:
+                addMaskArea = True
 
         addSkip = False
         if (',' not in task.tagging_level) and (int(task.tagging_level) > 0):
@@ -6967,9 +6962,9 @@ def initKeys():
         labels = db.session.query(Label).filter(Label.task_id==task.id).filter(Label.children.any()).distinct().all()
         labels.append(db.session.query(Label).get(GLOBALS.vhl_id))
         for label in labels:
-            reply[str(label.id)] = genInitKeys(str(label.id),task.id,False,addRemoveFalseDetections)
-        reply['-1'] = genInitKeys('-1',task.id,addSkip,addRemoveFalseDetections)
-        reply['-2'] = genInitKeys('-2',task.id,False,addRemoveFalseDetections)
+            reply[str(label.id)] = genInitKeys(str(label.id),task.id,False,addRemoveFalseDetections,addMaskArea)
+        reply['-1'] = genInitKeys('-1',task.id,addSkip,addRemoveFalseDetections,addMaskArea)
+        reply['-2'] = genInitKeys('-2',task.id,False,addRemoveFalseDetections,addMaskArea)
 
         return json.dumps(reply)
     else:
@@ -11785,9 +11780,9 @@ def maskArea():
     #TODO: THIS STILL NEEDS UPDATING/CHECKING 
     cluster_id = ast.literal_eval(request.form['cluster_id'])
     image_id = ast.literal_eval(request.form['image_id'])
-    masked_area = ast.literal_eval(request.form['masked_area'])
+    masks = ast.literal_eval(request.form['masks'])
 
-    if Config.DEBUGGING: app.logger.info('Cluster {} Image {} Masked Area {}'.format(cluster_id,image_id,masked_area))
+    if Config.DEBUGGING: app.logger.info('Cluster {} Image {} Masked Areas {}'.format(cluster_id,image_id,masks))
 
     image = db.session.query(Image).get(image_id)
 
@@ -11809,102 +11804,95 @@ def maskArea():
             if not trapgroup:
                 return {'redirect': url_for('done')}, 278
 
-            # Check that masked_area is big enough
-            masked_top = masked_area['top']
-            masked_left = masked_area['left']
-            masked_bottom = masked_area['bottom']
-            masked_right = masked_area['right']
 
-            area = (masked_bottom - masked_top) * (masked_right - masked_left)
-            if area > Config.DET_AREA and area <= 0.3:
-                num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
-                if (num_cluster < db.session.query(Task).get(task_id).size or current_user.admin):
+            num_cluster = db.session.query(Cluster).filter(Cluster.user_id == current_user.id).count()
+            if (num_cluster < db.session.query(Task).get(task_id).size or current_user.admin):
 
-                    if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
+                if GLOBALS.redisClient.get('clusters_allocated_'+str(current_user.id))==None: GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),0)
 
-                    GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num_cluster)
+                GLOBALS.redisClient.set('clusters_allocated_'+str(current_user.id),num_cluster)
 
-                    trapgroup.processing = True
-                    trapgroup.active = False
-                    trapgroup.user_id = None
+                trapgroup.processing = True
+                trapgroup.active = False
+                trapgroup.user_id = None
 
-                    db.session.commit()
+                db.session.commit()
 
-                    mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'image_id': image_id, 'masked_area': masked_area})
+                mask_area.apply_async(kwargs={'cluster_id': cluster_id, 'task_id': task_id, 'masks': masks})
 
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
         return {'redirect': url_for('done')}, 278
     else:
         return ""
 
-@app.route('/reviewMask', methods=['POST'])
-@login_required
-def reviewMask():
-    ''' Accept/Reject masked detection ''' 
-    #TODO: THIS STILL NEEDS UPDATING/CHECKING 
-    mask_data = ast.literal_eval(request.form['data'])
+# @app.route('/reviewMask', methods=['POST'])
+# @login_required
+# def reviewMask():
+#     ''' Accept/Reject masked detection ''' 
+#     # NOTE: This is not currently used (is for check masked sightings)
+#     mask_data = ast.literal_eval(request.form['data'])
 
-    num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-    turkcode = current_user.turkcode[0]
-    num2 = turkcode.task.size + turkcode.task.test_size
+#     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+#     turkcode = current_user.turkcode[0]
+#     num2 = turkcode.task.size + turkcode.task.test_size
 
-    cluster_id = mask_data['cluster_id']
-    image_ids = mask_data['image_ids']
-    detection_ids = mask_data['detection_ids']
-    mask = mask_data['mask']
+#     cluster_id = mask_data['cluster_id']
+#     image_ids = mask_data['image_ids']
+#     detection_ids = mask_data['detection_ids']
+#     mask = mask_data['mask']
 
-    if Config.DEBUGGING: app.logger.info('Review mask for cluster {}, images: {}, detections: {}, action: {}'.format(cluster_id,image_ids,detection_ids,mask))
+#     if Config.DEBUGGING: app.logger.info('Review mask for cluster {}, images: {}, detections: {}, action: {}'.format(cluster_id,image_ids,detection_ids,mask))
 
-    cluster = db.session.query(Cluster).get(cluster_id)
-    if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id) or checkSurveyPermission(current_user.id,cluster.task.survey_id,'write')):
-        if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
-            if (num < cluster.task.size) or (current_user.admin):
-                num += 1
+#     cluster = db.session.query(Cluster).get(cluster_id)
+#     if cluster and (checkAnnotationPermission(current_user.parent_id,cluster.task_id) or checkSurveyPermission(current_user.id,cluster.task.survey_id,'write')):
+#         if (current_user.admin) or (GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+#             if (num < cluster.task.size) or (current_user.admin):
+#                 num += 1
         
-                detections = db.session.query(Detection).join(Image).filter(Image.id.in_(image_ids)).filter(Detection.id.in_(detection_ids)).all()
-                for detection in detections:
-                    if mask == 'accept':
-                        detection.status = 'masked'
-                        detection.source = 'user'
+#                 detections = db.session.query(Detection).join(Image).filter(Image.id.in_(image_ids)).filter(Detection.id.in_(detection_ids)).all()
+#                 for detection in detections:
+#                     if mask == 'accept':
+#                         detection.status = 'masked'
+#                         detection.source = 'user'
 
-                        # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
-                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
-                        for labelgroup in labelgroups:
-                            labelgroup.labels = cluster.labels
-                            labelgroup.checked = True
+#                         # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+#                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+#                         for labelgroup in labelgroups:
+#                             labelgroup.labels = cluster.labels
+#                             labelgroup.checked = True
 
-                        if Config.DEBUGGING: app.logger.info('Detection {} mask accepted'.format(detection.id))
+#                         if Config.DEBUGGING: app.logger.info('Detection {} mask accepted'.format(detection.id))
 
-                    elif mask == 'reject':
-                        detection.status = 'active'
-                        detection.source = 'user'
+#                     elif mask == 'reject':
+#                         detection.status = 'active'
+#                         detection.source = 'user'
 
-                        # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
-                        labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
-                        for labelgroup in labelgroups:
-                            labelgroup.labels = cluster.labels
-                            labelgroup.checked = False
+#                         # labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).filter(Labelgroup.task_id==cluster.task_id).all()
+#                         labelgroups = db.session.query(Labelgroup).filter(Labelgroup.detection_id==detection.id).all()
+#                         for labelgroup in labelgroups:
+#                             labelgroup.labels = cluster.labels
+#                             labelgroup.checked = False
 
-                        if Config.DEBUGGING: app.logger.info('Detection {} mask rejected'.format(detection.id))
+#                         if Config.DEBUGGING: app.logger.info('Detection {} mask rejected'.format(detection.id))
 
-                db.session.commit()
+#                 db.session.commit()
 
-                images = db.session.query(Image).filter(Image.id.in_(image_ids)).all()
-                for image in images:
-                    image.detection_rating = detection_rating(image)
-                db.session.commit()
+#                 images = db.session.query(Image).filter(Image.id.in_(image_ids)).all()
+#                 for image in images:
+#                     image.detection_rating = detection_rating(image)
+#                 db.session.commit()
 
-                cluster.user_id = current_user.id
-                cluster.examined = True
-                cluster.timestamp = datetime.utcnow()
-                db.session.commit()
+#                 cluster.user_id = current_user.id
+#                 cluster.examined = True
+#                 cluster.timestamp = datetime.utcnow()
+#                 db.session.commit()
 
-        if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
-            return {'redirect': url_for('done')}, 278
-        else:
-            return json.dumps({'progress':(num, num2)})
-    else:
-        return {'redirect': url_for('done')}, 278
+#         if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id),current_user.username)):
+#             return {'redirect': url_for('done')}, 278
+#         else:
+#             return json.dumps({'progress':(num, num2)})
+#     else:
+#         return {'redirect': url_for('done')}, 278
 
 @app.route('/staticDetectionCheck/<survey_id>')
 @login_required

@@ -1432,6 +1432,7 @@ def update_label_ids():
         unknown = db.session.query(Label).filter(Label.description=='Unknown').first()
         wrong = db.session.query(Label).filter(Label.description=='Wrong').first()
         remove_false_detections = db.session.query(Label).filter(Label.description=='Remove False Detections').first()
+        mask_area = db.session.query(Label).filter(Label.description=='Mask Area').first()
 
         GLOBALS.nothing_id = nothing.id
         GLOBALS.knocked_id = knockdown.id
@@ -1439,6 +1440,7 @@ def update_label_ids():
         GLOBALS.unknown_id = unknown.id
         GLOBALS.wrong_id = wrong.id
         GLOBALS.remove_false_detections_id = remove_false_detections.id
+        GLOBALS.mask_area_id = mask_area.id
         app.logger.info('Global label IDs updated')
 
     except:
@@ -1986,10 +1988,10 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id):
                                 .filter(classificationSQ.c.count>1)\
                                 .filter(labelstableSQ.c.classification==None)
         
-    elif (taggingLevel == '-6'):
-        #TODO: THIS STILL NEEDS UPDATING/CHECKING
-        # Masked sightings
-        sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False)
+    # elif (taggingLevel == '-6'):
+    #     # NOTE: This is not currently used (is for check masked sightings)
+    #     # Masked sightings
+    #     sq = sq.join(Labelgroup).filter(Labelgroup.task_id==task_id).filter(Labelgroup.checked==False)
 
     else:
         # Specific label levels
@@ -3127,53 +3129,75 @@ def updateEarthRanger(task_id):
     return True
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def mask_area(self, cluster_id, image_id, masked_area):
+def mask_area(self, cluster_id, task_id, masks):
     ''' Mask detections in a specified area of an image. '''
     #TODO: THIS STILL NEEDS WORK AND CHECKING, ETC.
     try:
-        image = db.session.query(Image).get(image_id)
         cluster = db.session.query(Cluster).get(cluster_id)
         task_id = cluster.task_id
-        trapgroup = image.camera.trapgroup
-        camera = image.camera
-
+        trapgroup = cluster.images[0].camera.trapgroup
+        camera = cluster.images[0].camera
+        mask_area = None
         if trapgroup and camera:
             detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .join(Camera)\
                                     .filter(Camera.id==camera.id)\
-                                    .filter(Camera.trapgroup_id==trapgroup.id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))
+                                    .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                    .filter(Detection.static==False)\
+                                    .distinct().all()
 
-            if image.corrected_timestamp:
-                detections = detections.filter(Image.corrected_timestamp>=image.corrected_timestamp)
+            for mask in masks:
+                if mask['type'] == 'rectangle':
+                    mask_top = mask['top']
+                    mask_left = mask['left']
+                    mask_bottom = mask['bottom']
+                    mask_right = mask['right']
+                    mask_area = (mask_bottom-mask_top)*(mask_right-mask_left)
 
-            detections = detections.distinct().all()
+                    if round(mask_top,2) == 0: mask_top = 0
+                    if round(mask_left,2) == 0: mask_left = 0
+                    if round(mask_bottom,2) == 1: mask_bottom = 1
+                    if round(mask_right,2) == 1: mask_right = 1
 
-            masked_top = masked_area['top']
-            masked_left = masked_area['left']
-            masked_bottom = masked_area['bottom']
-            masked_right = masked_area['right']
 
-            if round(masked_top,2) == 0: masked_top = 0
-            if round(masked_left,2) == 0: masked_left = 0
-            if round(masked_bottom,2) == 1: masked_bottom = 1
-            if round(masked_right,2) == 1: masked_right = 1
+                    if mask_area > Config.DET_AREA:
+                        # TODO: SAVE MASK TO DB
+                        new_mask = mask
 
-            images = []
-            for detection in detections:
-                if detection.top >= masked_top and detection.bottom <= masked_bottom and detection.left >= masked_left and detection.right <= masked_right:
-                    detection.status = 'masked'
-                    images.append(detection.image)
+                elif mask['type'] == 'polygon':
+                    # MAYBE LOOK AT POINT IN POLYGON ALGORITHM
+                    poly_box = mask['poly_box']
+                    mask_top = poly_box['top']
+                    mask_left = poly_box['left']
+                    mask_bottom = poly_box['bottom']
+                    mask_right = poly_box['right']
+                    mask_area = (mask_bottom-mask_top)*(mask_right-mask_left)
 
-                    app.logger.info('Masking detection {}'.format(detection.id))
+                    if round(mask_top,2) == 0: mask_top = 0
+                    if round(mask_left,2) == 0: mask_left = 0
+                    if round(mask_bottom,2) == 1: mask_bottom = 1
+                    if round(mask_right,2) == 1: mask_right = 1
 
-            db.session.commit()
+                    if mask_area > Config.DET_AREA:
+                        # TODO: SAVE MASK TO DB
+                        new_mask = mask
 
-            for image in set(images):
-                image.detection_rating = detection_rating(image)
-            db.session.commit()
+
+                if mask_area: 
+                    images = []
+                    for detection in detections:
+                        if detection.top >= mask_top and detection.bottom <= mask_bottom and detection.left >= mask_left and detection.right <= mask_right:
+                            detection.status = 'masked'
+                            images.append(detection.image)
+                            app.logger.info('Masking detection {}'.format(detection.id))
+
+                    db.session.commit()
+
+                    for image in set(images):
+                        image.detection_rating = detection_rating(image)
+                    db.session.commit()
             
             re_evaluate_trapgroup_examined(trapgroup.id,task_id)
 
