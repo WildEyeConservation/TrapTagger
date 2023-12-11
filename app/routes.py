@@ -11956,10 +11956,10 @@ def checkStaticDetections():
             survey = db.session.query(Survey).get(survey_id)
             if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 # Initialise the static detections
-                # labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
-                # for labelgroup in labelgroups:
-                #     labelgroup.checked = False
-                # db.session.commit()
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = False
+                db.session.commit()
 
                 return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
             else:
@@ -11989,6 +11989,7 @@ def getStaticDetections(survey_id, reqID):
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         survey.status = 'Static Detection Analysis'
         db.session.commit()
+        camera_id = request.args.get('camera_id', None)
 
         detectionClusters = db.session.query(
                                     Trapgroup.id,
@@ -12011,8 +12012,12 @@ def getStaticDetections(survey_id, reqID):
                                 .filter(Detection.static==True)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(Labelgroup.checked==False)\
-                                .order_by(Camera.id,Image.corrected_timestamp)\
-                                .distinct().all()
+                                .order_by(Camera.id,Image.corrected_timestamp)
+
+        if camera_id:
+            detectionClusters = detectionClusters.filter(Camera.id==camera_id)
+
+        detectionClusters = detectionClusters.distinct().all()
 
         if len(detectionClusters) == 0:
             if survey.status == 'Static Detection Analysis':
@@ -12227,6 +12232,27 @@ def getMaskCameras(survey_id):
     survey = db.session.query(Survey).get(survey_id)
     if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
         cameras = db.session.query(Mask.camera_id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        camera_ids = [c[0] for c in cameras]
+
+    return json.dumps(camera_ids)
+
+@app.route('/getStaticCameraIDs/<survey_id>')
+@login_required
+def getStaticCameraIDs(survey_id):
+    ''' Gets all the camera ids that have static detections in a survey '''
+    camera_ids = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        cameras = db.session.query(Camera.id)\
+                                .join(Image)\
+                                .join(Detection)\
+                                .join(Labelgroup)\
+                                .join(Trapgroup)\
+                                .filter(Detection.static==True)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Labelgroup.checked==False)\
+                                .distinct().all()
+
         camera_ids = [c[0] for c in cameras]
 
     return json.dumps(camera_ids)

@@ -21,6 +21,8 @@ isIDing = false
 isStaticCheck = true
 
 var clusterIdList = []
+var cameraIDs = []
+var cameraReadAheadIndex = 0
 
 const divSelector = document.querySelector('#divSelector');
 // const modalAllFineCheck = $('#modalAllFineCheck');
@@ -29,7 +31,7 @@ const divSelector = document.querySelector('#divSelector');
 
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
-    if (!waitingForClusters[mapID]) {
+    if (cameraReadAheadIndex < cameraIDs.length) {
         waitingForClusters[mapID] = true
         var newID = Math.floor(Math.random() * 100000) + 1;
         clusterRequests[mapID].push(newID)
@@ -87,7 +89,7 @@ function loadNewCluster(mapID = 'map1') {
                         }                
                     }
                 };
-            xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + newID);
+            xhttp.open("GET", '/getStaticDetections/' + selectedSurvey + '/' + newID + '?camera_id=' + cameraIDs[cameraReadAheadIndex++]);
             xhttp.send();
         }
     }
@@ -132,5 +134,26 @@ function handleStatic(staticCheck, mapID = 'map1') {
     }
 }
 
+function getCameraIDs(mapID = 'map1'){
+    /** Gets a list of cluster IDs to be explored for the current combination of task and label. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                clusters[mapID]=[]
+                cameraReadAheadIndex = 0
+                clusterIndex[mapID] = 0
+                imageIndex[mapID] = 0
+                cameraIDs = JSON.parse(this.responseText);
+
+                for (let i=0;i<3;i++){
+                    loadNewCluster()
+                }
+                
+            }
+        };
+    xhttp.open("GET", '/getStaticCameraIDs/' + selectedSurvey);
+    xhttp.send();
+}
 
 window.addEventListener('load', onload, false);

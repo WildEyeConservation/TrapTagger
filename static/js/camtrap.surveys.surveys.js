@@ -250,9 +250,10 @@ var leafletMaskIDs = {}
 var removedMasks = []
 var editedMasks = {}
 var addedMasks = {}
-var mask_cameras = []
+var camera_ids = []
 var cameraReadAheadIndex = 0
 var cameraIDs = []
+var finishedDisplaying = true
 
 function buildSurveys(survey,disableSurvey) {
     /**
@@ -3821,6 +3822,8 @@ function openEditMasks() {
         cameraIDs = []
         cameraReadAheadIndex = 0
         cameras = []
+        camera_ids = []
+        finishedDisplaying = true
         clearEditSurveyModal()
         buildEditMasks()
         getMaskCameras()
@@ -3945,7 +3948,7 @@ function buildEditMasks() {
     col4.appendChild(button)
 
     document.getElementById('btnPrevCamera').addEventListener('click', ()=>{
-        if (cameraIndex>0 && !editingEnabled) {
+        if (cameraIndex>0 && !editingEnabled && finishedDisplaying) {
             cameraIndex -= 1
             imageIndex = 0
             updateMaskMap()
@@ -3953,21 +3956,21 @@ function buildEditMasks() {
     });
 
     document.getElementById('btnPrevImage').addEventListener('click', ()=>{
-        if (imageIndex>0 && !editingEnabled) {
+        if (imageIndex>0 && !editingEnabled && finishedDisplaying) {
             imageIndex -= 1
             updateMaskMap()
         }
     });
 
     document.getElementById('btnNextImage').addEventListener('click', ()=>{
-        if (imageIndex<cameras[cameraIndex].images.length-1 && !editingEnabled) {
+        if (imageIndex<cameras[cameraIndex].images.length-1 && !editingEnabled && finishedDisplaying) {
             imageIndex += 1
             updateMaskMap()
         }
     });
 
     document.getElementById('btnNextCamera').addEventListener('click', ()=>{
-        if (cameraIndex<cameras.length-1 && !editingEnabled) {
+        if (cameraIndex<cameras.length-1 && !editingEnabled && finishedDisplaying) {
             cameraIndex += 1
             imageIndex = 0
             updateMaskMap()
@@ -3994,10 +3997,13 @@ function getMasks() {
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);  
                 new_cameras = reply.masks
-                console.log(new_cameras)
+                // console.log(new_cameras)
 
                 for (var i=0; i<new_cameras.length; i++) {
-                    cameras.push(new_cameras[i])
+                    if (camera_ids.indexOf(new_cameras[i].id) == -1) {
+                        camera_ids.push(new_cameras[i].id)
+                        cameras.push(new_cameras[i])
+                    }
                 }
 
                 if (cameras.length - 1 == cameraIndex) {
@@ -4051,6 +4057,7 @@ function prepMapMasks(image) {
             activeImage.on('load', function() {
                 addedDetections = false
                 addDetections()
+                finishedDisplaying = true
             });
             map.setMaxBounds(bounds);
             map.fitBounds(bounds)
@@ -4201,6 +4208,7 @@ function modifyToCompURL(url) {
 function updateMaskMap() {
     /** Updates the mask map after an action has been performed. */
 
+    finishedDisplaying = false
     document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url
 
     if (map != null) {
@@ -4291,7 +4299,7 @@ function updateMaskMap() {
 
 function updateImageIndex(index) {
     /** Updates the image index. */
-    if (index >= 0 && index < cameras[cameraIndex].images.length && !editingEnabled) {
+    if (index >= 0 && index < cameras[cameraIndex].images.length && !editingEnabled && finishedDisplaying) {
         imageIndex = index
         updateMaskMap()
     }
