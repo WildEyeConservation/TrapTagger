@@ -57,6 +57,7 @@ import io
 import tracemalloc
 import calendar
 import pandas as pd
+import shapely
 from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture
 
 tracemalloc.start(40)
@@ -1901,6 +1902,14 @@ def editSurvey():
         elif 'coordData' in request.form:
             coordData = ast.literal_eval(request.form['coordData'])
             updateCoords.delay(survey_id=survey.id,coordData=coordData)
+
+        elif 'masks' in request.form:
+            masks = ast.literal_eval(request.form['masks'])
+            removed_masks = masks['removed']
+            added_masks = masks['added']
+            edited_masks = masks['edited']
+            if len(removed_masks)>0 or len(added_masks)>0 or len(edited_masks)>0:
+                update_masks.delay(survey_id=survey.id,removed_masks=removed_masks,added_masks=added_masks,edited_masks=edited_masks)
 
         elif 'kml' in request.files:
             uploaded_file = request.files['kml']
@@ -6976,7 +6985,9 @@ def getSurveys():
     '''Returns a list of survey names and IDs owned by the current user.'''
     requiredPermission = request.args.get('requiredPermission',None)
     if requiredPermission==None: requiredPermission = 'read'
-    return json.dumps(surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all())
+    surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name),current_user.id,requiredPermission).distinct().all()
+    surveys = [tuple(row) for row in surveys]
+    return json.dumps(surveys)
 
 @app.route('/getWorkerSurveys')
 @login_required
@@ -6991,6 +7002,8 @@ def getWorkerSurveys():
                             .join(User)\
                             .filter(User.parent_id==worker_id)\
                             ,current_user.id,'worker').distinct().all()
+
+        surveys = [tuple(row) for row in surveys]
     
     return json.dumps(surveys)
 
@@ -7009,12 +7022,16 @@ def getTasks(survey_id):
                             .filter(Survey.id == int(survey_id))\
                             .filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying'))\
                             ,current_user.id,'worker').distinct().all()
+        tasks = [tuple(row) for row in tasks]
         return json.dumps(tasks)
     else:
         if int(survey_id) == -1:
             return json.dumps([(-1, 'Southern African')])
         else:
-            return json.dumps(surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all())
+            tasks = surveyPermissionsSQ(db.session.query(Task.id, Task.name).join(Survey).filter(Survey.id == int(survey_id)).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')),current_user.id,'read').distinct().all()
+            tasks = [tuple(row) for row in tasks]
+            #TODO: Will need to update similar return statements to this to fix the new TypeError: Object of type Row is not JSON serializable
+            return json.dumps(tasks)
 
 @app.route('/getOtherTasks/<task_id>')
 @login_required
@@ -7023,7 +7040,9 @@ def getOtherTasks(task_id):
     task = db.session.query(Task).get(int(task_id))
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        return json.dumps(db.session.query(Task.id, Task.name).filter(Task.survey_id == task.survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all())
+        tasks = db.session.query(Task.id, Task.name).filter(Task.survey_id == task.survey_id).filter(Task.name != 'default').filter(~Task.name.contains('_o_l_d_')).filter(~Task.name.contains('_copying')).distinct().all()
+        tasks = [tuple(row) for row in tasks]
+        return json.dumps(tasks)
     else:
         return json.dumps([])
 
@@ -10426,6 +10445,8 @@ def populateSiteSelector():
         for site in sites:
             response.append(site)
 
+        response = [tuple(row) for row in response]
+
     return json.dumps(response)
 
 @app.route('/cancelResults', methods=['POST'])
@@ -11525,9 +11546,11 @@ def getOrganisationSurveys(org_id):
     if current_user and current_user.is_authenticated:
         surveys = surveyPermissionsSQ(db.session.query(Survey.id, Survey.name), current_user.id, 'admin')
         if org_id == '0':
-            return json.dumps(surveys.distinct().all())
+            surveys = surveys.distinct().all()
         else:
-            return json.dumps(surveys.filter(Survey.organisation_id==org_id).distinct().all())
+            surveys = surveys.filter(Survey.organisation_id==org_id).distinct().all()
+        surveys = [tuple(row) for row in surveys]
+        return json.dumps(surveys)
     else:
         return json.dumps([])
 
@@ -11538,6 +11561,7 @@ def getOrganisationUsers(org_id):
     users = []
     if current_user and current_user.is_authenticated:
         users = db.session.query(User.id, User.username, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default!='admin').filter(User.id!=current_user.id).distinct().all()
+        users = [tuple(row) for row in users]
     return json.dumps(users)
 
 @app.route('/populateAnnotatorSelector')
@@ -11575,7 +11599,7 @@ def populateSpeciesSelector():
         global_labels = db.session.query(Label.id, Label.description).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip').all()
         labels.extend(global_labels)
         labels.insert(0, (0, 'All'))
-
+        labels = [tuple(row) for row in labels]
     return json.dumps(labels)
 
 @app.route('/landing')
@@ -11626,6 +11650,7 @@ def getUserSurveysForOrganisation(user_id, org_id):
                                         .distinct().all()
 
         surveys = org_surveys + shared_surveys
+        surveys = [tuple(row) for row in surveys]
 
     return json.dumps(surveys)
 
@@ -11986,6 +12011,7 @@ def getStaticDetections(survey_id, reqID):
                                 .filter(Detection.static==True)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(Labelgroup.checked==False)\
+                                .order_by(Camera.id,Image.corrected_timestamp)\
                                 .distinct().all()
 
         if len(detectionClusters) == 0:
@@ -11996,6 +12022,21 @@ def getStaticDetections(survey_id, reqID):
 
         static_detections = []
         cam_keys = {}
+
+        detections = {}
+        for detectionCluster in detectionClusters:
+            if detections.get(detectionCluster[1]) == None:
+                detections[detectionCluster[1]] = []
+            detections[detectionCluster[1]].append({
+                'id': detectionCluster[6],
+                'score': detectionCluster[7],
+                'top': detectionCluster[8],
+                'bottom': detectionCluster[9],
+                'left': detectionCluster[10],
+                'right': detectionCluster[11],
+                'static': True
+            })
+
         for detectionCluster in detectionClusters:
             if cam_keys.get(detectionCluster[1]) == None:
                 cam_keys[detectionCluster[1]] = len(static_detections)
@@ -12005,30 +12046,23 @@ def getStaticDetections(survey_id, reqID):
                         'id': detectionCluster[3],
                         'url': detectionCluster[2]+'/'+detectionCluster[4],
                         'rating': detectionCluster[5],
-                        'detections': []
+                        'detections': detections[detectionCluster[1]]
                     }],
                     'labels': ['None'],
                     'tags': ['None'],
                     'required': [],
                     'classification': [],
                     'groundTruth': [],
-                    'trapGroup': detectionCluster[0]
+                    'trapGroup': detectionCluster[0],
+                    'camera_path': detectionCluster[2]
                 })
             else:
-               if static_detections[cam_keys[detectionCluster[1]]]['images'][0]['rating'] < detectionCluster[5] and detectionCluster[1] == static_detections[cam_keys[detectionCluster[1]]]['id']:
-                    static_detections[cam_keys[detectionCluster[1]]]['images'][0]['id'] = detectionCluster[3]
-                    static_detections[cam_keys[detectionCluster[1]]]['images'][0]['url'] = detectionCluster[2]+'/'+detectionCluster[4]
-                    static_detections[cam_keys[detectionCluster[1]]]['images'][0]['rating'] = detectionCluster[5]
-
-            static_detections[cam_keys[detectionCluster[1]]]['images'][0]['detections'].append({
-                'id': detectionCluster[6],
-                'top': detectionCluster[8],
-                'bottom': detectionCluster[9],
-                'left': detectionCluster[10],
-                'right': detectionCluster[11],
-                'static': True
-            })
-
+                static_detections[cam_keys[detectionCluster[1]]]['images'].append({
+                    'id': detectionCluster[3],
+                    'url': detectionCluster[2]+'/'+detectionCluster[4],
+                    'rating': detectionCluster[5],
+                    'detections': detections[detectionCluster[1]]
+                })
 
         return json.dumps({'static_detections': static_detections, 'id': reqID})
     else:
@@ -12086,3 +12120,113 @@ def assignStatic():
         return json.dumps({'status': 'SUCCESS', 'message': ''})
     else:
         return {'redirect': url_for('surveys')}, 278
+
+
+@app.route('/getSurveyMasks/<survey_id>')
+@login_required
+def getSurveyMasks(survey_id):
+    ''' Gets all the masks for a survey '''
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        camera_id = request.args.get('camera_id', None)
+        mask_data = db.session.query(
+                                    Detection.id,
+                                    Detection.top,
+                                    Detection.bottom,
+                                    Detection.left,
+                                    Detection.right,
+                                    Image.id,
+                                    Image.filename,
+                                    Camera.id,
+                                    Camera.path,
+                                    Mask.id,
+                                    func.ST_AsText(Mask.shape)
+                                )\
+                                .join(Image, Image.id==Detection.image_id)\
+                                .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Mask, Mask.camera_id==Camera.id)\
+                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(Detection.status=='masked')\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.static==False)\
+                                .filter(Mask.checked==False)\
+                                .order_by(Camera.id,Image.corrected_timestamp)\
+                                
+        if camera_id:
+            mask_data = mask_data.filter(Camera.id==camera_id)
+
+        mask_data = mask_data.distinct().all()
+
+        masks = []
+        cam_keys = {}
+        for data in mask_data:
+            if data[7] not in cam_keys:
+                cam_keys[data[7]] = len(masks)
+                masks.append({
+                    'id': data[7],
+                    'images': [{
+                        'id': data[5],
+                        'url': data[8]+'/'+data[6],
+                        'detections': [{
+                            'id': data[0],
+                            'top': data[1],
+                            'bottom': data[2],
+                            'left': data[3],
+                            'right': data[4]
+                        }]
+                    }],
+                    'masks': [{
+                        'id': data[9],
+                        'coords': list(shapely.wkt.loads(data[10]).exterior.coords)
+                    }],
+                    'camera_path': data[8]
+                })
+            else:
+                cam_idx = cam_keys[data[7]]
+                image_exists = any(d['id'] == data[5] for d in masks[cam_idx]['images'])
+                if not image_exists:
+                    masks[cam_idx]['images'].append({
+                        'id': data[5],
+                        'url': data[8]+'/'+data[6],
+                        'detections': [{
+                            'id': data[0],
+                            'top': data[1],
+                            'bottom': data[2],
+                            'left': data[3],
+                            'right': data[4]
+                        }]
+                    })
+                else:
+                    image_idx = next((i for i, d in enumerate(masks[cam_idx]['images']) if d['id'] == data[5]), None)
+                    detection_exists = any(d['id'] == data[0] for d in masks[cam_idx]['images'][image_idx]['detections'])
+                    if not detection_exists:
+                        masks[cam_idx]['images'][image_idx]['detections'].append({
+                            'id': data[0],
+                            'top': data[1],
+                            'bottom': data[2],
+                            'left': data[3],
+                            'right': data[4]
+                        })
+
+                mask_exists  = any(m['id'] == data[9] for m in masks[cam_idx]['masks'])
+                if not mask_exists:
+                    masks[cam_idx]['masks'].append({
+                        'id': data[9],
+                        'coords': list(shapely.wkt.loads(data[10]).exterior.coords)
+                    })
+
+        return json.dumps({'masks': masks})
+
+@app.route('/getMaskCameras/<survey_id>')
+@login_required
+def getMaskCameras(survey_id):
+    ''' Gets all the camera ids that have masks in a survey '''
+    camera_ids = []
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        cameras = db.session.query(Mask.camera_id).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).distinct().all()
+        camera_ids = [c[0] for c in cameras]
+
+    return json.dumps(camera_ids)

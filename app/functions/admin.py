@@ -448,6 +448,19 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete videos.'
                 app.logger.info('Failed to delete videos.')
 
+        #Delete masks
+        if status != 'error':
+            try:
+                masks = db.session.query(Mask).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).all()
+                for mask in masks:
+                    db.session.delete(mask)
+                db.session.commit()
+                app.logger.info('Masks deleted successfully.')
+            except:
+                status = 'error'
+                message = 'Could not delete masks.'
+                app.logger.info('Failed to delete masks.')
+
         #Delete cameras
         if status != 'error':
             try:

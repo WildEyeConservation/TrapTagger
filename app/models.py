@@ -126,6 +126,7 @@ class Camera(db.Model):
     images = db.relationship('Image', backref='camera', lazy=True)
     trapgroup_id = db.Column(db.Integer, db.ForeignKey('trapgroup.id'))
     videos = db.relationship('Video', backref='camera', lazy=True)
+    masks = db.relationship('Mask', backref='camera', lazy=True)
 
     def __repr__(self):
         return '<Camera {}>'.format(self.path)

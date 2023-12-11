@@ -1583,7 +1583,7 @@ function assignLabel(label,mapID = 'map1'){
                 if (globalMasks[mapID].length==0) {
                     document.getElementById('modalNothingKnockText').innerHTML = 'You have not drawn any masks on the current image. Please draw a mask before masking the current image.<br><br><i>Press "Esc" to close this message.</i>'
                 } else {
-                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mask the areas you have drawn on the current image. This will filter out all detections in the masked areas for this camera.<br><br><i>If you wish to continue, press the "=" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
+                    document.getElementById('modalNothingKnockText').innerHTML = 'You are about to mask the areas you have drawn on the current image. This will filter out all detections in the masked areas for this camera.<br><br><i>If you wish to continue, press the "/" hotkey again.</i><br><br><i>Otherwise press "Esc" or label the cluster as anything else.</i>'
                 }    
             }
             modalNothingKnock.modal({keyboard: true}) //{backdrop: 'static', keyboard: false});
@@ -3025,7 +3025,7 @@ function initKeys(res){
                     newbtn.innerHTML = labelName + ' (Space)';
                 } else if (i == labs.length-1) {
                     newbtn.classList.add('btn-danger');
-                    newbtn.innerHTML = labelName + ' (=)';
+                    newbtn.innerHTML = labelName + ' (/)';
                 } else {
                     newbtn.classList.add('btn-danger');
                     newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3075,7 +3075,7 @@ function initKeys(res){
                         newbtn.innerHTML = labelName + ' (Space)';
                     } else if (i == labs.length-1) {
                         newbtn.classList.add('btn-info');
-                        newbtn.innerHTML = labelName + ' (=)';
+                        newbtn.innerHTML = labelName + ' (/)';
                     } else {
                         newbtn.classList.add('btn-info');
                         newbtn.innerHTML = labelName + ' (' + String.fromCharCode(parseInt(i)+55) + ')';
@@ -3255,7 +3255,7 @@ document.onkeyup = function(event){
                 case ('-'):assignLabel(hotkeys[37])
                     break;
 
-                case ('='):assignLabel(hotkeys[38])
+                case ('/'):assignLabel(hotkeys[38])
                     break;
 
                 case 'control': activateMultiple()

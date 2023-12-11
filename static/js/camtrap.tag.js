@@ -492,7 +492,7 @@ function maskArea(mapID = 'map1') {
     /** Masks the area drawn by the user. */
     if (!clusters[mapID][clusterIndex[mapID]][ITEMS].includes(maskLabel)) {
         updateMasks(mapID)
-        if (globalMasks[mapID].length > 0) {
+        if (globalMasks[mapID].length > 0 && globalMasks[mapID][0] != -1) {
             maskedTG = clusters[mapID][clusterIndex[mapID]].trapGroup
             clusterRequests[mapID] = [];
             clusters[mapID] = clusters[mapID].slice(0,clusterIndex[mapID]+1);
@@ -526,6 +526,10 @@ function maskArea(mapID = 'map1') {
 
             nextCluster()
         }
+        else if (globalMasks[mapID][0] == -1) {
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked is too small or too large. Please try again.'
+            modalAlert.modal({keyboard: true});
+        }
     }
 } 
 
@@ -535,14 +539,12 @@ function updateMasks(mapID = 'map1') {
     if (drawnMaskItems[mapID] != null) {
         drawnMaskItems[mapID].eachLayer(function (layer) {
             mask_dict = {}
-            // Check if the layer is a polygon
             if (layer instanceof L.Polygon) {
-                mask_dict['type'] = 'polygon';
-                mask_dict['points'] = []
+                mask_dict['poly_coords'] = []
                 layer._latlngs[0].forEach(function (point) {
-                    mask_dict['points'].push([point.lat/mapHeight[mapID], point.lng/mapWidth[mapID]])
+                    mask_dict['poly_coords'].push([point.lng/mapWidth[mapID], point.lat/mapHeight[mapID]])
                 });
-                mask_dict['points'].push(mask_dict['points'][0])
+                mask_dict['poly_coords'].push(mask_dict['poly_coords'][0])
 
                 // Create a box around the polygon
                 poly_box = {}
@@ -554,24 +556,12 @@ function updateMasks(mapID = 'map1') {
 
                 // Check area of polygon
                 var area = (poly_box['bottom']-poly_box['top']) * (poly_box['right']-poly_box['left']) 
-                if (area >= 0.005 && area <= 0.3) {
+                if (area >= 0.001 && area <= 0.3) {
                     globalMasks[mapID].push(mask_dict)
                 }
-            }
-            // Check if the layer is a rectangle
-            else if (layer instanceof L.Rectangle) {
-                mask_dict['type'] = 'rectangle';
-                mask_dict['top'] = layer._bounds._northEast.lat/mapHeight[mapID]
-                mask_dict['bottom'] = layer._bounds._southWest.lat/mapHeight[mapID]
-                mask_dict['left'] = layer._bounds._southWest.lng/mapWidth[mapID]
-                mask_dict['right'] = layer._bounds._northEast.lng/mapWidth[mapID]   
-
-                // Check area of rectangle
-                var area = (mask_dict['bottom']-mask_dict['top']) * (mask_dict['right']-mask_dict['left'])
-                if (area >= 0.005 && area <= 0.3) {
-                    globalMasks[mapID].push(mask_dict)
+                else{
+                    globalMasks[mapID] = [-1]
                 }
-                
             }
         });
     }

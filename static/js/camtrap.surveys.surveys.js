@@ -235,6 +235,25 @@ const access_slider_values = {'worker': 0, 'hidden': 1, 'read': 2, 'write': 3 , 
 var globalOrganisationUsers = []
 var tabActiveEditSurvey = 'baseAddImagesTab'
 
+var drawnItems = null
+var drawnMaskItems = null
+var cameras = []
+var cameraIndex = 0
+var imageIndex = 0
+var map = null
+var activeImage = null
+var editingEnabled = false
+var addedDetections = false
+var mapReady = null
+var drawControl = null
+var leafletMaskIDs = {}
+var removedMasks = []
+var editedMasks = {}
+var addedMasks = {}
+var mask_cameras = []
+var cameraReadAheadIndex = 0
+var cameraIDs = []
+
 function buildSurveys(survey,disableSurvey) {
     /**
      * Builds the survey row
@@ -2094,6 +2113,11 @@ function clearEditSurveyModal() {
     while(addImagesAdvancedDiv.firstChild){
         addImagesAdvancedDiv.removeChild(addImagesAdvancedDiv.firstChild);
     }
+
+    addImagesEditMasksDiv = document.getElementById('addImagesEditMasksDiv')
+    while(addImagesEditMasksDiv.firstChild){
+        addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
+    }
 }
 
 function buildAdvancedOptions() {
@@ -3221,7 +3245,7 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
         }
     }
 
-    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier) {
+    if (legalTGCode&&legalInput&&legalFile&&TGCheckReady&&legalClassifier&&!editingEnabled) {
         document.getElementById('btnAddImages').disabled = true
         if (tabActiveEditSurvey=='baseEditClassifierTab') {
             var formData = new FormData()
@@ -3318,7 +3342,27 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
                     timestampData[camera_id] = {'original': global_original_timestamps[camera_id], 'corrected': global_corrected_timestamps[camera_id]}
                 }
                 formData.append("timestamps", JSON.stringify(timestampData))
-            }                
+            }        
+            else if (tabActiveEditSurvey=='baseEditMasksTab') {
+
+                var new_masks = []
+                var edit_masks = []
+
+                for (var key in addedMasks) {
+                    new_masks.push(addedMasks[key])
+                }
+
+                for (var key in editedMasks) {
+                    edit_masks.push({'id': key, 'coords': editedMasks[key]})
+                }
+
+                mask_dict = {
+                    'removed' : removedMasks,
+                    'added' : new_masks,
+                    'edited' : edit_masks
+                }
+                formData.append("masks", JSON.stringify(mask_dict))
+            }
 
             addImagesSendRequest(formData)
         }
@@ -3406,6 +3450,8 @@ function addImagesSendRequest(formData) {
                                                                                 percentage it.</p>`
                     } else if (tabActiveEditSurvey=='baseEditClassifierTab') {
                         document.getElementById('modalAlertBody').innerHTML = 'Your survey is now being re-classified. This may take a while.'
+                    } else if (tabActiveEditSurvey=='baseEditMasksTab') {
+                        document.getElementById('modalAlertBody').innerHTML = 'Your masks are being updated. Please note that this may take a while.' //TODO: ADD MORE INFO HERE ABOUT WHAT HAPPENS TO THE DATA
                     } else if ((document.getElementById('addCoordinatesManualMethod')!=null)&&(document.getElementById('addCoordinatesManualMethod').checked)) {
                         document.getElementById('modalAlertBody').innerHTML = 'Your coordinates are being updated.'
                     } else if (document.getElementById('smallDetectionsCheckbox')!=null) {
@@ -3764,7 +3810,675 @@ function changeEditSurveyTab(evt, tabName) {
 function openEditMasks() {
     /** Listens for and initialises the edit masks form on the edit survey modal when the radio button is selected. */
     if (tabActiveEditSurvey=='baseEditMasksTab') {
+        removedMasks = []
+        cameraIndex = 0
+        imageIndex = 0
+        leafletMaskIDs = {}
+        if (map){
+            map.remove()
+        }
+        map = null
+        cameraIDs = []
+        cameraReadAheadIndex = 0
+        cameras = []
         clearEditSurveyModal()
         buildEditMasks()
+        getMaskCameras()
+    }
+}
+
+
+function buildEditMasks() {
+    /** Builds the edit masks layout on the edit survey modal. */
+
+    var addImagesEditMasksDiv = document.getElementById('addImagesEditMasksDiv')
+
+    while(addImagesEditMasksDiv.firstChild){
+        addImagesEditMasksDiv.removeChild(addImagesEditMasksDiv.firstChild);
+    }
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    addImagesEditMasksDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-1')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-10')
+    col2.setAttribute('style','text-align: center;')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-1')
+    row.appendChild(col3)
+
+
+    var h6 = document.createElement('h6')
+    h6.id = 'mapTitle'
+    h6.innerHTML = 'Loading...'
+    col2.appendChild(h6)
+
+    var center = document.createElement('center')
+    col2.appendChild(center)
+
+    var mapDiv = document.createElement('div')
+    mapDiv.id = 'mapDiv'
+    mapDiv.style.height = '700px'
+    center.appendChild(mapDiv)
+
+    var rowDiv = document.createElement('div');
+    rowDiv.classList.add('row');
+    col2.appendChild(rowDiv);
+
+    var colDiv = document.createElement('div');
+    colDiv.classList.add('col-lg-12', 'd-flex', 'align-items-center', 'justify-content-center');
+    rowDiv.appendChild(colDiv);
+
+    var clusterDiv = document.createElement('div');
+    clusterDiv.id = 'clusterPosition';
+    colDiv.appendChild(clusterDiv);
+
+    var paginationUl = document.createElement('ul');
+    paginationUl.classList.add('pagination');
+    paginationUl.id = 'paginationCircles';
+    paginationUl.style.margin = '10px';
+    colDiv.appendChild(paginationUl);
+
+    // col2.appendChild(document.createElement('br'))
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    col2.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-3')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-3')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-3')
+    row.appendChild(col3)
+
+    var col4 = document.createElement('div')
+    col4.classList.add('col-lg-3')
+    row.appendChild(col4)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnPrevCamera'
+    button.innerHTML = '<span style="font-size:100%">&#x276e;&#x276e;</span> Previous Camera'
+    button.disabled = true
+    col1.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnPrevImage'
+    button.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
+    button.disabled = true
+    col2.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnNextImage'
+    button.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
+    button.disabled = true
+    col3.appendChild(button)
+
+    var button = document.createElement('button')
+    button.classList.add('btn')
+    button.classList.add('btn-primary')
+    button.classList.add('btn-block')
+    button.id = 'btnNextCamera'
+    button.innerHTML = 'Next Camera <span style="font-size:100%">&#x276f;&#x276f;</span>'
+    button.disabled = true
+    col4.appendChild(button)
+
+    document.getElementById('btnPrevCamera').addEventListener('click', ()=>{
+        if (cameraIndex>0 && !editingEnabled) {
+            cameraIndex -= 1
+            imageIndex = 0
+            updateMaskMap()
+        }
+    });
+
+    document.getElementById('btnPrevImage').addEventListener('click', ()=>{
+        if (imageIndex>0 && !editingEnabled) {
+            imageIndex -= 1
+            updateMaskMap()
+        }
+    });
+
+    document.getElementById('btnNextImage').addEventListener('click', ()=>{
+        if (imageIndex<cameras[cameraIndex].images.length-1 && !editingEnabled) {
+            imageIndex += 1
+            updateMaskMap()
+        }
+    });
+
+    document.getElementById('btnNextCamera').addEventListener('click', ()=>{
+        if (cameraIndex<cameras.length-1 && !editingEnabled) {
+            cameraIndex += 1
+            imageIndex = 0
+            updateMaskMap()
+            if (cameraIndex > cameras.length - 3){
+                getMasks()
+            }
+        }
+    });
+
+    document.getElementById('btnPrevCamera').hidden = true
+    document.getElementById('btnPrevImage').hidden = true
+    document.getElementById('btnNextImage').hidden = true
+    document.getElementById('btnNextCamera').hidden = true
+
+}
+
+function getMasks() {
+    /** Gets the masks for the current survey. */
+
+    if (cameraReadAheadIndex < cameraIDs.length) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);  
+                new_cameras = reply.masks
+                console.log(new_cameras)
+
+                for (var i=0; i<new_cameras.length; i++) {
+                    cameras.push(new_cameras[i])
+                }
+
+                if (cameras.length - 1 == cameraIndex) {
+                    updateMaskMap()
+                }
+                updateButtons()
+            }
+        }
+        xhttp.open("GET", '/getSurveyMasks/'+selectedSurvey+'?camera_id='+cameraIDs[cameraReadAheadIndex++]);
+        xhttp.send();
+    }
+}
+
+function prepMapMasks(image) {
+    /** Initialises the Leaflet image map for the individual ID modal. */
+
+    if (bucketName != null) {
+        mapReady = false
+        imageUrl = "https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(image.url)
+        var img = new Image();
+        img.onload = function(){
+            w = this.width
+            h = this.height
+
+            if (w>h) {
+                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(h/w)+');  width:38vw')               
+            } else {
+                document.getElementById('mapDiv').setAttribute('style','height: calc(38vw *'+(w/h)+');  width:38vw')
+            }
+
+            L.Browser.touch = true
+    
+            map = new L.map('mapDiv', {
+                crs: L.CRS.Simple,
+                maxZoom: 10,
+                center: [0, 0],
+                zoomSnap: 0
+            })
+
+            var h1 = document.getElementById('mapDiv').clientHeight
+            var w1 = document.getElementById('mapDiv').clientWidth
+    
+            var southWest = map.unproject([0, h1], 2);
+            var northEast = map.unproject([w1, 0], 2);
+            var bounds = new L.LatLngBounds(southWest, northEast);
+    
+            mapWidth = northEast.lng
+            mapHeight = southWest.lat
+    
+            activeImage = L.imageOverlay(imageUrl, bounds).addTo(map);
+            activeImage.on('load', function() {
+                addedDetections = false
+                addDetections()
+            });
+            map.setMaxBounds(bounds);
+            map.fitBounds(bounds)
+            map.setMinZoom(map.getZoom())
+
+            hc = document.getElementById('mapDiv').clientHeight
+            wc = document.getElementById('mapDiv').clientWidth
+            map.on('resize', function(){
+                if(document.getElementById('mapDiv').clientHeight){
+                    h1 = document.getElementById('mapDiv').clientHeight
+                    w1 = document.getElementById('mapDiv').clientWidth
+                }
+                else{
+                    h1 = hc
+                    w1 = wc
+                }
+                
+                southWest = map.unproject([0, h1], 2);
+                northEast = map.unproject([w1, 0], 2);
+                bounds = new L.LatLngBounds(southWest, northEast);
+        
+                mapWidth = northEast.lng
+                mapHeight = southWest.lat
+
+                map.invalidateSize()
+                map.setMaxBounds(bounds)
+                map.fitBounds(bounds)
+                map.setMinZoom(map.getZoom())
+                activeImage.setBounds(bounds)
+
+                addedDetections = false
+                addDetections()
+
+            });
+
+
+            map.on('drag', function() {
+                map.panInsideBounds(bounds, { animate: false });
+            });
+    
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            drawnMaskItems = new L.FeatureGroup();
+            map.addLayer(drawnMaskItems);
+    
+            map.on('zoomstart', function() {
+                if (!fullRes) {
+                    activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
+                    fullRes = true  
+                }
+            });    
+    
+            rectOptions = {
+                color: "rgba(223,105,26,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }  
+            
+            maskRectOptions = {
+                color: "rgba(91,192,222,1)",
+                fill: true,
+                fillOpacity: 0.0,
+                opacity: 0.8,
+                weight:3,
+                contextmenu: false,
+            }
+        
+            if (drawControl != null) {
+                drawControl.remove()
+            }
+        
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: {
+                        shapeOptions: maskRectOptions,
+                        allowIntersection: false,
+                    },
+                    polyline: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    rectangle: {
+                        shapeOptions: maskRectOptions,
+                        showArea: false
+                    }
+                },
+                edit: {
+                    featureGroup: drawnMaskItems,
+                }
+            });
+            map.addControl(drawControl);
+            drawControl._toolbars.draw._toolbarContainer.children[0].title = 'Draw a mask'
+            drawControl._toolbars.draw._toolbarContainer.children[1].title = 'Draw a mask'
+
+            maskEditPrep()
+
+            mapReady = true
+        };
+        img.src = imageUrl  
+    }
+}
+
+function addDetections() {
+    /** Adds the detections to the map. */
+
+    if (addedDetections == false) {
+        drawnItems.clearLayers()
+        drawnMaskItems.clearLayers()
+        map.setZoom(map.getMinZoom())
+
+        // Draw detections
+        for(var i=0;i<cameras[cameraIndex].images[imageIndex].detections.length;i++){
+            var detection = cameras[cameraIndex].images[imageIndex].detections[i]
+            rect = L.rectangle([[detection.top*mapHeight,detection.left*mapWidth],[detection.bottom*mapHeight,detection.right*mapWidth]], rectOptions)
+            drawnItems.addLayer(rect)
+        }
+
+        // Draw masks
+        for(var i=0;i<cameras[cameraIndex].masks.length;i++){
+            var mask = cameras[cameraIndex].masks[i]
+            var coords = mask['coords']
+            poly_coords = []
+            for(var j=0;j<coords.length;j++){
+                poly_coords.push([coords[j][1]*mapHeight,coords[j][0]*mapWidth])
+            }
+            poly = L.polygon(poly_coords, maskRectOptions)
+            drawnMaskItems.addLayer(poly)
+            leafletMaskIDs[mask.id] = poly._leaflet_id
+        }
+
+        addedDetections = true
+    }
+    
+}
+
+function modifyToCompURL(url) {
+    /** Modifies the URL to be compatible with the S3 bucket. */
+    splits=url.split('/')
+    splits[0]=splits[0]+'-comp'
+    return splits.join('/')
+}
+
+
+function updateMaskMap() {
+    /** Updates the mask map after an action has been performed. */
+
+    document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url
+
+    if (map != null) {
+        activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))
+    }
+    else{
+        prepMapMasks(cameras[cameraIndex].images[imageIndex])
+    }
+
+    updateButtons()
+
+    if (document.getElementById('clusterPosition') != null) {
+
+        cirNum = cameras[cameraIndex].images.length
+        circlesIndex = imageIndex
+        
+        var beginIndex = 0
+        var endIndex = cirNum
+        var multiple = false
+        if (cirNum > 10) {
+            multiple =  true
+            beginIndex = Math.max(0,circlesIndex-2)
+            if (beginIndex < 2) {
+                beginIndex = 0
+                endIndex = 5
+            }
+            else {
+                endIndex = Math.min(cirNum,circlesIndex+3)
+                if (endIndex > cirNum-2) {
+                    endIndex = cirNum
+                    beginIndex = cirNum - 5
+                }
+            }
+        }
+
+        paginationCircles = document.getElementById('paginationCircles')
+        while (paginationCircles.firstChild) {
+            paginationCircles.removeChild(paginationCircles.firstChild);
+        }
+
+
+        if (multiple && beginIndex != 0 && circlesIndex > 2) {
+            first = document.createElement('li')
+            first.setAttribute('onclick','updateImageIndex(0)')
+            first.style.fontSize = '60%'
+            first.innerHTML = '1'
+            paginationCircles.append(first)
+        
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.style.fontSize = '60%'
+            more.innerHTML = '...'
+            paginationCircles.append(more)
+        }
+
+
+        for (let i=beginIndex;i<endIndex;i++) {
+            li = document.createElement('li')
+            li.innerHTML = (i+1).toString()
+            li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
+            li.style.fontSize = '60%'
+            paginationCircles.append(li)
+
+            if (i == circlesIndex) {
+                li.setAttribute('class','active')
+            } else {
+                li.setAttribute('class','')
+            }
+        }
+
+        if (multiple && endIndex != cirNum && circlesIndex < cirNum-3) {
+            more = document.createElement('li')
+            more.setAttribute('class','disabled')
+            more.innerHTML = '...'
+            more.style.fontSize = '60%'
+            paginationCircles.append(more)
+
+            last_index = cirNum - 1
+            last = document.createElement('li')
+            last.setAttribute('onclick','updateImageIndex('+(last_index).toString()+')')
+            last.innerHTML = (last_index+1).toString()
+            last.style.fontSize = '60%'
+            paginationCircles.append(last)
+        }
+    }
+
+}
+
+function updateImageIndex(index) {
+    /** Updates the image index. */
+    if (index >= 0 && index < cameras[cameraIndex].images.length && !editingEnabled) {
+        imageIndex = index
+        updateMaskMap()
+    }
+}
+
+
+function maskEditPrep() {
+    /** Preps the map for masking and tagging. */
+
+    map.on("draw:drawstart", function(e) {
+        editingEnabled = true
+    })
+
+    map.on("draw:drawstop", function(e) {
+        editingEnabled = false
+    })
+
+    map.on("draw:editstart", function(e) {
+        editingEnabled = true
+    })
+
+    map.on("draw:editstop", function(e) {
+        editingEnabled = false
+        console.log('edit')
+        updateMasks()
+    })
+
+    map.on("draw:deletestart", function(e) {
+        editingEnabled = true
+    })
+
+    map.on("draw:deletestop", function(e) {
+        editingEnabled = false
+        console.log('delete')
+        updateMasks()
+    })
+
+    map.on('draw:created', function (e) {
+        var newLayer = e.layer;
+        var newBounds = newLayer.getBounds();
+        var isOverlapping = false;
+
+        drawnMaskItems.eachLayer(function (layer) {
+            if (newBounds.intersects(layer.getBounds())) {
+                isOverlapping = true;
+            }
+        });
+
+        if (isOverlapping) {
+            document.getElementById('modalAlertText').innerHTML = 'The area you have masked overlaps with another masked area. You can edit the existing mask or delete it and try again.'
+            modalAlert.modal({keyboard: true});
+            drawnMaskItems.removeLayer(newLayer);
+        } else {
+            drawnMaskItems.addLayer(newLayer);  
+        }
+
+        leafletMaskIDs['l_' + newLayer._leaflet_id] = newLayer._leaflet_id
+        var new_mask = {'id':'l_' + newLayer._leaflet_id, 'coords':[]}
+        cameras[cameraIndex].masks.push(new_mask)
+
+        updateMasks()
+
+    });
+
+}
+
+function updateMasks() {
+    /** Updates the masks after an edit has been performed. */
+
+    for (var i=0;i<cameras[cameraIndex].masks.length;i++) {
+        if (drawnMaskItems.getLayer(leafletMaskIDs[cameras[cameraIndex].masks[i].id]) == null) {
+            if (!cameras[cameraIndex].masks[i].id.toString().startsWith('l_')) {
+                removedMasks.push(cameras[cameraIndex].masks[i].id)
+                delete editedMasks[cameras[cameraIndex].masks[i].id]
+            }
+            else{
+                delete addedMasks[cameras[cameraIndex].masks[i].id]
+            }
+            delete leafletMaskIDs[cameras[cameraIndex].masks[i].id]
+            cameras[cameraIndex].masks.splice(i,1)
+            i -= 1
+        }
+        else{
+            var coords = drawnMaskItems.getLayer(leafletMaskIDs[cameras[cameraIndex].masks[i].id])._latlngs[0]
+            var new_coords = []
+            for (var j=0;j<coords.length;j++) {
+                new_coords.push([coords[j].lng/mapWidth,coords[j].lat/mapHeight])
+            }
+            new_coords.push(new_coords[0])
+
+            edit_coords = false
+            // Check if coords are different
+            if (cameras[cameraIndex].masks[i].coords.length == new_coords.length) {
+                for (var j=0;j<cameras[cameraIndex].masks[i].coords.length;j++) {
+                    if (cameras[cameraIndex].masks[i].coords[j][0] != new_coords[j][0] || cameras[cameraIndex].masks[i].coords[j][1] != new_coords[j][1]) {
+                        edit_coords = true
+                        break
+                    }
+                }
+            }
+            else{
+                edit_coords = true
+            }
+
+
+
+            if (edit_coords) {
+
+                console.log(cameras[cameraIndex].masks[i].id)
+                console.log(new_coords)
+                console.log(cameras[cameraIndex].masks[i].coords)
+
+                cameras[cameraIndex].masks[i].coords = new_coords
+                if (cameras[cameraIndex].masks[i].id.toString().startsWith('l_')) {
+                    addedMasks[cameras[cameraIndex].masks[i].id] = {
+                        'coords': new_coords,
+                        'camera_id': cameras[cameraIndex].id,
+                    }
+                }
+                else{
+                    editedMasks[cameras[cameraIndex].masks[i].id] = new_coords
+                }
+
+            }
+        }
+    }
+}
+
+function getMaskCameras(){
+    /* Gets the cameras for the current survey that has masks */
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            cameraIDs = reply
+            console.log(cameraIDs)
+
+            if (cameraIDs.length>0) {
+                document.getElementById('btnPrevCamera').hidden = false
+                document.getElementById('btnPrevImage').hidden = false
+                document.getElementById('btnNextImage').hidden = false
+                document.getElementById('btnNextCamera').hidden = false
+                
+                for (var i=0; i<3; i++) {
+                    getMasks()
+                }  
+            }
+            else{
+                document.getElementById('mapTitle').innerHTML = 'You have no masks to edit.'
+                document.getElementById('btnPrevCamera').hidden = true
+                document.getElementById('btnPrevImage').hidden = true
+                document.getElementById('btnNextImage').hidden = true
+                document.getElementById('btnNextCamera').hidden = true
+                document.getElementById('mapDiv').hidden = true
+            }
+        }
+    }
+    xhttp.open("GET", '/getMaskCameras/'+selectedSurvey);
+    xhttp.send();
+}
+
+function updateButtons() {
+    /** Updates the buttons on the edit masks modal. */
+    if (imageIndex==0) {
+        document.getElementById('btnPrevImage').disabled = true
+    }
+    else{
+        document.getElementById('btnPrevImage').disabled = false
+    }
+    if (imageIndex==cameras[cameraIndex].images.length-1) {
+        document.getElementById('btnNextImage').disabled = true
+    }
+    else{
+        document.getElementById('btnNextImage').disabled = false
+    }
+    if (cameraIndex==0) {
+        document.getElementById('btnPrevCamera').disabled = true
+    }
+    else{
+        document.getElementById('btnPrevCamera').disabled = false
+    }
+    if (cameraIndex==cameras.length-1) {
+        document.getElementById('btnNextCamera').disabled = true
+    }
+    else{
+        document.getElementById('btnNextCamera').disabled = false
     }
 }

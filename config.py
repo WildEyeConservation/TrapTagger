@@ -115,8 +115,12 @@ class Config(object):
     DET_IGNORE_STATUSES = ['deleted','hidden','masked']
 
     # Hotkey info
-    NUMBER_OF_HOTKEYS = 38
+    NUMBER_OF_HOTKEYS = 39
     EMPTY_HOTKEY_ID= -967
+
+    # Mask Area Config
+    MIN_MASK_AREA = 0.001
+    MAX_MASK_AREA = 0.3
 
     # Time in seconds allowed for a worker to finish setting up beforte being checked for idleness
     SETUP_PERIOD = {

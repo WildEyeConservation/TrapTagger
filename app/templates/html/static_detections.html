@@ -37,19 +37,26 @@ limitations under the License. -->
         </div>
 
         <div class="row" >
-            <div class="col-lg-1"></div>
-            <div class="col-lg-11">
-                <div id="debugLabels" align="left"></div>
+            <div class="col-lg-12 d-flex align-items-center justify-content-center">
+                <div id="clusterPosition" style="font-size:60%;">
+                    <ul class="pagination" id="paginationCircles" style="margin: 10px;">
+                </div>
             </div>
         </div>
         
         <div class="control-group">
-            <div class="row">
-                <div class="col-lg-4"></div>
+            <div class="row" style="align-items: center;">
+                <div class="col-lg-1"></div>
+                <div class="col-lg-3">
+                    <button id="prevImage"   class="btn btn-primary btn-block"   onclick=prevImage()><span style="font-size:100%">&#x276e;</span> Previous Image</button>
+                </div>
                 <div class="col-lg-4">
                     <button id="prevCluster" class="btn btn-secondary btn-block" onclick='prevCluster()'>Undo <span style="font-size:100%">&#x27F2;</span></button>
                 </div>
-                <div class="col-lg-4"></div>
+                <div class="col-lg-3">
+                    <button id="nextImage"   class="btn btn-primary btn-block"   onclick=nextImage()>Next Image <span style="font-size:100%">&#x276f;</span></button>
+                </div>
+                <div class="col-lg-1"></div>
             </div>
         </div>
 

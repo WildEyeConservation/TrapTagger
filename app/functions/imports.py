@@ -933,7 +933,7 @@ def setupDatabase():
         db.session.add(vehicles)
 
     if db.session.query(Label).filter(Label.description=='Mask Area').first()==None:
-        mask = Label(description='Mask Area', hotkey='=')
+        mask = Label(description='Mask Area', hotkey='/')
         db.session.add(mask)
 
     if db.session.query(Classifier).filter(Classifier.name=='MegaDetector').first()==None:

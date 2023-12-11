@@ -3130,74 +3130,60 @@ def updateEarthRanger(task_id):
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def mask_area(self, cluster_id, task_id, masks):
-    ''' Mask detections in a specified area of an image. '''
+    ''' Create masks and mask detections in a specified area of an image. '''
     #TODO: THIS STILL NEEDS WORK AND CHECKING, ETC.
     try:
         cluster = db.session.query(Cluster).get(cluster_id)
         task_id = cluster.task_id
         trapgroup = cluster.images[0].camera.trapgroup
         camera = cluster.images[0].camera
-        mask_area = None
+
         if trapgroup and camera:
+            # Validate & create masks
+            for mask in masks:
+                poly_coords = mask['poly_coords']
+                poly_string = 'POLYGON(('
+                for coord in poly_coords:
+                    if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+                    if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+                    if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+                    if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+                    poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+                poly_string = poly_string[:-1] + '))'
+
+                poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+                if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
+                    new_mask = Mask(shape=poly_string,camera_id=camera.id,checked=False)
+                    db.session.add(new_mask)
+            db.session.commit()
+
+            # Mask detections
             detections = db.session.query(Detection)\
                                     .join(Image)\
                                     .join(Camera)\
+                                    .join(Mask)\
                                     .filter(Camera.id==camera.id)\
                                     .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                     .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                     .filter(Detection.static==False)\
+                                    .filter(and_(
+                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
+                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                        func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
+                                    ))\
                                     .distinct().all()
 
-            for mask in masks:
-                if mask['type'] == 'rectangle':
-                    mask_top = mask['top']
-                    mask_left = mask['left']
-                    mask_bottom = mask['bottom']
-                    mask_right = mask['right']
-                    mask_area = (mask_bottom-mask_top)*(mask_right-mask_left)
+            images = []
+            for detection in detections:
+                detection.status = 'masked'
+                images.append(detection.image)
+                if Config.DEBUGGING: app.logger.info('Masking detection {}'.format(detection.id))
+            db.session.commit()
 
-                    if round(mask_top,2) == 0: mask_top = 0
-                    if round(mask_left,2) == 0: mask_left = 0
-                    if round(mask_bottom,2) == 1: mask_bottom = 1
-                    if round(mask_right,2) == 1: mask_right = 1
-
-
-                    if mask_area > Config.DET_AREA:
-                        # TODO: SAVE MASK TO DB
-                        new_mask = mask
-
-                elif mask['type'] == 'polygon':
-                    # MAYBE LOOK AT POINT IN POLYGON ALGORITHM
-                    poly_box = mask['poly_box']
-                    mask_top = poly_box['top']
-                    mask_left = poly_box['left']
-                    mask_bottom = poly_box['bottom']
-                    mask_right = poly_box['right']
-                    mask_area = (mask_bottom-mask_top)*(mask_right-mask_left)
-
-                    if round(mask_top,2) == 0: mask_top = 0
-                    if round(mask_left,2) == 0: mask_left = 0
-                    if round(mask_bottom,2) == 1: mask_bottom = 1
-                    if round(mask_right,2) == 1: mask_right = 1
-
-                    if mask_area > Config.DET_AREA:
-                        # TODO: SAVE MASK TO DB
-                        new_mask = mask
-
-
-                if mask_area: 
-                    images = []
-                    for detection in detections:
-                        if detection.top >= mask_top and detection.bottom <= mask_bottom and detection.left >= mask_left and detection.right <= mask_right:
-                            detection.status = 'masked'
-                            images.append(detection.image)
-                            app.logger.info('Masking detection {}'.format(detection.id))
-
-                    db.session.commit()
-
-                    for image in set(images):
-                        image.detection_rating = detection_rating(image)
-                    db.session.commit()
+            for image in set(images):
+                image.detection_rating = detection_rating(image)
+            db.session.commit()
             
             re_evaluate_trapgroup_examined(trapgroup.id,task_id)
 
@@ -3216,6 +3202,128 @@ def mask_area(self, cluster_id, task_id, masks):
         self.retry(exc=exc, countdown= retryTime(self.request.retries))
 
     finally:
-        db.session.close()
+        db.session.remove()
+    
+    return True
+
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
+    '''Celery task that updates masks for a survey.'''
+
+    try:
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Processing'
+        db.session.commit()
+
+        # Remove masks
+        for mask_id in removed_masks:
+            mask = db.session.query(Mask).get(mask_id)
+            if mask:
+                db.session.delete(mask)
+
+        # Add masks
+        for mask in added_masks:
+            poly_coords = mask['coords']
+            poly_string = 'POLYGON(('
+            for coord in poly_coords:
+                if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+                if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+                if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+                if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+                poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+            poly_string = poly_string[:-1] + '))'
+            poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+            if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
+                new_mask = Mask(shape=poly_string,camera_id=mask['camera_id'],checked=False)
+                db.session.add(new_mask)
+
+        # Edit masks
+        for mask in edited_masks:
+            poly_coords = mask['coords']
+            poly_string = 'POLYGON(('
+            for coord in poly_coords:
+                if round(coord[0],2) == 0 or coord[0] < 0 : coord[0] = 0
+                if round(coord[1],2) == 0 or coord[1] < 0: coord[1] = 0
+                if round(coord[0],2) == 1 or coord[0] > 1: coord[0] = 1
+                if round(coord[1],2) == 1 or coord[1] > 1: coord[1] = 1
+                poly_string += str(coord[0]) + ' ' + str(coord[1]) + ','
+            poly_string = poly_string[:-1] + '))'
+            poly_area = db.session.query(func.ST_Area(func.ST_GeomFromText(poly_string))).first()[0]
+            if poly_area > Config.MIN_MASK_AREA and poly_area < Config.MAX_MASK_AREA:
+                mask = db.session.query(Mask).get(mask['id'])
+                if mask:
+                    mask.shape = poly_string
+
+        db.session.commit()
+
+        # Mask detections
+        detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .join(Mask)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(Detection.static==False)\
+                                .filter(and_(
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
+                                ))\
+                                .distinct().all()
+        
+        images = []
+        masked_detection_ids = []
+        for detection in detections:
+            detection.status = 'masked'
+            images.append(detection.image)
+            masked_detection_ids.append(detection.id)
+            if Config.DEBUGGING: app.logger.info('Masking detection {}'.format(detection.id))
+
+        db.session.commit()
+
+        # Unmask detections
+        unmasked_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.status=='masked')\
+                                .filter(Detection.static==False)\
+                                .filter(~Detection.id.in_(masked_detection_ids))\
+                                .distinct().all()
+
+        for detection in unmasked_detections:
+            detection.status = 'active'
+            images.append(detection.image)
+            if Config.DEBUGGING: app.logger.info('Unmasking detection {}'.format(detection.id))
+
+        db.session.commit()
+
+        for image in set(images):
+            image.detection_rating = detection_rating(image)
+
+        task_ids = [r[0] for r in db.session.query(Task.id).filter(Task.survey_id==survey_id).filter(Task.name!='default').distinct().all()]
+        for task_id in task_ids:
+            updateAllStatuses(task_id=task_id, celeryTask=False)
+
+        survey = db.session.query(Survey).get(survey_id)
+        survey.status = 'Ready'
+        db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
     
     return True

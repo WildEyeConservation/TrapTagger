@@ -104,10 +104,8 @@ function handleStatic(staticCheck, mapID = 'map1') {
         }
 
         detection_ids = []
-        for (var i=0; i<clusters[mapID][clusterIndex[mapID]].images.length; i++) {
-            for (var j=0; j<clusters[mapID][clusterIndex[mapID]].images[i].detections.length; j++) {
-                detection_ids.push(clusters[mapID][clusterIndex[mapID]].images[i].detections[j].id)
-            }
+        for (var j=0; j<clusters[mapID][clusterIndex[mapID]].images[0].detections.length; j++) {
+            detection_ids.push(clusters[mapID][clusterIndex[mapID]].images[0].detections[j].id)
         }
 
         var formData = new FormData();
@@ -130,7 +128,7 @@ function handleStatic(staticCheck, mapID = 'map1') {
         xhttp.open("POST", '/assignStatic');
         xhttp.send(formData);
 
-        nextCluster(mapID)
+        // nextCluster(mapID)
     }
 }
 
