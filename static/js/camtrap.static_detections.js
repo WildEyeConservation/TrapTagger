@@ -32,6 +32,11 @@ const divSelector = document.querySelector('#divSelector');
 function loadNewCluster(mapID = 'map1') {
     /** Requests the next back of clusters from the server. */
     if (cameraReadAheadIndex < cameraIDs.length) {
+        if (cameraReadAheadIndex == cameraIDs.length-1) {
+            lastCamera = true
+        } else {
+            lastCamera = false
+        }
         waitingForClusters[mapID] = true
         var newID = Math.floor(Math.random() * 100000) + 1;
         clusterRequests[mapID].push(newID)
@@ -45,13 +50,17 @@ function loadNewCluster(mapID = 'map1') {
                     } else if (this.readyState == 4 && this.status == 200) {
                         waitingForClusters[mapID] = false
                         info = JSON.parse(this.responseText);
-                        console.log(info)
+                        // console.log(info)
 
                         if (info.static_detections.length == 1 && info.static_detections[0].id == '-101') {
                             window.location.replace("surveys")
                         }
 
                         if (clusterRequests[mapID].includes(parseInt(info.id))) {
+                            if (lastCamera) {
+                                info.static_detections.push({'id': '-101'})
+                            }
+
                             for (let i=0;i<info.static_detections.length;i++) {
                                 newcluster = info.static_detections[i];
 
@@ -123,14 +132,14 @@ function handleStatic(staticCheck, mapID = 'map1') {
                 } else if (this.readyState == 4 && this.status == 200) {                    
                     response = JSON.parse(this.responseText);
                     clusters[wrapMapID][wrapClusterIndex].ready = true
-                    nextCluster(wrapMapID)
+                    // nextCluster(wrapMapID)
                 }
             }
         }(clusterIndex[mapID],mapID);
         xhttp.open("POST", '/assignStatic');
         xhttp.send(formData);
 
-        // nextCluster(mapID)
+        nextCluster(mapID)
     }
 }
 
@@ -146,10 +155,14 @@ function getCameraIDs(mapID = 'map1'){
                 imageIndex[mapID] = 0
                 cameraIDs = JSON.parse(this.responseText);
 
-                for (let i=0;i<3;i++){
-                    loadNewCluster()
+                if (cameraIDs.length == 0) {
+                    window.location.replace("surveys")
                 }
-                
+                else{
+                    for (let i=0;i<3;i++){
+                        loadNewCluster()
+                    }
+                }
             }
         };
     xhttp.open("GET", '/getStaticCameraIDs/' + selectedSurvey);
@@ -157,3 +170,17 @@ function getCameraIDs(mapID = 'map1'){
 }
 
 window.addEventListener('load', onload, false);
+
+btnDone.addEventListener('click', () => {
+    /** Wraps up the user's session when they click the done button. */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+        function () {
+            if (this.readyState == 4 && this.status == 200) {
+                window.location.replace("surveys")
+            }
+        };
+    xhttp.open("GET", '/finishStaticDetectionCheck/' + selectedSurvey);
+    xhttp.send();
+
+});

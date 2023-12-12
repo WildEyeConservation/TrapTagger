@@ -3265,7 +3265,7 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
                                 .join(Mask)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                                .filter(~Detection.status.in_(['deleted','hidden']))\
+                                .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                 .filter(Detection.static==False)\
                                 .filter(and_(
                                     func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
@@ -3276,25 +3276,41 @@ def update_masks(self,survey_id,removed_masks,added_masks,edited_masks):
                                 .distinct().all()
         
         images = []
-        masked_detection_ids = []
         for detection in detections:
             detection.status = 'masked'
             images.append(detection.image)
-            masked_detection_ids.append(detection.id)
             if Config.DEBUGGING: app.logger.info('Masking detection {}'.format(detection.id))
 
         db.session.commit()
 
         # Unmask detections
-        unmasked_detections = db.session.query(Detection)\
+        masked_detections = db.session.query(Detection)\
                                 .join(Image)\
                                 .join(Camera)\
                                 .join(Trapgroup)\
+                                .join(Mask)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.status=='masked')\
                                 .filter(Detection.static==False)\
-                                .filter(~Detection.id.in_(masked_detection_ids))\
+                                .filter(and_(
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.top, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.left, ' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.bottom, ')'), 32734), Mask.shape),
+                                    func.ST_Intersects(func.ST_GeomFromText(func.concat('POINT(', Detection.right,' ', Detection.top,  ')'), 32734), Mask.shape),
+                                ))\
+                                .subquery()
+
+        unmasked_detections = db.session.query(Detection)\
+                                .join(Image)\
+                                .join(Camera)\
+                                .join(Trapgroup)\
+                                .outerjoin(masked_detections, masked_detections.c.id==Detection.id)\
+                                .filter(Trapgroup.survey_id==survey_id)\
+                                .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                .filter(Detection.status=='masked')\
+                                .filter(Detection.static==False)\
+                                .filter(masked_detections.c.id==None)\
                                 .distinct().all()
 
         for detection in unmasked_detections:

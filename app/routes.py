@@ -57,7 +57,6 @@ import io
 import tracemalloc
 import calendar
 import pandas as pd
-import shapely
 from WorkR.worker import calculate_activity_pattern, calculate_occupancy_analysis, calculate_spatial_capture_recapture
 
 tracemalloc.start(40)
@@ -11956,10 +11955,10 @@ def checkStaticDetections():
             survey = db.session.query(Survey).get(survey_id)
             if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 # Initialise the static detections
-                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
-                for labelgroup in labelgroups:
-                    labelgroup.checked = False
-                db.session.commit()
+                # labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+                # for labelgroup in labelgroups:
+                #     labelgroup.checked = False
+                # db.session.commit()
 
                 return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
             else:
@@ -11992,28 +11991,26 @@ def getStaticDetections(survey_id, reqID):
         camera_id = request.args.get('camera_id', None)
 
         detectionClusters = db.session.query(
-                                    Trapgroup.id,
-                                    Camera.id,
-                                    Camera.path,
-                                    Image.id,
-                                    Image.filename,
-                                    Image.detection_rating,
                                     Detection.id,
-                                    Detection.score,
                                     Detection.top,
                                     Detection.bottom,
                                     Detection.left,
-                                    Detection.right
+                                    Detection.right,
+                                    Image.id,
+                                    Image.filename,
+                                    Camera.id,
+                                    Camera.path,
+                                    Trapgroup.id
                                 )\
-                                .join(Camera, Camera.trapgroup_id==Trapgroup.id)\
-                                .join(Image, Image.camera_id==Camera.id)\
-                                .join(Detection)\
+                                .join(Image, Image.id==Detection.image_id)\
+                                .join(Camera, Camera.id==Image.camera_id)\
+                                .join(Trapgroup, Trapgroup.id==Camera.trapgroup_id)\
                                 .join(Labelgroup)\
                                 .filter(Detection.static==True)\
                                 .filter(Trapgroup.survey_id==survey_id)\
                                 .filter(Labelgroup.checked==False)\
-                                .order_by(Camera.id,Image.corrected_timestamp)
-
+                                .order_by(Camera.id,Image.corrected_timestamp,Detection.id)
+                                    
         if camera_id:
             detectionClusters = detectionClusters.filter(Camera.id==camera_id)
 
@@ -12023,51 +12020,100 @@ def getStaticDetections(survey_id, reqID):
             if survey.status == 'Static Detection Analysis':
                 survey.status = 'Ready'
                 db.session.commit()
-            return json.dumps({'static_detections': [{'id': -101}]})
+            return json.dumps({'static_detections': [{'id': -101}], 'id': reqID})
 
+        det_processed = []
         static_detections = []
-        cam_keys = {}
-
-        detections = {}
-        for detectionCluster in detectionClusters:
-            if detections.get(detectionCluster[1]) == None:
-                detections[detectionCluster[1]] = []
-            detections[detectionCluster[1]].append({
-                'id': detectionCluster[6],
-                'score': detectionCluster[7],
-                'top': detectionCluster[8],
-                'bottom': detectionCluster[9],
-                'left': detectionCluster[10],
-                'right': detectionCluster[11],
-                'static': True
-            })
-
-        for detectionCluster in detectionClusters:
-            if cam_keys.get(detectionCluster[1]) == None:
-                cam_keys[detectionCluster[1]] = len(static_detections)
-                static_detections.append({
-                    'id': detectionCluster[1],
-                    'images': [{
-                        'id': detectionCluster[3],
-                        'url': detectionCluster[2]+'/'+detectionCluster[4],
-                        'rating': detectionCluster[5],
-                        'detections': detections[detectionCluster[1]]
-                    }],
-                    'labels': ['None'],
-                    'tags': ['None'],
-                    'required': [],
-                    'classification': [],
-                    'groundTruth': [],
-                    'trapGroup': detectionCluster[0],
-                    'camera_path': detectionCluster[2]
-                })
-            else:
-                static_detections[cam_keys[detectionCluster[1]]]['images'].append({
-                    'id': detectionCluster[3],
-                    'url': detectionCluster[2]+'/'+detectionCluster[4],
-                    'rating': detectionCluster[5],
-                    'detections': detections[detectionCluster[1]]
-                })
+        det_keys = {}
+        for det in detectionClusters:
+            if det[0] in det_processed:
+                continue
+            det_shape = 'POLYGON((' + str(det[3]) + ' ' + str(det[1]) + ', ' + str(det[3]) + ' ' + str(det[2]) + ', ' + str(det[4]) + ' ' + str(det[2]) + ', ' + str(det[4]) + ' ' + str(det[1]) + ', ' + str(det[3]) + ' ' + str(det[1]) + '))'
+            subquery = db.session.query(Detection.id,
+                func.ST_Intersection(
+                    func.ST_GeomFromText(
+                        func.concat('POLYGON((', Detection.left, ' ', Detection.top, ', ', Detection.left, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.top, ', ', Detection.left, ' ', Detection.top, '))'),
+                        32734
+                    ),
+                    func.ST_GeomFromText(
+                        det_shape,
+                        32734
+                    ) 
+                ).label('intersection')
+            ).subquery()
+            subquery2 = db.session.query(Detection.id,                
+                func.ST_Union(
+                    func.ST_GeomFromText(
+                        func.concat('POLYGON((', Detection.left, ' ', Detection.top, ', ', Detection.left, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.bottom, ', ', Detection.right, ' ', Detection.top, ', ', Detection.left, ' ', Detection.top, '))'),
+                        32734
+                    ),
+                    func.ST_GeomFromText(
+                        det_shape,
+                        32734
+                    ) 
+                ).label('union')
+            ).subquery()
+            result = db.session.query(Detection.id)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .outerjoin(subquery, Detection.id == subquery.c.id)\
+                            .outerjoin(subquery2, Detection.id == subquery2.c.id)\
+                            .filter(func.ST_AsText(subquery.c.intersection) != 'GEOMETRYCOLLECTION EMPTY')\
+                            .filter(Detection.id == subquery.c.id)\
+                            .filter(Detection.static==True)\
+                            .filter(Camera.id == det[7])\
+                            .filter(Detection.id != det[0])\
+                            .filter(or_(
+                                and_(func.ST_AsText(subquery.c.intersection).contains('GEOMETRYCOLLECTION'), (func.ST_Area(func.ST_GeometryN(subquery.c.intersection,1))/func.ST_Area(subquery2.c.union)) > 0.65),
+                                and_(~func.ST_AsText(subquery.c.intersection).contains('GEOMETRYCOLLECTION'),(func.ST_Area(subquery.c.intersection)/func.ST_Area(subquery2.c.union)) > 0.65)
+                            ))\
+                            .distinct().all()
+            group = [r[0] for r in result]
+            det_processed.append(det[0])
+            det_processed.extend(group)
+            det_ids = [det[0]]
+            det_ids.extend(group)
+            image_dets = []
+            for d in detectionClusters:
+                if d[0] in det_ids:
+                    image_dets.append({
+                        'id': d[0],
+                        'top': d[1],
+                        'bottom': d[2],
+                        'left': d[3],
+                        'right': d[4],
+                        'static': True
+                    })
+            for data in detectionClusters: 
+                if data[0] in det_ids:
+                    if det_keys.get(det[0]) == None:
+                        static_detections.append({
+                            'id': det[0],
+                            'images': [{	
+                                'id': data[5],
+                                'url': data[8]+'/'+data[6],
+                                'detections': image_dets
+                            }],
+                            'labels': ['None'],
+                            'label_ids': ['0'],
+                            'tags': ['None'],
+                            'tag_ids': ['0'],
+                            'required': [],
+                            'classification': [],
+                            'groundTruth': [],
+                            'trapGroup': data[9],
+                            'camera': data[7],
+                            'camera_path': data[8]
+                        })
+                        det_keys[det[0]] = len(static_detections)-1
+                    else:
+                        image_exists = any(d['id'] == data[5] for d in static_detections[det_keys[det[0]]]['images'])
+                        if not image_exists:
+                            static_detections[det_keys[det[0]]]['images'].append({
+                                'id': data[5],
+                                'url': data[8]+'/'+data[6],
+                                'detections': image_dets
+                            })
 
         return json.dumps({'static_detections': static_detections, 'id': reqID})
     else:
@@ -12146,7 +12192,7 @@ def getSurveyMasks(survey_id):
                                     Camera.id,
                                     Camera.path,
                                     Mask.id,
-                                    func.ST_AsText(Mask.shape)
+                                    func.ST_AsGeoJSON(Mask.shape)
                                 )\
                                 .join(Image, Image.id==Detection.image_id)\
                                 .join(Camera, Camera.id==Image.camera_id)\
@@ -12157,7 +12203,7 @@ def getSurveyMasks(survey_id):
                                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
                                 .filter(Detection.static==False)\
                                 .filter(Mask.checked==False)\
-                                .order_by(Camera.id,Image.corrected_timestamp)\
+                                .order_by(Camera.id,Image.corrected_timestamp)
                                 
         if camera_id:
             mask_data = mask_data.filter(Camera.id==camera_id)
@@ -12184,7 +12230,7 @@ def getSurveyMasks(survey_id):
                     }],
                     'masks': [{
                         'id': data[9],
-                        'coords': list(shapely.wkt.loads(data[10]).exterior.coords)
+                        'coords': json.loads(data[10])['coordinates'][0]
                     }],
                     'camera_path': data[8]
                 })
@@ -12219,7 +12265,7 @@ def getSurveyMasks(survey_id):
                 if not mask_exists:
                     masks[cam_idx]['masks'].append({
                         'id': data[9],
-                        'coords': list(shapely.wkt.loads(data[10]).exterior.coords)
+                        'coords': json.loads(data[10])['coordinates'][0]
                     })
 
         return json.dumps({'masks': masks})
@@ -12256,3 +12302,16 @@ def getStaticCameraIDs(survey_id):
         camera_ids = [c[0] for c in cameras]
 
     return json.dumps(camera_ids)
+
+@app.route('/finishStaticDetectionCheck/<survey_id>')
+@login_required
+def finishStaticDetectionCheck(survey_id):
+    ''' Gets all the camera ids that have static detections in a survey '''
+
+    survey = db.session.query(Survey).get(survey_id)
+    if survey and checkSurveyPermission(current_user.id,survey.id,'write'):
+        survey.status = "Processing"
+        db.session.commit()
+        wrapUpStaticDetectionCheck.delay(survey_id)
+
+    return json.dumps('success')

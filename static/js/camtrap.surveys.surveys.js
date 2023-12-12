@@ -4404,14 +4404,7 @@ function updateMasks() {
                 edit_coords = true
             }
 
-
-
             if (edit_coords) {
-
-                console.log(cameras[cameraIndex].masks[i].id)
-                console.log(new_coords)
-                console.log(cameras[cameraIndex].masks[i].coords)
-
                 cameras[cameraIndex].masks[i].coords = new_coords
                 if (cameras[cameraIndex].masks[i].id.toString().startsWith('l_')) {
                     addedMasks[cameras[cameraIndex].masks[i].id] = {

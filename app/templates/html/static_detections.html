@@ -70,6 +70,40 @@ limitations under the License. -->
     </div>
     <div class="col-lg-1"></div>
 </div>
+
+
+<!-- Done Modal -->
+<div id="modalDone" class="modal fade" role="dialog"  tabindex="-1">
+    <div class="modal-dialog">
+      
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Batch Complete</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p align="justify">
+                    Please confirm that you are finished with the batch. Alternatively, if you would like to go back and change a label, please do so now.
+                </p>
+
+            </div>
+            <div class='modal-footer'>
+                <div class='col-lg-3'>
+                    <button id='btnCancel' type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Return</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id='btnDone' type='button' class='btn btn-primary btn-block'>Done</button>
+                </div>
+            </div>
+        </div>
+      
+    </div>
+</div>
+
+
 {% endblock %}
 
 {% block page_scripts %}
