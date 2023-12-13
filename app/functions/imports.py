@@ -1315,7 +1315,7 @@ def setupDatabase():
 
     db.session.commit()
 
-def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock):
+def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,lock,remove_gps):
     ''' Helper function for importImages that batches images and adds them to the queue to be run through the detector. '''
 
     try:
@@ -1366,6 +1366,23 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     except:
                         if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
+                    
+                    #TODO: DOUBLE CHECK THIS
+                    if remove_gps:
+                        # Remove GPS data from the image & upload it 
+                        try:
+                            if Config.DEBUGGING: print('Removing GPS data from {}'.format(filename))
+                            exif_data = piexif.load(temp_file.name)
+                            if exif_data['GPS']:
+                                exif_data['GPS'] = {}
+                                exif_bytes = piexif.dump(exif_data)
+                                piexif.insert(exif_bytes, temp_file.name)
+                                GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=sourceBucket, Key=os.path.join(dirpath, filename))
+                                if Config.DEBUGGING: print('Removed GPS data from {}'.format(filename))
+                        except:
+                            if Config.DEBUGGING: app.logger.info("Skipping {} could not remove GPS data...".format(dirpath+'/'+filename))
+                            continue
+
                 else:
                     # don't need to download the image or even extract a timestamp if pipelining
                     timestamp = None
@@ -1429,7 +1446,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
     return True
 
 @celery.task(bind=True,max_retries=5)
-def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
+def importImages(self,batch,csv,pipeline,external,min_area,label_source=None,remove_gps=False):
     '''
     Imports all specified images from a directory path under a single camera object in the database. Ignores duplicate image hashes, and duplicate image paths (from previous imports).
 
@@ -1476,7 +1493,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None):
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
                 
             for filenames in chunker(jpegs,100):
-                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock))
+                pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps))
 
         pool.close()
         pool.join()
@@ -2099,6 +2116,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
     batch_count = 0
     batch = []
     chunk_size = round(Config.QUEUES['parallel']['rate']/4)
+    remove_gps = False
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -2110,6 +2128,44 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                 # survey.images_processing += len(jpegs)
                 # localsession.commit()
                 camera = Camera.get_or_create(localsession, trapgroup.id, dirpath)
+
+                # Check if GPS data is available
+                #TODO: DOUBLE CHECK THIS
+                gps_file = jpegs[0]
+                gps_key = os.path.join(dirpath,gps_file)
+                with tempfile.NamedTemporaryFile(delete=True, suffix='.JPG') as temp_file:
+                    GLOBALS.s3client.download_file(Bucket=sourceBucket, Key=gps_key, Filename=temp_file.name)
+                    try:
+                        exif_data = piexif.load(temp_file.name)
+                        if exif_data['GPS']:
+                            remove_gps = True
+                            if trapgroup.latitude != 0 and trapgroup.longitude != 0 and trapgroup.altitude != 0:
+                                # Try and extract latitude and longitude and altitude
+                                try:
+                                    gps_keys = exif_data['GPS'].keys()
+                                    if piexif.GPSIFD.GPSLatitude in gps_keys:
+                                        lat = exif_data['GPS'][piexif.GPSIFD.GPSLatitude]
+                                        lat_ref = exif_data['GPS'][piexif.GPSIFD.GPSLatitudeRef]
+                                        trapgroup.latitude = lat[0][0]/lat[0][1] + lat[1][0]/lat[1][1]/60 + lat[2][0]/lat[2][1]/3600
+                                        if lat_ref == b'S': trapgroup.latitude = -trapgroup.latitude
+                                    if piexif.GPSIFD.GPSLongitude in gps_keys:
+                                        lon = exif_data['GPS'][piexif.GPSIFD.GPSLongitude]
+                                        lon_ref = exif_data['GPS'][piexif.GPSIFD.GPSLongitudeRef]
+                                        trapgroup.longitude = lon[0][0]/lon[0][1] + lon[1][0]/lon[1][1]/60 + lon[2][0]/lon[2][1]/3600
+                                        if lon_ref == b'W': trapgroup.longitude = -trapgroup.longitude
+                                    if piexif.GPSIFD.GPSAltitude in gps_keys:
+                                        alt = exif_data['GPS'][piexif.GPSIFD.GPSAltitude]
+                                        alt_ref = exif_data['GPS'][piexif.GPSIFD.GPSAltitudeRef]
+                                        trapgroup.altitude = alt[0]/alt[1]
+                                        if alt_ref == 1: trapgroup.altitude = -trapgroup.altitude
+                                    if Config.DEBUGGING: app.logger.info('Extracted GPS data from {}'.format(gps_key))	    
+                                except:
+                                    pass
+                        else:
+                            remove_gps = False
+                    except:
+                        pass
+
                 localsession.commit()
                 tid=trapgroup.id
 
@@ -2132,7 +2188,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                     batch_count += len(chunk)
 
                     if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
+                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source,'remove_gps':remove_gps},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -2141,7 +2197,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source,'remove_gps':remove_gps},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
