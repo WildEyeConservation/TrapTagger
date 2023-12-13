@@ -1469,11 +1469,11 @@ def createNewSurvey():
                 user_ids = [r[0] for r in user_query]
                 user_permissions = [r[1] for r in user_query]   
                 annotation_access = True if annotation== '1' else False
-                for user_id in user_ids:
+                for i in range(len(user_ids)):
                     if user_permissions[i] == 'worker':
-                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission='worker', annotation=annotation_access)
+                        newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission='worker', annotation=annotation_access)
                     else:
-                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
+                        newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=annotation_access)
                     db.session.add(newException)
             elif permission != 'default':
                 user_query = db.session.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
