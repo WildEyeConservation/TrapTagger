@@ -2198,6 +2198,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                     batch_count += len(chunk)
 
                     if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
+                        print('Remove GPS1 {}'.format(remove_gps))
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
