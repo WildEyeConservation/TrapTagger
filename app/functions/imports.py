@@ -1371,14 +1371,14 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     if remove_gps:
                         # Remove GPS data from the image & upload it 
                         try:
-                            if Config.DEBUGGING: print('Removing GPS data from {}'.format(filename))
+                            print('Removing GPS data from {}'.format(filename))
                             exif_data = piexif.load(temp_file.name)
                             if exif_data['GPS']:
                                 exif_data['GPS'] = {}
                                 exif_bytes = piexif.dump(exif_data)
                                 piexif.insert(exif_bytes, temp_file.name)
                                 GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=sourceBucket, Key=os.path.join(dirpath, filename))
-                                if Config.DEBUGGING: print('Removed GPS data from {}'.format(filename))
+                                print('Removed GPS data from {}'.format(filename))
                         except:
                             if Config.DEBUGGING: app.logger.info("Skipping {} could not remove GPS data...".format(dirpath+'/'+filename))
                             continue
@@ -2139,25 +2139,32 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                         exif_data = piexif.load(temp_file.name)
                         if exif_data['GPS']:
                             remove_gps = True
-                            if trapgroup.latitude != 0 and trapgroup.longitude != 0 and trapgroup.altitude != 0:
+                            if trapgroup.latitude == 0 and trapgroup.longitude == 0 and trapgroup.altitude == 0:
                                 # Try and extract latitude and longitude and altitude
                                 try:
                                     gps_keys = exif_data['GPS'].keys()
+
                                     if piexif.GPSIFD.GPSLatitude in gps_keys:
                                         lat = exif_data['GPS'][piexif.GPSIFD.GPSLatitude]
-                                        lat_ref = exif_data['GPS'][piexif.GPSIFD.GPSLatitudeRef]
                                         trapgroup.latitude = lat[0][0]/lat[0][1] + lat[1][0]/lat[1][1]/60 + lat[2][0]/lat[2][1]/3600
-                                        if lat_ref == b'S': trapgroup.latitude = -trapgroup.latitude
+                                        if piexif.GPSIFD.GPSLatitudeRef in gps_keys:
+                                            lat_ref = exif_data['GPS'][piexif.GPSIFD.GPSLatitudeRef]
+                                            if lat_ref == b'S': trapgroup.latitude = -trapgroup.latitude
+
                                     if piexif.GPSIFD.GPSLongitude in gps_keys:
                                         lon = exif_data['GPS'][piexif.GPSIFD.GPSLongitude]
-                                        lon_ref = exif_data['GPS'][piexif.GPSIFD.GPSLongitudeRef]
                                         trapgroup.longitude = lon[0][0]/lon[0][1] + lon[1][0]/lon[1][1]/60 + lon[2][0]/lon[2][1]/3600
-                                        if lon_ref == b'W': trapgroup.longitude = -trapgroup.longitude
+                                        if piexif.GPSIFD.GPSLongitudeRef in gps_keys:
+                                            lon_ref = exif_data['GPS'][piexif.GPSIFD.GPSLongitudeRef]
+                                            if lon_ref == b'W': trapgroup.longitude = -trapgroup.longitude
+    
                                     if piexif.GPSIFD.GPSAltitude in gps_keys:
                                         alt = exif_data['GPS'][piexif.GPSIFD.GPSAltitude]
-                                        alt_ref = exif_data['GPS'][piexif.GPSIFD.GPSAltitudeRef]
                                         trapgroup.altitude = alt[0]/alt[1]
-                                        if alt_ref == 1: trapgroup.altitude = -trapgroup.altitude
+                                        if piexif.GPSIFD.GPSAltitudeRef in gps_keys:
+                                            alt_ref = exif_data['GPS'][piexif.GPSIFD.GPSAltitudeRef]
+                                            if alt_ref == 1: trapgroup.altitude = -trapgroup.altitude
+
                                     if Config.DEBUGGING: app.logger.info('Extracted GPS data from {}'.format(gps_key))	    
                                 except:
                                     pass
