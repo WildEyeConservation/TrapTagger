@@ -1447,7 +1447,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
     return True
 
 @celery.task(bind=True,max_retries=5)
-def importImages(self,batch,csv,pipeline,external,min_area,label_source=None,remove_gps=False):
+def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_source=None):
     '''
     Imports all specified images from a directory path under a single camera object in the database. Ignores duplicate image hashes, and duplicate image paths (from previous imports).
 
@@ -1463,6 +1463,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None,rem
                 survey_id (int): The survey for which the images are being imported
                 destBucket (str): The destination for the compressed images
                 filenames (list): List of filenames to be processed
+            remove_gps (bool): Whether to remove GPS data from the images
             label_source (str): The exif field where labels are to be extracted from
     '''
     
@@ -1492,6 +1493,7 @@ def importImages(self,batch,csv,pipeline,external,min_area,label_source=None,rem
                 jpegs = item['filenames']
             
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
+            print("Remove GPS : {}".format(remove_gps))
                 
             for filenames in chunker(jpegs,100):
                 pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps))
@@ -2196,7 +2198,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                     batch_count += len(chunk)
 
                     if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source,'remove_gps':remove_gps},queue='parallel'))
+                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -2205,7 +2207,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'label_source':label_source,'remove_gps':remove_gps},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
@@ -2389,7 +2391,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
                     batch_count += len(chunk)
 
                     if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
+                        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
                         batch = []
@@ -2398,7 +2400,7 @@ def pipeline_csv(df,survey_id,tag,exclusions,source,destBucket,min_area,external
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'label_source':label_source},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':True,'external':external,'min_area':min_area,'remove_gps':False,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()
