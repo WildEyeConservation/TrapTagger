@@ -1493,7 +1493,6 @@ def importImages(self,batch,csv,pipeline,external,min_area,remove_gps,label_sour
                 jpegs = item['filenames']
             
             print("Starting import of batch for {} with {} images.".format(dirpath,len(jpegs)))
-            print("Remove GPS : {}".format(remove_gps))
                 
             for filenames in chunker(jpegs,100):
                 pool.apply_async(batch_images,(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,pipeline,external,GLOBALS.lock,remove_gps))
@@ -2119,7 +2118,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
     batch_count = 0
     batch = []
     chunk_size = round(Config.QUEUES['parallel']['rate']/4)
-    remove_gps = False
+    remove_gps = True
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -2198,7 +2197,6 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                     batch_count += len(chunk)
 
                     if (batch_count / (((Config.QUEUES['parallel']['rate'])*random.uniform(0.5, 1.5))/2) ) >= 1:
-                        print('Remove GPS1 {}'.format(remove_gps))
                         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area,'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
                         app.logger.info('Queued batch with {} images'.format(batch_count))
                         batch_count = 0
@@ -2208,6 +2206,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
+        remove_gps = True
         results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
