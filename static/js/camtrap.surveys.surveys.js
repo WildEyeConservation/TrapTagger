@@ -4209,7 +4209,7 @@ function updateMaskMap() {
     /** Updates the mask map after an action has been performed. */
 
     finishedDisplaying = false
-    document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url
+    document.getElementById('mapTitle').innerHTML = cameras[cameraIndex].images[imageIndex].url.split('/').slice(1).join('/')
 
     if (map != null) {
         activeImage.setUrl("https://"+bucketName+".s3.amazonaws.com/" + modifyToCompURL(cameras[cameraIndex].images[imageIndex].url))

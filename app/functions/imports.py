@@ -1370,21 +1370,6 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                     except:
                         if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
-
-                    # TODO: ADD GPS DATA CHECK TO IMPORT
-                    # # Remove GPS data from the image & upload it 
-                    # try:
-                    #     if Config.DEBUGGING: print('Removing GPS data from {}'.format(filename))
-                    #     exif_data = piexif.load(temp_file.name)
-                    #     if exif_data['GPS']:
-                    #         exif_data['GPS'] = {}
-                    #         exif_bytes = piexif.dump(exif_data)
-                    #         piexif.insert(exif_bytes, temp_file.name)
-                    #         GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=sourceBucket, Key=os.path.join(dirpath, filename))
-                    # except:
-                    #     if Config.DEBUGGING: app.logger.info("Skipping {} could not remove GPS data...".format(dirpath+'/'+filename))
-                    #     continue
-
                 else:
                     # don't need to download the image or even extract a timestamp if pipelining
                     timestamp = None

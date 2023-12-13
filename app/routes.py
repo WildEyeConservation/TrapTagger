@@ -11955,10 +11955,10 @@ def checkStaticDetections():
             survey = db.session.query(Survey).get(survey_id)
             if survey and checkSurveyPermission(current_user.id,survey.id,'write') and survey.status.lower() in Config.SURVEY_READY_STATUSES:
                 # Initialise the static detections
-                # labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
-                # for labelgroup in labelgroups:
-                #     labelgroup.checked = False
-                # db.session.commit()
+                labelgroups = db.session.query(Labelgroup).join(Detection).join(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Detection.static==True).all()
+                for labelgroup in labelgroups:
+                    labelgroup.checked = False
+                db.session.commit()
 
                 return render_template('html/static_detections.html', title='Static Detections', helpFile='static_detections', bucket=Config.BUCKET, version=Config.VERSION)
             else:
