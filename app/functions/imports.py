@@ -1368,6 +1368,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         continue
                     
                     #TODO: DOUBLE CHECK THIS
+                    print('Removing GPS : {}'.format(remove_gps))
                     if remove_gps:
                         # Remove GPS data from the image & upload it 
                         try:
@@ -1380,7 +1381,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                                 GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=sourceBucket, Key=os.path.join(dirpath, filename))
                                 print('Removed GPS data from {}'.format(filename))
                         except:
-                            if Config.DEBUGGING: app.logger.info("Skipping {} could not remove GPS data...".format(dirpath+'/'+filename))
+                            print("Skipping {} could not remove GPS data...".format(dirpath+'/'+filename))
                             continue
 
                 else:
