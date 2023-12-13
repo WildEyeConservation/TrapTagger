@@ -1374,7 +1374,7 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                             exif_data = piexif.load(temp_file.name)
                             if exif_data['GPS']:
                                 exif_data['GPS'] = {}
-                                exif_bytes = piexif.dump(exif_data)
+                                exif_bytes = piexif.dump(exif_data)     # NOTE: Some cameras (Bushnell) has EXIF data that is not formatted correctly and causes the dump to fail 
                                 piexif.insert(exif_bytes, temp_file.name)
                                 GLOBALS.s3client.upload_file(Filename=temp_file.name, Bucket=sourceBucket, Key=os.path.join(dirpath, filename))
                         except:
