@@ -508,7 +508,7 @@ def getAllIndividuals():
             reply.append({
                             'id': individual.id,
                             'name': individual.name,
-                            'url': image.camera.path + '/' + image.filename
+                            'url': (image.camera.path + '/' + image.filename).replace('+','%2B')
                         })
 
     next = individuals.next_num if individuals.has_next else None
@@ -1254,7 +1254,7 @@ def imageViewer():
             return render_template("html/block.html",text="You do not have permission to view this item.", helpFile='block', version=Config.VERSION)
 
         images = [{'id': image.id,
-                'url': image.camera.path + '/' + image.filename,
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                 'detections': [{'id': detection.id,
                                         'top': detection.top,
                                         'bottom': detection.bottom,
@@ -4269,7 +4269,7 @@ def undoPreviousSuggestion(individual_1,individual_2):
             images = []
             for image in sortedImages:
                 output = {'id': image.id,
-                        'url': image.camera.path + '/' + image.filename,
+                        'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                         'timestamp': numify_timestamp(image.corrected_timestamp),
                         'camera': image.camera_id,
                         'rating': image.detection_rating,
@@ -5266,7 +5266,7 @@ def getImage():
 
     if image and (current_user == image.camera.trapgroup.survey.user):
         images = [{'id': image.id,
-                'url': image.camera.path + '/' + image.filename,
+                'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                 'rating': image.detection_rating,
                 'detections': [{'top': detection.top,
                                 'bottom': detection.bottom,
@@ -5439,7 +5439,7 @@ def getKnockCluster(task_id, knockedstatus, clusterID, index, imageIndex, T_inde
 
         if sortedImages != None:
             images = [{'id': image.id,
-                    'url': image.camera.path + '/' + image.filename,
+                    'url': (image.camera.path + '/' + image.filename).replace('+','%2B'),
                     'rating': image.detection_rating,
                     'detections': [{'top': detection.top,
                                     'bottom': detection.bottom,
@@ -8158,7 +8158,7 @@ def get_required_files():
                 file_ids.append(video.id)
                 pathSplit  = video.camera.path.split('/',1)
                 path = pathSplit[0] + '-comp/' + pathSplit[1].split('_video_images_')[0] + video.filename.split('.')[0] + '.mp4'
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path,'paths':videoPaths,'labels':videoLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+ path.replace('+','%2B'),'paths':videoPaths,'labels':videoLabels})
             db.session.commit()
 
         else:
@@ -8166,7 +8166,7 @@ def get_required_files():
                 imagePaths, imageLabels, imageTags = get_image_paths_and_labels(image,task,individual_sorted,species_sorted,flat_structure,labels,include_empties)
                 imageLabels.extend(imageTags)
                 file_ids.append(image.id)
-                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+image.camera.path+'/'+image.filename,'paths':imagePaths,'labels':imageLabels})
+                reply.append({'url':'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(image.camera.path+'/'+image.filename).replace('+','%2B'),'paths':imagePaths,'labels':imageLabels})
             db.session.commit()
 
     return json.dumps({'ids':file_ids,'requiredFiles':reply})
