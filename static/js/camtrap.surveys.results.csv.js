@@ -600,6 +600,12 @@ btnCsvDownload.addEventListener('click', ()=>{
             endDateCSV = endDateCSV + ' 23:59:59'
         }
 
+        if (document.getElementById('collapseVideo').checked) {
+            collapseVideo = true
+        } else {
+            collapseVideo = false
+        }
+
         if (noEmpties) {
             var formData = new FormData()
             formData.append("selectedTasks", JSON.stringify(selectedTasks))
@@ -612,6 +618,7 @@ btnCsvDownload.addEventListener('click', ()=>{
             formData.append("start_date", JSON.stringify(startDateCSV))
             formData.append("end_date", JSON.stringify(endDateCSV))
             formData.append("column_translations", JSON.stringify(column_translations))
+            formData.append("collapseVideo", JSON.stringify(collapseVideo))
 
             var xhttp = new XMLHttpRequest();
             xhttp.open("POST", '/generateCSV');
@@ -1489,6 +1496,9 @@ modalCSVGenerate.on('shown.bs.modal', function(){
         document.getElementById('rowLabelFormat').checked = false
         document.getElementById('includeLabels').checked = true
         document.getElementById('excludeLabels').checked = false
+        document.getElementById('videoFrames').checked = false
+        document.getElementById('collapseVideo').checked = true
+        
         if (csvInfo==null) {
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", '/getCSVinfo');
