@@ -7230,7 +7230,11 @@ def generateCSV():
             end_date = ast.literal_eval(request.form['end_date'])
             if end_date == '': end_date = None
             column_translations = ast.literal_eval(request.form['column_translations'])
-            collapseVideo = ast.literal_eval(request.form['collapseVideo'])
+
+            if request.form['collapseVideo'].lower() == 'true':
+                collapseVideo = True
+            else:
+                collapseVideo = False
 
     except:
         return json.dumps({'status':'error',  'message': None})
