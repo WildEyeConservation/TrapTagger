@@ -23,7 +23,7 @@ class Config(object):
     DEBUGGING = False
     MAINTENANCE = False
     INITIAL_SETUP = False
-    VERSION = 23
+    VERSION = 24
 
     HOST_IP = os.environ.get('HOST_IP')
     REDIS_IP = os.environ.get('REDIS_IP')
