@@ -313,16 +313,22 @@ def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
 def create_full_path(path,filename,collapseVideo,videoName):
     '''Helper function for create_task_dataframe that returns the concatonated input.'''
     if collapseVideo and videoName:
-        return path.split('_video_images_','')[0]+videoName
+        return path.split('_video_images_')[0]+videoName
     else:
         return '/'.join(path.split('/')[1:])+'/'+filename
-
 
 def drop_nones(label_set):
     '''Helper function for create_task_dataframe that removes the None label from a list of labels if necessary.'''
     if (len(label_set) > 1) and ('None' in label_set):
         label_set.remove('None')
     return label_set
+
+def generate_url(rootUrl,level_name,video_name,collapseVideo,x_level,x_cluster):
+    ''' Helper function for create_task_dataframe that collapses the urls generated for videos based on the collapseVideo argument.'''
+    if collapseVideo and (video_name != 'None') and (level_name in ['image','capture']):
+        return rootUrl + 'cluster&id=' + str(x_cluster)
+    else:
+        return rootUrl + level_name + '&id=' + str(x_level)
 
 def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate,collapseVideo):
     '''
@@ -592,8 +598,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             level = 'trapgroup_id'
         elif level=='survey':
             level = 'survey_id'
-        levelRootUrl = rootUrl + level_name + '&id='
-        df[level_name+'_url'] = df.apply(lambda x: levelRootUrl+str(x[level]), axis=1)
+        df[level_name+'_url'] = df.apply(lambda x: generate_url(rootUrl,level_name,x['video_name'],collapseVideo,x[level],x['cluster']), axis=1)
 
     # Rename image_id column as id for access to unique IDs
     df.rename(columns={'image_id':'id'},inplace=True)
