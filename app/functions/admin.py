@@ -1963,11 +1963,11 @@ def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permissi
             user_ids = [r[0] for r in user_query]
             user_permissions = [r[1] for r in user_query]   
             annotation_access = True if annotation== '1' else False
-            for user_id in user_ids:
+            for i in range(len(user_ids)):
                 if user_permissions[i] == 'worker':
-                    newException = SurveyPermissionException(user_id=user_id, survey=survey, permission='worker', annotation=annotation_access)
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission='worker', annotation=annotation_access)
                 else:
-                    newException = SurveyPermissionException(user_id=user_id, survey=survey, permission=permission, annotation=annotation_access)
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=annotation_access)
                 localsession.add(newException)
 
         elif permission != 'default':
