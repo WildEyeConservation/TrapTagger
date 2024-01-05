@@ -1349,6 +1349,8 @@ def createNewSurvey():
     status = 'success'
     message = ''
     organisation_id = request.form['organisation_id']
+    newSurvey_id = 0
+    surveyName = ''
 
     organisation = db.session.query(Organisation).get(organisation_id)
     userPermissions = db.session.query(UserPermissions).filter(UserPermissions.user_id==current_user.id).filter(UserPermissions.organisation_id==organisation_id).first()
@@ -1432,57 +1434,14 @@ def createNewSurvey():
                 newSurvey = Survey(name=surveyName, description=newSurveyDescription, trapgroup_code=newSurveyTGCode, organisation_id=organisation_id, status='Uploading', correct_timestamps=correctTimestamps, classifier_id=classifier.id)
                 db.session.add(newSurvey)
                 db.session.commit()
+                newSurvey_id = newSurvey.id
+
+                # Add permissions
+                setup_new_survey_permissions.delay(survey_id=survey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
             else:
                 import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier)
-
-            # Add permissions
-            survey_id = db.session.query(Survey.id).filter(Survey.name==surveyName).first()[0]
-            exclude_user_ids = [current_user.id]
-            if detailed_access:
-                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_default = {r[0]:r[1] for r in user_query}
-                for access in detailed_access:
-                    exclude_user_ids.append(access['user_id'])
-                    annotation_access = True if access['annotation']=='1' else False
-                    if user_default[access['user_id']] != 'admin':
-                        if user_default[access['user_id']] == 'worker': 
-                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission='worker', annotation=annotation_access)
-                        else:
-                            newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey_id=survey_id, permission=access['permission'], annotation=annotation_access)
-                        db.session.add(newDetailedException)
-
-            if permission != 'default' and annotation != 'default':
-                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_ids = [r[0] for r in user_query]
-                user_permissions = [r[1] for r in user_query]   
-                annotation_access = True if annotation== '1' else False
-                for user_id in user_ids:
-                    if user_permissions[i] == 'worker':
-                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission='worker', annotation=annotation_access)
-                    else:
-                        newException = SurveyPermissionException(user_id=user_id, survey_id=survey_id, permission=permission, annotation=annotation_access)
-                    db.session.add(newException)
-            elif permission != 'default':
-                user_query = db.session.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_ids = [r[0] for r in user_query]
-                user_permissions = [r[1] for r in user_query]   
-                user_annotations = [r[2] for r in user_query]
-                for i in range(len(user_ids)):
-                    if user_permissions[i] != 'worker':
-                        newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=permission, annotation=user_annotations[i])
-                        db.session.add(newException)
-            elif annotation != 'default':
-                user_query = db.session.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-                user_ids = [r[0] for r in user_query]
-                user_permissions = [r[1] for r in user_query]
-                annotation_access = True if annotation== '1' else False
-                for i in range(len(user_ids)):
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey_id=survey_id, permission=user_permissions[i], annotation=annotation_access)
-                    db.session.add(newException)
-                    
-            db.session.commit()
     
-        return json.dumps({'status': status, 'message': message})
+        return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
         return json.dumps({'status': 'error', 'message': 'You do not have permission to create surveys for this organisation.'})
 
@@ -8398,7 +8357,6 @@ def get_presigned_url():
     # else:
     #     return 'error'
 
-    #TODO: Updated permissions for now but uploader needs updating
     organisation = db.session.query(Organisation).join(Survey).filter(Survey.id==request.json['survey_id']).first()
     if organisation:
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==organisation.id).filter(UserPermissions.user_id==current_user.id).first()
@@ -8417,7 +8375,7 @@ def get_presigned_url():
 @login_required
 def check_upload_files():
     """Checks a list of images to see if they have already been uploaded."""
-     #TODO: Updated permissions for now but uploader needs updating
+
     files = request.json['filenames']
     survey_id = request.json['survey_id']
     already_uploaded = []
@@ -8814,6 +8772,22 @@ def download_complete():
         resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         return json.dumps('success')
+    
+    return json.dumps('error')
+
+@app.route('/fileHandler/check_download_available', methods=['POST'])
+@login_required
+def check_download_available():
+    """Checks whether a download is available for a particular task (ie. that no other user has a download in progress for that survey)."""
+
+    task_id = request.json['task_id']
+    task = db.session.query(Task).get(task_id)
+    if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        check = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.downloaded==True).first()
+        if check:
+            return json.dumps('unavailable')
+        else:
+            return json.dumps('available')
     
     return json.dumps('error')
 

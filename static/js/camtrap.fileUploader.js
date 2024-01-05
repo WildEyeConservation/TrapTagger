@@ -151,8 +151,12 @@ function updatePathDisplay(folders,filecount) {
     }
 }
 
-async function selectFiles(resuming=false) {
+async function selectFiles(resuming=false,survey_id=null,survey_name=null) {
     /** Allows a user to select a folder, and then passes the handle to the web work to process */
+    if (resuming) {
+        uploadID = survey_id
+        surveyName = survey_name
+    }
     resetUploadStatusVariables()
     dirHandle = await window.showDirectoryPicker();
     uploadWorker.postMessage({'func': 'selectFiles', 'args': [dirHandle,resuming,surveyName,uploadID]});

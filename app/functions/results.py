@@ -2338,6 +2338,8 @@ def generate_coco(self,task_id,user_name):
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, include_frames):
+    '''Sets the download status of images for a particular task to let the fileHandler know what images to serve the client.'''
+
     try:
         task = db.session.query(Task).get(task_id)
         task.status='Preparing Download'
@@ -2473,6 +2475,7 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    '''Resets the image downloaded status to the default not-downloaded state'''
     
     try:
         task = db.session.query(Task).get(task_id)
@@ -2515,6 +2518,7 @@ def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, inclu
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    '''Resets the video downloaded status to the default not-downloaded state'''
     
     try:
         task = db.session.query(Task).get(task_id)

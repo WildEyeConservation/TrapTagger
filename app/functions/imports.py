@@ -2041,6 +2041,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
     survey.status = 'Importing'
     survey.images_processing = 0
     survey.processing_initialised = True
+    setup_new_survey_permissions(survey_id=survey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access, localsession=localsession)
     localsession.commit()
     sid=survey.id
     tag = re.compile(tag)

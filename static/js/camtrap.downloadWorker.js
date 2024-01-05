@@ -361,7 +361,7 @@ async function writeFile(jpegData,path,labels,fileName) {
 }
 
 async function writeBlob(dirHandle,blob,fileName) {
-    /** writes the specifie blow to the specified location */
+    /** writes the specified blob to the specified location */
 	var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
 	const writable = await fileHandle.createWritable();
 	await writable.write(blob);

@@ -1931,3 +1931,76 @@ def updateStatistics(self):
         db.session.remove()
 
     return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permission,annotation,detailed_access,localsession=None):
+    '''Sets up the user permissions for a new survey.'''
+
+    try:
+        if localsession:
+            celeryTask = False
+            survey = survey_id
+        else:
+            celeryTask = True
+            localsession = db.session()
+            survey = localsession.query(Survey).get(survey_id)
+
+        exclude_user_ids = [user_id]
+        if detailed_access:
+            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_default = {r[0]:r[1] for r in user_query}
+            for access in detailed_access:
+                exclude_user_ids.append(access['user_id'])
+                annotation_access = True if access['annotation']=='1' else False
+                if user_default[access['user_id']] != 'admin':
+                    if user_default[access['user_id']] == 'worker': 
+                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission='worker', annotation=annotation_access)
+                    else:
+                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission=access['permission'], annotation=annotation_access)
+                    localsession.add(newDetailedException)
+
+        if permission != 'default' and annotation != 'default':
+            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_ids = [r[0] for r in user_query]
+            user_permissions = [r[1] for r in user_query]   
+            annotation_access = True if annotation== '1' else False
+            for user_id in user_ids:
+                if user_permissions[i] == 'worker':
+                    newException = SurveyPermissionException(user_id=user_id, survey=survey, permission='worker', annotation=annotation_access)
+                else:
+                    newException = SurveyPermissionException(user_id=user_id, survey=survey, permission=permission, annotation=annotation_access)
+                localsession.add(newException)
+
+        elif permission != 'default':
+            user_query = localsession.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_ids = [r[0] for r in user_query]
+            user_permissions = [r[1] for r in user_query]   
+            user_annotations = [r[2] for r in user_query]
+            for i in range(len(user_ids)):
+                if user_permissions[i] != 'worker':
+                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=user_annotations[i])
+                    localsession.add(newException)
+
+        elif annotation != 'default':
+            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
+            user_ids = [r[0] for r in user_query]
+            user_permissions = [r[1] for r in user_query]
+            annotation_access = True if annotation== '1' else False
+            for i in range(len(user_ids)):
+                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=user_permissions[i], annotation=annotation_access)
+                localsession.add(newException)
+                
+        if celeryTask: localsession.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        if celeryTask: localsession.remove()
+
+    return True

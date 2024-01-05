@@ -417,8 +417,8 @@ function buildSurveys(survey,disableSurvey) {
     surveyListDiv.appendChild(newSurveyDiv) 
 
     if (survey.status.toLowerCase()=='uploading') {
-        uploadID = survey.id
-        surveyName = survey.name
+        // uploadID = survey.id
+        // surveyName = survey.name
         addImagesBtn = null
         addTaskBtn = null
         
@@ -440,8 +440,11 @@ function buildSurveys(survey,disableSurvey) {
     
             btnResume = document.createElement('button')
             btnResume.setAttribute("class","btn btn-primary btn-sm")
-            btnResume.setAttribute('onclick','selectFiles(true)')
+            btnResume.setAttribute('onclick','selectFiles(true,'+survey.id+','+survey.name+')')
             btnResume.innerHTML = 'Resume Upload'
+            if (uploadID && (uploadID != survey.id)) {
+                btnResume.disabled = true
+            }
             col2.appendChild(btnResume)
         }
     } else {
@@ -560,11 +563,11 @@ function updatePage(url){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
             // console.log(reply)
-            if (reply.surveys[0] && reply.surveys[0].status.toLowerCase()=='uploading') {
-                document.getElementById('btnNewSurvey').disabled = true
-            } else {
-                document.getElementById('btnNewSurvey').disabled = false
-            }
+            // if (reply.surveys[0] && reply.surveys[0].status.toLowerCase()=='uploading') {
+            //     document.getElementById('btnNewSurvey').disabled = true
+            // } else {
+            //     document.getElementById('btnNewSurvey').disabled = false
+            // }
 
             surveyListDiv = document.getElementById('surveyListDiv'); 
             while(surveyListDiv.firstChild){
@@ -673,7 +676,13 @@ function removeSurveyDeleteListeners() {
 
 btnNewSurvey.addEventListener('click', ()=>{
     /** Event listener that opens the new survey modal. */
-    modalNewSurvey.modal({keyboard: true});
+    if (uploading) {
+        document.getElementById('modalAlertHeader').innerHTML = "Alert"
+        document.getElementById('modalAlertBody').innerHTML = "If you wish to add an additional survey, please wait for the current upload to complete, or open a new tab."
+        modalAlert.modal({keyboard: true});
+    } else {
+        modalNewSurvey.modal({keyboard: true});
+    }
 });
 
 function updateSurveys(surveyElement) {
@@ -3044,6 +3053,9 @@ function submitNewSurvey(formData) {
             if (reply.status=='success') {
 
                 if (document.getElementById('BrowserUpload').checked == true) {
+                    uploadID = reply.newSurvey_id
+                    surveyName = reply.surveyName
+
                     uploading = true
                     updatePage(current_page)
                     // uploading = true
