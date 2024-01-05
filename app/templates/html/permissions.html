@@ -38,13 +38,25 @@ limitations under the License. -->
                   </div>
             </div>
 
-            <div class="tab">
+            <div class="tab" id="permissionsPageTabs" hidden>
+                <button id="openPermissionsTab" class="tablinks" onclick="openPermissionsTab(event, 'basePermissionsTab')">Your Permissions</button>
                 <button id="openUserTab" class="tablinks" onclick="openPermissionsTab(event, 'baseUserTab')">Users</button>
                 <button id="openDataSharingTab" class="tablinks" onclick="openPermissionsTab(event, 'baseDataSharingTab')">Data Sharing: Shared</button>
                 <button id="openReceivedDataTab" class="tablinks" onclick="openPermissionsTab(event, 'baseDataReceivedTab')">Data Sharing: Received</button>
             </div>
 
             <div class="card-body" id="permissionsDiv">
+
+                <div id="basePermissionsTab" class="tabcontent">
+                    <h5 style="margin-bottom: 2px">Your Permissions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> View your permissions for the organisations you are a part of.</i></div>
+                    <div id="defaultPermissionsDiv"></div>
+                    <br>
+                    <h5 style="margin-bottom: 2px">Detailed Permissions</h5>
+                    <div style="font-size: 80%; margin-bottom: 2px"><i> View your detailed permissions for specific surveys.</i></div>
+                    <div id="detailedPermissionsDiv"></div>
+                    <br>
+                </div>
                 
                 <div id="baseUserTab" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Users</h5>
@@ -60,6 +72,7 @@ limitations under the License. -->
                 <div id="baseDataSharingTab" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Shared Surveys</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Edit the surveys as well as their permissions that have been shared to other organizations.</i></div>
+                    <br>
                     <div id="dataSharingDiv"></div>
                     <br>
                     <div id="dataSharingErrors" style=" font:80%; color: #DF691A"></div>
@@ -68,6 +81,7 @@ limitations under the License. -->
                 <div id="baseDataReceivedTab" class="tabcontent">
                     <h5 style="margin-bottom: 2px">Received Surveys</h5>
                     <div style="font-size: 80%; margin-bottom: 2px"><i>View the surveys that have been shared with your organization.</i></div>
+                    <br>
                     <div id="receivedDataDiv"></div>
                     <br>
                     <div id="dataSharingErrors" style=" font:80%; color: #DF691A"></div>

@@ -673,18 +673,17 @@ def processChanges(changes, keys, sessionLabels, task_id):
     return skipped, sessionLabels
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def handleTaskEdit(self,task_id,changes,user_id):
+def handleTaskEdit(self,task_id,changes):
     '''
     Celery task that handles task edits, specifically relating to the editing of labels.
 
         Parameters:
             task_id (int): The task being edited
             changes (dict): The changes being implemented to a parent label - modifed, deleted, or added
-            user_id (int): The user requesting the changes
     '''
     
     try:
-        if db.session.query(Task).get(task_id).survey.user_id==user_id:
+        if db.session.query(Task).get(task_id):
             changes = ast.literal_eval(changes)
             sessionLabels = {}
             skipped, sessionLabels = processChanges(changes, changes.keys(), sessionLabels, task_id)
@@ -1835,7 +1834,7 @@ def get_AWS_costs(startDate,endDate):
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateStatistics(self):
     '''Updates the site statistics in the database for dashboard reference purposes.'''
-
+    # TODO: DASHBOARD FUNCTIONS STILL NEED TO BE UPDATED
     try:
         check = db.session.query(Statistic)\
                         .filter(extract('year',Statistic.timestamp)==datetime.utcnow().year)\

@@ -15,6 +15,7 @@
 var globalLabels = []
 var globalOrganisations = []
 var globalERIntegrations = []
+var tabActive = 'baseAccountTab'
 
 
 function getLabels(){
@@ -266,6 +267,16 @@ function buildERSpeciesSelect(ID){
 
 function saveSettings(){
     /** Function for saving settings to the database. */
+
+    if (tabActive == 'baseAccountTab'){
+        saveAccountInfo()
+    }
+    else if (tabActive == 'baseIntegrationsTab'){
+        saveIntegrations()
+    }
+}
+
+function saveIntegrations(){
     document.getElementById('settingsErrors').innerHTML = ''
     var valid = validateIntegrationSettings()
 
@@ -296,7 +307,6 @@ function saveSettings(){
         xhttp.send(formData);
     }
 }
-
 
 function getEarthRangerIntegrations(){
     /** Get the EarthRanger integrations from the page.  (New, Edited, Deleted) */
@@ -464,11 +474,161 @@ function loadIntegrations(){
     xhttp.send();
 }
 
+function openSettingsTab(evt, tabName) {
+    /** Opens the permissions tab */
+
+    var mainCard = document.getElementById('mainCard')
+    var tabcontent = mainCard.getElementsByClassName("tabcontent");
+    for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    var tablinks = mainCard.getElementsByClassName("tablinks");
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+    tabActive = tabName
+
+    if (tabName == 'baseAccountTab') {
+        getAccountInfo()
+    }
+    else if (tabName == 'baseIntegrationsTab') {
+        getLabels();
+        getOrganisations();
+    }
+
+}
+
+function getAccountInfo(){
+    // Function for getting the user's account info from the database.
+
+    s3Div = document.getElementById('s3Div')
+    while (s3Div.firstChild) {
+        s3Div.removeChild(s3Div.firstChild);
+    }
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange =
+    function(){
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            console.log(reply)
+            document.getElementById('username').value = reply.username
+            document.getElementById('email').value = reply.email
+
+            if (reply.cloud_access){
+                buildS3Folders(reply.organisations)
+                document.getElementById('orgFolder').hidden = false
+            }
+            else{
+                document.getElementById('orgFolder').hidden = true
+            }
+
+            if (reply.admin){
+                document.getElementById('settingsPageTabs').hidden = false
+            }
+            else{
+                document.getElementById('settingsPageTabs').hidden = true
+            }
+        }
+    }
+    xhttp.open("GET", '/getAccountInfo');
+    xhttp.send();
+}
+
+
+function buildS3Folders(organisations){
+    /** Function for building the S3 folders. */
+    s3Div = document.getElementById('s3Div')
+
+    for (let i = 0; i < organisations.length ; i++){
+
+        var row = document.createElement('div')
+        row.classList.add('row')
+        s3Div.appendChild(row)
+
+        var col1 = document.createElement('div')
+        col1.classList.add('col-lg-6')
+        row.appendChild(col1)
+
+        var col2 = document.createElement('div')
+        col2.classList.add('col-lg-6')
+        row.appendChild(col2)
+
+        var inputName = document.createElement('input')
+        inputName.setAttribute('type','text')
+        inputName.setAttribute('class','form-control')
+        inputName.value = organisations[i].name
+        inputName.disabled = true
+        inputName.style.backgroundColor = 'white'
+        col1.appendChild(inputName)
+
+        var inputFolder = document.createElement('input')
+        inputFolder.setAttribute('type','text')
+        inputFolder.setAttribute('class','form-control')
+        inputFolder.value = organisations[i].folder
+        inputFolder.disabled = true
+        inputFolder.style.backgroundColor = 'white'
+        col2.appendChild(inputFolder)
+
+    }
+    
+}
+
+function saveAccountInfo(){
+    /** Function for saving the user's account info to the database. */
+    var accountErrors = document.getElementById('accountErrors')
+    accountErrors.innerHTML = ''
+
+    var username = document.getElementById('username').value
+    var email = document.getElementById('email').value
+
+    var valid = true
+    if (username == ''){
+        valid = false
+        accountErrors.innerHTML += 'Username is required. '
+    }
+
+    if (email == ''){
+        valid = false
+        accountErrors.innerHTML += 'Email is required. '
+    }
+    else{
+        var emailRegex = /\S+@\S+\.\S+/;
+        if (!emailRegex.test(email)){
+            valid = false
+            accountErrors.innerHTML += 'Email is invalid. '
+        }
+    }
+
+    if (valid){
+        var formData = new FormData();
+        formData.append('username', JSON.stringify(username))
+        formData.append('email', JSON.stringify(email))
+
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                console.log(reply)
+                accountErrors.innerHTML = reply.message
+                if (reply.status == 'SUCCESS'){
+                    getAccountInfo()
+                }
+            }
+        }
+        xhttp.open("POST", '/saveAccountInfo');
+        xhttp.send(formData);
+    }
+}
 
 function onload(){
     /**Function for initialising the page on load.*/
-    getLabels();
-    getOrganisations();
+    document.getElementById('openAccountTab').click();
 }
 
 window.addEventListener('load', onload, false);
