@@ -708,6 +708,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             startDate (dateTime): The start date for the data to be included in the csv
             endDate (dateTime): The end date for the data to be included in the csv
             collapseVideo (bool): Collapses video frames into a single entry if True
+            user_name (str): The name of the user that has requested the csv
     '''
     
     try:
