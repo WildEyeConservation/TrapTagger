@@ -738,7 +738,7 @@ function resetNewSurveyPage() {
     document.getElementById('newSurveyErrors').innerHTML = ''
 
     document.getElementById('S3BucketUpload').checked = false
-    document.getElementById('BrowserUpload').checked = false
+    document.getElementById('BrowserUpload').checked = true
     document.getElementById('newSurveyCheckbox').checked = false
 
     // document.getElementById('kmlFileUploadText').value = ''
@@ -905,8 +905,26 @@ function pingTgCheck() {
                 tgCheckCode = null
                 checkingTGC = false
                 checkingTrapgroupCode = false
-                
-            } else {
+
+            }
+            else if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
+                error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+
+                infoDiv.innerHTML = error_message
+
+                var formData = new FormData()
+                formData.append("revoke_id", tgCheckID)
+                var xhttp = new XMLHttpRequest();
+                xhttp.open("POST", '/checkTrapgroupCode');
+                xhttp.send(formData);
+
+                tgCheckFolder = null
+                tgCheckCode = null
+                checkingTGC = false
+                checkingTrapgroupCode = false
+
+            }
+            else {
 
                 if (document.getElementById('addImagesTGCode')!=null) {
                     if ((!document.getElementById('addImagesCheckbox').checked)&&(tgCode!='')) {
@@ -1020,21 +1038,26 @@ function checkTrapgroupCode() {
     if (browserChecked) {
         pathDisplay = document.getElementById('pathDisplay')
         if ((tgCode!='')&&(pathDisplay.options.length>0)) {
-            infoDiv.innerHTML = 'Checking...'
-            pattern = new RegExp(tgCode)
-    
-            tgs = []
-            for (let i=2;i<pathDisplay.options.length;i++) {
-                matches = pathDisplay.options[i].text.match(pattern)
-                if (matches!=null) {
-                    tg = matches[0]
-                    if (!tgs.includes(tg)) {
-                        tgs.push(tg)
+            if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
+                error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+                infoDiv.innerHTML = error_message
+            } else {
+                infoDiv.innerHTML = 'Checking...'
+                pattern = new RegExp(tgCode)
+                
+                tgs = []
+                for (let i=2;i<pathDisplay.options.length;i++) {
+                    matches = pathDisplay.options[i].text.match(pattern)
+                    if (matches!=null) {
+                        tg = matches[0]
+                        if (!tgs.includes(tg)) {
+                            tgs.push(tg)
+                        }
                     }
                 }
-            }
 
-            infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.join(', ')
+                infoDiv.innerHTML = tgs.length.toString() + ' sites found: ' + tgs.join(', ')
+            }
         }
     } else if (folderChecked) {
         S3FolderInput = document.getElementById('S3FolderInput')
@@ -1138,7 +1161,18 @@ function updateTgCode() {
         document.getElementById('newSurveyTGCode').value = tgCode
     }
 
-    checkTrapgroupCode()
+    if (tgCode.endsWith('.*') || tgCode.endsWith('.+') || tgCode.endsWith('.*[0-9]+') || tgCode.endsWith('.+[0-9]+' )) {
+        error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+        if (document.getElementById('addImagesTGCode')!=null) {
+            document.getElementById('addImagesErrors').innerHTML = error_message
+        }
+        else {
+            document.getElementById('newSurveyErrors').innerHTML = error_message
+        }
+    } else {
+        checkTrapgroupCode()
+    }
+    
 }
 
 function buildTgBuilderRow() {
@@ -1494,8 +1528,6 @@ function buildAddIms() {
     div.setAttribute('id','addImagesFormDiv')
     addImagesAddImsDiv.appendChild(div)
 
-    buildBrowserUpload('addImagesFormDiv')
-
     $("#S3BucketAdd").change( function() {
         S3BucketAdd = document.getElementById('S3BucketAdd')
         if (S3BucketAdd.checked) {
@@ -1592,6 +1624,8 @@ function buildAddIms() {
             }    
         }
     })
+
+    buildBrowserUpload('addImagesFormDiv')
 }
 
 function buildCameras(camera_url='/getCameraStamps') {
@@ -2959,6 +2993,13 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         legalTGCode = false
         document.getElementById('newSurveyErrors').innerHTML = 'The site identifier field cannot be empty.'
     }
+    else{
+        if (newSurveyTGCode.endsWith('.*') || newSurveyTGCode.endsWith('.+') || newSurveyTGCode.endsWith('.*[0-9]+') || newSurveyTGCode.endsWith('.+[0-9]+' )) {
+            legalTGCode = false
+            error_message = 'Your site identifier is invalid. Please try again or send an email for assistance.'
+            document.getElementById('newSurveyErrors').innerHTML = error_message 
+        }   
+    }
     
     legalInput = false
     if (document.getElementById('S3BucketUpload').checked == true) {
@@ -3154,6 +3195,11 @@ document.getElementById('btnAddImages').addEventListener('click', ()=>{
             legalTGCode = false
             document.getElementById('addImagesErrors').innerHTML = 'The site identifier cannot contain slashes.'
         }
+        else if (addImagesTGCode.endsWith('.*') || addImagesTGCode.endsWith('.+') || addImagesTGCode.endsWith('.*[0-9]+') || addImagesTGCode.endsWith('.+[0-9]+' )) {
+            legalTGCode = false
+            error_message = 'Your site identifier is invalid. Please try again or contact us for assistance.'
+            document.getElementById('addImagesErrors').innerHTML = error_message 
+        }   
         
         legalInput = false
         if (document.getElementById('S3BucketAdd').checked == true) {

@@ -311,10 +311,12 @@ def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
 
     return True
 
-def create_full_path(path,filename):
+def create_full_path(path,filename,collapseVideo,videoName):
     '''Helper function for create_task_dataframe that returns the concatonated input.'''
-    return '/'.join(path.split('/')[1:])+'/'+filename
-
+    if collapseVideo and videoName:
+        return path.split('_video_images_')[0]+videoName
+    else:
+        return '/'.join(path.split('/')[1:])+'/'+filename
 
 def drop_nones(label_set):
     '''Helper function for create_task_dataframe that removes the None label from a list of labels if necessary.'''
@@ -322,7 +324,14 @@ def drop_nones(label_set):
         label_set.remove('None')
     return label_set
 
-def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate):
+def generate_url(rootUrl,level_name,video_name,collapseVideo,x_level,x_cluster):
+    ''' Helper function for create_task_dataframe that collapses the urls generated for videos based on the collapseVideo argument.'''
+    if collapseVideo and (video_name != 'None') and (level_name in ['image','capture']):
+        return rootUrl + 'cluster&id=' + str(x_cluster)
+    else:
+        return rootUrl + level_name + '&id=' + str(x_level)
+
+def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate,collapseVideo):
     '''
     Returns an all-encompassing dataframe for a task, subject to the parameter selections.
 
@@ -338,6 +347,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             trapgroup_id (int): The trapgroup id to filter on
             startDate (datetime): The start date to filter on
             endDate (datetime): The end date to filter on
+            collapseVideo (bool): Collapses video frames into a single entry if True
 
         Returns:
             df (pd.dataframe): task dataframe
@@ -362,6 +372,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 Tag.description.label('tag'), \
                 Camera.id.label('camera'), \
                 Camera.path.label('file_path'), \
+                Video.filename.label('video_name'), \
                 Trapgroup.id.label('trapgroup_id'), \
                 Trapgroup.tag.label('trapgroup'), \
                 Trapgroup.latitude.label('latitude'), \
@@ -376,6 +387,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                 .join(Label,Labelgroup.labels,isouter=True) \
                 .join(Tag,Labelgroup.tags,isouter=True) \
                 .join(Camera,Image.camera_id==Camera.id) \
+                .join(Video,Camera.videos,isouter=True) \
                 .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                 .join(Survey,Trapgroup.survey_id==Survey.id) \
                 .filter(Cluster.task_id==task_id) \
@@ -448,6 +460,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         Cluster.id.label('cluster'), \
                         Camera.id.label('camera'), \
                         Camera.path.label('file_path'), \
+                        Video.filename.label('video_name'), \
                         Trapgroup.id.label('trapgroup_id'), \
                         Trapgroup.tag.label('trapgroup'), \
                         Trapgroup.latitude.label('latitude'), \
@@ -459,6 +472,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
                         .join(Image,Cluster.images) \
                         .join(Detection,Detection.image_id==Image.id) \
                         .join(Camera,Image.camera_id==Camera.id) \
+                        .join(Video,Camera.videos,isouter=True) \
                         .join(Trapgroup,Camera.trapgroup_id==Trapgroup.id) \
                         .join(Survey,Trapgroup.survey_id==Survey.id) \
                         .outerjoin(sq,sq.c.id==Image.id)\
@@ -503,7 +517,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
         return df
 
     #Combine file paths
-    df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name), axis=1)
+    df['image'] = df.apply(lambda x: create_full_path(x.file_path, x.image_name, collapseVideo, x.video_name), axis=1)
 
     #Remove nulls
     df.fillna('None', inplace=True)
@@ -585,8 +599,7 @@ def create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels
             level = 'trapgroup_id'
         elif level=='survey':
             level = 'survey_id'
-        levelRootUrl = rootUrl + level_name + '&id='
-        df[level_name+'_url'] = df.apply(lambda x: levelRootUrl+str(x[level]), axis=1)
+        df[level_name+'_url'] = df.apply(lambda x: generate_url(rootUrl,level_name,x['video_name'],collapseVideo,x[level],x['cluster']), axis=1)
 
     # Rename image_id column as id for access to unique IDs
     df.rename(columns={'image_id':'id'},inplace=True)
@@ -680,7 +693,7 @@ def combine_list(list):
     return reply
 
 @celery.task(bind=True,max_retries=1,ignore_result=True)
-def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, user_name):
+def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_columns, label_type, includes, excludes, startDate, endDate, column_translations, collapseVideo, user_name):
     '''
     Celery task for generating a csv file. Locally saves a csv file for the requested tasks, with the requested column and row information.
 
@@ -694,6 +707,7 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
             excludes (list): List of label names that should excluded
             startDate (dateTime): The start date for the data to be included in the csv
             endDate (dateTime): The end date for the data to be included in the csv
+            collapseVideo (bool): Collapses video frames into a single entry if True
     '''
     
     try:
@@ -978,14 +992,14 @@ def generate_csv(self,selectedTasks, selectedLevel, requestedColumns, custom_col
 
             # Trapgroup-by-trapgroup is inefficient - only do it when necessary (there are RAM issues with large surveys)
             # trapgroups = [None]
-            if task.survey.image_count<375000:
+            if task.survey.image_count<300000:
                 trapgroups = [None]
             else:
                 trapgroups = [tg.id for tg in task.survey.trapgroups]
             
             for trapgroup_id in trapgroups:
                 requestedColumns = originalRequestedColumns.copy()
-                outputDF = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate)
+                outputDF = create_task_dataframe(task_id,detection_count_levels,label_levels,url_levels,individual_levels,tag_levels,include,exclude,trapgroup_id,startDate,endDate,collapseVideo)
 
                 # if outputDF is not None:
                 #     outputDF = pd.concat([outputDF, df], ignore_index=True)
