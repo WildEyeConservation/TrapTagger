@@ -3517,6 +3517,8 @@ def getHomeSurveys():
         survey_base_query = survey_base_query.order_by(desc(Survey.id))
 
     count = 5-len(survey_data)
+    if count <=0: count = 1
+    
     if count > 0:
         surveys = survey_base_query.all()
 

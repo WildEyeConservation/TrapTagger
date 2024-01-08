@@ -16,9 +16,9 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.admin import setup_new_survey_permissions
+# from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
-                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses
+                                 chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses, setup_new_survey_permissions
 import GLOBALS
 from sqlalchemy.sql import func, or_, distinct, and_
 from sqlalchemy import desc

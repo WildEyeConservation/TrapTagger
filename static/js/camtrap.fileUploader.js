@@ -36,6 +36,8 @@ uploadWorker.onmessage = function(evt){
     } else if (evt.data.func=='uploadStart') {
         uploading = true
         uploadStart = Date.now()
+    } else if (evt.data.func=='reloadPage') {
+        updatePage(current_page)
     }
 };
 
