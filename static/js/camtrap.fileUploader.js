@@ -37,7 +37,12 @@ uploadWorker.onmessage = function(evt){
         uploading = true
         uploadStart = Date.now()
     } else if (evt.data.func=='reloadPage') {
-        updatePage(current_page)
+        surveyName = null
+        uploadID = null
+        uploadStart = null
+        retrying = false
+        uploading= false
+        updatePage(generate_url())
     }
 };
 
