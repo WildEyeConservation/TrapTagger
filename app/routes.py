@@ -1428,10 +1428,10 @@ def createNewSurvey():
                 status = 'error'
                 message = 'Coordinates file must have a name.' 
 
-        test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
-        if test and (newSurveyS3Folder=='none'):
-            status = 'error'
-            message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
+        # test = db.session.query(Survey).filter(Survey.organisation_id==organisation_id).filter(Survey.status=='Uploading').first()
+        # if test and (newSurveyS3Folder=='none'):
+        #     status = 'error'
+        #     message = 'You already have an upload in progress. You must either finish that, or delete it in order to start a new one.' 
 
         if status == 'success':
 
@@ -1450,9 +1450,9 @@ def createNewSurvey():
                 newSurvey_id = newSurvey.id
 
                 # Add permissions
-                setup_new_survey_permissions.delay(survey_id=survey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
+                setup_new_survey_permissions.delay(survey_id=newSurvey_id, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access)
             else:
-                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier)
+                import_survey.delay(s3Folder=newSurveyS3Folder,surveyName=surveyName,tag=newSurveyTGCode,organisation_id=organisation_id,correctTimestamps=correctTimestamps,classifier=classifier,user_id=current_user.id,permission=permission,annotation=annotation,detailed_access=detailed_access)
     
         return json.dumps({'status': status, 'message': message, 'newSurvey_id': newSurvey_id, 'surveyName':surveyName})
     else:
@@ -3410,14 +3410,8 @@ def getHomeSurveys():
                             .filter(or_(Task.id==None,~Task.name.contains('_o_l_d_'))),current_user.id,'read', ShareUserPermissions)
 
     # uploading/downloading surveys always need to be on the page
-    if current_downloads != '':
-        compulsory_surveys = survey_base_query.filter(or_(
-            Survey.status=='Uploading',
-            Survey.name.in_(re.split('[,]',current_downloads))
-        ))
-    else:
-        compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading')
-    compulsory_surveys = compulsory_surveys.all()
+    compulsory_surveys = survey_base_query.filter(Survey.status=='Uploading').all()
+    if current_downloads != '': compulsory_surveys.extend(survey_base_query.filter(Survey.id.in_(re.split('[,]',current_downloads))).all())
 
     # digest survey data
     survey_data = {}

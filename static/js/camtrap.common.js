@@ -1144,12 +1144,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             
         } else {
             if (!isClassCheck) {
-                if (isReviewing){
-                    document.getElementById('debugImage').innerHTML = 'Path: ' +  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
-                }
-                else{
-                    document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
-                }
+                document.getElementById('debugImage').innerHTML =  clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].url.split('/').slice(1).join('/');
             } else {
                 classifierLabels = document.getElementById('classifierLabels')
                 while(classifierLabels.firstChild){
@@ -1174,13 +1169,16 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             
             if (updateLabels) {
                 var temp =''
+                if (!isReviewing) {
+                    temp += "Labels: "
+                }
                 for (let i=0;i<clusters[mapID][clusterIndex[mapID]].label.length;i++) {
                     temp += clusters[mapID][clusterIndex[mapID]].label[i]
                     if (i != clusters[mapID][clusterIndex[mapID]].label.length-1) {
                         temp += ', '
                     }
                 }
-                document.getElementById('debugLabels').innerHTML = "Labels: "+temp;
+                document.getElementById('debugLabels').innerHTML = temp;
             }
 
             if (document.getElementById('groundLabels')) {
@@ -1196,13 +1194,16 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
             if (!isClassCheck&&document.getElementById('classifierLabels')) {
                 var temp =''
+                if (!isReviewing) {
+                    temp += "Tags: "
+                }
                 for (let i=0;i<clusters[mapID][clusterIndex[mapID]].tags.length;i++) {
                     temp += clusters[mapID][clusterIndex[mapID]].tags[i]
                     if (i != clusters[mapID][clusterIndex[mapID]].tags.length-1) {
                         temp += ', '
                     }
                 }
-                document.getElementById('classifierLabels').innerHTML = "Tags: "+temp;
+                document.getElementById('classifierLabels').innerHTML = temp;
             }
 
             // Update notes in explore
@@ -1213,22 +1214,22 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
             }
 
             if (isReviewing && document.getElementById('annotatorLabel')){
-                document.getElementById('annotatorLabel').innerHTML = "Annotator: " + clusters[mapID][clusterIndex[mapID]].annotator
+                document.getElementById('annotatorLabel').innerHTML = clusters[mapID][clusterIndex[mapID]].annotator
             }
 
             if (isReviewing && document.getElementById('siteLabel')){
-                document.getElementById('siteLabel').innerHTML = "Site: " + clusters[mapID][clusterIndex[mapID]].site_tag
+                document.getElementById('siteLabel').innerHTML = clusters[mapID][clusterIndex[mapID]].site_tag
             }
 
             if (isReviewing && document.getElementById('debugCoords')){
-                document.getElementById('debugCoords').innerHTML = "Coordinates: " + clusters[mapID][clusterIndex[mapID]].latitude + ", " + clusters[mapID][clusterIndex[mapID]].longitude
+                document.getElementById('debugCoords').innerHTML = clusters[mapID][clusterIndex[mapID]].latitude + ", " + clusters[mapID][clusterIndex[mapID]].longitude
             }
 
             if (isReviewing && document.getElementById('imageTimestamp')){
                 timestamp = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].timestamp
 
                 if (timestamp == 0 || timestamp == null) {
-                    document.getElementById('imageTimestamp').innerHTML = "Timestamp: N/A"
+                    document.getElementById('imageTimestamp').innerHTML = "N/A"
                 } else {
                     var date = new Date(timestamp * 1000);
                     var year = date.getUTCFullYear();
@@ -1238,7 +1239,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                     var minutes = date.getUTCMinutes().toString().padStart(2, '0');
                     var seconds = date.getUTCSeconds().toString().padStart(2, '0');
                     var formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-                    document.getElementById('imageTimestamp').innerHTML = "Timestamp: " + formattedDate
+                    document.getElementById('imageTimestamp').innerHTML = formattedDate
                 }
             }
         } 

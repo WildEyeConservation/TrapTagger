@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-# from app.functions.admin import delete_task, reclusterAfterTimestampChange
+from app.functions.admin import setup_new_survey_permissions
 from app.functions.globals import detection_rating, randomString, updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime,\
                                  chunker, save_crops, list_all, classifyTask, all_equal, taggingLevelSQ, generate_raw_image_hash, updateAllStatuses
 import GLOBALS
@@ -2031,7 +2031,7 @@ def remove_duplicate_images(survey_id):
     
     return True
 
-def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisation_id,pipeline,min_area,exclusions,processes=4,label_source=None):
+def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisation_id,pipeline,min_area,exclusions,processes=4,label_source=None,user_id=None,permission=None,annotation=None,detailed_access=None):
     '''
     Import all images from an AWS S3 folder. Handles re-import of a folder cleanly.
 
@@ -2057,7 +2057,11 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
     survey.status = 'Importing'
     survey.images_processing = 0
     survey.processing_initialised = True
-    setup_new_survey_permissions(survey_id=survey, organisation_id=organisation_id, user_id=current_user.id, permission=permission, annotation=annotation, detailed_access=detailed_access, localsession=localsession)
+
+    # If permissions have been supplied, we need to set them up here
+    if user_id:
+        setup_new_survey_permissions(survey_id=survey, organisation_id=organisation_id, user_id=user_id, permission=permission, annotation=annotation, detailed_access=detailed_access, localsession=localsession)
+    
     localsession.commit()
     sid=survey.id
     tag = re.compile(tag)
@@ -3232,7 +3236,7 @@ def correct_timestamps(survey_id,setup_time=31):
 
 
 @celery.task(bind=True,max_retries=5,ignore_result=True)
-def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,processes=4):
+def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps,classifier,user_id=None,permission=None,annotation=None,detailed_access=None):
     '''
     Celery task for the importing of surveys. Includes all necessary processes such as animal detection, species classification etc. Handles added images cleanly.
 
@@ -3243,11 +3247,11 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             organisation_id (int): The organisation to which the survey will belong
             correctTimestamps (bool): Whether or not the system should attempt to correct the relative timestamps of the cameras in each trapgroup
             classifier (str): The name of the classifier model to use
-            processes (int): Optional number of threads to use. Default is 4
     '''
     
     try:
         app.logger.info("Importing survey {}".format(surveyName))
+        processes=4
 
         if (db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()):
             addingImages = True
@@ -3255,7 +3259,7 @@ def import_survey(self,s3Folder,surveyName,tag,organisation_id,correctTimestamps
             addingImages = False
 
         organisation = db.session.query(Organisation).get(organisation_id)
-        import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],processes)
+        import_folder(organisation.folder+'/'+s3Folder, tag, surveyName,Config.BUCKET,Config.BUCKET,organisation_id,False,None,[],processes,None,user_id,permission,annotation,detailed_access)
         
         survey = db.session.query(Survey).filter(Survey.name==surveyName).filter(Survey.organisation_id==organisation_id).first()
         survey_id = survey.id

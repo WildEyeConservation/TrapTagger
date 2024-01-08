@@ -52,6 +52,7 @@ var downloading_count = 0
 var include_video 
 var include_video_init
 var include_frames
+var downloadSurveyID
 
 onmessage = function (evt) {
     /** Take instructions from main js */
@@ -68,6 +69,7 @@ onmessage = function (evt) {
         include_video = evt.data.args[10]
         include_video_init = evt.data.args[10]
         include_frames = evt.data.args[11]
+        downloadSurveyID = evt.data.args[12]
         startDownload(evt.data.args[1],evt.data.args[3])
     } else if (evt.data.func=='checkDownloadStatus') {
         checkDownloadStatus()
@@ -594,5 +596,5 @@ async function cleanEmptyFolders(dirHandle) {
 function resetDownloadState() {
     /** Wrapper function for resetDownloadState so that the main js can update the page. */
     downloadingTask = null
-    postMessage({'func': 'resetDownloadState', 'args': [surveyName,downloadingTaskName]})
+    postMessage({'func': 'resetDownloadState', 'args': [downloadSurveyID,downloadingTaskName]})
 }

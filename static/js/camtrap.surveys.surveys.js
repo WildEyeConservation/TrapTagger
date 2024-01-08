@@ -591,7 +591,7 @@ function updatePage(url){
                         taskProcessing = true
                     }
                 }
-                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].name))) {
+                if (disabledSurveyStatuses.includes(reply.surveys[i].status.toLowerCase())||(currentDownloads.includes(reply.surveys[i].id))) {
                     disableSurvey = true
                     taskProcessing = true
                 }

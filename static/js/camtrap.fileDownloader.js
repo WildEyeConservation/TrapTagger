@@ -108,14 +108,14 @@ async function initiateDownload() {
                 checkingDownload = false
                 if (!currentDownloadTasks.includes(taskName)) {
                     currentDownloadTasks.push(taskName)
-                    currentDownloads.push(surveyName)
+                    currentDownloads.push(selectedSurvey)
                 }
     
                 globalDownloaded = 0
                 globalToDownload = 0
                 global_count_initialised = false
             
-                downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames]})
+                downloadWorker.postMessage({'func': 'startDownload', 'args': [topLevelHandle,selectedTask,surveyName,taskName,species,species_sorted,individual_sorted,flat_structure,include_empties,delete_items, include_video, include_frames, selectedSurvey]})
             
             } catch {
                 document.getElementById('btnDownloadStart').disabled = false

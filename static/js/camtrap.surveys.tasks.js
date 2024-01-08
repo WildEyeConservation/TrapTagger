@@ -176,7 +176,7 @@ function buildTask(taskDiv, task, disableSurvey, survey) {
 
     if ((task.status=='PROGRESS')) {
         buildTaskProgress(taskDiv,newTaskDiv,survey,task,'launched')
-    } else if (currentDownloads.includes(survey.name)&&currentDownloadTasks.includes(task.name)) {
+    } else if (currentDownloads.includes(survey.id)&&currentDownloadTasks.includes(task.name)) {
         taskStatusElement.innerHTML = 'Downloading'
         buildTaskProgress(taskDiv,newTaskDiv,survey,task,'downloading')
     } else {
