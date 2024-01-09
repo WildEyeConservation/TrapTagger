@@ -476,7 +476,6 @@ def delete_survey(self,survey_id):
                 message = 'Could not delete trap groups.'
                 app.logger.info('Failed to delete Trapgroups')
 
-        #TODO: DOuble check this
         #Delete survey shares
         if status != 'error':
             try:

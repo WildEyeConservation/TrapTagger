@@ -499,11 +499,16 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
-                deleteSurveyBtn.disabled = true
             }
+            deleteSurveyBtn.disabled = true
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = true
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
         }
         else if (survey.access == 'write' || survey.access == 'admin'){
@@ -513,7 +518,12 @@ function buildSurveys(survey,disableSurvey) {
             }
 
             if  (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = false
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
 
             if (survey.delete){
@@ -527,14 +537,18 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
-                deleteSurveyBtn.disabled = true
             }
+            deleteSurveyBtn.disabled = true
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = true
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
         }
-
     }
 }
 
@@ -740,11 +754,18 @@ function resetNewSurveyPage() {
     document.getElementById('S3BucketUpload').checked = false
     document.getElementById('BrowserUpload').checked = true
     document.getElementById('newSurveyCheckbox').checked = false
+    document.getElementById('detailedAccessSurveyCb').checked = false
+    document.getElementById('detailedAccessSurveyDiv').hidden = true
 
     // document.getElementById('kmlFileUploadText').value = ''
     // document.getElementById('kmlFileUpload').value = ''
 
     document.getElementById('newSurveyTGInfo').innerHTML = ''
+
+    clearSelect(document.getElementById('newSurveyOrg'))
+    document.getElementById('newSurveyPermission').value = 'default'
+    document.getElementById('newSurveyAnnotation').value = 'default'
+    
 
     speciesClassifierDiv = document.querySelector('#speciesClassifierDiv')
     while(speciesClassifierDiv.firstChild){
@@ -759,6 +780,11 @@ function resetNewSurveyPage() {
     newSurveyTgBuilder = document.querySelector('#newSurveyTgBuilder')
     while(newSurveyTgBuilder.firstChild){
         newSurveyTgBuilder.removeChild(newSurveyTgBuilder.firstChild);
+    }
+
+    surveyPermissionsDiv = document.querySelector('#surveyPermissionsDiv')
+    while(surveyPermissionsDiv.firstChild){
+        surveyPermissionsDiv.removeChild(surveyPermissionsDiv.firstChild);
     }
 }
 
@@ -2974,7 +3000,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
                     var user_permission = default_access[document.getElementById('detailedAccessSurvey-'+id_num).value].toLowerCase()
                     var annotation = document.getElementById('detailedJobAccessSurvey-'+id_num).checked
                     detailed_access.push({
-                        'user_id': user_id,
+                        'user_id': parseInt(user_id),
                         'permission': user_permission,
                         'annotation': annotation ? '1' : '0'
                     })

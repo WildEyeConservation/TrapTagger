@@ -95,7 +95,12 @@ function buildTaskProgress(taskDiv,newTaskDiv,survey,task,progressType) {
     if (survey.access=='write' || survey.access=='admin') {
         stopTaskBtn.disabled = false
     } else {
-        stopTaskBtn.disabled = true
+        if (survey.access=='read' && progressType=='downloading') {
+            stopTaskBtn.disabled = false
+        }   
+        else {
+            stopTaskBtn.disabled = true
+        }
     }
 
     if (progressType=='launched') {

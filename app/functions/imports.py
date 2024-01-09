@@ -1367,7 +1367,6 @@ def batch_images(camera_id,filenames,sourceBucket,dirpath,destBucket,survey_id,p
                         if Config.DEBUGGING: app.logger.info("Skipping {} could not extract timestamp...".format(dirpath+'/'+filename))
                         continue
                     
-                    #TODO: DOUBLE CHECK THIS
                     if remove_gps:
                         # Remove GPS data from the image & upload it 
                         try:
@@ -2120,7 +2119,8 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
     batch_count = 0
     batch = []
     chunk_size = round(Config.QUEUES['parallel']['rate']/4)
-    remove_gps = True
+    remove_gps = False
+    any_gps = False
     for dirpath, folders, filenames in s3traverse(sourceBucket, s3Folder):
         jpegs = list(filter(isjpeg.search, filenames))
         
@@ -2142,6 +2142,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                     try:
                         exif_data = piexif.load(temp_file.name)
                         if exif_data['GPS']:
+                            any_gps = True
                             remove_gps = True
                             if trapgroup.latitude == 0 and trapgroup.longitude == 0 and trapgroup.altitude == 0:
                                 # Try and extract latitude and longitude and altitude
@@ -2208,8 +2209,7 @@ def import_folder(s3Folder, tag, name, sourceBucket,destinationBucket,organisati
                 app.logger.info('{}: failed to import path {}. No tag found.'.format(name,dirpath))
 
     if batch_count!=0:
-        remove_gps = True
-        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':remove_gps,'label_source':label_source},queue='parallel'))
+        results.append(importImages.apply_async(kwargs={'batch':batch,'csv':False,'pipeline':pipeline,'external':False,'min_area':min_area, 'remove_gps':any_gps,'label_source':label_source},queue='parallel'))
 
     survey.processing_initialised = False
     localsession.commit()

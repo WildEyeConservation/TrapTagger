@@ -1889,7 +1889,6 @@ def editSurvey():
 @app.route('/TTWorkerSignup', methods=['GET', 'POST'])
 def TTWorkerSignup():
     '''Returns the form for worker signup, and handles its submission.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     if current_user.is_authenticated:
         if current_user.username=='Dashboard':
             return redirect(url_for('dashboard'))
@@ -1928,7 +1927,6 @@ def TTWorkerSignup():
 @app.route('/newWorkerAccount/<token>')
 def newWorkerAccount(token):
     '''Handles the worker-account registration token.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -2797,7 +2795,6 @@ def dotask(username):
 @app.route('/createAccount/<token>')
 def createAccount(token):
     '''Creates a new account based on the recieved token.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     try:
         info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
     except:
@@ -3037,7 +3034,6 @@ def jobs():
 @app.route('/TTRegisterAdmin ', methods=['GET', 'POST'])
 def TTRegisterAdmin():
     '''Renders the admin account registration page.'''
-    # TODO: DOUBLE CHECK THIS FUNCTION
     logout = request.args.get('logout', None)
     if current_user.is_authenticated:
         if current_user.admin:
@@ -3403,7 +3399,8 @@ def getHomeSurveys():
                                 SurveyPermissionException.permission,
                                 ShareUserPermissions.c.user_id,
                                 ShareUserPermissions.c.default,
-                                SurveyShare.permission
+                                SurveyShare.permission,
+                                UserPermissions.create
                             ).outerjoin(Task,Task.survey_id==Survey.id)\
                             .outerjoin(siteSQ,siteSQ.c.id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id)\
@@ -3464,18 +3461,20 @@ def getHomeSurveys():
             up_uid=item[18]
             up_default=item[19]
             up_delete=item[20]
+            up_create=item[26]
             exception_uid=item[21]
             exception_permission=item[22]
             sup_uid=item[23]
             sup_default=item[24]
             share_permission=item[25]
             if item[0] not in survey_permissions.keys():
-                survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+                survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False, 'create': False}
             if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
             if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
             if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
             if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
             if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+            if up_create and (up_uid==current_user.id): survey_permissions[item[0]]['create']=up_create
 
     for survey_id in survey_permissions:
         if survey_permissions[survey_id]['exception']:
@@ -3491,6 +3490,10 @@ def getHomeSurveys():
             survey_data[survey_id]['delete'] = True
         else:
             survey_data[survey_id]['delete'] = False
+        if survey_permissions[survey_id]['create']:
+            survey_data[survey_id]['create'] = True
+        else:
+            survey_data[survey_id]['create'] = False
 
     # add all the searches to the base query
     searches = re.split('[ ,]',search)
@@ -3573,18 +3576,20 @@ def getHomeSurveys():
                 up_uid=item[18]
                 up_default=item[19]
                 up_delete=item[20]
+                up_create=item[26]
                 exception_uid=item[21]
                 exception_permission=item[22]
                 sup_uid=item[23]
                 sup_default=item[24]
                 share_permission=item[25]
                 if item[0] not in survey_permissions.keys():
-                    survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False}
+                    survey_permissions[item[0]] = {'exception': None, 'share_level': None, 'default': None, 'share_default': None, 'delete': False, 'create': False}
                 if exception_permission and (exception_uid==current_user.id): survey_permissions[item[0]]['exception']=exception_permission
                 if up_default and (up_uid==current_user.id): survey_permissions[item[0]]['default']=up_default
                 if sup_default and (sup_uid==current_user.id) and (permission_order.index(sup_default) > permission_order.index(survey_permissions[item[0]]['share_default'])): survey_permissions[item[0]]['share_default']=sup_default
                 if share_permission and (sup_uid==current_user.id): survey_permissions[item[0]]['share_level']=share_permission
                 if up_delete and (up_uid==current_user.id): survey_permissions[item[0]]['delete']=up_delete
+                if up_create and (up_uid==current_user.id): survey_permissions[item[0]]['create']=up_create
 
         for survey_id in survey_permissions:
             if survey_permissions[survey_id]['exception']:
@@ -3600,6 +3605,10 @@ def getHomeSurveys():
                 survey_data2[survey_id]['delete'] = True
             else:
                 survey_data2[survey_id]['delete'] = False
+            if survey_permissions[survey_id]['create']:
+                survey_data2[survey_id]['create'] = True
+            else:
+                survey_data2[survey_id]['create'] = False
 
         survey_ids = [survey_id for survey_id in survey_data2.keys() if survey_id not in survey_data.keys()]
 
@@ -9719,7 +9728,6 @@ def getGroups():
     survey_ids = []
     task_ids = ast.literal_eval(request.form['task_ids'])
     if current_user and current_user.is_authenticated:
-        #TODO: This will return all groups where the user has read permission on at least one site. It should require read permission on all. NOTE: Fixed it but just double check
         if task_ids:
             if task_ids[0] == '0':
                 survey_ids = [r[0] for r in surveyPermissionsSQ(db.session.query(Survey.id),current_user.id,'read').distinct().all()]
@@ -9870,7 +9878,7 @@ def getSurveysAndTasksForResults():
 @login_required
 def getActivityPattern():
     ''' Get the activity pattern for a species '''
-    # TODO: need to look at all the permissions for these stats endpoints NOTE: Complete WorkR Server sstill needs to be updated at end
+    # TODO: WorkR Server sstill needs to be updated at end
     if 'task_ids' in request.form:
         task_ids = ast.literal_eval(request.form['task_ids'])
         species = ast.literal_eval(request.form['species'])
@@ -11659,7 +11667,6 @@ def getAccountInfo():
 @login_required
 def saveAccountInfo():
     ''' Saves the current user's account information '''
-    #TODO: DOUBLE CHECK THIS
     username = ast.literal_eval(request.form['username'])
     email = ast.literal_eval(request.form['email'])
 
@@ -11699,7 +11706,6 @@ def saveAccountInfo():
 @app.route('/confirmEmail/<token>')
 def confirmEmail(token):
     ''' Confirms the current user's email address '''
-    #TODO: DOUBLE CHECK THIS
     try:
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         email = data['email']

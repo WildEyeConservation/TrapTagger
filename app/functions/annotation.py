@@ -1797,7 +1797,7 @@ def manageDownloads():
                             .join(Organisation)\
                             .outerjoin(UserPermissions)\
                             .outerjoin(User,User.id==UserPermissions.user_id)\
-                            .join(Trapgroup)\
+                            .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
                             .join(Camera)\
                             .join(Image)\
                             .filter(Image.downloaded==True)\
@@ -1813,7 +1813,7 @@ def manageDownloads():
                             .join(Organisation)\
                             .outerjoin(UserPermissions)\
                             .outerjoin(User,User.id==UserPermissions.user_id)\
-                            .join(Trapgroup)\
+                            .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
                             .join(Camera)\
                             .join(Video)\
                             .filter(Video.downloaded==True)\

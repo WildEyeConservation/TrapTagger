@@ -3134,6 +3134,11 @@ def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permissi
             localsession = db.session()
             survey = localsession.query(Survey).get(survey_id)
 
+        user_permission = localsession.query(UserPermissions.default, UserPermissions.annotation).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
+        if user_permission[0] != 'admin' and user_permission[0] != 'worker':
+            surveyException = SurveyPermissionException(user_id=user_id, survey=survey, permission='write', annotation=user_permission[1])
+            localsession.add(surveyException)
+
         exclude_user_ids = [user_id]
         if detailed_access:
             user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
