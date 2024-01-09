@@ -5992,6 +5992,11 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
         else:
             notes = None
 
+        if 'notesOnly' in request.form:
+            notesOnly = ast.literal_eval(request.form['notesOnly'])
+        else:
+            notesOnly = None
+
         if 'startDate' in request.form:
             startDate = ast.literal_eval(request.form['startDate'])
         else:
@@ -6037,7 +6042,7 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
             clusters = clusters.join(Camera).join(Trapgroup).filter(Trapgroup.id==trapgroup_id)
 
         if annotator_id != '0':
-            clusters = clusters.join(User).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
+            clusters = clusters.join(User, User.id==Cluster.user_id).filter(or_(User.id==annotator_id,User.parent_id==annotator_id))
 
         if startDate:
             clusters = clusters.filter(Image.corrected_timestamp>=startDate)
@@ -6045,13 +6050,13 @@ def getClustersBySpecies(task_id, species, tag_id, trapgroup_id, annotator_id):
         if endDate:
             clusters = clusters.filter(Image.corrected_timestamp<=endDate)
 
+        if notesOnly:
+            clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
+
         if notes:
-            if (notes==True) or (notes.lower() == 'true'):
-                clusters = clusters.filter(and_(Cluster.notes!='',Cluster.notes!=None))
-            else:
-                searches = re.split('[ ,]',notes)
-                for search in searches:
-                    clusters = clusters.filter(Cluster.notes.contains(search))
+            searches = re.split('[ ,]',notes)
+            for search in searches:
+                clusters = clusters.filter(Cluster.notes.contains(search))
 
         clusters = [r[0] for r in clusters.order_by(Image.corrected_timestamp).distinct(Cluster.id).all()]
         if Config.DEBUGGING: app.logger.info(clusters[:50])
