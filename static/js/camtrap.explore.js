@@ -156,7 +156,7 @@ function getClusterIDs(mapID = 'map1'){
     var xhttp = new XMLHttpRequest();
     var formData = new FormData()
     if(notesOnly){
-        formData.append('notes', JSON.stringify('True'))
+        formData.append('notesOnly', JSON.stringify('True'))
     }
     if(currentStartDate){
         formData.append('startDate', JSON.stringify(currentStartDate))
@@ -164,7 +164,10 @@ function getClusterIDs(mapID = 'map1'){
     if(currentEndDate){
         formData.append('endDate', JSON.stringify(currentEndDate))
     }
-
+    notes = document.getElementById('noteboxExpSearch').value
+    if (notes != ''){
+        formData.append('notes', JSON.stringify(notes))
+    }
     xhttp.onreadystatechange =
         function () {
             if (this.readyState == 4 && this.status == 200) {
@@ -178,7 +181,8 @@ function getClusterIDs(mapID = 'map1'){
                     document.getElementById('modalAlertText').innerHTML = 'There are no clusters available.'
                     modalAlert.modal({keyboard: true});
                     if(notesOnly){
-                        document.getElementById('onlyNotesCheckbox').click()
+                        document.getElementById('onlyNotesCheckbox').checked = false
+                        notesOnly = false
                     }
                     currentLabel= prevLabel
                     divSelector.value = currentLabel
@@ -192,6 +196,8 @@ function getClusterIDs(mapID = 'map1'){
                     document.getElementById('expStartDate').value = currentStartDate ? currentStartDate.split(' ')[0] : ''
                     currentEndDate = prevEndDate
                     document.getElementById('expEndDate').value = currentEndDate ? currentEndDate.split(' ')[0] : ''
+                    document.getElementById('noteboxExpSearch').value = ''
+                    document.getElementById('notif1').innerHTML = ''
                     getClusterIDs()
                 }
                 else{
@@ -209,7 +215,7 @@ function searchNotes(mapID='map1'){
     /** Searches for clusters with notes specified in explore page search bar */
     var xhttp = new XMLHttpRequest();
     var formData = new FormData()
-    notes = noteSearchTextBox.value
+    notes = document.getElementById('noteboxExpSearch').value
     formData.append('notes', JSON.stringify(notes))
     if(currentStartDate){
         formData.append('startDate', JSON.stringify(currentStartDate))
@@ -488,17 +494,26 @@ $("#onlyNotesCheckbox").change( function() {
     onlyNotesCheckbox = document.getElementById('onlyNotesCheckbox')
     if (onlyNotesCheckbox.checked) {
         notesOnly = true
-        document.getElementById('noteboxExpSearch').value = ''
+        // document.getElementById('noteboxExpSearch').value = ''
     }
     else{
         notesOnly = false
-        document.getElementById('noteboxExpSearch').value = ''
+        // document.getElementById('noteboxExpSearch').value = ''
     }
     getClusterIDs()
 })
 
 $("#noteboxExpSearch").change( function() {
     /** Handles the event when the search bar for notes is changed */
+    prevTag = currentTag
+    prevLabel = currentLabel
+    prevSite = currentSite
+    prevAnnotator = currentAnnotator
+    prevStartDate = currentStartDate
+    prevEndDate = currentEndDate
+    prevAnnotator = currentAnnotator
+    clusterRequests['map1'] = [];
+
     searchNotes()
 });
 
