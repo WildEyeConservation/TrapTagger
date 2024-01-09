@@ -8097,30 +8097,32 @@ def checkNotifications():
 @login_required
 def dashboard():
     '''Renders dashboard where the stats of the platform can be explored.'''
-    # TODO: DASHBOARD STILL NEED TO BE UPDATED
+
     if not current_user.is_authenticated:
         return redirect(url_for('login_page'))
     else:
         if current_user.username=='Dashboard':
             organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
+            users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
             image_count=0
             for organisation in organisations:
                 image_count+=organisation.image_count
             
             sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
-            active_users = db.session.query(Organisation)\
+            active_organisations = db.session.query(Organisation)\
                                     .join(Survey)\
                                     .join(Task)\
                                     .join(sq,sq.c.organisation_id==Organisation.id)\
                                     .filter(Task.init_complete==True)\
                                     .filter(sq.c.count>10000)\
-                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                    .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                     .distinct().count()
             
             latest_statistic = db.session.query(Statistic).filter(Statistic.user_count!=None).order_by(Statistic.timestamp.desc()).first()
             users_added_this_month = len(users)-latest_statistic.user_count
+            organisations_added_this_month = len(organisations)-latest_statistic.organisation_count
             images_imported_this_month = image_count-latest_statistic.image_count
-            active_users_this_month = active_users-latest_statistic.active_user_count
+            active_organisations_this_month = active_organisations-latest_statistic.active_organisation_count
 
             image_count = str(round((image_count/1000000),2))+'M'
             images_imported_this_month = str(round((images_imported_this_month/1000000),2))+'M'
@@ -8129,32 +8131,49 @@ def dashboard():
             endDate = datetime.utcnow()+timedelta(days=1)
             costs = get_AWS_costs(startDate,endDate)
 
-            unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).count()
-            unique_admin_logins_24h = db.session.query(Organisation).join(UserPermissions).join(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(UserPermissions.default.in_(['write','read','hidden'])).count()
-            unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).count()
-            unique_admin_logins_this_month = db.session.query(Organisation).join(UserPermissions).join(User).filter(User.last_ping>startDate).filter(UserPermissions.default.in_(['write','read','hidden'])).count()
+            unique_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.email!=None).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_admin_logins_24h = db.session.query(User).filter(User.last_ping>datetime.utcnow()-timedelta(days=1)).filter(User.admin==True).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_organisation_logins_24h = db.session.query(Organisation)\
+                                                .join(UserPermissions)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .filter(User.last_ping>datetime.utcnow()-timedelta(days=1))\
+                                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
+                                                .filter(User.admin==True).count()
+            
+            unique_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.email!=None).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_admin_logins_this_month = db.session.query(User).filter(User.last_ping>startDate).filter(User.admin==True).filter(~User.username.in_(Config.ADMIN_USERS)).count()
+            unique_organisation_logins_this_month = db.session.query(Organisation)\
+                                                .join(UserPermissions)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .filter(User.last_ping>startDate)\
+                                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
+                                                .filter(User.admin==True).count()
 
             # Need to add an hour to the start date so as to not grab the first statistic of the month which covers the last day of the previous month
             average_logins = 0
             average_admin_logins = 0
+            average_organisation_logins = 0
             statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
             if statistics:
                 for statistic in statistics:
                     average_logins+=statistic.unique_daily_logins
                     average_admin_logins+=statistic.unique_daily_admin_logins
+                    average_organisation_logins+=statistic.unique_daily_organisation_logins
                 average_logins = round(average_logins/len(statistics),2)
                 average_admin_logins = round(average_admin_logins/len(statistics),2)
+                average_organisation_logins = round(average_organisation_logins/len(statistics),2)
 
             factor = monthrange(datetime.utcnow().year,datetime.utcnow().month)[1]/datetime.utcnow().day
             
             return render_template('html/dashboard.html', title='Dashboard', helpFile='dashboard',
                         version=Config.VERSION,
                         user_count = len(users),
+                        organisation_count = len(organisations),
                         image_count = image_count,
                         users_added_this_month = users_added_this_month,
                         images_imported_this_month = images_imported_this_month,
-                        active_users_this_month = active_users_this_month,
-                        active_users = active_users,
+                        active_organisations_this_month = active_organisations_this_month,
+                        active_organisations = active_organisations,
                         last_months_server_cost = latest_statistic.server_cost,
                         last_months_storage_cost = latest_statistic.storage_cost,
                         last_months_db_cost = latest_statistic.db_cost,
@@ -8175,8 +8194,14 @@ def dashboard():
                         average_admin_logins = average_admin_logins,
                         unique_monthly_logins = int(latest_statistic.unique_monthly_logins),
                         unique_monthly_admin_logins = int(latest_statistic.unique_monthly_admin_logins),
+                        unique_monthly_organisation_logins = int(latest_statistic.unique_monthly_organisation_logins),
                         average_daily_logins = latest_statistic.average_daily_logins,
-                        average_daily_admin_logins = latest_statistic.average_daily_admin_logins
+                        average_daily_admin_logins = latest_statistic.average_daily_admin_logins,
+                        average_daily_organisation_logins = latest_statistic.average_daily_organisation_logins,
+                        unique_organisation_logins_24h = unique_organisation_logins_24h,
+                        unique_organisation_logins_this_month = unique_organisation_logins_this_month,
+                        average_organisation_logins = average_organisation_logins,
+                        organisations_added_this_month = organisations_added_this_month
             )
         else:
             if current_user.admin:
@@ -8203,7 +8228,7 @@ def getDashboardTrends():
         trend = request.form['trend']
         period = request.form['period']
 
-        if trend in ['unique_daily_logins','unique_daily_admin_logins']:
+        if trend in ['unique_daily_logins','unique_daily_admin_logins','unique_daily_organisation_logins']:
             # Daily stats
             if period=='max':
                 period = 365

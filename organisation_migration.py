@@ -14,3 +14,10 @@ for user in users:
         userPermissions = UserPermissions(organisation_id=organisation.id, user_id=worker.id, delete=False, create=False, annotation=True, default='worker')
         db.session.add(userPermissions)
     db.session.commit()
+statistics = db.session.query(Statistic).all()
+for statistic in statistics:
+    statistic.organisation_count = statistic.user_count
+    statistic.unique_daily_organisation_logins = statistic.unique_daily_admin_logins
+    statistic.average_daily_organisation_logins = statistic.average_daily_admin_logins
+    statistic.unique_monthly_organisation_logins = statistic.unique_monthly_admin_logins
+db.session.commit()

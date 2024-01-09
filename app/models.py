@@ -461,7 +461,8 @@ class Statistic(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     user_count = db.Column(db.Integer, index=True)
-    active_user_count = db.Column(db.Integer, index=False)
+    organisation_count = db.Column(db.Integer, index=True)
+    active_organisation_count = db.Column(db.Integer, index=False)
     image_count = db.Column(db.Integer, index=False)
     server_cost = db.Column(db.Float, index=False)
     storage_cost = db.Column(db.Float, index=False)
@@ -469,10 +470,13 @@ class Statistic(db.Model):
     total_cost = db.Column(db.Float, index=False)
     unique_daily_logins = db.Column(db.Integer, index=False)
     unique_daily_admin_logins = db.Column(db.Integer, index=False)
+    unique_daily_organisation_logins = db.Column(db.Integer, index=False)
     average_daily_logins = db.Column(db.Float, index=False)
     average_daily_admin_logins = db.Column(db.Float, index=False)
+    average_daily_organisation_logins = db.Column(db.Float, index=False)
     unique_monthly_logins = db.Column(db.Float, index=False)
     unique_monthly_admin_logins = db.Column(db.Float, index=False)
+    unique_monthly_organisation_logins = db.Column(db.Float, index=False)
 
     def __repr__(self):
         return '<Statistic for {}>'.format(self.timestamp)

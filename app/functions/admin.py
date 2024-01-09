@@ -1834,7 +1834,7 @@ def get_AWS_costs(startDate,endDate):
 @celery.task(bind=True,max_retries=5,ignore_result=True)
 def updateStatistics(self):
     '''Updates the site statistics in the database for dashboard reference purposes.'''
-    # TODO: DASHBOARD FUNCTIONS STILL NEED TO BE UPDATED
+
     try:
         check = db.session.query(Statistic)\
                         .filter(extract('year',Statistic.timestamp)==datetime.utcnow().year)\
@@ -1849,26 +1849,38 @@ def updateStatistics(self):
             # Daily stats
             statistic.unique_daily_logins = db.session.query(User)\
                                                 .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
                                                 .filter(User.email!=None).count()
+
             statistic.unique_daily_admin_logins = db.session.query(User)\
                                                 .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                .filter(User.admin==True).count()
+            
+            statistic.unique_daily_organisation_logins = db.session.query(Organisation)\
+                                                .join(UserPermissions)\
+                                                .join(User,UserPermissions.user_id==User.id)\
+                                                .filter(User.last_ping>(datetime.utcnow().replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=1)))\
+                                                .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                                 .filter(User.admin==True).count()
 
             #Monthly stats
             if datetime.utcnow().day==1:
-                users = db.session.query(User).filter(~User.username.in_(['Admin','WildEye','Dashboard'])).filter(User.admin==True).distinct().all()
+                organisations = db.session.query(Organisation).filter(~Organisation.name.in_(Config.ADMIN_USERS)).distinct().all()
+                users = db.session.query(User).filter(~User.username.in_(Config.ADMIN_USERS)).filter(User.admin==True).distinct().all()
                 image_count=0
-                for user in users:
-                    for survey in user.surveys:
+                for organisation in organisations:
+                    for survey in organisation.surveys:
                         image_count+=survey.image_count
 
-                sq = db.session.query(User.id.label('user_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(User.id).subquery()
-                active_user_count = db.session.query(User)\
+                sq = db.session.query(Organisation.id.label('organisation_id'),func.sum(Survey.image_count).label('count')).join(Survey).group_by(Organisation.id).subquery()
+                active_organisation_count = db.session.query(Organisation)\
                                         .join(Survey)\
                                         .join(Task)\
-                                        .join(sq,sq.c.user_id==User.id)\
+                                        .join(sq,sq.c.organisation_id==Organisation.id)\
                                         .filter(Task.init_complete==True)\
                                         .filter(sq.c.count>10000)\
+                                        .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                         .distinct().count()
 
                 # AWS Costs
@@ -1879,25 +1891,37 @@ def updateStatistics(self):
                 # Average daily logins (need the plus 1 hour here so as to not include the last day of the previous month)
                 average_daily_logins = 0
                 average_daily_admin_logins = 0
+                average_daily_organisation_logins = 0
                 statistics = db.session.query(Statistic).filter(Statistic.timestamp>(startDate+timedelta(hours=1))).all()
                 if statistics:
                     for stat in statistics:
                         average_daily_logins += stat.unique_daily_logins
                         average_daily_admin_logins += stat.unique_daily_admin_logins
+                        average_daily_organisation_logins += stat.unique_daily_organisation_logins
                     average_daily_logins = round(average_daily_logins/len(statistics),2)
                     average_daily_admin_logins = round(average_daily_admin_logins/len(statistics),2)
+                    average_daily_organisation_logins = round(average_daily_organisation_logins/len(statistics),2)
 
                 # Unique monthly logins
                 unique_monthly_logins = db.session.query(User)\
                                                     .filter(User.last_ping>startDate)\
+                                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
                                                     .filter(User.email!=None).count()
                 unique_monthly_admin_logins = db.session.query(User)\
                                                     .filter(User.last_ping>startDate)\
+                                                    .filter(~User.username.in_(Config.ADMIN_USERS))\
+                                                    .filter(User.admin==True).count()
+                unique_monthly_organisation_logins = db.session.query(Organisation)\
+                                                    .join(UserPermissions)\
+                                                    .join(User,UserPermissions.user_id==User.id)\
+                                                    .filter(User.last_ping>startDate)\
+                                                    .filter(~Organisation.name.in_(Config.ADMIN_USERS))\
                                                     .filter(User.admin==True).count()
 
                 # Update DB object
                 statistic.user_count=len(users),
-                statistic.active_user_count=active_user_count,
+                statistic.organisation_count = len(organisation)
+                statistic.active_organisation_count=active_organisation_count,
                 statistic.image_count=image_count,
                 statistic.server_cost=costs['Amazon Elastic Compute Cloud - Compute'],
                 statistic.storage_cost=costs['Amazon Simple Storage Service'],
@@ -1905,16 +1929,18 @@ def updateStatistics(self):
                 statistic.total_cost=costs['Total']
                 statistic.average_daily_logins = average_daily_logins
                 statistic.average_daily_admin_logins = average_daily_admin_logins
+                statistic.average_daily_organisation_logins = average_daily_organisation_logins
                 statistic.unique_monthly_logins = unique_monthly_logins
                 statistic.unique_monthly_admin_logins = unique_monthly_admin_logins
+                statistic.unique_monthly_organisation_logins = unique_monthly_organisation_logins
 
-                # Update user image counts
-                data = db.session.query(User,func.sum(Survey.image_count)).join(Survey).filter(User.admin==True).group_by(User.id).all()
+                # Update organisation image counts
+                data = db.session.query(Organisation,func.sum(Survey.image_count)).join(Survey).group_by(Organisation.id).all()
                 for item in data:
-                    user = item[0]
+                    organisation = item[0]
                     count = int(item[1])
-                    user.previous_image_count = user.image_count
-                    user.image_count = count
+                    organisation.previous_image_count = organisation.image_count
+                    organisation.image_count = count
 
             db.session.commit()
 
@@ -1928,78 +1954,5 @@ def updateStatistics(self):
 
     finally:
         db.session.remove()
-
-    return True
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permission,annotation,detailed_access,localsession=None):
-    '''Sets up the user permissions for a new survey.'''
-
-    try:
-        if localsession:
-            celeryTask = False
-            survey = survey_id
-        else:
-            celeryTask = True
-            localsession = db.session()
-            survey = localsession.query(Survey).get(survey_id)
-
-        exclude_user_ids = [user_id]
-        if detailed_access:
-            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_default = {r[0]:r[1] for r in user_query}
-            for access in detailed_access:
-                exclude_user_ids.append(access['user_id'])
-                annotation_access = True if access['annotation']=='1' else False
-                if user_default[access['user_id']] != 'admin':
-                    if user_default[access['user_id']] == 'worker': 
-                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission='worker', annotation=annotation_access)
-                    else:
-                        newDetailedException = SurveyPermissionException(user_id=access['user_id'], survey=survey, permission=access['permission'], annotation=annotation_access)
-                    localsession.add(newDetailedException)
-
-        if permission != 'default' and annotation != 'default':
-            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_ids = [r[0] for r in user_query]
-            user_permissions = [r[1] for r in user_query]   
-            annotation_access = True if annotation== '1' else False
-            for i in range(len(user_ids)):
-                if user_permissions[i] == 'worker':
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission='worker', annotation=annotation_access)
-                else:
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=annotation_access)
-                localsession.add(newException)
-
-        elif permission != 'default':
-            user_query = localsession.query(User.id, UserPermissions.default, UserPermissions.annotation).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_ids = [r[0] for r in user_query]
-            user_permissions = [r[1] for r in user_query]   
-            user_annotations = [r[2] for r in user_query]
-            for i in range(len(user_ids)):
-                if user_permissions[i] != 'worker':
-                    newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=permission, annotation=user_annotations[i])
-                    localsession.add(newException)
-
-        elif annotation != 'default':
-            user_query = localsession.query(User.id, UserPermissions.default).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default!='admin').filter(~User.id.in_(exclude_user_ids)).distinct().all()
-            user_ids = [r[0] for r in user_query]
-            user_permissions = [r[1] for r in user_query]
-            annotation_access = True if annotation== '1' else False
-            for i in range(len(user_ids)):
-                newException = SurveyPermissionException(user_id=user_ids[i], survey=survey, permission=user_permissions[i], annotation=annotation_access)
-                localsession.add(newException)
-                
-        if celeryTask: localsession.commit()
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        if celeryTask: localsession.remove()
 
     return True
