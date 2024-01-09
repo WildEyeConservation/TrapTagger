@@ -499,11 +499,16 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
-                deleteSurveyBtn.disabled = true
             }
+            deleteSurveyBtn.disabled = true
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = true
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
         }
         else if (survey.access == 'write' || survey.access == 'admin'){
@@ -513,7 +518,12 @@ function buildSurveys(survey,disableSurvey) {
             }
 
             if  (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = false
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
 
             if (survey.delete){
@@ -527,14 +537,18 @@ function buildSurveys(survey,disableSurvey) {
             if (addTaskBtn) {
                 addImagesBtn.disabled = true
                 addTaskBtn.disabled = true
-                deleteSurveyBtn.disabled = true
             }
+            deleteSurveyBtn.disabled = true
 
             if (survey.status.toLowerCase()=='uploading' && !uploading) {
-                btnResume.disabled = true
+                if (survey.create) {
+                    btnResume.disabled = false
+                }
+                else {
+                    btnResume.disabled = true
+                }
             }
         }
-
     }
 }
 
