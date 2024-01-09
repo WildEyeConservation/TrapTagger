@@ -46,9 +46,17 @@ function buildJob(job) {
     headingElement.setAttribute('style',"margin-left: 10px; margin-right:10px")
     jobDiv.appendChild(headingElement)
 
-    var jobDescriptionDiv = document.createElement('div')
-    jobDescriptionDiv.setAttribute("id","jobDescription"+job.id)
-    jobDiv.appendChild(jobDescriptionDiv)
+    var jobOrganisation = document.createElement('div')
+    jobOrganisation.setAttribute("id","jobOrganisation"+job.id)
+    jobOrganisation.setAttribute("style","font-size: 70%; margin-left: 10px;")
+    jobOrganisation.innerHTML = "<i>"+job.organisation+"</i>"
+    jobDiv.appendChild(jobOrganisation)
+    
+    // jobDiv.appendChild(document.createElement('br'))
+
+    // var jobDescriptionDiv = document.createElement('div')
+    // jobDescriptionDiv.setAttribute("id","jobDescription"+job.id)
+    // jobDiv.appendChild(jobDescriptionDiv)
 
     var jobType = document.createElement('div')
     jobType.setAttribute("id","jobType"+job.id)

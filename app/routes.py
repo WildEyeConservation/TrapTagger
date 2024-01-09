@@ -3698,7 +3698,8 @@ def getJobs():
                                 completeJobsSQ.c.count,
                                 Survey.name,
                                 Task.init_complete,
-                                Task.is_bounding
+                                Task.is_bounding,
+                                Organisation.name
                             ).join(Survey,Task.survey_id==Survey.id)\
                             .outerjoin(completeJobsSQ,completeJobsSQ.c.id==Task.id),current_user.id)
                             # .join(User,Survey.user_id==User.id)\
@@ -3783,7 +3784,8 @@ def getJobs():
                         'total': item[2],
                         'remaining': clusters_remaining,
                         'jobsAvailable': jobsAvailable,
-                        'jobsCompleted': item[5]}
+                        'jobsCompleted': item[5],
+                        'organisation': item[9]}
 
             if taskInfo['total'] and taskInfo['remaining']:
                 taskInfo['completed'] = taskInfo['total'] - taskInfo['remaining']
