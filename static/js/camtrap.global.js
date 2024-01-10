@@ -215,6 +215,22 @@ $('#btnPrevNotifications').click(function(event){
     openNotifications()
 });
 
+$('#btnClearNotifications').click(function(event){
+    event.stopPropagation()
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 200) {
+            reply = JSON.parse(this.responseText);
+            if (reply.status == 'SUCCESS') {
+                document.getElementById('notificationBadge').innerHTML = 0;
+                openNotifications()
+            }
+        }
+    };
+    xhttp.open('GET', '/clearNotifications');
+    xhttp.send();
+});
+
 modalNotification.on('hidden.bs.modal', function () {
     document.getElementById('modalNotificationBody').innerHTML = '';
     document.getElementById('notificationsButton').click();
@@ -238,6 +254,13 @@ function checkNotifications() {
 
                 var notificationBadge = document.getElementById('notificationBadge')
                 notificationBadge.innerHTML = reply.total_unseen
+
+                if (reply.total_unseen > 0) {
+                    document.getElementById('btnClearNotifications').hidden = false;
+                }
+                else {
+                    document.getElementById('btnClearNotifications').hidden = true;
+                }
 
                 if (notificationTimer) {
                     clearTimeout(notificationTimer)

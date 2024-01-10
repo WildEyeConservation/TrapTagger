@@ -295,7 +295,7 @@ function saveIntegrations(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 document.getElementById('settingsErrors').innerHTML = reply.message
 
                 if (reply.status == 'SUCCESS'){
@@ -457,7 +457,7 @@ function loadIntegrations(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             var integrations = reply.integrations
             for (let i = 0; i < integrations.length; i++){
                 buildIntegrationSelect()
@@ -515,7 +515,7 @@ function getAccountInfo(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             document.getElementById('username').value = reply.username
             document.getElementById('email').value = reply.email
 
@@ -614,7 +614,7 @@ function saveAccountInfo(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 accountErrors.innerHTML = reply.message
                 if (reply.status == 'SUCCESS'){
                     getAccountInfo()

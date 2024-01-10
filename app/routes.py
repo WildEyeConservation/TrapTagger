@@ -10839,14 +10839,14 @@ def saveDetailedAccess():
     org_id = ast.literal_eval(request.form['organisation_id'])
     detailed_access = ast.literal_eval(request.form['detailed_access'])
 
-    app.logger.info('User {} permission exception {}.'.format(user_id, detailed_access))
+    if Config.DEBUGGING: app.logger.info('User {} permission exception {}.'.format(user_id, detailed_access))
 
     status = 'FAILURE'
     message = 'Unable to save permission exception.'
 
     permission_levels = [None, 'worker', 'hidden', 'read', 'write', 'admin']	
 
-    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id):
+    if current_user and current_user.is_authenticated and checkDefaultAdminPermission(current_user.id,org_id) and not checkDefaultAdminPermission(user_id,org_id):
         new_access = detailed_access['new']
         edited_access = detailed_access['edit']
         deleted_access = detailed_access['delete']
@@ -10886,8 +10886,10 @@ def saveDetailedAccess():
                         access['permission'] = shareCheck.permission
                     access['annotation'] = False
 
-            survey_permission = SurveyPermissionException(user_id=user_id, survey_id=access['survey_id'], permission=access['permission'], annotation=access['annotation'])
-            db.session.add(survey_permission)
+            existCheck = db.session.query(SurveyPermissionException).filter(SurveyPermissionException.survey_id==access['survey_id']).filter(SurveyPermissionException.user_id==user_id).first()
+            if not existCheck:
+                survey_permission = SurveyPermissionException(user_id=user_id, survey_id=access['survey_id'], permission=access['permission'], annotation=access['annotation'])
+                db.session.add(survey_permission)
 
         org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
         user_name = db.session.query(User.username).filter(User.id==user_id).first()[0]
@@ -11194,6 +11196,7 @@ def shareSurveys():
     return json.dumps({'status':status, 'message': message})
 
 @app.route('/acceptSurveyShare/<token>/<action>')
+@login_required
 def acceptSurveyShare(token, action):
     ''' Accepts or declines a survey share '''
     try:
@@ -11250,6 +11253,7 @@ def acceptSurveyShare(token, action):
     return redirect(url_for('surveys'))
 
 @app.route('/cancelSurveyShare/<token>')
+@login_required
 def cancelSurveyShare(token):
     ''' Cancels a survey share '''
     try:
@@ -11476,7 +11480,7 @@ def markNotificationSeen(id):
     status = 'FAILURE'
     message = 'Unable to mark notification as seen.'
 
-    if current_user and current_user.is_authenticated:
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
         notification = db.session.query(Notification).get(id)
         if notification:
             if notification.user_id == current_user.id:
@@ -11608,6 +11612,14 @@ def getPermissions():
     ''' Gets all the permissions for the current user'''
     permissions = []
     exceptions = []
+    next_permissions = None
+    prev_permissions = None
+    next_exceptions = None
+    prev_exceptions = None
+
+    page_permissions = request.args.get('pm_page', 1, type=int)
+    page_exceptions = request.args.get('exc_page', 1, type=int)
+
     if current_user and current_user.is_authenticated:
         user_permissions = db.session.query(
                                         UserPermissions.id,
@@ -11621,9 +11633,9 @@ def getPermissions():
                                     .join(Organisation)\
                                     .filter(UserPermissions.user_id==current_user.id)\
                                     .order_by(Organisation.name)\
-                                    .distinct().all()
+                                    .distinct().paginate(page_permissions, 4, False)
 
-        for user_permission in user_permissions:
+        for user_permission in user_permissions.items:
             permissions.append({
                 'id': user_permission[0],
                 'organisation': user_permission[5],
@@ -11642,10 +11654,11 @@ def getPermissions():
                                     )\
                                     .join(Survey)\
                                     .filter(SurveyPermissionException.user_id==current_user.id)\
+                                    .filter(~and_(or_(SurveyPermissionException.permission=='hidden',SurveyPermissionException.permission=='worker'),SurveyPermissionException.annotation==False))\
                                     .order_by(Survey.name)\
-                                    .distinct().all()
+                                    .distinct().paginate(page_exceptions, 4, False)
         
-        for user_exception in user_exceptions:
+        for user_exception in user_exceptions.items:
             exceptions.append({
                 'id': user_exception[0],
                 'survey': user_exception[3],
@@ -11653,7 +11666,12 @@ def getPermissions():
                 'annotation': user_exception[2]
             })
 
-    return json.dumps({'exceptions': exceptions, 'permissions': permissions})
+        next_permissions = user_permissions.next_num if user_permissions.has_next else None
+        prev_permissions = user_permissions.prev_num if user_permissions.has_prev else None
+        next_exceptions = user_exceptions.next_num if user_exceptions.has_next else None
+        prev_exceptions = user_exceptions.prev_num if user_exceptions.has_prev else None
+
+    return json.dumps({'exceptions': exceptions, 'permissions': permissions, 'next_permissions': next_permissions, 'prev_permissions': prev_permissions, 'next_exceptions': next_exceptions, 'prev_exceptions': prev_exceptions})
 
 @app.route('/getAccountInfo')
 @login_required
@@ -11743,3 +11761,17 @@ def confirmEmail(token):
         flash('Unable to confirm email address.')
 
     return redirect(url_for('settings'))
+
+@app.route('/clearNotifications')
+@login_required
+def clearNotifications():
+    ''' Clears all the notifications for the current user '''
+    status = 'FAILURE'
+    if current_user and current_user.is_authenticated and current_user.parent_id == None:
+        notifications = db.session.query(Notification).filter(Notification.user_id==current_user.id).filter(Notification.seen==False).all()
+        for notification in notifications:
+            notification.seen = True
+        db.session.commit()
+        status = 'SUCCESS'
+
+    return json.dumps({'status': status})
