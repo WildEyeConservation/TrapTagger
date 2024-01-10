@@ -436,6 +436,7 @@ async function confirmReceipt(image_ids,count=0) {
             },
             body: JSON.stringify({
                 image_ids: image_ids,
+                task_id: downloadingTask,
                 include_video: include_video,
                 include_frames: include_frames
             }),

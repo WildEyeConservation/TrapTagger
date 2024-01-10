@@ -8480,6 +8480,8 @@ def get_image_info():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+        
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8544,6 +8546,8 @@ def get_required_files():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
         individual_sorted = request.json['individual_sorted']
         species_sorted = request.json['species_sorted']
         flat_structure = request.json['flat_structure']
@@ -8739,6 +8743,8 @@ def set_download_status():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
         include_empties = request.json['include_empties']
         labels = request.json['species']
         include_video = request.json['include_video']
@@ -8786,6 +8792,8 @@ def check_download_initialised():
     reply = {'status': 'ready'}
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
         filesToDownload = GLOBALS.redisClient.get(str(task.id)+'_filesToDownload')
         if filesToDownload:
             filesToDownload = int(filesToDownload.decode())
@@ -8803,20 +8811,25 @@ def mark_images_downloaded():
     """Marks the specified images or videos as downloaded."""
 
     include_video = request.json['include_video']
+    task_id = request.json['task_id']
     if include_video:
         video_ids = request.json['image_ids']
-        video = db.session.query(Video).get(video_ids[0])
-        # if video and (video.camera.trapgroup.survey.user==current_user):
-        if video and checkSurveyPermission(current_user.id,video.camera.trapgroup.survey_id,'read'):
+        survey_id = db.session.query(Survey.id).join(Trapgroup).join(Camera).join(Video).filter(Video.id==video_ids[0]).first()[0]
+
+        if survey_id and checkSurveyPermission(current_user.id,survey_id,'read'):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+            
             videos = db.session.query(Video).filter(Video.id.in_(video_ids)).distinct().all()
             for video in videos:
                 video.downloaded = True
             db.session.commit()
     else:
         image_ids = request.json['image_ids']
-        image = db.session.query(Image).get(image_ids[0])
-        # if image and (image.camera.trapgroup.survey.user==current_user):
-        if image and checkSurveyPermission(current_user.id,image.camera.trapgroup.survey_id,'read'):
+        survey_id = db.session.query(Survey.id).join(Trapgroup).join(Camera).join(Image).filter(Image.id==image_ids[0]).first()[0]
+
+        if survey_id and checkSurveyPermission(current_user.id,survey_id,'read'):
+            GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
+
             images = db.session.query(Image).filter(Image.id.in_(image_ids)).distinct().all()
             for image in images:
                 image.downloaded = True
@@ -8833,6 +8846,7 @@ def download_complete():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
+        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
         resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
         return json.dumps('success')
@@ -8847,7 +8861,7 @@ def check_download_available():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        check = db.session.query(Image).join(Camera).join(Trapgroup).filter(Trapgroup.survey_id==task.survey_id).filter(Image.downloaded==True).first()
+        check = GLOBALS.redisClient.get('download_ping_'+str(task_id))
         if check:
             return json.dumps('unavailable')
         else:
@@ -10819,15 +10833,16 @@ def getDetailedAccess(user_id, org_id):
 @app.route('/saveDetailedAccess', methods=['POST'])
 @login_required
 def saveDetailedAccess():
+    '''Saves the submitted permission exceptions.'''
 
     user_id = ast.literal_eval(request.form['user_id'])
     org_id = ast.literal_eval(request.form['organisation_id'])
     detailed_access = ast.literal_eval(request.form['detailed_access'])
 
-    app.logger.info('User {} Detailed Access {}.'.format(user_id, detailed_access))
+    app.logger.info('User {} permission exception {}.'.format(user_id, detailed_access))
 
     status = 'FAILURE'
-    message = 'Unable to save detailed access.'
+    message = 'Unable to save permission exception.'
 
     permission_levels = [None, 'worker', 'hidden', 'read', 'write', 'admin']	
 
@@ -10877,12 +10892,12 @@ def saveDetailedAccess():
         org_name = db.session.query(Organisation.name).filter(Organisation.id==org_id).first()[0]
         user_name = db.session.query(User.username).filter(User.id==user_id).first()[0]
 
-        user_msg = '<p> Your detailed access permissions for organisation {} have been updated.</p>'.format(org_name)
+        user_msg = '<p> Your permission exceptions for organisation {} have been updated.</p>'.format(org_name)
         notif = Notification(user_id=user_id, contents=user_msg, seen=False)
         db.session.add(notif)
 
         org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==org_id).filter(UserPermissions.default=='admin').distinct().all()]
-        org_msg = '<p> The detailed access permissions for user {} have been updated for organisation {}.</p>'.format(user_name, org_name)
+        org_msg = '<p> The permission exceptions for user {} have been updated for organisation {}.</p>'.format(user_name, org_name)
         for org_admin in org_admins:
             notif = Notification(user_id=org_admin, contents=org_msg, seen=False)
             db.session.add(notif)
@@ -11172,7 +11187,7 @@ def shareSurveys():
                     db.session.commit()
 
                     status = 'SUCCESS'
-                    message = 'Notification sent to organisation. You will be notified when the organisation has accepted the survey share.'
+                    message = 'A notification has been sent to the organisation. You will be notified once they have accepted the survey share.'
     except:
         pass
 

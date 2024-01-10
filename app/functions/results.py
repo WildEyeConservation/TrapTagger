@@ -16,7 +16,7 @@ limitations under the License.
 
 from app import app, db, celery
 from app.models import *
-from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList
+from app.functions.globals import retryTime, list_all, chunker, batch_crops, rDets, randomString, stringify_timestamp, getChildList, resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import alias, func, or_, and_, distinct
 import re
@@ -2474,90 +2474,6 @@ def setImageDownloadStatus(self,task_id,labels,include_empties, include_video, i
 
         if testVideo==0:
             resetVideoDownloadStatus(task_id,False,None,None,True)
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
-    '''Resets the image downloaded status to the default not-downloaded state'''
-    
-    try:
-        task = db.session.query(Task).get(task_id)
-        if task.status=='Preparing Download': return True
-        task.status = 'Processing'
-        db.session.commit()
-
-        images = db.session.query(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey==task.survey)\
-                        .filter(Image.downloaded!=False)\
-                        .all()
-
-        # for chunk in chunker(images,10000):
-        for image in images:
-            image.downloaded = False
-        db.session.commit()
-
-        if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
-        else:
-            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
-            task.status = 'Ready'
-            db.session.commit()
-
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
-        self.retry(exc=exc, countdown= retryTime(self.request.retries))
-
-    finally:
-        db.session.remove()
-
-    return True
-
-
-@celery.task(bind=True,max_retries=5,ignore_result=True)
-def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
-    '''Resets the video downloaded status to the default not-downloaded state'''
-    
-    try:
-        task = db.session.query(Task).get(task_id)
-        if task.status=='Preparing Download': return True
-        task.status = 'Processing'
-        db.session.commit()
-
-        videos = db.session.query(Video)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Trapgroup.survey==task.survey)\
-                        .filter(Video.downloaded!=False)\
-                        .all()
-        
-        for video in videos:
-            video.downloaded = False
-        db.session.commit()
-
-        if then_set:
-            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
-        else:
-            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
-            task.status = 'Ready'
-            db.session.commit()
 
     except Exception as exc:
         app.logger.info(' ')

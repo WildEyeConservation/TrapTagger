@@ -2980,7 +2980,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
 
     if (newSurveyAnnotation == ''){
         legalPermission = false
-        document.getElementById('newSurveyErrors').innerHTML = 'Please select a job access level.'
+        document.getElementById('newSurveyErrors').innerHTML = 'Please select an annotation access level.'
     }
 
     var detailed_access = []
@@ -2988,7 +2988,7 @@ document.getElementById('btnSaveSurvey').addEventListener('click', ()=>{
         // Get all selectors 
         var surveyUserPermissions =  document.querySelectorAll('[id^=surveyUserPermission-]')
         if (surveyUserPermissions.length==0) {
-            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to give detailed access to.'
+            document.getElementById('newSurveyErrors').innerHTML = 'You must select at least one user to set permission exceptions for.'
             legalPermission = false
         } else {
             var dup_users = []
@@ -3737,7 +3737,7 @@ function buildSurveyPermissionRow(){
     col_3.innerText = default_access[3];
     row.appendChild(col_3)
 
-    // Job Access
+    // Annotation Access
     var toggleDiv = document.createElement('div');
     toggleDiv.classList.add('text-center');
     toggleDiv.style.verticalAlign = 'middle';

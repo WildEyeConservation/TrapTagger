@@ -2753,7 +2753,7 @@ def clean_up_redis():
                         GLOBALS.redisClient.delete(key)
 
             # clusters_remaining = int(GLOBALS.redisClient.get('clusters_remaining_'+str(item[0])).decode())
-            if any(name in key for name in ['clusters_remaining_']):
+            elif any(name in key for name in ['clusters_remaining_']):
                 task_id = key.split('_')[-1]
 
                 if task_id == 'None':
@@ -2761,6 +2761,22 @@ def clean_up_redis():
                 else:
                     task = db.session.query(Task).get(int(task_id))
                     if (task==None) or (task.status not in ['PROGRESS']):
+                        GLOBALS.redisClient.delete(key)
+
+            # Manage downloads here
+            elif any(name in key for name in ['download_ping']):
+                task_id = key.split('_')[-1]
+
+                if task_id == 'None':
+                    GLOBALS.redisClient.delete(key)
+                else:
+                    try:
+                        timestamp = GLOBALS.redisClient.get(key)
+                        if timestamp:
+                            timestamp = datetime.fromtimestamp(float(timestamp.decode()))
+                            if datetime.utcnow() - timestamp > timedelta(minutes=10):
+                                manageDownload(task_id)
+                    except:
                         GLOBALS.redisClient.delete(key)
 
     except Exception as exc:
@@ -3196,5 +3212,99 @@ def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permissi
 
     finally:
         if celeryTask: localsession.remove()
+
+    return True
+
+def manageDownload(task_id):
+    '''Kicks off the necessary download cleanup for the specified task after the download has been abandoned.'''
+
+    check = db.session.query(Survey.id).join(Task).join(Trapgroup).join(Camera).join(Image).filter(Task.id==task_id).filter(Image.downloaded==True).first()
+    if check: resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    
+    check = db.session.query(Survey.id).join(Task).join(Trapgroup).join(Camera).join(Video).filter(Task.id==task_id).filter(Video.downloaded==True).first()
+    if check: resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def resetImageDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    '''Resets the image downloaded status to the default not-downloaded state'''
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
+
+        images = db.session.query(Image)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Image.downloaded!=False)\
+                        .all()
+
+        # for chunk in chunker(images,10000):
+        for image in images:
+            image.downloaded = False
+        db.session.commit()
+
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=False, include_frames=include_frames)
+        else:
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
+            task.status = 'Ready'
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
+
+    return True
+
+@celery.task(bind=True,max_retries=5,ignore_result=True)
+def resetVideoDownloadStatus(self,task_id,then_set,labels,include_empties, include_frames):
+    '''Resets the video downloaded status to the default not-downloaded state'''
+    
+    try:
+        task = db.session.query(Task).get(task_id)
+        if task.status=='Preparing Download': return True
+        task.status = 'Processing'
+        db.session.commit()
+
+        videos = db.session.query(Video)\
+                        .join(Camera)\
+                        .join(Trapgroup)\
+                        .filter(Trapgroup.survey==task.survey)\
+                        .filter(Video.downloaded!=False)\
+                        .all()
+        
+        for video in videos:
+            video.downloaded = False
+        db.session.commit()
+
+        if then_set:
+            setImageDownloadStatus.delay(task_id=task_id,labels=labels,include_empties=include_empties, include_video=True, include_frames=include_frames)
+        else:
+            GLOBALS.redisClient.delete(str(task.id)+'_filesToDownload')
+            task.status = 'Ready'
+            db.session.commit()
+
+    except Exception as exc:
+        app.logger.info(' ')
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(traceback.format_exc())
+        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        app.logger.info(' ')
+        self.retry(exc=exc, countdown= retryTime(self.request.retries))
+
+    finally:
+        db.session.remove()
 
     return True

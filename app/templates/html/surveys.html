@@ -160,7 +160,7 @@ limitations under the License. -->
                     <div style="font-size: 80%; margin-bottom: 2px"><i>Select the user permissions for non-admin users for this survey excluding yourself.</i></div>
                     <div class="row">
                         <div class="col-lg-4">Access:</div>
-                        <div class="col-lg-4">Job Access:</div>
+                        <div class="col-lg-4">Annotation Access:</div>
                     </div>
                     <div class="row">
                         <div class='col-lg-4'>
@@ -182,19 +182,19 @@ limitations under the License. -->
                         <div class="col-lg-4">
                             <div class="custom-control custom-checkbox">
                                 <input type="checkbox" class="custom-control-input" id="detailedAccessSurveyCb" name="detailedAccessSurveyCb">
-                                <label class="custom-control-label" for="detailedAccessSurveyCb">Add Detailed Permissions</label>
+                                <label class="custom-control-label" for="detailedAccessSurveyCb">Add Permission Exceptions</label>
                             </div>
                         </div>
                     </div>
                     <br>
 
                     <div id="detailedAccessSurveyDiv" hidden>
-                        <h5 style="margin-bottom: 2px">Detailed Permissions</h5>
-                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the users and their permissions for this survey.</i></div>
+                        <h5 style="margin-bottom: 2px">Permission Exceptions</h5>
+                        <div style="font-size: 80%; margin-bottom: 2px"><i>Select the users and their permission exceptions for this survey.</i></div>
                         <div class="row">
                             <div class="col-lg-4">User:</div>
                             <div class="col-lg-5">Access:</div>
-                            <div class="col-lg-3">Job Access:</div>
+                            <div class="col-lg-3">Annotation Access:</div>
                         </div>
                         <div id="surveyPermissionsDiv"></div>
                         <button class="btn btn-info" type="button" id="btnAddSurveyPermissionRow" onclick=buildSurveyPermissionRow()>+</button>

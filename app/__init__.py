@@ -165,7 +165,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         from app.models import Classifier
         # from flask_migrate import upgrade
         from app.functions.imports import setupDatabase
-        from app.functions.annotation import manageTasks, manageDownloads
+        from app.functions.annotation import manageTasks
         from app.functions.globals import importMonitor
         import GLOBALS
    
@@ -198,6 +198,5 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
         # importMonitor.apply_async(queue='priority', priority=0)
         # manageTasks.apply_async(queue='priority', priority=0)
-        # manageDownloads.apply_async(queue='priority', priority=0)
         # clean_up_redis.apply_async(queue='priority', priority=0)
         # print('Periodic functions initialised.')

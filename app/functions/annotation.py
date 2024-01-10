@@ -20,7 +20,7 @@ from app.functions.globals import taggingLevelSQ, addChildLabels, resolve_abando
                                     updateTaskCompletionStatus, updateLabelCompletionStatus, updateIndividualIdStatus, retryTime, chunker, \
                                     getClusterClassifications, checkForIdWork, numify_timestamp, rDets, prep_required_images, updateAllStatuses
 from app.functions.individualID import calculate_detection_similarities, generateUniqueName, cleanUpIndividuals, calculate_individual_similarities
-from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
+# from app.functions.results import resetImageDownloadStatus, resetVideoDownloadStatus
 import GLOBALS
 from sqlalchemy.sql import func, distinct, or_, alias, and_
 from sqlalchemy import desc
@@ -1785,56 +1785,56 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
 
 #     return reply
 
-@celery.task(ignore_result=True)
-def manageDownloads():
-    '''Celery task for managing image download statuses - cleans up abandoned downloads.'''
+# @celery.task(ignore_result=True)
+# def manageDownloads():
+#     '''Celery task for managing image download statuses - cleans up abandoned downloads.'''
 
-    try:
-        startTime = datetime.utcnow()
+#     try:
+#         startTime = datetime.utcnow()
 
-        tasks = [r[0] for r in db.session.query(Task.id)\
-                            .join(Survey)\
-                            .join(Organisation)\
-                            .outerjoin(UserPermissions)\
-                            .outerjoin(User,User.id==UserPermissions.user_id)\
-                            .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
-                            .join(Camera)\
-                            .join(Image)\
-                            .filter(Image.downloaded==True)\
-                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .filter(~Task.status.in_(['Processing','Preparing Download']))\
-                            .distinct().all()]
+#         tasks = [r[0] for r in db.session.query(Task.id)\
+#                             .join(Survey)\
+#                             .join(Organisation)\
+#                             .outerjoin(UserPermissions)\
+#                             .outerjoin(User,User.id==UserPermissions.user_id)\
+#                             .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
+#                             .join(Camera)\
+#                             .join(Image)\
+#                             .filter(Image.downloaded==True)\
+#                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+#                             .filter(~Task.status.in_(['Processing','Preparing Download']))\
+#                             .distinct().all()]
         
-        for task in tasks:
-            resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
+#         for task in tasks:
+#             resetImageDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
-        tasks = [r[0] for r in db.session.query(Task.id)\
-                            .join(Survey)\
-                            .join(Organisation)\
-                            .outerjoin(UserPermissions)\
-                            .outerjoin(User,User.id==UserPermissions.user_id)\
-                            .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
-                            .join(Camera)\
-                            .join(Video)\
-                            .filter(Video.downloaded==True)\
-                            .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
-                            .filter(~Task.status.in_(['Processing','Preparing Download']))\
-                            .distinct().all()]
+#         tasks = [r[0] for r in db.session.query(Task.id)\
+#                             .join(Survey)\
+#                             .join(Organisation)\
+#                             .outerjoin(UserPermissions)\
+#                             .outerjoin(User,User.id==UserPermissions.user_id)\
+#                             .join(Trapgroup, Trapgroup.survey_id==Survey.id)\
+#                             .join(Camera)\
+#                             .join(Video)\
+#                             .filter(Video.downloaded==True)\
+#                             .filter(User.last_ping>(datetime.utcnow()-timedelta(minutes=15)))\
+#                             .filter(~Task.status.in_(['Processing','Preparing Download']))\
+#                             .distinct().all()]
         
-        for task in tasks:
-            resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
+#         for task in tasks:
+#             resetVideoDownloadStatus.delay(task_id=task,then_set=False,labels=None,include_empties=None, include_frames=True)
 
-    except Exception as exc:
-        app.logger.info(' ')
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(traceback.format_exc())
-        app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        app.logger.info(' ')
+#     except Exception as exc:
+#         app.logger.info(' ')
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(traceback.format_exc())
+#         app.logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+#         app.logger.info(' ')
 
-    finally:
-        db.session.remove()
-        countdown = 120 - (datetime.utcnow()-startTime).total_seconds()
-        if countdown < 0: countdown=0
-        manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
+#     finally:
+#         db.session.remove()
+#         countdown = 120 - (datetime.utcnow()-startTime).total_seconds()
+#         if countdown < 0: countdown=0
+#         manageDownloads.apply_async(queue='priority', priority=0, countdown=countdown)
         
-    return True
+#     return True
