@@ -39,6 +39,12 @@ var prevDataSharedPage = null
 var currentDataReceivedPage = 1
 var nextDataReceivedPage = null
 var prevDataReceivedPage = null
+var currentPermissionsPage = 1
+var nextPermissionsPage = null
+var prevPermissionsPage = null
+var currentExceptionsPage = 1
+var nextExceptionsPage = null
+var prevExceptionsPage = null
 var shareOrganisation = null
 var receiveOrganisation = null
 var sharedSurveysPermissions = {}
@@ -530,7 +536,7 @@ function openDetailedAccessModal(id, username, org_id, org_name) {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             surveys = JSON.parse(this.responseText);  
-            console.log(surveys)
+            // console.log(surveys)
             globalSurveys = surveys
 
             sharedSurveysPermissions = {}
@@ -568,7 +574,7 @@ function getUsers() {
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
 
             nextUserPage = reply.next
             prevUserPage = reply.prev
@@ -615,7 +621,7 @@ function getSharedData(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
 
             nextDataSharedPage = reply.next
             prevDataSharedPage = reply.prev
@@ -667,37 +673,37 @@ function buildSharedDataTable(sharedData) {
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Organisation';
-    dataSharingTableHeadRowHeader.setAttribute('width','16%')
+    dataSharingTableHeadRowHeader.setAttribute('width','17%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Email';
-    dataSharingTableHeadRowHeader.setAttribute('width','16%')
+    dataSharingTableHeadRowHeader.setAttribute('width','17%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Surveys';
-    dataSharingTableHeadRowHeader.setAttribute('width','16%')
+    dataSharingTableHeadRowHeader.setAttribute('width','17%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'From Organisation';
-    dataSharingTableHeadRowHeader.setAttribute('width','16%')
+    dataSharingTableHeadRowHeader.setAttribute('width','17%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Default Access';
-    dataSharingTableHeadRowHeader.setAttribute('width','20%')
+    dataSharingTableHeadRowHeader.setAttribute('width','17%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
     var dataSharingTableHeadRowHeader = document.createElement('th');
     dataSharingTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
     dataSharingTableHeadRowHeader.innerText = 'Remove';
-    dataSharingTableHeadRowHeader.setAttribute('width','16%')
+    dataSharingTableHeadRowHeader.setAttribute('width','15%')
     dataSharingTableHeadRow.appendChild(dataSharingTableHeadRowHeader);
 
 
@@ -757,7 +763,7 @@ function buildSharedDataTable(sharedData) {
             slider.setAttribute("type", "range");
             slider.setAttribute("class", "custom-range");
             slider.setAttribute('style','width: 90%;')
-            slider.setAttribute("min", "1");
+            slider.setAttribute("min", "2");
             slider.setAttribute("max", "3");
             slider.setAttribute("step", "1");
             slider.setAttribute("id", "defaultAccessSlider-" + surveys[j].ss_id); 
@@ -769,20 +775,20 @@ function buildSharedDataTable(sharedData) {
             row.classList.add('row');
             dataSharingTableBodyRowData.appendChild(row)
     
-            var col0 = document.createElement('div')
-            col0.classList.add('col-lg-4');
-            col0.setAttribute('style','vertical-align: middle; text-align: left;')
-            col0.innerText = default_access[1];
-            row.appendChild(col0)
+            // var col0 = document.createElement('div')
+            // col0.classList.add('col-lg-4');
+            // col0.setAttribute('style','vertical-align: middle; text-align: left;')
+            // col0.innerText = default_access[1];
+            // row.appendChild(col0)
     
             var col1 = document.createElement('div')
-            col1.classList.add('col-lg-4');
-            col1.setAttribute('style','vertical-align: middle; text-align: center;')
+            col1.classList.add('col-lg-6');
+            col1.setAttribute('style','vertical-align: middle; text-align: left;')
             col1.innerText = default_access[2];
             row.appendChild(col1)
     
             var col2 = document.createElement('div')
-            col2.classList.add('col-lg-4');
+            col2.classList.add('col-lg-6');
             col2.setAttribute('style','vertical-align: middle; text-align: right;')
             col2.innerText = default_access[3];
             row.appendChild(col2)
@@ -793,7 +799,9 @@ function buildSharedDataTable(sharedData) {
                     shareOrganisation = shareOrgID
                     var slider_value = this.value
                     var permission_value = default_access[slider_value].toLowerCase()
-                    saveSharedSurveyPermissions(permission_value)
+                    if (permission_value == 'read' || permission_value == 'write') {
+                        saveSharedSurveyPermissions(permission_value)
+                    }
                 };
             }(surveys[j].ss_id, surveys[j].share_org_id));
 
@@ -831,7 +839,7 @@ function getDetailedAccess(worker=false){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)      
+            // console.log(reply)      
 
             var detailedAccessDiv = document.getElementById('detailedAccessDiv')
             while (detailedAccessDiv.firstChild) {
@@ -1027,7 +1035,7 @@ function getReceivedData(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
 
             nextDataReceivedPage = reply.next
             prevDataReceivedPage = reply.prev
@@ -1248,7 +1256,7 @@ function saveSharedSurveyPermissions(permission_value){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             if (reply.status == 'SUCCESS') {
                 document.getElementById('dataSharingErrors').innerHTML = '' 
             }
@@ -1338,7 +1346,7 @@ function openShareData() {
     function(){
         if (this.readyState == 4 && this.status == 200) {
             surveys = JSON.parse(this.responseText);  
-            console.log(surveys)
+            // console.log(surveys)
             globalSurveys = surveys
 
             buildShareDataRow()
@@ -1475,7 +1483,7 @@ function shareSurveys(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 document.getElementById('shareDataErrors').innerHTML = reply.message
             }
         }
@@ -1524,7 +1532,7 @@ function saveDetailedAccess(){
         function(){
             if (this.readyState == 4 && this.status == 200) {
                 reply = JSON.parse(this.responseText);
-                console.log(reply)
+                // console.log(reply)
                 document.getElementById('detailedAccessErrors').innerHTML = reply.message
                 if (reply.status == 'SUCCESS') {
                     modalDetailedAccess.modal('hide');
@@ -1622,10 +1630,6 @@ function getDetailedAccessForSave(){
         }
     }
 
-    console.log(newAccess)
-    console.log(deleteAccess)
-    console.log(editedAccess)
-
     if (valid){
         document.getElementById('detailedAccessErrors').innerHTML = ''
     }
@@ -1648,7 +1652,7 @@ function removeUserFromOrganisation(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             if (reply.status == 'SUCCESS') {
                 confirmationModal.modal('hide');
                 getUsers()
@@ -1673,7 +1677,7 @@ function removeSharedSurvey(){
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);
-            console.log(reply)
+            // console.log(reply)
             if (reply.status == 'SUCCESS') {
                 confirmationModal.modal('hide');
             }
@@ -1705,12 +1709,20 @@ function setToAdmin(){
 function getPermissions(){
     /** Gets the permissions for the current user. */
 
+    if (currentPermissionsPage == null) {
+        currentPermissionsPage = 1
+    }
+
+    if (currentExceptionsPage == null) {
+        currentExceptionsPage = 1
+    }
+
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
     function(){
         if (this.readyState == 4 && this.status == 200) {
             reply = JSON.parse(this.responseText);  
-            console.log(reply)
+            // console.log(reply)
             var user_permissions = reply.permissions
             var user_exceptions = reply.exceptions
 
@@ -1728,10 +1740,45 @@ function getPermissions(){
                 document.getElementById('permissionsPageTabs').hidden = true
             }
 
+            prevPermissionsPage = reply.prev_permissions
+            nextPermissionsPage = reply.next_permissions
+
+            if (nextPermissionsPage == null) {
+                document.getElementById('btnNextYourPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnNextYourPermissions').hidden = false
+            }
+
+            if (prevPermissionsPage == null) {
+                document.getElementById('btnPrevYourPermissions').hidden = true
+            }
+            else {
+                document.getElementById('btnPrevYourPermissions').hidden = false
+            }
+
+            prevExceptionsPage = reply.prev_exceptions
+            nextExceptionsPage = reply.next_exceptions
+
+            if (nextExceptionsPage == null) {
+                document.getElementById('btnNextExceptions').hidden = true
+            }
+            else {
+                document.getElementById('btnNextExceptions').hidden = false
+            }
+
+            if (prevExceptionsPage == null) {
+                document.getElementById('btnPrevExceptions').hidden = true
+            }
+            else {
+                document.getElementById('btnPrevExceptions').hidden = false
+            }
+
+
             buildPermissions(user_permissions, user_exceptions)
         }
     }
-    xhttp.open("GET", '/getPermissions')
+    xhttp.open("GET", '/getPermissions?pm_page='+currentPermissionsPage+'&exc_page='+currentExceptionsPage);
     xhttp.send();
 }
 
@@ -2203,6 +2250,38 @@ $('#permissionSearch').change(function(){
     else if (tabActive == 'baseDataReceivedTab') {
         currentDataReceivedPage = 1
         getReceivedData()
+    }
+});
+
+$('#btnPrevYourPermissions').click(function(){
+    /**Function for the previous permissions button. */
+    if (tabActive == 'basePermissionsTab') {
+        currentPermissionsPage = prevPermissionsPage
+        getPermissions()
+    }
+});
+
+$('#btnNextYourPermissions').click(function(){
+    /**Function for the next permissions button. */
+    if (tabActive == 'basePermissionsTab') {
+        currentPermissionsPage = nextPermissionsPage
+        getPermissions()
+    }
+});
+
+$('#btnPrevExceptions').click(function(){
+    /**Function for the previous permissions button. */
+    if (tabActive == 'basePermissionsTab') {
+        currentExceptionsPage = prevExceptionsPage
+        getPermissions()
+    }
+});
+
+$('#btnNextExceptions').click(function(){
+    /**Function for the next permissions button. */
+    if (tabActive == 'basePermissionsTab') {
+        currentExceptionsPage = nextExceptionsPage
+        getPermissions()
     }
 });
 

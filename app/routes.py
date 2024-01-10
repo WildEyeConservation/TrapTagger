@@ -11593,6 +11593,14 @@ def getPermissions():
     ''' Gets all the permissions for the current user'''
     permissions = []
     exceptions = []
+    next_permissions = None
+    prev_permissions = None
+    next_exceptions = None
+    prev_exceptions = None
+
+    page_permissions = request.args.get('pm_page', 1, type=int)
+    page_exceptions = request.args.get('exc_page', 1, type=int)
+
     if current_user and current_user.is_authenticated:
         user_permissions = db.session.query(
                                         UserPermissions.id,
@@ -11606,9 +11614,9 @@ def getPermissions():
                                     .join(Organisation)\
                                     .filter(UserPermissions.user_id==current_user.id)\
                                     .order_by(Organisation.name)\
-                                    .distinct().all()
+                                    .distinct().paginate(page_permissions, 4, False)
 
-        for user_permission in user_permissions:
+        for user_permission in user_permissions.items:
             permissions.append({
                 'id': user_permission[0],
                 'organisation': user_permission[5],
@@ -11627,10 +11635,11 @@ def getPermissions():
                                     )\
                                     .join(Survey)\
                                     .filter(SurveyPermissionException.user_id==current_user.id)\
+                                    .filter(~and_(or_(SurveyPermissionException.permission=='hidden',SurveyPermissionException.permission=='worker'),SurveyPermissionException.annotation==False))\
                                     .order_by(Survey.name)\
-                                    .distinct().all()
+                                    .distinct().paginate(page_exceptions, 4, False)
         
-        for user_exception in user_exceptions:
+        for user_exception in user_exceptions.items:
             exceptions.append({
                 'id': user_exception[0],
                 'survey': user_exception[3],
@@ -11638,7 +11647,12 @@ def getPermissions():
                 'annotation': user_exception[2]
             })
 
-    return json.dumps({'exceptions': exceptions, 'permissions': permissions})
+        next_permissions = user_permissions.next_num if user_permissions.has_next else None
+        prev_permissions = user_permissions.prev_num if user_permissions.has_prev else None
+        next_exceptions = user_exceptions.next_num if user_exceptions.has_next else None
+        prev_exceptions = user_exceptions.prev_num if user_exceptions.has_prev else None
+
+    return json.dumps({'exceptions': exceptions, 'permissions': permissions, 'next_permissions': next_permissions, 'prev_permissions': prev_permissions, 'next_exceptions': next_exceptions, 'prev_exceptions': prev_exceptions})
 
 @app.route('/getAccountInfo')
 @login_required
