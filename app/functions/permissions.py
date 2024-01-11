@@ -9,7 +9,7 @@ import traceback
 
 # TODO: CHECK THE UPDATED PERMISSION QUERIES
 def surveyPermissionsSQ(sq,user_id,requiredPermission,aliasPermission=None):
-    '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
+    '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey. Gives the user the highest permission available to them.'''
     allPermissions = ['worker','hidden','read','write','admin']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
@@ -35,7 +35,7 @@ def surveyPermissionsSQ(sq,user_id,requiredPermission,aliasPermission=None):
                 ))
 
 def checkSurveyPermission(user_id,survey_id,requiredPermission):
-    '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey.'''
+    '''Checks if a user has the required permission for a survey.'''
     allPermissions = ['worker','hidden','read','write','admin']
     requiredPermissions = allPermissions[allPermissions.index(requiredPermission):]
     ShareOrganisation = alias(Organisation)
@@ -139,9 +139,9 @@ def removeAdminNotifications(user_id, organisation_id):
 def checkDefaultAdminPermission(user_id, organisation_id):
     '''Checks if a user has admin permission for an organisation.'''
 
-    user_default = db.session.query(UserPermissions.default).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()[0]
+    user_default = db.session.query(UserPermissions.default).filter(UserPermissions.user_id==user_id).filter(UserPermissions.organisation_id==organisation_id).first()
 
-    if user_default and user_default == 'admin':
+    if user_default and user_default[0] == 'admin':
         return True
     else:
         return False
