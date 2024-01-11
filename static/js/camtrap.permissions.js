@@ -776,7 +776,7 @@ function buildSharedDataTable(sharedData) {
                 slider.setAttribute("type", "range");
                 slider.setAttribute("class", "custom-range");
                 slider.setAttribute('style','width: 90%;')
-                slider.setAttribute("min", "1");
+                slider.setAttribute("min", "2");
                 slider.setAttribute("max", "3");
                 slider.setAttribute("step", "1");
                 slider.setAttribute("id", "defaultAccessSlider-" + surveys[j].ss_id); 
@@ -788,20 +788,20 @@ function buildSharedDataTable(sharedData) {
                 row.classList.add('row');
                 dataSharingTableBodyRowData.appendChild(row)
         
-                var col0 = document.createElement('div')
-                col0.classList.add('col-lg-4');
-                col0.setAttribute('style','vertical-align: middle; text-align: left;')
-                col0.innerText = default_access[1];
-                row.appendChild(col0)
+                // var col0 = document.createElement('div')
+                // col0.classList.add('col-lg-4');
+                // col0.setAttribute('style','vertical-align: middle; text-align: left;')
+                // col0.innerText = default_access[1];
+                // row.appendChild(col0)
         
                 var col1 = document.createElement('div')
-                col1.classList.add('col-lg-4');
-                col1.setAttribute('style','vertical-align: middle; text-align: center;')
+                col1.classList.add('col-lg-6');
+                col1.setAttribute('style','vertical-align: middle; text-align: left;')
                 col1.innerText = default_access[2];
                 row.appendChild(col1)
         
                 var col2 = document.createElement('div')
-                col2.classList.add('col-lg-4');
+                col2.classList.add('col-lg-6');
                 col2.setAttribute('style','vertical-align: middle; text-align: right;')
                 col2.innerText = default_access[3];
                 row.appendChild(col2)
@@ -812,7 +812,9 @@ function buildSharedDataTable(sharedData) {
                         shareOrganisation = shareOrgID
                         var slider_value = this.value
                         var permission_value = default_access[slider_value].toLowerCase()
-                        saveSharedSurveyPermissions(permission_value)
+                        if (permission_value == 'read' || permission_value == 'write') {
+                            saveSharedSurveyPermissions(permission_value)
+                        }
                     };
                 }(surveys[j].ss_id, surveys[j].share_org_id));
     
