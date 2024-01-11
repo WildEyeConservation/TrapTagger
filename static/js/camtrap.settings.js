@@ -16,7 +16,9 @@ var globalLabels = []
 var globalOrganisations = []
 var globalERIntegrations = []
 var tabActive = 'baseAccountTab'
+var isRoot = false
 
+const modalConfirmChange = $('#modalConfirmChange')
 
 function getLabels(){
     /** Function for getting the labels from the database. */
@@ -269,7 +271,12 @@ function saveSettings(){
     /** Function for saving settings to the database. */
 
     if (tabActive == 'baseAccountTab'){
-        saveAccountInfo()
+        if (isRoot){
+            modalConfirmChange.modal({keyboard: true});
+        }
+        else {
+            saveAccountInfo()
+        }
     }
     else if (tabActive == 'baseIntegrationsTab'){
         saveIntegrations()
@@ -533,6 +540,13 @@ function getAccountInfo(){
             else{
                 document.getElementById('settingsPageTabs').hidden = true
             }
+
+            if (reply.root){
+                isRoot = true
+            }
+            else{
+                isRoot = false
+            }
         }
     }
     xhttp.open("GET", '/getAccountInfo');
@@ -625,6 +639,12 @@ function saveAccountInfo(){
         xhttp.send(formData);
     }
 }
+
+$('#btnConfirmChange').on('click', function() {
+    /** Event listener for the confirm change button. */
+    modalConfirmChange.modal('hide');
+    saveAccountInfo()
+});
 
 function onload(){
     /**Function for initialising the page on load.*/

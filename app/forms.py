@@ -17,7 +17,7 @@ limitations under the License.
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, HiddenField, IntegerField
 from wtforms.validators import DataRequired, EqualTo, ValidationError, Email
-from app.models import User
+from app.models import User, Organisation
 
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
@@ -35,8 +35,17 @@ class RegistrationForm(FlaskForm):
 
     def validate_username(self, username):
         user = User.query.filter_by(username=username.data).first()
-        if user is not None:
+        folder = username.data.lower().replace(' ','-').replace('_','-')
+        folder_check = Organisation.query.filter_by(folder=folder).first()
+        org = Organisation.query.filter_by(name=username.data).first()
+        if user is not None or folder_check is not None or org is not None:
             raise ValidationError('Please use a different username.')
+        if len(username.data) > 64:
+            raise ValidationError('Username must be less than 64 characters.')
+        disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+        disallowed = any(r in disallowed_chars for r in username.data)
+        if disallowed:
+            raise ValidationError('Username cannot contain special characters.')
 
     def validate_email(self, email):
         user = User.query.filter_by(email=email.data).first()
