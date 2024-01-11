@@ -109,6 +109,41 @@ limitations under the License. -->
     <div class='col-lg-2'></div>
 </div>
 <br>
+
+<!-- Confirmation Modal -->
+<div id="modalConfirmChange" class="modal fade" role="dialog" tabindex="-1">
+    <div class="modal-dialog">
+  
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Confirmation</h4>
+                <button id="helpx" type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <p align="justify">
+                    As a root user of your organisation, the organisation's name will be changed to the new name you have entered as well as your own username. Do you wish to continue?
+                </p>
+          
+            </div>
+            <div class='modal-footer'>
+
+                <div class='col-lg-3'>
+                    <button id="btnConfirmChange" type='button' class='btn btn-danger btn-block' 
+                    data-dismiss='modal'>Confirm</button>
+                </div>
+                <div class='col-lg-3'>
+                    <button id="confirmclose" type='button' class='btn btn-info btn-block' 
+                    data-dismiss='modal'>Close</button>
+                </div>
+
+            </div>
+        </div>
+  
+    </div>
+</div>
+
 {% endblock %}
 
 {% block page_scripts %}

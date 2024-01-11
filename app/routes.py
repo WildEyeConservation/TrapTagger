@@ -1938,8 +1938,12 @@ def newWorkerAccount(token):
 
         if username.lower() not in Config.DISALLOWED_USERNAMES:
             check = db.session.query(User).filter(or_(User.username==username,User.email==email)).first()
-
-            if check==None:
+            folder = username.lower().replace(' ','-').replace('_','-')
+            org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).first()
+            disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+            disallowed = any(r in disallowed_chars for r in username)
+            
+            if check==None and org_check==None and not disallowed and len(username)<=64:
                 password = info['password']
                 user = User(username=username, email=email, admin=False)
                 user.set_password(password)
@@ -10776,7 +10780,7 @@ def savePermissions():
                 db.session.add(notif)
 
             if org_msg != '':
-                org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default=='admin').distinct().all()]
+                org_admins = [r[0] for r in db.session.query(User.id).join(UserPermissions).filter(UserPermissions.organisation_id==organisation_id).filter(UserPermissions.default=='admin').filter(User.id!=user_id).distinct().all()]    
                 for org_admin in org_admins:
                     notif = Notification(user_id=org_admin, contents=org_msg, seen=False)
                     db.session.add(notif)
@@ -11699,6 +11703,11 @@ def getAccountInfo():
         else:
             info['cloud_access'] = False
 
+        if current_user.root_organisation:
+            info['root'] = True
+        else:
+            info['root'] = False
+
     return json.dumps(info)
 
 @app.route('/saveAccountInfo', methods=['POST'])
@@ -11714,26 +11723,41 @@ def saveAccountInfo():
     if current_user and current_user.is_authenticated:
         if current_user.username != username:
             check = db.session.query(User).filter(User.username==username).first()
-            if check:
-                return json.dumps({'status': 'FAILURE', 'message': 'Username already exists.'})
+            folder = username.lower().replace(' ','-').replace('_','-')
+            if current_user.root_organisation:
+                org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).filter(Organisation.id!=current_user.root_organisation.id).first()
             else:
+                org_check = db.session.query(Organisation).filter(or_(func.lower(Organisation.name)==username.lower(), Organisation.folder==folder)).first()
+            disallowed_chars = '"[@!#$%^&*()<>?/\|}{~:]' + "'"
+            disallowed = any(r in disallowed_chars for r in username)
+
+            if not check and not org_check and not disallowed and username.lower() not in Config.DISALLOWED_USERNAMES and len(username) > 0 and len(username) < 64:
                 current_user.username = username
+                if current_user.root_organisation:
+                    current_user.root_organisation.name = username
+
                 db.session.commit()
                 status = 'SUCCESS'
                 message = 'Username updated successfully.'
+            else:
+                return json.dumps({'status': 'FAILURE', 'message': 'Please use a different username.'})
 
         if current_user.email != email:
-            email_token = jwt.encode({'email': email, 'user_id': current_user.id}, app.config['SECRET_KEY'], algorithm='HS256')
-            url = 'https://'+Config.DNS+'/confirmEmail/'+email_token
-            
-            send_email('[TrapTagger] Email Verification',
-            sender=app.config['ADMINS'][0],
-            recipients=[email],
-            text_body=render_template('email/emailVerification.txt',username=current_user.username, url=url),
-            html_body=render_template('email/emailVerification.html',username=current_user.username, url=url))
+            check = db.session.query(User).filter(User.email==email).first()
+            if check:
+                return json.dumps({'status': 'FAILURE', 'message': 'Please use a different email address.'})
+            else:
+                email_token = jwt.encode({'email': email, 'user_id': current_user.id, 'exp': (datetime.utcnow()-datetime(1970,1,1)+timedelta(minutes=30)).total_seconds()}, app.config['SECRET_KEY'], algorithm='HS256')
+                url = 'https://'+Config.DNS+'/confirmEmail/'+email_token
+                
+                send_email('[TrapTagger] Email Verification',
+                sender=app.config['ADMINS'][0],
+                recipients=[email],
+                text_body=render_template('email/emailVerification.txt',username=current_user.username, url=url),
+                html_body=render_template('email/emailVerification.html',username=current_user.username, url=url))
 
-            status = 'PENDING'
-            message += ' Email confirmation sent to new email address.'
+                status = 'PENDING'
+                message += ' Email confirmation sent to new email address.'
 
     else:
         status = 'FAILURE'
@@ -11742,19 +11766,29 @@ def saveAccountInfo():
     return json.dumps({'status': status, 'message': message})
 
 @app.route('/confirmEmail/<token>')
+@login_required
 def confirmEmail(token):
     ''' Confirms the current user's email address '''
     try:
         data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         email = data['email']
         user_id = data['user_id']
-
-        if current_user and current_user.is_authenticated and current_user.id == user_id:
-            current_user.email = email
-            db.session.commit()
-            flash('Email address confirmed successfully.')
+        expiry = data['exp']
+        current_time = (datetime.utcnow()-datetime(1970,1,1)).total_seconds()
+        if current_time<expiry:
+            user = db.session.query(User).get(user_id)
+            email_check = db.session.query(User).filter(User.email==email).first()
+            if current_user and current_user.is_authenticated and current_user.id == user_id:
+                if user and user.email != email and not email_check:
+                    user.email = email
+                    db.session.commit()
+                    flash('Email address changed successfully.')
+                else:
+                    flash('Unable to confirm email address.')
+            else:
+                flash('Please login and click the link to confirm email address.')
         else:
-            flash('Unable to confirm email address.')
+            flash('Token expired. Please make a new email-change request.')
     except:
         flash('Unable to confirm email address.')
 
