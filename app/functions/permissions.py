@@ -7,7 +7,6 @@ from sqlalchemy import desc
 from config import Config
 import traceback
 
-# TODO: CHECK THE UPDATED PERMISSION QUERIES
 def surveyPermissionsSQ(sq,user_id,requiredPermission,aliasPermission=None):
     '''Adds the necessary SQLAlchemy filters to check if a user has the required permission for a survey. Gives the user the highest permission available to them.'''
     allPermissions = ['worker','hidden','read','write','admin']

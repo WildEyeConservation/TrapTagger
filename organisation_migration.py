@@ -8,7 +8,7 @@ for user in users:
     for survey in user.surveys:
         survey.organisation_id = organisation.id
     user.surveys = []
-    userPermissions = UserPermissions(organisation_id=organisation.id, user_id=user.id, delete=True, create=True, annotation=True, default='write')
+    userPermissions = UserPermissions(organisation_id=organisation.id, user_id=user.id, delete=True, create=True, annotation=True, default='admin')
     db.session.add(userPermissions)
     for worker in user.workers:
         userPermissions = UserPermissions(organisation_id=organisation.id, user_id=worker.id, delete=False, create=False, annotation=True, default='worker')
