@@ -3218,11 +3218,9 @@ def setup_new_survey_permissions(self,survey_id,organisation_id,user_id,permissi
 def manageDownload(task_id):
     '''Kicks off the necessary download cleanup for the specified task after the download has been abandoned.'''
 
-    check = db.session.query(Survey.id).join(Task).join(Trapgroup).join(Camera).join(Image).filter(Task.id==task_id).filter(Image.downloaded==True).first()
-    if check: resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
-    
-    check = db.session.query(Survey.id).join(Task).join(Trapgroup).join(Camera).join(Video).filter(Task.id==task_id).filter(Video.downloaded==True).first()
-    if check: resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+    GLOBALS.redisClient.delete('download_ping_'+str(task_id))
     
     return True
 

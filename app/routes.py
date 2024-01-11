@@ -8846,9 +8846,7 @@ def download_complete():
     task = db.session.query(Task).get(task_id)
     # if task and (task.survey.user==current_user):
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        GLOBALS.redisClient.set('download_ping_'+str(task_id),datetime.utcnow().timestamp())
-        resetImageDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
-        resetVideoDownloadStatus.delay(task_id=task_id,then_set=False,labels=None,include_empties=None, include_frames=True)
+        manageDownload(task_id)
         return json.dumps('success')
     
     return json.dumps('error')
@@ -8861,7 +8859,7 @@ def check_download_available():
     task_id = request.json['task_id']
     task = db.session.query(Task).get(task_id)
     if task and checkSurveyPermission(current_user.id,task.survey_id,'read'):
-        check = GLOBALS.redisClient.get('download_ping_'+str(task_id))
+        check = db.session.query(Trapgroup.id).join(Camera).join(Image).outerjoin(Video).filter(Trapgroup.survey_id==task.survey_id).filter(or_(Image.downloaded==True,Video.downloaded==True)).first()
         if check:
             return json.dumps('unavailable')
         else:
