@@ -163,7 +163,7 @@ function buildUserTable(users) {
     
         var userTableHeadRowHeader = document.createElement('th');
         userTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
-        userTableHeadRowHeader.innerText = 'Survey Deletion';
+        userTableHeadRowHeader.innerText = 'Deletion';
         userTableHeadRowHeader.setAttribute('width','8%')
         userTableHeadRow.appendChild(userTableHeadRowHeader);
     
@@ -390,7 +390,7 @@ function buildUserTable(users) {
                     };
                 }(users[i].id, user_permissions[j].organisation_id, user_permissions[j].default));
     
-                // Survey Deletion
+                // Deletion
                 var userTableBodyRowData = document.createElement('td');
                 userTableBodyRowData.setAttribute('class','text-center')
                 userTableBodyRowData.setAttribute('style','vertical-align: middle;')
@@ -1859,7 +1859,7 @@ function buildPermissions(user_permissions, user_exceptions){
 
     var defaultPermissionsTableHeadRowHeader = document.createElement('th');
     defaultPermissionsTableHeadRowHeader.setAttribute('style','vertical-align: middle;')
-    defaultPermissionsTableHeadRowHeader.innerText = 'Survey Deletion';
+    defaultPermissionsTableHeadRowHeader.innerText = 'Deletion';
     defaultPermissionsTableHeadRowHeader.setAttribute('width','10%')
     defaultPermissionsTableHeadRow.appendChild(defaultPermissionsTableHeadRowHeader);
 
@@ -1996,7 +1996,7 @@ function buildPermissions(user_permissions, user_exceptions){
 
         defaultPermissionsTableBodyRow.appendChild(defaultPermissionsTableBodyRowData);
 
-        // Survey Deletion
+        // Deletion
         var defaultPermissionsTableBodyRowData = document.createElement('td');
         defaultPermissionsTableBodyRowData.setAttribute('style','vertical-align: middle;')
 
