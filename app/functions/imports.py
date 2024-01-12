@@ -1998,7 +1998,7 @@ def remove_duplicate_videos(survey_id):
     duplicates = db.session.query(Video.hash)\
                     .join(Camera)\
                     .join(Trapgroup)\
-                    .join(sq,sq.c.hash==Video.hash)
+                    .join(sq,sq.c.hash==Video.hash)\
                     .filter(Trapgroup.survey_id==survey_id)\
                     .filter(sq.c.count>1)\
                     .filter(Video.hash!=None)\
