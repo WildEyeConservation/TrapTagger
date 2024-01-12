@@ -245,7 +245,8 @@ function pauseUpload() {
     uppy.cancelAll()
     resetUploadStatusVariables()
     uploadWorker.postMessage({'func': 'resetUploadStatusVariables', 'args': null});
-    updatePage(current_page)
+    // updatePage(current_page)
+    location.reload()
 }
 
 function getTimeRemaining(value,total) {
