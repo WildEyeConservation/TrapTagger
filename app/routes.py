@@ -1160,13 +1160,20 @@ def updateSurveyStatus(survey_id, status):
         userPermissions = db.session.query(UserPermissions).filter(UserPermissions.organisation_id==survey.organisation_id).filter(UserPermissions.user_id==current_user.id).first()
 
         if userPermissions and userPermissions.create:
-            survey.status = status
-            db.session.commit()
+
             if status == 'Import Queued':
-                GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
-                GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
-                import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
-    
+                if survey.status == 'Uploading':
+                    survey.status = status
+                    db.session.commit()
+                    GLOBALS.redisClient.delete('upload_ping_'+str(survey_id))
+                    GLOBALS.redisClient.delete('upload_user_'+str(survey_id))
+                    import_survey.delay(s3Folder=survey.name,surveyName=survey.name,tag=survey.trapgroup_code,organisation_id=survey.organisation_id,correctTimestamps=survey.correct_timestamps,classifier=survey.classifier.name)
+                else:
+                    return json.dumps('error')
+            else:
+                survey.status = status
+                db.session.commit()
+
     return json.dumps('')
 
 @app.route('/checkSightingEditStatus', methods=['POST'])

@@ -1862,14 +1862,22 @@ def s3traverse(bucket,prefix):
             yield prefix, prefixes, contents
 
 def delete_duplicate_videos(videos,skip):
-    '''Helper function for remove_duplicate_videos that deletes the specified video objects and their detections from the database.'''
+    '''
+    Helper function for remove_duplicate_videos that deletes the specified video objects and their detections from the database.
+    Skip is a boolean that indicates whether the frame deletion will be skipped.
+    '''
 
-    # If adding images - delete the new imports rather than the old ones
-    if skip:
-        candidateVideos = videos
-    else:
-        candidateVideos = db.session.query(Video).join(Camera).join(Image).filter(~Image.clusters.any()).filter(Video.id.in_(videos)).distinct().all()
-        if len(candidateVideos) == len(videos): candidateVideos = candidateVideos[1:]
+    # Delete the new imports rather than the old ones
+    candidateVideos = db.session.query(Video).join(Camera).outerjoin(Image).filter(or_(~Image.clusters.any(),Image.id==None)).filter(Video.id.in_(videos)).order_by(Video.id).distinct().all()
+    
+    if len(candidateVideos) == len(videos):
+        # all are unclustered/unimported - delete all but one
+        candidateVideos = candidateVideos[1:]
+
+    elif len(candidateVideos) < (len(videos)-1):
+        # some are clustered/imported
+        importedVideos = db.session.query(Video).join(Camera).outerjoin(Image).filter(or_(Image.clusters.any(),Image.id!=None)).filter(Video.id.in_(videos)).order_by(Video.id).distinct().all()
+        candidateVideos.extend(importedVideos[1:])
 
     for video in candidateVideos:
         if not skip:
@@ -1886,7 +1894,25 @@ def delete_duplicate_videos(videos,skip):
             video_key = '/'.join(path_splits) + '/' +  video_name + '.mp4'
             GLOBALS.s3client.delete_object(Bucket=Config.BUCKET,Key=video_key)
 
-        # delete from db
+        # delete from db (frames shoudln't be imported yet, but just in case)
+        for image in video.camera.images:
+            for detection in image.detections:
+
+                for labelgroup in detection.labelgroups:
+                    labelgroup.labels = []
+                    labelgroup.tags = []
+                    db.session.delete(labelgroup)
+                
+                detSimilarities = db.session.query(DetSimilarity).filter(or_(DetSimilarity.detection_1==detection.id,DetSimilarity.detection_2==detection.id)).all()
+                for detSimilarity in detSimilarities:
+                    db.session.delete(detSimilarity)
+                
+                detection.individuals = []
+                db.session.delete(detection)
+            
+            image.clusters = []
+            db.session.delete(image)
+
         db.session.delete(video.camera)
         db.session.delete(video)
     
@@ -1933,26 +1959,10 @@ def delete_duplicate_images(images):
 def remove_duplicate_videos(survey_id):
     '''Removes all duplicate videos by hash in the database. Required after import was parallelised.'''
 
-    # Remove according to hashes
-    sq = db.session.query(Video.hash.label('hash'),func.count(distinct(Video.id)).label('count'))\
-                    .join(Camera)\
-                    .join(Trapgroup)\
-                    .filter(Trapgroup.survey_id==survey_id)\
-                    .group_by(Video.hash)\
-                    .subquery()
-
-    duplicates = db.session.query(Video.hash).join(sq,sq.c.hash==Video.hash).filter(sq.c.count>1).filter(Video.hash!=None).distinct().all()
-
-    for hash in duplicates:
-        videos = [r[0] for r in db.session.query(Video.id)\
-                    .join(Camera)\
-                    .join(Trapgroup)\
-                    .filter(Trapgroup.survey_id==survey_id)\
-                    .filter(Video.hash==hash[0])\
-                    .all()]
-        delete_duplicate_videos(videos,False)
-
-    # Double check that there are no duplicate objects for the same paths
+    # First delete duplicate videos with duplicate paths. This shouldn't happen unless there is a simultaneous import
+    # But if it does happen we want to catch it. In such cases, we don't want to delete the associated frames.
+    # Moreover, this must happen first because otherwise these duplicates will be removed in the following routine, 
+    # and the frames will be removed.
     sq = db.session.query(Camera.path.label('path'),func.count(distinct(Camera.id)).label('count'))\
                         .join(Video)\
                         .join(Trapgroup)\
@@ -1976,6 +1986,32 @@ def remove_duplicate_videos(survey_id):
                     .filter(Camera.path==path[0])\
                     .all()]
         delete_duplicate_videos(videos,True)
+
+    # Next, remove according to hashes and remove the frames at the same time so that they aren't imported in the image import routine
+    sq = db.session.query(Video.hash.label('hash'),func.count(distinct(Video.id)).label('count'))\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .group_by(Video.hash)\
+                    .subquery()
+
+    duplicates = db.session.query(Video.hash)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .join(sq,sq.c.hash==Video.hash)
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .filter(sq.c.count>1)\
+                    .filter(Video.hash!=None)\
+                    .distinct().all()
+
+    for hash in duplicates:
+        videos = [r[0] for r in db.session.query(Video.id)\
+                    .join(Camera)\
+                    .join(Trapgroup)\
+                    .filter(Trapgroup.survey_id==survey_id)\
+                    .filter(Video.hash==hash[0])\
+                    .all()]
+        delete_duplicate_videos(videos,False)
 
     db.session.commit()
     db.session.remove()
